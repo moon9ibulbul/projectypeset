@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name">AstralTyper</string>
+    <string name="new_project">New Project</string>
+    <string name="open_project">Open Project</string>
+    <string name="import_image">Import Image</string>
+    <string name="create">Create</string>
+    <string name="cancel">Cancel</string>
+    <string name="width">Width</string>
+    <string name="height">Height</string>
+    <string name="background_color">Background Color</string>
+    <string name="transparent">Transparent</string>
+
+    <!-- Editor Strings -->
+    <string name="enter_text">Enter text</string>
+    <string name="style">Style</string>
+    <string name="font">Font</string>
+    <string name="format">Format</string>
+    <string name="color">Color</string>
+    <string name="stroke">Stroke</string>
+    <string name="background">Background</string>
+    <string name="spacing">Spacing</string>
+    <string name="position">Position</string>
+    <string name="perspective">Perspective</string>
+    <string name="warp">Warp</string>
+    <string name="shadow">Shadow</string>
+    <string name="gradation">Gradation</string>
+    <string name="texture">Texture</string>
+    <string name="opacity">Opacity</string>
+    <string name="eraser">Eraser</string>
+    <string name="effect">Effect</string>
+</resources>
