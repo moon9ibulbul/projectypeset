@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.text.LineBreaker
 import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.StaticLayout
@@ -18,6 +19,7 @@ class TextLayer(
     var fontSize: Float = 100f
     var typeface: Typeface = Typeface.DEFAULT
     var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
+    var isJustified: Boolean = false
 
     // Advanced Properties
     var opacity: Int = 255 // 0-255
@@ -80,9 +82,15 @@ class TextLayer(
         }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            cachedLayout = StaticLayout.Builder.obtain(
+            val builder = StaticLayout.Builder.obtain(
                 text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
-            ).setAlignment(textAlign).build()
+            ).setAlignment(textAlign)
+
+            if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                builder.setJustificationMode(LineBreaker.JUSTIFICATION_MODE_INTER_WORD)
+            }
+
+            cachedLayout = builder.build()
         } else {
             cachedLayout = StaticLayout(
                 text, textPaint, layoutWidth.coerceAtLeast(10),
