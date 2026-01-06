@@ -4,16 +4,22 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.text.LineBreaker
+import android.text.Layout
+import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
 
 class TextLayer(
-    var text: String = "Double tap to edit",
+    initialText: String = "Double tap to edit",
     var color: Int = Color.BLACK
 ) : Layer() {
 
+    var text: SpannableStringBuilder = SpannableStringBuilder(initialText)
     var fontSize: Float = 100f
     var typeface: Typeface = Typeface.DEFAULT
+    var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
+    var isJustified: Boolean = false
 
     // Advanced Properties
     var opacity: Int = 255 // 0-255
@@ -29,10 +35,6 @@ class TextLayer(
 
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
-
-    // We can allow custom width for text wrapping, or wrap content
-    // For MVP, let's just use single line or simple wrap
-    private var maxWidth: Int = 1000
 
     // Custom width for wrapping. If null or <=0, it wraps at maxWidth or fits content
     var boxWidth: Float? = null
@@ -59,9 +61,9 @@ class TextLayer(
             textPaint.clearShadowLayer()
         }
 
-        // Gradient
+        // Gradient (Note: Gradient might behave oddly with Spans that change color)
         if (isGradient) {
-            val width = textPaint.measureText(text)
+            val width = StaticLayout.getDesiredWidth(text, textPaint)
             textPaint.shader = android.graphics.LinearGradient(
                 0f, 0f, width, 0f,
                 gradientStartColor, gradientEndColor,
@@ -71,19 +73,30 @@ class TextLayer(
             textPaint.shader = null
         }
 
-        // Simple measurement for now
-        val measuredWidth = textPaint.measureText(text)
+        val desiredWidth = StaticLayout.getDesiredWidth(text, textPaint)
 
         val layoutWidth = if (boxWidth != null && boxWidth!! > 0) {
             boxWidth!!.toInt()
         } else {
-            measuredWidth.toInt() + 10
+            desiredWidth.toInt() + 10
         }
 
-        // TODO: Use StaticLayout.Builder for API 23+ properly
-        cachedLayout = android.text.StaticLayout.Builder.obtain(
-            text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
-        ).build()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val builder = StaticLayout.Builder.obtain(
+                text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
+            ).setAlignment(textAlign)
+
+            if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                builder.setJustificationMode(LineBreaker.JUSTIFICATION_MODE_INTER_WORD)
+            }
+
+            cachedLayout = builder.build()
+        } else {
+            cachedLayout = StaticLayout(
+                text, textPaint, layoutWidth.coerceAtLeast(10),
+                textAlign, 1.0f, 0.0f, false
+            )
+        }
     }
 
     override fun draw(canvas: Canvas) {
