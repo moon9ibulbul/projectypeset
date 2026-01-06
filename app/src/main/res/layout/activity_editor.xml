@@ -109,6 +109,14 @@
                 android:padding="16dp">
 
                 <Button
+                    android:id="@+id/btnPropQuickEdit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Quick Edit"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
+                <Button
                     android:id="@+id/btnPropStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -141,6 +149,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/stroke"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
+                  <Button
+                    android:id="@+id/btnPropDoubleStroke"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Double Stroke"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
 

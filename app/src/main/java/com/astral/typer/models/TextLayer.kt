@@ -33,6 +33,12 @@ class TextLayer(
     var gradientStartColor: Int = Color.RED
     var gradientEndColor: Int = Color.BLUE
 
+    // Stroke
+    var strokeColor: Int = Color.BLACK
+    var strokeWidth: Float = 0f
+    var doubleStrokeColor: Int = Color.WHITE
+    var doubleStrokeWidth: Float = 0f
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -101,6 +107,8 @@ class TextLayer(
 
     override fun draw(canvas: Canvas) {
         ensureLayout()
+        val layout = cachedLayout ?: return
+        val paint = layout.paint
 
         canvas.save()
         canvas.translate(x, y)
@@ -112,7 +120,49 @@ class TextLayer(
         val h = getHeight()
         canvas.translate(-w / 2f, -h / 2f)
 
-        cachedLayout?.draw(canvas)
+        // 1. Double Stroke (Outer)
+        if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
+            paint.color = doubleStrokeColor
+            paint.shader = null
+            paint.clearShadowLayer()
+            layout.draw(canvas)
+        }
+
+        // 2. Stroke (Inner)
+        if (strokeWidth > 0f) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = strokeWidth
+            paint.color = strokeColor
+            paint.shader = null
+            paint.clearShadowLayer()
+            layout.draw(canvas)
+        }
+
+        // 3. Fill
+        paint.style = Paint.Style.FILL
+        paint.color = color
+        paint.strokeWidth = 0f
+
+        if (isGradient) {
+            val width = layout.width.toFloat()
+            paint.shader = android.graphics.LinearGradient(
+                0f, 0f, width, 0f,
+                gradientStartColor, gradientEndColor,
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        } else {
+            paint.shader = null
+        }
+
+        if (shadowRadius > 0) {
+            paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+        } else {
+            paint.clearShadowLayer()
+        }
+
+        layout.draw(canvas)
 
         canvas.restore()
     }
