@@ -708,7 +708,7 @@ class EditorActivity : AppCompatActivity() {
                                      // Ideally implement Recycler View but for now this patches the lag.
                                      for (i in limit until filtered.size) {
                                          val font = filtered[i]
-                                         val itemLayout = LinearLayout(this).apply {
+                                         val itemLayout = LinearLayout(this@EditorActivity).apply {
                                              orientation = LinearLayout.HORIZONTAL
                                              setPadding(16, 16, 16, 16)
                                              gravity = Gravity.CENTER_VERTICAL
@@ -733,7 +733,7 @@ class EditorActivity : AppCompatActivity() {
                                              }
                                          }
 
-                                         val tvName = TextView(this).apply {
+                                         val tvName = TextView(this@EditorActivity).apply {
                                              text = font.name
                                              typeface = font.typeface
                                              textSize = 16f
@@ -744,7 +744,7 @@ class EditorActivity : AppCompatActivity() {
                                              layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                                          }
 
-                                         val btnStar = TextView(this).apply {
+                                         val btnStar = TextView(this@EditorActivity).apply {
                                              text = if (font.isFavorite) "★" else "☆"
                                              setTextColor(Color.YELLOW)
                                              textSize = 24f
