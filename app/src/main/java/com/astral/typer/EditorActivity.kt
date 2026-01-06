@@ -996,7 +996,7 @@ class EditorActivity : AppCompatActivity() {
             ))
 
             // Angle (0-360)
-            val currentAngle = Math.toDegrees(atan2(layer.shadowDy.toDouble(), layer.shadowDx.toDouble())).toInt().let {
+            val currentAngle = Math.toDegrees(Math.atan2(layer.shadowDy.toDouble(), layer.shadowDx.toDouble())).toInt().let {
                 if (it < 0) it + 360 else it
             }
             layout.addView(createSlider("Blur Direction (Angle): $currentAngle°", currentAngle, 360) { angle ->
@@ -1012,7 +1012,7 @@ class EditorActivity : AppCompatActivity() {
             // Strength (Distance)
             val currentDist = kotlin.math.sqrt(layer.shadowDx*layer.shadowDx + layer.shadowDy*layer.shadowDy).toInt()
             layout.addView(createSlider("Blur Strength (Distance)", currentDist, 200) { dist ->
-                 val angleRad = atan2(layer.shadowDy.toDouble(), layer.shadowDx.toDouble())
+                 val angleRad = Math.atan2(layer.shadowDy.toDouble(), layer.shadowDx.toDouble())
                  layer.shadowDx = (dist * Math.cos(angleRad)).toFloat()
                  layer.shadowDy = (dist * Math.sin(angleRad)).toFloat()
                  canvasView.invalidate()
