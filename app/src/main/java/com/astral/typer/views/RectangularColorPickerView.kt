@@ -31,6 +31,15 @@ class RectangularColorPickerView @JvmOverloads constructor(
 
     var onColorChangedListener: ((Int) -> Unit)? = null
 
+    fun setColor(color: Int) {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        hue = hsv[0]
+        sat = hsv[1]
+        `val` = hsv[2]
+        invalidate()
+    }
+
     // Hue Slider colors (Top to Bottom)
     // Red -> Magenta -> Blue -> Cyan -> Green -> Yellow -> Red
     // Standard HSV progression

@@ -134,6 +134,7 @@ object ColorPickerHelper {
         // Picker
         val wheel = RectangularColorPickerView(context).apply {
             layoutParams = LinearLayout.LayoutParams(dpToPx(context, 250), dpToPx(context, 200))
+            setColor(initialColor)
         }
 
         // Hex Input
@@ -155,24 +156,33 @@ object ColorPickerHelper {
              if (!hexInput.hasFocus()) {
                 hexInput.setText(hex)
              }
-             // Realtime update? Or on dismiss? Usually realtime for editor.
-             // But for New Project dialog, we might want "OK" button?
-             // The prompt says "Ubah color picker di menu awal... menjadi rectangular...".
-             // It doesn't specify if it needs buttons.
-             // Editor updates realtime. Let's make this dialog update the callback realtime too?
-             // But usually dialogs have OK/Cancel.
-             // Let's add OK/Cancel to be safe for a Dialog.
         }
+
+        // Hex TextWatcher
+        hexInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                if (hexInput.hasFocus()) {
+                    try {
+                        val colorStr = s.toString()
+                        if (colorStr.length >= 7) {
+                            val newColor = Color.parseColor(colorStr)
+                            currentColor = newColor
+                            wheel.setColor(newColor)
+                        }
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
 
         // Palette
         val palette = createPaletteView(context, { color ->
              // On palette click
              currentColor = color
-             // Update Picker visual is hard without exposing method.
-             // Assuming Picker updates if we re-set something?
-             // RectangularColorPickerView likely needs a method `setColor`.
-             // If not available, we can't update the view, but we update the value.
-             // Let's assume we can just update the hex and value.
+             wheel.setColor(color)
              val hex = String.format("#%06X", (0xFFFFFF and color))
              hexInput.setText(hex)
         }, { currentColor })
