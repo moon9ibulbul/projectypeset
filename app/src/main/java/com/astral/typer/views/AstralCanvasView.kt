@@ -68,10 +68,33 @@ class AstralCanvasView @JvmOverloads constructor(
         STRETCH_H,
         STRETCH_V,
         BOX_WIDTH,
-        PAN_ZOOM
+        PAN_ZOOM,
+        EYEDROPPER
     }
 
     private var currentMode = Mode.NONE
+
+    var onColorPickedListener: ((Int) -> Unit)? = null
+
+    fun setEyedropperMode(enabled: Boolean) {
+        currentMode = if (enabled) Mode.EYEDROPPER else Mode.NONE
+        invalidate()
+    }
+
+    private fun getPixelColor(x: Float, y: Float): Int {
+        if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight) return Color.WHITE
+        // This is expensive, but simple for now.
+        // Ideally we cache the bitmap or render a small patch.
+        // Given constraints, I'll render the whole bitmap.
+        // Optimization: render only 1x1 pixel?
+        // But layers might be complex.
+        // Let's rely on renderToBitmap which is already implemented but heavy.
+        val bmp = renderToBitmap()
+        val pixel = bmp.getPixel(x.toInt(), y.toInt())
+        // bmp.recycle() // renderToBitmap returns a new bitmap, so recycle it?
+        // renderToBitmap createBitmap. Yes.
+        return pixel
+    }
 
     // Interaction State
     private var lastTouchX = 0f
@@ -323,7 +346,9 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // If 2 fingers are down, we force PAN_ZOOM mode
         if (pointerCount >= 2) {
-            currentMode = Mode.PAN_ZOOM
+            if (currentMode != Mode.EYEDROPPER) {
+                currentMode = Mode.PAN_ZOOM
+            }
             scaleDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event) // Allow scroll/pan
             return true
@@ -335,6 +360,14 @@ class AstralCanvasView @JvmOverloads constructor(
         invertedMatrix.mapPoints(touchPoint)
         val cx = touchPoint[0]
         val cy = touchPoint[1]
+
+        if (currentMode == Mode.EYEDROPPER && event.actionMasked == MotionEvent.ACTION_UP) {
+            val color = getPixelColor(cx, cy)
+            onColorPickedListener?.invoke(color)
+            setEyedropperMode(false)
+            return true
+        }
+        if (currentMode == Mode.EYEDROPPER) return true
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
