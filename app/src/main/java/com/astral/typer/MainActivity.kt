@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.astral.typer.databinding.ActivityMainBinding
 import com.astral.typer.databinding.DialogNewProjectBinding
+import com.astral.typer.utils.ColorPickerHelper
 
 class MainActivity : AppCompatActivity() {
 
@@ -66,84 +67,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showColorPickerDialog(initialColor: Int, onColorSelected: (Int) -> Unit) {
-        val dialogView = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(50, 50, 50, 50)
-        }
-
-        val previewView = android.view.View(this).apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 200
-            ).apply { bottomMargin = 30 }
-            setBackgroundColor(initialColor)
-        }
-        dialogView.addView(previewView)
-
-        val hexInput = android.widget.EditText(this).apply {
-            hint = "#RRGGBB"
-            setText(String.format("#%06X", (0xFFFFFF and initialColor)))
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-        }
-        dialogView.addView(hexInput)
-
-        var currentColor = initialColor
-
-        val seekBars = mutableListOf<android.widget.SeekBar>()
-        val colors = listOf("Red" to Color.red(initialColor), "Green" to Color.green(initialColor), "Blue" to Color.blue(initialColor))
-
-        colors.forEachIndexed { index, (name, value) ->
-            val label = android.widget.TextView(this).apply { text = name }
-            dialogView.addView(label)
-            val seekBar = android.widget.SeekBar(this).apply {
-                max = 255
-                progress = value
-                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(p0: android.widget.SeekBar?, p1: Int, p2: Boolean) {
-                        val r = seekBars[0].progress
-                        val g = seekBars[1].progress
-                        val b = seekBars[2].progress
-                        val newColor = Color.rgb(r, g, b)
-                        currentColor = newColor
-                        previewView.setBackgroundColor(newColor)
-                        if (p2) { // Only update text if user moved slider
-                             hexInput.setText(String.format("#%06X", (0xFFFFFF and newColor)))
-                        }
-                    }
-                    override fun onStartTrackingTouch(p0: android.widget.SeekBar?) {}
-                    override fun onStopTrackingTouch(p0: android.widget.SeekBar?) {}
-                })
-            }
-            seekBars.add(seekBar)
-            dialogView.addView(seekBar)
-        }
-
-        // Handle Hex Input
-        hexInput.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
-                try {
-                    val colorStr = s.toString()
-                    if (colorStr.length >= 7) { // #RRGGBB
-                        val newColor = Color.parseColor(colorStr)
-                        currentColor = newColor
-                        previewView.setBackgroundColor(newColor)
-                        seekBars[0].progress = Color.red(newColor)
-                        seekBars[1].progress = Color.green(newColor)
-                        seekBars[2].progress = Color.blue(newColor)
-                    }
-                } catch (e: Exception) {
-                    // Ignore invalid hex
-                }
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        AlertDialog.Builder(this)
-            .setTitle("Pick Color")
-            .setView(dialogView)
-            .setPositiveButton("Select") { _, _ -> onColorSelected(currentColor) }
-            .setNegativeButton("Cancel", null)
-            .show()
+        ColorPickerHelper.show(this, initialColor, onColorSelected)
     }
 
     private fun showNewProjectDialog() {

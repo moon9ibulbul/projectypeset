@@ -28,6 +28,11 @@ class TextLayer(
     var shadowDx: Float = 0f
     var shadowDy: Float = 0f
 
+    // Motion Shadow
+    var isMotionShadow: Boolean = false
+    var motionShadowAngle: Int = 0
+    var motionShadowDistance: Float = 0f
+
     // Gradient
     var isGradient: Boolean = false
     var gradientStartColor: Int = Color.RED
@@ -210,10 +215,89 @@ class TextLayer(
             paint.shader = null
         }
 
-        if (shadowRadius > 0) {
+        if (shadowRadius > 0 && !isMotionShadow) {
             paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
         } else {
             paint.clearShadowLayer()
+        }
+
+        if (isMotionShadow && motionShadowDistance > 0) {
+             // Simulate Motion Blur by drawing multiple times along the angle
+             paint.clearShadowLayer()
+             val originalAlpha = paint.alpha
+             val passes = 20
+             val step = motionShadowDistance / passes
+             val rad = Math.toRadians(motionShadowAngle.toDouble())
+             val dxStep = (step * Math.cos(rad)).toFloat()
+             val dyStep = (step * Math.sin(rad)).toFloat()
+
+             // Center the blur? Or trail? User said "meregang ke dua arah berlawanan" -> Stretching in two opposite directions.
+             // This implies centering the blur on the object.
+
+             paint.color = shadowColor
+             paint.style = Paint.Style.FILL
+             paint.shader = null
+             // Low alpha for accumulation
+             paint.alpha = (50 * (opacity / 255f)).toInt().coerceIn(0, 255)
+
+             canvas.save()
+             // Start from -distance/2
+             val startX = -(motionShadowDistance / 2f) * Math.cos(rad).toFloat()
+             val startY = -(motionShadowDistance / 2f) * Math.sin(rad).toFloat()
+
+             canvas.translate(startX, startY)
+
+             for (i in 0..passes) {
+                 layout.draw(canvas)
+                 canvas.translate(dxStep, dyStep)
+             }
+             canvas.restore()
+
+             // Reset paint for main text
+             paint.alpha = originalAlpha
+             paint.color = color
+             if (isGradient) {
+                 // Restore shader logic (re-run gradient setup if needed or just let it fall through)
+                 // We need to re-apply shader because we set it to null above
+                  val w = layout.width.toFloat()
+                  val h = layout.height.toFloat()
+                  // ... (Gradient logic simplified re-application or assume draw loop continues)
+                  // The paint object is reused. We must restore properties.
+                  ensureLayout() // This resets paint properties including shader
+                  // But ensureLayout creates new layout. We just want to restore paint.
+                  // Let's just restore the shader from the existing paint setup in ensureLayout logic?
+                  // Easier: Just restore color/shader.
+                  paint.shader = if (isGradient) {
+                        // Re-create shader or store it?
+                        // Recalculating is safer to match `ensureLayout`.
+                        // For brevity, we trust `ensureLayout` logic below? No, we are inside draw.
+                        // We can just call the gradient block logic again or extract it.
+                        // Let's copy the gradient logic block here.
+                        val cx = w / 2f
+                        val cy = h / 2f
+                        val angleRad = Math.toRadians(gradientAngle.toDouble())
+                        val diag = kotlin.math.sqrt(w*w + h*h)
+                        val r = diag / 2f
+                        val cos = Math.cos(angleRad).toFloat()
+                        val sin = Math.sin(angleRad).toFloat()
+                        val p0 = 0f
+                        val p1 = w * cos
+                        val p2 = h * sin
+                        val p3 = w * cos + h * sin
+                        val minP = minOf(p0, p1, p2, p3)
+                        val maxP = maxOf(p0, p1, p2, p3)
+                        val halfLen = (maxP - minP) / 2f
+                        val x0 = cx - halfLen * cos
+                        val y0 = cy - halfLen * sin
+                        val x1 = cx + halfLen * cos
+                        val y1 = cy + halfLen * sin
+                        android.graphics.LinearGradient(
+                            x0, y0, x1, y1,
+                            gradientStartColor, gradientEndColor,
+                            android.graphics.Shader.TileMode.CLAMP
+                        )
+                  } else null
+             }
         }
 
         layout.draw(canvas)
