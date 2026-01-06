@@ -1036,14 +1036,14 @@ class EditorActivity : AppCompatActivity() {
             layout.addView(createSlider("Angle: ${layer.motionShadowAngle}°", layer.motionShadowAngle, 360) { angle ->
                  layer.motionShadowAngle = angle
                  canvasView.invalidate()
-                 (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { (it as TextView).text = "Angle: $angle°" }
+                 (layout.getChildAt(1) as LinearLayout).getChildAt(0).let { (it as TextView).text = "Angle: $angle°" }
             })
 
             // Distance
             layout.addView(createSlider("Distance: ${layer.motionShadowDistance.toInt()}", layer.motionShadowDistance.toInt(), 200) { dist ->
                  layer.motionShadowDistance = dist.toFloat()
                  canvasView.invalidate()
-                 (layout.getChildAt(3) as LinearLayout).getChildAt(0).let { (it as TextView).text = "Distance: $dist" }
+                 (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { (it as TextView).text = "Distance: $dist" }
             })
 
             addView(layout)

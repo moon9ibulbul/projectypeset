@@ -44,7 +44,7 @@ object ColorPickerHelper {
         val picker = RectangularColorPickerView(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 dpToPx(context, 250),
-                dpToPx(250)
+                dpToPx(context, 250)
             )
             // Assuming the view handles setting initial color if we had a method,
             // but the view code isn't visible.
