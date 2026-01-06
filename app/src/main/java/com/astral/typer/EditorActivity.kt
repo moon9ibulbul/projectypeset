@@ -11,11 +11,27 @@ import com.astral.typer.databinding.ActivityEditorBinding
 import com.astral.typer.models.Layer
 import com.astral.typer.models.TextLayer
 import com.astral.typer.views.AstralCanvasView
+import com.astral.typer.utils.FontManager
+import androidx.activity.result.contract.ActivityResultContracts
 
 class EditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityEditorBinding
     private lateinit var canvasView: AstralCanvasView
+
+    private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            if (FontManager.importFont(this, it)) {
+                Toast.makeText(this, "Font Imported!", Toast.LENGTH_SHORT).show()
+                // Refresh if font picker is open?
+                if (isFontPickerVisible) showFontPicker() // Reload
+            } else {
+                Toast.makeText(this, "Import Failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private var isFontPickerVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,40 +188,134 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showFontPicker() {
+        isFontPickerVisible = true
         binding.propertyDetailContainer.visibility = View.VISIBLE
         binding.propertyDetailContainer.removeAllViews()
 
-        val scrollView = android.widget.HorizontalScrollView(this)
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.HORIZONTAL
-            setPadding(16, 16, 16, 16)
+        // Tab Layout Container
+        val mainContainer = android.widget.LinearLayout(this).apply {
+             orientation = android.widget.LinearLayout.VERTICAL
+             layoutParams = android.widget.FrameLayout.LayoutParams(
+                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
+             )
         }
 
-        val fonts = listOf(
-            "Default" to android.graphics.Typeface.DEFAULT,
-            "Serif" to android.graphics.Typeface.SERIF,
-            "Sans" to android.graphics.Typeface.SANS_SERIF,
-            "Mono" to android.graphics.Typeface.MONOSPACE,
-            "Bold" to android.graphics.Typeface.DEFAULT_BOLD
-        )
+        // Tabs
+        val tabsLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            weightSum = 3f
+        }
 
-        for ((name, typeface) in fonts) {
-            val btn = android.widget.Button(this).apply {
-                text = name
-                setTypeface(typeface)
-                setOnClickListener {
-                    val layer = canvasView.getSelectedLayer()
-                    if (layer is TextLayer) {
-                        layer.typeface = typeface
-                        canvasView.invalidate()
+        var currentTab = "Standard"
+        val contentContainer = android.widget.FrameLayout(this)
+
+        fun loadFonts(type: String) {
+            currentTab = type
+            contentContainer.removeAllViews()
+
+            val listLayout = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+            }
+            val scrollView = android.widget.ScrollView(this)
+
+            // Add Import Button for My Font
+            if (type == "My Font") {
+                val btnImport = android.widget.Button(this).apply {
+                    text = "+ Import Font (Zip/TTF/OTF)"
+                    setOnClickListener { importFontLauncher.launch("*/*") }
+                }
+                listLayout.addView(btnImport)
+            }
+
+            val fonts = when(type) {
+                "Standard" -> FontManager.getStandardFonts(this)
+                "My Font" -> FontManager.getCustomFonts(this)
+                "Favorite" -> FontManager.getFavoriteFonts(this)
+                else -> emptyList()
+            }
+
+            if (fonts.isEmpty() && type != "Standard") {
+                 val empty = android.widget.TextView(this).apply {
+                     text = "No fonts here."
+                     setTextColor(Color.WHITE)
+                     setPadding(20, 20, 20, 20)
+                 }
+                 listLayout.addView(empty)
+            }
+
+            for (font in fonts) {
+                val itemLayout = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    setPadding(16, 16, 16, 16)
+                    setBackgroundColor(Color.DKGRAY) // Separator
+                    val params = android.widget.LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                    params.setMargins(0, 2, 0, 2)
+                    layoutParams = params
+                }
+
+                // Font Preview
+                val tv = android.widget.TextView(this).apply {
+                    text = font.name
+                    typeface = font.typeface
+                    textSize = 18f
+                    setTextColor(Color.WHITE)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                    )
+                    setOnClickListener {
+                        val layer = canvasView.getSelectedLayer()
+                        if (layer is TextLayer) {
+                            layer.typeface = font.typeface
+                            canvasView.invalidate()
+                        }
                     }
                 }
+
+                // Star
+                val btnStar = android.widget.Button(this).apply {
+                    text = if (font.isFavorite) "★" else "☆"
+                    setTextColor(Color.YELLOW)
+                    textSize = 20f
+                    setBackgroundColor(Color.TRANSPARENT)
+                    setOnClickListener {
+                        FontManager.toggleFavorite(this@EditorActivity, font)
+                        text = if (font.isFavorite) "★" else "☆"
+                        if (currentTab == "Favorite" && !font.isFavorite) {
+                            loadFonts("Favorite") // Refresh
+                        }
+                    }
+                }
+
+                itemLayout.addView(tv)
+                itemLayout.addView(btnStar)
+                listLayout.addView(itemLayout)
             }
-            layout.addView(btn)
+
+            scrollView.addView(listLayout)
+            contentContainer.addView(scrollView)
         }
 
-        scrollView.addView(layout)
-        binding.propertyDetailContainer.addView(scrollView)
+        val tabNames = listOf("Standard", "My Font", "Favorite")
+        for (name in tabNames) {
+            val btn = android.widget.Button(this).apply {
+                text = name
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { loadFonts(name) }
+            }
+            tabsLayout.addView(btn)
+        }
+
+        mainContainer.addView(tabsLayout)
+        mainContainer.addView(contentContainer)
+
+        binding.propertyDetailContainer.addView(mainContainer)
+
+        // Initial load
+        loadFonts("Standard")
     }
 
     private fun showColorPicker() {

@@ -92,13 +92,24 @@ class MainActivity : AppCompatActivity() {
             dialogBinding.etHeight.setText("4000")
         }
 
-        // Color Logic (Simplified)
+        // Color Logic
         var selectedColor = Color.WHITE
         var isTransparent = false
+
+        dialogBinding.viewColorPreview.setBackgroundColor(selectedColor)
+        dialogBinding.viewColorPreview.setOnClickListener {
+            if (!isTransparent) {
+                showColorPickerDialog(selectedColor) { newColor ->
+                    selectedColor = newColor
+                    dialogBinding.viewColorPreview.setBackgroundColor(newColor)
+                }
+            }
+        }
 
         dialogBinding.cbTransparent.setOnCheckedChangeListener { _, isChecked ->
             isTransparent = isChecked
             dialogBinding.viewColorPreview.alpha = if (isChecked) 0.2f else 1.0f
+            dialogBinding.viewColorPreview.isEnabled = !isChecked
         }
 
         dialogBinding.btnCreate.setOnClickListener {

@@ -8,8 +8,17 @@ abstract class Layer {
     var x: Float = 0f
     var y: Float = 0f
     var rotation: Float = 0f
-    var scale: Float = 1f
+    var scaleX: Float = 1f
+    var scaleY: Float = 1f
     var isSelected: Boolean = false
+
+    // Backwards compatibility for uniform scale getter/setter (optional)
+    var scale: Float
+        get() = (scaleX + scaleY) / 2f
+        set(value) {
+            scaleX = value
+            scaleY = value
+        }
 
     // Bounds in local coordinates (before rotation/scale)
     abstract fun getWidth(): Float
@@ -24,7 +33,7 @@ abstract class Layer {
         val tempMatrix = Matrix()
         tempMatrix.setTranslate(x, y)
         tempMatrix.preRotate(rotation)
-        tempMatrix.preScale(scale, scale)
+        tempMatrix.preScale(scaleX, scaleY)
 
         val inverted = Matrix()
         if (tempMatrix.invert(inverted)) {
