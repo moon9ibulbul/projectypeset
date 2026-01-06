@@ -42,7 +42,8 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var canvasView: AstralCanvasView
 
     private var activeEditText: EditText? = null
-    private val MENU_HEIGHT_DP = 280
+    private val MENU_HEIGHT_DP = 220
+    private var currentMenuType: String? = null
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -106,6 +107,7 @@ class EditorActivity : AppCompatActivity() {
                 if (layer is TextLayer) {
                     // Open Format menu and focus input
                     showFormatMenu()
+                    currentMenuType = "FORMAT"
                     // Delay focus slightly to ensure view is attached
                     binding.root.postDelayed({
                         activeEditText?.requestFocus()
@@ -128,11 +130,11 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Property Actions
-        binding.btnPropFont.setOnClickListener { showFontPicker() }
-        binding.btnPropColor.setOnClickListener { showColorPicker() }
-        binding.btnPropFormat.setOnClickListener { showFormatMenu() }
-        binding.btnPropShadow.setOnClickListener { showShadowControls() }
-        binding.btnPropGradation.setOnClickListener { showGradationControls() }
+        binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
+        binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
+        binding.btnPropFormat.setOnClickListener { toggleMenu("FORMAT") { showFormatMenu() } }
+        binding.btnPropShadow.setOnClickListener { toggleMenu("SHADOW") { showShadowControls() } }
+        binding.btnPropGradation.setOnClickListener { toggleMenu("GRADATION") { showGradationControls() } }
 
         // Top Bar
         binding.btnBack.setOnClickListener { finish() }
@@ -199,6 +201,16 @@ class EditorActivity : AppCompatActivity() {
         binding.propertyDetailContainer.visibility = View.GONE
         activeEditText = null
         isFontPickerVisible = false
+        currentMenuType = null
+    }
+
+    private fun toggleMenu(type: String, showAction: () -> Unit) {
+        if (currentMenuType == type && binding.propertyDetailContainer.visibility == View.VISIBLE) {
+            hidePropertyDetail()
+        } else {
+            showAction()
+            currentMenuType = type
+        }
     }
 
     // --- Shared Input Field ---
@@ -337,7 +349,7 @@ class EditorActivity : AppCompatActivity() {
                     setPadding(12, 12, 12, 12)
                     gravity = Gravity.CENTER
                     layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        dpToPx(100),
                         ViewGroup.LayoutParams.WRAP_CONTENT
                     ).apply { setMargins(4, 0, 4, 0) }
 
@@ -364,6 +376,7 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
                     maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
                 }
 
                 val btnStar = TextView(this).apply {
@@ -526,6 +539,11 @@ class EditorActivity : AppCompatActivity() {
         val stylesRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            weightSum = 4f
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
             setPadding(0, 0, 0, 16)
         }
 
@@ -535,15 +553,12 @@ class EditorActivity : AppCompatActivity() {
                 textSize = 16f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                setPadding(32, 16, 32, 16)
+                setPadding(0, 16, 0, 16)
                 layoutParams = LinearLayout.LayoutParams(
+                    0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(8, 0, 8, 0) }
+                    1f
+                )
 
                 setOnClickListener { applySpanToSelection(spanProvider()) }
             }
@@ -561,23 +576,23 @@ class EditorActivity : AppCompatActivity() {
         val alignRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            weightSum = 4f
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
         }
 
-        fun addAlignBtn(label: String, align: Layout.Alignment) {
-            val btn = TextView(this).apply {
-                text = label
-                textSize = 12f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#444444"))
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                setPadding(24, 16, 24, 16)
+        fun addAlignBtn(iconRes: Int, align: Layout.Alignment) {
+            val btn = android.widget.ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(Color.WHITE)
+                setPadding(0, 16, 0, 16)
                 layoutParams = LinearLayout.LayoutParams(
+                    0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(8, 0, 8, 0) }
+                    1f
+                )
 
                 setOnClickListener {
                     layer.textAlign = align
@@ -588,25 +603,20 @@ class EditorActivity : AppCompatActivity() {
             alignRow.addView(btn)
         }
 
-        addAlignBtn("Left", Layout.Alignment.ALIGN_NORMAL)
-        addAlignBtn("Center", Layout.Alignment.ALIGN_CENTER)
-        addAlignBtn("Right", Layout.Alignment.ALIGN_OPPOSITE)
+        addAlignBtn(R.drawable.ic_format_align_left, Layout.Alignment.ALIGN_NORMAL)
+        addAlignBtn(R.drawable.ic_format_align_center, Layout.Alignment.ALIGN_CENTER)
+        addAlignBtn(R.drawable.ic_format_align_right, Layout.Alignment.ALIGN_OPPOSITE)
 
         // Justify Button
-        val btnJustify = TextView(this).apply {
-            text = "Justify"
-            textSize = 12f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#444444"))
-                cornerRadius = dpToPx(4).toFloat()
-            }
-            setPadding(24, 16, 24, 16)
+        val btnJustify = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_format_align_justify)
+            setColorFilter(Color.WHITE)
+            setPadding(0, 16, 0, 16)
             layoutParams = LinearLayout.LayoutParams(
+                0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { setMargins(8, 0, 8, 0) }
+                1f
+            )
 
             setOnClickListener {
                 layer.textAlign = Layout.Alignment.ALIGN_NORMAL

@@ -431,7 +431,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     // Click on empty space -> Deselect? Or just do nothing?
                     // User requested "Jangan biarkan kanvas bisa digeser dengan satu jari"
                     // So if we touch background with 1 finger, we do nothing (or deselect).
-                    selectLayer(null)
+                    // selectLayer(null) // Removed to persist selection/menu
                     currentMode = Mode.NONE
                     invalidate()
                 }
