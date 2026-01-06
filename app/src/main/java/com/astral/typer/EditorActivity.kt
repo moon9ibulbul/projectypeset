@@ -42,7 +42,7 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var canvasView: AstralCanvasView
 
     private var activeEditText: EditText? = null
-    private val MENU_HEIGHT_DP = 160
+    private val MENU_HEIGHT_DP = 220
     private var currentMenuType: String? = null
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -113,7 +113,7 @@ class EditorActivity : AppCompatActivity() {
                         activeEditText?.requestFocus()
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.showSoftInput(activeEditText, InputMethodManager.SHOW_IMPLICIT)
-                    }, 100)
+                    }, 300)
                 }
             }
         }
@@ -134,6 +134,8 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
         binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
         binding.btnPropFormat.setOnClickListener { toggleMenu("FORMAT") { showFormatMenu() } }
+        binding.btnPropStroke.setOnClickListener { toggleMenu("STROKE") { showStrokeMenu() } }
+        binding.btnPropDoubleStroke.setOnClickListener { toggleMenu("DOUBLE_STROKE") { showDoubleStrokeMenu() } }
         binding.btnPropShadow.setOnClickListener { toggleMenu("SHADOW") { showShadowControls() } }
         binding.btnPropGradation.setOnClickListener { toggleMenu("GRADATION") { showGradationControls() } }
 
@@ -511,17 +513,18 @@ class EditorActivity : AppCompatActivity() {
 
         container.addView(createInputView(layer, false))
 
-        val scroll = HorizontalScrollView(this)
+        val scroll = HorizontalScrollView(this).apply {
+             isHorizontalScrollBarEnabled = false
+        }
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(16, 16, 16, 16)
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        val btnEyedrop = TextView(this).apply {
-            text = "Pick"
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+        val btnEyedropper = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_eyedropper)
+            setColorFilter(Color.WHITE)
             setPadding(24, 16, 24, 16)
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
@@ -545,12 +548,11 @@ class EditorActivity : AppCompatActivity() {
                  Toast.makeText(context, "Tap canvas to pick", Toast.LENGTH_SHORT).show()
             }
         }
-        list.addView(btnEyedrop)
+        list.addView(btnEyedropper)
 
-        val btnWheel = TextView(this).apply {
-            text = "Wheel"
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+        val btnPalette = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_palette)
+            setColorFilter(Color.WHITE)
             setPadding(24, 16, 24, 16)
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
@@ -561,7 +563,7 @@ class EditorActivity : AppCompatActivity() {
             }
             setOnClickListener { showColorWheelDialog(layer) }
         }
-        list.addView(btnWheel)
+        list.addView(btnPalette)
 
         val colors = listOf(
             Color.BLACK, Color.WHITE, Color.RED, Color.GREEN, Color.BLUE,
@@ -921,7 +923,131 @@ class EditorActivity : AppCompatActivity() {
          })
     }
 
+    private fun showStrokeMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        val mainLayout = LinearLayout(this).apply {
+             orientation = LinearLayout.VERTICAL
+             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        // Width Control
+        val widthRow = LinearLayout(this).apply {
+             orientation = LinearLayout.HORIZONTAL
+             gravity = Gravity.CENTER_VERTICAL
+             setPadding(16, 8, 16, 8)
+        }
+        val tvLabel = TextView(this).apply { text = "Width: ${layer.strokeWidth.toInt()}"; setTextColor(Color.WHITE) }
+        val btnMinus = TextView(this).apply { text = "-"; setTextColor(Color.WHITE); setPadding(16,0,16,0); textSize=20f; setOnClickListener {
+             layer.strokeWidth = (layer.strokeWidth - 1).coerceAtLeast(0f)
+             tvLabel.text = "Width: ${layer.strokeWidth.toInt()}"
+             canvasView.invalidate()
+        }}
+        val btnPlus = TextView(this).apply { text = "+"; setTextColor(Color.WHITE); setPadding(16,0,16,0); textSize=20f; setOnClickListener {
+             layer.strokeWidth += 1
+             tvLabel.text = "Width: ${layer.strokeWidth.toInt()}"
+             canvasView.invalidate()
+        }}
+        widthRow.addView(tvLabel)
+        widthRow.addView(btnMinus)
+        widthRow.addView(btnPlus)
+
+        mainLayout.addView(widthRow)
+
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(16, 0, 16, 16) }
+
+        val btnPalette = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_palette)
+            setColorFilter(Color.WHITE)
+            setPadding(24, 16, 24, 16)
+            background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+            setOnClickListener { showColorWheelDialogForProperty(layer) { color -> layer.strokeColor = color; canvasView.invalidate() } }
+        }
+        list.addView(btnPalette)
+
+        val colors = listOf(Color.BLACK, Color.WHITE, Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW)
+        for (color in colors) {
+            val item = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(40)).apply { setMargins(8, 0, 8, 0) }
+                background = GradientDrawable().apply { setColor(color); shape = GradientDrawable.OVAL; setStroke(2, Color.LTGRAY) }
+                setOnClickListener { layer.strokeColor = color; canvasView.invalidate() }
+            }
+            list.addView(item)
+        }
+        scroll.addView(list)
+        mainLayout.addView(scroll)
+
+        container.addView(mainLayout)
+    }
+
+    private fun showDoubleStrokeMenu() {
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        if (layer.strokeWidth <= 0f) {
+             Toast.makeText(this, "Enable Stroke first!", Toast.LENGTH_SHORT).show()
+             // Maybe close menu?
+        }
+
+        val container = prepareContainer()
+        val mainLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
+
+        val widthRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8) }
+        val tvLabel = TextView(this).apply { text = "2nd Width: ${layer.doubleStrokeWidth.toInt()}"; setTextColor(Color.WHITE) }
+        val btnMinus = TextView(this).apply { text = "-"; setTextColor(Color.WHITE); setPadding(16,0,16,0); textSize=20f; setOnClickListener {
+             layer.doubleStrokeWidth = (layer.doubleStrokeWidth - 1).coerceAtLeast(0f)
+             tvLabel.text = "2nd Width: ${layer.doubleStrokeWidth.toInt()}"
+             canvasView.invalidate()
+        }}
+        val btnPlus = TextView(this).apply { text = "+"; setTextColor(Color.WHITE); setPadding(16,0,16,0); textSize=20f; setOnClickListener {
+             layer.doubleStrokeWidth += 1
+             tvLabel.text = "2nd Width: ${layer.doubleStrokeWidth.toInt()}"
+             canvasView.invalidate()
+        }}
+        widthRow.addView(tvLabel)
+        widthRow.addView(btnMinus)
+        widthRow.addView(btnPlus)
+        mainLayout.addView(widthRow)
+
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(16, 0, 16, 16) }
+
+        val btnPalette = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_palette)
+            setColorFilter(Color.WHITE)
+            setPadding(24, 16, 24, 16)
+            background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+            setOnClickListener { showColorWheelDialogForProperty(layer) { color -> layer.doubleStrokeColor = color; canvasView.invalidate() } }
+        }
+        list.addView(btnPalette)
+
+        val colors = listOf(Color.BLACK, Color.WHITE, Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW)
+        for (color in colors) {
+            val item = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(40)).apply { setMargins(8, 0, 8, 0) }
+                background = GradientDrawable().apply { setColor(color); shape = GradientDrawable.OVAL; setStroke(2, Color.LTGRAY) }
+                setOnClickListener { layer.doubleStrokeColor = color; canvasView.invalidate() }
+            }
+            list.addView(item)
+        }
+        scroll.addView(list)
+        mainLayout.addView(scroll)
+        container.addView(mainLayout)
+    }
+
     private fun showColorWheelDialog(layer: TextLayer) {
+        showColorWheelDialogForProperty(layer) { color ->
+             val et = activeEditText
+             if (et != null && et.selectionStart != et.selectionEnd) {
+                applySpanToSelection(ForegroundColorSpan(color))
+             } else {
+                layer.color = color
+                canvasView.invalidate()
+             }
+        }
+    }
+
+    private fun showColorWheelDialogForProperty(layer: TextLayer, applyColor: (Int) -> Unit) {
         val dialog = android.app.Dialog(this)
 
         val root = LinearLayout(this).apply {
@@ -933,8 +1059,8 @@ class EditorActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
         }
 
-        val wheel = com.astral.typer.views.ColorWheelView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(200), dpToPx(200))
+        val wheel = com.astral.typer.views.RectangularColorPickerView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(250), dpToPx(200))
         }
 
         val hexInput = EditText(this).apply {
@@ -950,20 +1076,7 @@ class EditorActivity : AppCompatActivity() {
         wheel.onColorChangedListener = { color ->
              val hex = String.format("#%06X", (0xFFFFFF and color))
              hexInput.setText(hex)
-
-             val et = activeEditText
-             if (et != null && et.selectionStart != et.selectionEnd) {
-                // For selection, we might not want live update as it spans?
-                // But user wants "mengganti color".
-                // Let's just update layer color for now or selection if exists?
-                // Real-time update on selection might be tricky if dialog is modal.
-                // Dialog is not modal in blocking UI thread sense, but it overlays.
-                // Let's assume applying to layer color is primary intent or selection.
-                applySpanToSelection(ForegroundColorSpan(color))
-             } else {
-                layer.color = color
-                canvasView.invalidate()
-             }
+             applyColor(color)
         }
 
         root.addView(wheel)
