@@ -5,7 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.PointF
+import android.graphics.Path
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.GestureDetector
@@ -14,6 +14,9 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import com.astral.typer.models.Layer
 import com.astral.typer.models.TextLayer
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.max
 
 class AstralCanvasView @JvmOverloads constructor(
     context: Context,
@@ -30,10 +33,18 @@ class AstralCanvasView @JvmOverloads constructor(
     // Drawing Tools
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val backgroundRect = RectF()
-    private val debugPaint = Paint().apply {
-        color = Color.BLUE
+    private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 3f
+        color = Color.WHITE
+    }
+    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        color = Color.WHITE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
     }
 
     // Layers
@@ -44,26 +55,39 @@ class AstralCanvasView @JvmOverloads constructor(
         return selectedLayer
     }
 
+    // Handles Constants
+    private val HANDLE_RADIUS = 30f
+    private val HANDLE_OFFSET = 40f
+
+    // Interaction Modes
+    private enum class Mode {
+        NONE,
+        DRAG_LAYER,
+        ROTATE_LAYER,
+        RESIZE_LAYER,
+        STRETCH_H,
+        STRETCH_V,
+        BOX_WIDTH,
+        PAN_ZOOM
+    }
+
+    private var currentMode = Mode.NONE
+
     // Interaction State
     private var lastTouchX = 0f
     private var lastTouchY = 0f
-    private var isDraggingLayer = false
-    private var isRotatingLayer = false
-    private var isScalingLayer = false
     private var initialRotation = 0f
-    private var initialScale = 1f
-    private var initialFingerAngle = 0f
-    private var initialFingerDist = 0f
+    private var initialScaleX = 1f
+    private var initialScaleY = 1f
+    private var initialBoxWidth = 0f
 
-    // Interaction Variables (Temp)
+    // Interaction Reference Points (for calculation)
     private var centerX = 0f
     private var centerY = 0f
     private var startAngle = 0f
     private var startDist = 0f
-
-    // Handles Constants
-    private val HANDLE_RADIUS = 30f
-    private val HANDLE_OFFSET = 40f
+    private var startX = 0f // Local X
+    private var startY = 0f // Local Y
 
     // Camera / Viewport
     private val viewMatrix = Matrix()
@@ -73,8 +97,9 @@ class AstralCanvasView @JvmOverloads constructor(
     private val scaleDetector = ScaleGestureDetector(context, ScaleListener())
     private val gestureDetector = GestureDetector(context, GestureListener())
 
-    // State
-    private var isInitialized = false
+    // Multi-touch tracking
+    private var activePointerId = MotionEvent.INVALID_POINTER_ID
+    private var secondaryPointerId = MotionEvent.INVALID_POINTER_ID
 
     // Listener
     interface OnLayerSelectedListener {
@@ -103,6 +128,13 @@ class AstralCanvasView @JvmOverloads constructor(
             selectedLayer = layer
             onLayerSelectedListener?.onLayerSelected(layer)
             invalidate()
+        }
+    }
+
+    fun deleteSelectedLayer() {
+        selectedLayer?.let {
+            layers.remove(it)
+            selectLayer(null)
         }
     }
 
@@ -136,7 +168,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Background Image
         canvasBitmap?.let {
-             canvas.drawBitmap(it, null, RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat()), bgPaint)
+             val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+             canvas.drawBitmap(it, null, RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat()), bitmapPaint)
         }
 
         // Draw Layers
@@ -181,7 +214,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Background Image if exists
         canvasBitmap?.let {
-             canvas.drawBitmap(it, null, backgroundRect, paint)
+             val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+             canvas.drawBitmap(it, null, backgroundRect, bitmapPaint)
         }
 
         // Draw Border
@@ -205,7 +239,7 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.save()
         canvas.translate(layer.x, layer.y)
         canvas.rotate(layer.rotation)
-        canvas.scale(layer.scale, layer.scale)
+        canvas.scale(layer.scaleX, layer.scaleY)
 
         val halfW = layer.getWidth() / 2f
         val halfH = layer.getHeight() / 2f
@@ -213,20 +247,58 @@ class AstralCanvasView @JvmOverloads constructor(
         // Box
         paint.style = Paint.Style.STROKE
         paint.color = Color.BLUE
-        paint.strokeWidth = 3f
+        paint.strokeWidth = 3f / ((layer.scaleX + layer.scaleY)/2f) // Keep stroke constant width visually
         val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
         canvas.drawRect(box, paint)
 
-        // Draw Handles
-        // Rotate Handle (Top-Right)
-        paint.style = Paint.Style.FILL
-        paint.color = Color.GREEN
-        canvas.drawCircle(halfW + 20, -halfH - 20, 20f, paint)
+        // --- Draw Handles ---
+        // Helper to draw handle circle
+        fun drawHandle(x: Float, y: Float, color: Int) {
+            handlePaint.color = color
+            // Draw handle
+            // We need to invert the scale for handles so they stay consistent size
+            val size = HANDLE_RADIUS / ((layer.scaleX + layer.scaleY)/2f)
+            canvas.drawCircle(x, y, size, handlePaint)
+            canvas.drawCircle(x, y, size, strokePaint)
+        }
 
-        // Resize Handle (Bottom-Right)
-        paint.style = Paint.Style.FILL
-        paint.color = Color.RED
-        canvas.drawCircle(halfW + 20, halfH + 20, 20f, paint)
+        // 1. Delete Handle (Top-Left) -> X
+        drawHandle(-halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET, Color.RED)
+        // Draw X Icon
+        val xSize = 15f / ((layer.scaleX + layer.scaleY)/2f)
+        val cx = -halfW - HANDLE_OFFSET
+        val cy = -halfH - HANDLE_OFFSET
+        canvas.drawLine(cx - xSize, cy - xSize, cx + xSize, cy + xSize, iconPaint)
+        canvas.drawLine(cx + xSize, cy - xSize, cx - xSize, cy + xSize, iconPaint)
+
+        // 2. Rotate Handle (Top-Right) -> Circle Arrow (Simplified)
+        drawHandle(halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET, Color.GREEN)
+        // Icon (small circle arc?)
+        canvas.drawCircle(halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET, 10f / ((layer.scaleX + layer.scaleY)/2f), iconPaint)
+
+        // 3. Resize Handle (Bottom-Right) -> Diagonal Arrow
+        drawHandle(halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET, Color.BLUE)
+
+        // 4. Stretch Horizontal (Left-Middle) -> Horizontal Arrow
+        drawHandle(-halfW - HANDLE_OFFSET, 0f, Color.DKGRAY)
+        // Icon <->
+        val sx = -halfW - HANDLE_OFFSET
+        val sSize = 15f / ((layer.scaleX + layer.scaleY)/2f)
+        canvas.drawLine(sx - sSize, 0f, sx + sSize, 0f, iconPaint)
+
+        // 5. Stretch Vertical (Bottom-Middle) -> Vertical Arrow
+        drawHandle(0f, halfH + HANDLE_OFFSET, Color.DKGRAY)
+        // Icon ^
+        //      v
+        val sy = halfH + HANDLE_OFFSET
+        canvas.drawLine(0f, sy - sSize, 0f, sy + sSize, iconPaint)
+
+        // 6. Box Width (Right-Middle) -> Rect icon (Resize box)
+        if (layer is TextLayer) {
+             drawHandle(halfW + HANDLE_OFFSET, 0f, Color.MAGENTA)
+             val bx = halfW + HANDLE_OFFSET
+             canvas.drawRect(bx - 10, -10f, bx + 10, 10f, iconPaint)
+        }
 
         canvas.restore()
     }
@@ -246,9 +318,15 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val result = scaleDetector.onTouchEvent(event)
-        if (!scaleDetector.isInProgress) {
-             gestureDetector.onTouchEvent(event)
+        // Multi-touch tracking
+        val pointerCount = event.pointerCount
+
+        // If 2 fingers are down, we force PAN_ZOOM mode
+        if (pointerCount >= 2) {
+            currentMode = Mode.PAN_ZOOM
+            scaleDetector.onTouchEvent(event)
+            gestureDetector.onTouchEvent(event) // Allow scroll/pan
+            return true
         }
 
         // Map touch to canvas coordinates
@@ -258,17 +336,21 @@ class AstralCanvasView @JvmOverloads constructor(
         val cx = touchPoint[0]
         val cy = touchPoint[1]
 
-        when (event.action) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                currentMode = Mode.NONE
+
+                // 1. Check Handles (if layer selected)
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
+                    val layerCenter = floatArrayOf(layer.x, layer.y)
 
-                    // Transform touch to local layer space to check handles
+                    // Transform touch to local layer space
                     val localPoint = floatArrayOf(cx, cy)
                     val globalToLocal = Matrix()
                     globalToLocal.postTranslate(-layer.x, -layer.y)
                     globalToLocal.postRotate(-layer.rotation)
-                    globalToLocal.postScale(1/layer.scale, 1/layer.scale)
+                    globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
                     globalToLocal.mapPoints(localPoint)
 
                     val lx = localPoint[0]
@@ -276,10 +358,18 @@ class AstralCanvasView @JvmOverloads constructor(
                     val halfW = layer.getWidth() / 2f
                     val halfH = layer.getHeight() / 2f
 
-                    // Check Rotate Handle (Top-Right)
-                    // Location: (halfW + 20, -halfH - 20)
-                    if (getDistance(lx, ly, halfW + 20, -halfH - 20) <= HANDLE_RADIUS) {
-                        isRotatingLayer = true
+                    // Adjust radius check based on scale to make it easier to hit
+                    val hitRadius = HANDLE_RADIUS * 1.5f
+
+                    // Delete Handle (Top-Left)
+                    if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                        deleteSelectedLayer()
+                        return true
+                    }
+
+                    // Rotate Handle (Top-Right)
+                    if (getDistance(lx, ly, halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                        currentMode = Mode.ROTATE_LAYER
                         initialRotation = layer.rotation
                         centerX = layer.x
                         centerY = layer.y
@@ -287,65 +377,203 @@ class AstralCanvasView @JvmOverloads constructor(
                         return true
                     }
 
-                    // Check Resize Handle (Bottom-Right)
-                    // Location: (halfW + 20, halfH + 20)
-                    if (getDistance(lx, ly, halfW + 20, halfH + 20) <= HANDLE_RADIUS) {
-                        isScalingLayer = true
-                        initialScale = layer.scale
+                    // Resize Handle (Bottom-Right)
+                    if (getDistance(lx, ly, halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
+                        currentMode = Mode.RESIZE_LAYER
+                        initialScaleX = layer.scaleX
+                        initialScaleY = layer.scaleY
                         centerX = layer.x
                         centerY = layer.y
                         startDist = getDistance(centerX, centerY, cx, cy)
                         return true
                     }
+
+                    // Stretch Horizontal (Left-Middle)
+                    if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, 0f) <= hitRadius) {
+                        currentMode = Mode.STRETCH_H
+                        initialScaleX = layer.scaleX
+                        centerX = layer.x
+                        centerY = layer.y
+                        startX = lx // Relative to center
+                        return true
+                    }
+
+                    // Stretch Vertical (Bottom-Middle)
+                    if (getDistance(lx, ly, 0f, halfH + HANDLE_OFFSET) <= hitRadius) {
+                        currentMode = Mode.STRETCH_V
+                        initialScaleY = layer.scaleY
+                        centerX = layer.x
+                        centerY = layer.y
+                        startY = ly
+                        return true
+                    }
+
+                    // Box Width (Right-Middle)
+                    if (layer is TextLayer && getDistance(lx, ly, halfW + HANDLE_OFFSET, 0f) <= hitRadius) {
+                        currentMode = Mode.BOX_WIDTH
+                        initialBoxWidth = layer.getWidth()
+                        centerX = layer.x
+                        centerY = layer.y
+                        startDist = lx // use lx as distance from center
+                        return true
+                    }
                 }
 
-                // Check for layer hit
+                // 2. Check for layer hit (Selection / Move)
                 val hitLayer = layers.findLast { it.contains(cx, cy) }
                 if (hitLayer != null) {
                     selectLayer(hitLayer)
-                    isDraggingLayer = true
+                    currentMode = Mode.DRAG_LAYER
                     lastTouchX = cx
                     lastTouchY = cy
                     invalidate()
                 } else {
+                    // Click on empty space -> Deselect? Or just do nothing?
+                    // User requested "Jangan biarkan kanvas bisa digeser dengan satu jari"
+                    // So if we touch background with 1 finger, we do nothing (or deselect).
                     selectLayer(null)
+                    currentMode = Mode.NONE
                     invalidate()
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (selectedLayer != null) {
-                    if (isRotatingLayer) {
-                        val currentAngle = getAngle(centerX, centerY, cx, cy)
-                        val angleDiff = currentAngle - startAngle
-                        selectedLayer!!.rotation = initialRotation + angleDiff
-                        invalidate()
-                        return true
-                    }
-                    if (isScalingLayer) {
-                        val currentDist = getDistance(centerX, centerY, cx, cy)
-                        if (startDist > 0) {
-                             val scaleFactor = currentDist / startDist
-                             selectedLayer!!.scale = initialScale * scaleFactor
-                             invalidate()
-                        }
-                        return true
-                    }
-                }
+                if (currentMode == Mode.NONE || currentMode == Mode.PAN_ZOOM) return true
 
-                if (isDraggingLayer && selectedLayer != null) {
-                    val dx = cx - lastTouchX
-                    val dy = cy - lastTouchY
-                    selectedLayer!!.x += dx
-                    selectedLayer!!.y += dy
-                    lastTouchX = cx
-                    lastTouchY = cy
-                    invalidate()
+                if (selectedLayer != null) {
+                    val layer = selectedLayer!!
+
+                    when (currentMode) {
+                        Mode.DRAG_LAYER -> {
+                            val dx = cx - lastTouchX
+                            val dy = cy - lastTouchY
+                            layer.x += dx
+                            layer.y += dy
+                            lastTouchX = cx
+                            lastTouchY = cy
+                            invalidate()
+                        }
+                        Mode.ROTATE_LAYER -> {
+                            val currentAngle = getAngle(centerX, centerY, cx, cy)
+                            val angleDiff = currentAngle - startAngle
+                            layer.rotation = initialRotation + angleDiff
+                            invalidate()
+                        }
+                        Mode.RESIZE_LAYER -> {
+                            val currentDist = getDistance(centerX, centerY, cx, cy)
+                            if (startDist > 0) {
+                                val scaleFactor = currentDist / startDist
+                                layer.scaleX = initialScaleX * scaleFactor
+                                layer.scaleY = initialScaleY * scaleFactor
+                                invalidate()
+                            }
+                        }
+                        Mode.STRETCH_H -> {
+                            // Complex math to project current touch point onto the local X axis
+                            // Simplified: Just use distance change from center logic, but directional?
+
+                            // Re-calculate local X
+                            val localPoint = floatArrayOf(cx, cy)
+                            val globalToLocal = Matrix()
+                            globalToLocal.postTranslate(-layer.x, -layer.y)
+                            globalToLocal.postRotate(-layer.rotation)
+                            globalToLocal.postScale(1/initialScaleX, 1/initialScaleY) // Use initial scale to see relative movement?
+                            // No, simpler: get distance from center.
+
+                            // Let's use distance from center to finger.
+                            // If finger is to the left of center, distance increases as we go left.
+                            // Handle is at Left Middle (-Width/2).
+
+                            val dist = getDistance(centerX, centerY, cx, cy)
+                            // We need to know if we are pulling away or pushing in.
+                            // Original handle distance (approx) was halfW * scaleX.
+
+                            // Let's project touch onto the layer's X-axis vector
+                            val rad = Math.toRadians(layer.rotation.toDouble())
+                            val cos = Math.cos(rad)
+                            val sin = Math.sin(rad)
+                            // Vector from center to touch
+                            val dx = cx - centerX
+                            val dy = cy - centerY
+
+                            // Project onto local X axis (rotated)
+                            // Local X axis vector is (cos, sin)
+                            // But handle is on the LEFT, so vector is (-cos, -sin)
+                            val proj = -(dx * cos + dy * sin)
+
+                            // Original projection (approx half width * scale)
+                            val originalW = layer.getWidth() / 2f
+
+                            if (originalW > 0) {
+                                // New scale is proportional to how far out we are relative to unscaled width
+                                // But wait, Layer.getWidth() returns width based on text content.
+                                // We are changing ScaleX.
+
+                                // initialScaleX * (currentProj / startProj)
+                                // But getting startProj is tricky if we didn't save it.
+
+                                // Let's try simpler:
+                                // ScaleX = Proj / (Width_Unscaled/2)
+                                val newScale = proj / (layer.getWidth() / 2f / layer.scaleX) // layer.getWidth() uses current scale? No, Layer.getWidth() logic in TextLayer ensures layout which might depend on boxWidth but not scale.
+                                // TextLayer.getWidth() returns layout width (unscaled).
+
+                                if (proj > 10) { // Minimum threshold
+                                     layer.scaleX = (proj / (layer.getWidth() / 2f)).toFloat().coerceAtLeast(0.1f)
+                                     invalidate()
+                                }
+                            }
+                        }
+                        Mode.STRETCH_V -> {
+                             // Handle at Bottom Middle (+Height/2)
+                             // Vector is (sin, -cos) for Y? No.
+                             // Local Y axis is (-sin, cos) relative to screen X,Y?
+                             // Canvas Y is down.
+                             // Rotation is clockwise.
+                             // 0 deg: Y axis is (0, 1).
+
+                             val rad = Math.toRadians(layer.rotation.toDouble())
+                             val cos = Math.cos(rad)
+                             val sin = Math.sin(rad)
+
+                             val dx = cx - centerX
+                             val dy = cy - centerY
+
+                             // Project onto local Y axis
+                             // Local Y vector (rotated) is (-sin, cos)
+                             val proj = -dx * sin + dy * cos
+
+                             if (proj > 10) {
+                                 layer.scaleY = (proj / (layer.getHeight() / 2f)).toFloat().coerceAtLeast(0.1f)
+                                 invalidate()
+                             }
+                        }
+                        Mode.BOX_WIDTH -> {
+                            if (layer is TextLayer) {
+                                // Right Middle Handle (+Width/2)
+                                // Project onto X axis
+                                val rad = Math.toRadians(layer.rotation.toDouble())
+                                val cos = Math.cos(rad)
+                                val sin = Math.sin(rad)
+                                val dx = cx - centerX
+                                val dy = cy - centerY
+                                val proj = dx * cos + dy * sin
+
+                                // Proj is distance from center in local scaled space.
+                                // We want to change the underlying boxWidth (unscaled).
+                                // proj = (boxWidth / 2) * scaleX
+                                // boxWidth = (proj / scaleX) * 2
+
+                                if (proj > 20) {
+                                    layer.boxWidth = ((proj / layer.scaleX) * 2f).toFloat()
+                                    invalidate()
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
                 }
             }
             MotionEvent.ACTION_UP -> {
-                isDraggingLayer = false
-                isRotatingLayer = false
-                isScalingLayer = false
+                currentMode = Mode.NONE
             }
         }
 
@@ -356,8 +584,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            // Only zoom camera if no layer is being manipulated (todo: distinguish mode)
-            if (selectedLayer == null) {
+            if (currentMode == Mode.PAN_ZOOM) {
                 val scaleFactor = detector.scaleFactor
                 val focusX = detector.focusX
                 val focusY = detector.focusY
@@ -375,7 +602,7 @@ class AstralCanvasView @JvmOverloads constructor(
             distanceX: Float,
             distanceY: Float
         ): Boolean {
-            if (!isDraggingLayer) {
+            if (currentMode == Mode.PAN_ZOOM) {
                 viewMatrix.postTranslate(-distanceX, -distanceY)
                 invalidate()
             }
@@ -383,12 +610,21 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (selectedLayer != null) {
-                 onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
-                 return true
-            }
-            centerCanvas()
-            return true
+            // Find touched layer
+             val touchPoint = floatArrayOf(e.x, e.y)
+             val inverse = Matrix()
+             viewMatrix.invert(inverse)
+             inverse.mapPoints(touchPoint)
+             val cx = touchPoint[0]
+             val cy = touchPoint[1]
+
+             val hitLayer = layers.findLast { it.contains(cx, cy) }
+             if (hitLayer != null) {
+                  onLayerEditListener?.onLayerDoubleTap(hitLayer)
+             } else {
+                  centerCanvas()
+             }
+             return true
         }
     }
 }

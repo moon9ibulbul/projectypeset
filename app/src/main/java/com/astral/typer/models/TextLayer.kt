@@ -34,6 +34,9 @@ class TextLayer(
     // For MVP, let's just use single line or simple wrap
     private var maxWidth: Int = 1000
 
+    // Custom width for wrapping. If null or <=0, it wraps at maxWidth or fits content
+    var boxWidth: Float? = null
+
     override fun getWidth(): Float {
         ensureLayout()
         return cachedLayout?.width?.toFloat() ?: 0f
@@ -71,9 +74,15 @@ class TextLayer(
         // Simple measurement for now
         val measuredWidth = textPaint.measureText(text)
 
+        val layoutWidth = if (boxWidth != null && boxWidth!! > 0) {
+            boxWidth!!.toInt()
+        } else {
+            measuredWidth.toInt() + 10
+        }
+
         // TODO: Use StaticLayout.Builder for API 23+ properly
         cachedLayout = android.text.StaticLayout.Builder.obtain(
-            text, 0, text.length, textPaint, measuredWidth.toInt() + 10
+            text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
         ).build()
     }
 
@@ -83,7 +92,7 @@ class TextLayer(
         canvas.save()
         canvas.translate(x, y)
         canvas.rotate(rotation)
-        canvas.scale(scale, scale)
+        canvas.scale(scaleX, scaleY)
 
         // Draw centered
         val w = getWidth()
