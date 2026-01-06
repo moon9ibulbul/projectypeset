@@ -32,6 +32,7 @@ class TextLayer(
     var isGradient: Boolean = false
     var gradientStartColor: Int = Color.RED
     var gradientEndColor: Int = Color.BLUE
+    var gradientAngle: Int = 0 // Degrees 0-360
 
     // Stroke
     var strokeColor: Int = Color.BLACK
@@ -70,6 +71,11 @@ class TextLayer(
         // Gradient (Note: Gradient might behave oddly with Spans that change color)
         if (isGradient) {
             val width = StaticLayout.getDesiredWidth(text, textPaint)
+            // We need height for accurate gradient, but textPaint doesn't know height yet.
+            // Approximation: Horizontal gradient for measurement is fine.
+            // Real gradient logic is applied during draw or when layout is built?
+            // StaticLayout uses the paint to measure. The shader doesn't affect measurement.
+            // We can set a dummy shader or keep it simple here.
             textPaint.shader = android.graphics.LinearGradient(
                 0f, 0f, width, 0f,
                 gradientStartColor, gradientEndColor,
@@ -146,9 +152,57 @@ class TextLayer(
         paint.strokeWidth = 0f
 
         if (isGradient) {
-            val width = layout.width.toFloat()
+            val w = layout.width.toFloat()
+            val h = layout.height.toFloat()
+            val cx = w / 2f
+            val cy = h / 2f
+            val angleRad = Math.toRadians(gradientAngle.toDouble())
+
+            // Calculate gradient vector based on box bounds
+            // A simple approach is finding the length of the projection of the box onto the angle vector
+            val diag = kotlin.math.sqrt(w*w + h*h)
+            val r = diag / 2f
+
+            // Calculate start and end points relative to 0,0 (top-left of text)
+            // This is a simplification. For perfect gradients, we project corners.
+            // But rotating around center is usually good enough.
+
+            val cos = Math.cos(angleRad).toFloat()
+            val sin = Math.sin(angleRad).toFloat()
+
+            // Find extreme points
+            // Corners: (0,0), (w,0), (0,h), (w,h)
+            // Project v . (cos, sin)
+            // p0 = 0
+            // p1 = w * cos
+            // p2 = h * sin
+            // p3 = w * cos + h * sin
+
+            val p0 = 0f
+            val p1 = w * cos
+            val p2 = h * sin
+            val p3 = w * cos + h * sin
+
+            val minP = minOf(p0, p1, p2, p3)
+            val maxP = maxOf(p0, p1, p2, p3)
+
+            // Reconstruct points on the line passing through center?
+            // Standard LinearGradient definition: (x0, y0) to (x1, y1).
+            // Lines perpendicular to this vector at these points have color0 and color1.
+
+            // Center projection
+            val cp = cx * cos + cy * sin
+            // We want the gradient to cover the range [minP, maxP]
+            // The center of that range isn't necessarily cp, but let's assume centered gradient.
+
+            val halfLen = (maxP - minP) / 2f
+            val x0 = cx - halfLen * cos
+            val y0 = cy - halfLen * sin
+            val x1 = cx + halfLen * cos
+            val y1 = cy + halfLen * sin
+
             paint.shader = android.graphics.LinearGradient(
-                0f, 0f, width, 0f,
+                x0, y0, x1, y1,
                 gradientStartColor, gradientEndColor,
                 android.graphics.Shader.TileMode.CLAMP
             )

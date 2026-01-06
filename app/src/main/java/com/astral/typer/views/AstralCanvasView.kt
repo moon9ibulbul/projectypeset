@@ -112,6 +112,12 @@ class AstralCanvasView @JvmOverloads constructor(
     private var startX = 0f // Local X
     private var startY = 0f // Local Y
 
+    // Eyedropper state
+    private var eyedropperX = 0f
+    private var eyedropperY = 0f
+    private var eyedropperScreenX = 0f
+    private var eyedropperScreenY = 0f
+
     // Camera / Viewport
     private val viewMatrix = Matrix()
     private val invertedMatrix = Matrix() // For mapping touch to canvas coords
@@ -248,14 +254,109 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.drawRect(backgroundRect, paint)
 
         // Draw Layers
+        drawScene(canvas)
+
+        // Draw Selection Overlay
+        if (currentMode != Mode.EYEDROPPER) {
+             selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+        }
+
+        canvas.restore()
+
+        // Draw Eyedropper UI (Overlay on top of everything, unaffected by zoom/pan of canvas?)
+        // The Canvas is currently in Screen Space (after restore).
+
+        if (currentMode == Mode.EYEDROPPER) {
+             // 1. Crosshair (In Screen Space, follows finger directly)
+             paint.style = Paint.Style.STROKE
+             paint.color = Color.BLACK
+             paint.strokeWidth = 2f
+             val size = 30f
+             canvas.drawLine(eyedropperScreenX - size, eyedropperScreenY, eyedropperScreenX + size, eyedropperScreenY, paint)
+             canvas.drawLine(eyedropperScreenX, eyedropperScreenY - size, eyedropperScreenX, eyedropperScreenY + size, paint)
+             paint.color = Color.WHITE
+             paint.strokeWidth = 1f
+             canvas.drawLine(eyedropperScreenX - size, eyedropperScreenY - 1f, eyedropperScreenX + size, eyedropperScreenY - 1f, paint) // pseudo shadow
+
+             // 2. Preview Box (In Screen Space)
+             canvas.save()
+             // Canvas is already in Screen Space (identity), so we don't need setMatrix(null) unless we messed it up.
+             // But we should be safe.
+
+             val boxSize = 200f
+             val boxMargin = 30f
+             val boxRect = RectF(width - boxSize - boxMargin, boxMargin, width - boxMargin, boxMargin + boxSize)
+
+             // Background for box
+             paint.style = Paint.Style.FILL
+             paint.color = Color.BLACK
+             canvas.drawRect(boxRect, paint)
+
+             // Draw zoomed content
+             canvas.save()
+             canvas.clipRect(boxRect)
+
+             // Transform to center the eyedropper point in the box and scale up
+             val zoomLevel = 4f
+             // We want `eyedropperX, eyedropperY` to map to `boxRect.centerX(), boxRect.centerY()`
+             // And scale applied.
+             // Final Coord = (WorldCoord * Scale * Zoom) + Translate
+
+             // Matrix logic:
+             // 1. Translate world so eyedropper is at 0,0: T(-ex, -ey)
+             // 2. Scale up: S(zoom)
+             // 3. Translate to box center: T(bx, by)
+             // 4. Apply ViewMatrix (since we are drawing the scene which assumes viewMatrix? No, drawScene draws raw layers)
+             // Wait, drawScene draws layers at their world coords.
+             // So we just need to transform World -> Box.
+
+             canvas.translate(boxRect.centerX(), boxRect.centerY())
+             canvas.scale(zoomLevel, zoomLevel)
+             canvas.translate(-eyedropperX, -eyedropperY)
+
+             // Draw White Background first (Canvas Color)
+             paint.color = canvasColor
+             paint.style = Paint.Style.FILL
+             canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), paint)
+             // Image
+             canvasBitmap?.let {
+                 val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                 canvas.drawBitmap(it, null, RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat()), bitmapPaint)
+             }
+             // Layers
+             for (layer in layers) {
+                 layer.draw(canvas)
+             }
+
+             canvas.restore() // End Clip/Transform
+
+             // Draw Border for Box
+             paint.style = Paint.Style.STROKE
+             paint.color = Color.WHITE
+             paint.strokeWidth = 4f
+             canvas.drawRect(boxRect, paint)
+
+             // Center Crosshair in Box
+             paint.color = Color.RED
+             paint.strokeWidth = 2f
+             canvas.drawLine(boxRect.centerX() - 10, boxRect.centerY(), boxRect.centerX() + 10, boxRect.centerY(), paint)
+             canvas.drawLine(boxRect.centerX(), boxRect.centerY() - 10, boxRect.centerX(), boxRect.centerY() + 10, paint)
+
+             canvas.restore()
+        }
+    }
+
+    private fun drawScene(canvas: Canvas) {
+        // Draw Layers
         for (layer in layers) {
             layer.draw(canvas)
         }
+    }
 
-        // Draw Selection Overlay
-        selectedLayer?.let { drawSelectionOverlay(canvas, it) }
-
-        canvas.restore()
+    private fun getScale(): Float {
+        val values = FloatArray(9)
+        viewMatrix.getValues(values)
+        return values[Matrix.MSCALE_X]
     }
 
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {
@@ -361,13 +462,20 @@ class AstralCanvasView @JvmOverloads constructor(
         val cx = touchPoint[0]
         val cy = touchPoint[1]
 
-        if (currentMode == Mode.EYEDROPPER && event.actionMasked == MotionEvent.ACTION_UP) {
-            val color = getPixelColor(cx, cy)
-            onColorPickedListener?.invoke(color)
-            setEyedropperMode(false)
-            return true
+        if (currentMode == Mode.EYEDROPPER) {
+             eyedropperX = cx
+             eyedropperY = cy
+             eyedropperScreenX = event.x
+             eyedropperScreenY = event.y
+             invalidate()
+
+             if (event.actionMasked == MotionEvent.ACTION_UP) {
+                 val color = getPixelColor(cx, cy)
+                 onColorPickedListener?.invoke(color)
+                 setEyedropperMode(false)
+             }
+             return true
         }
-        if (currentMode == Mode.EYEDROPPER) return true
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
