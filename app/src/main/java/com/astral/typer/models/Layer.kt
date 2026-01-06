@@ -12,6 +12,11 @@ abstract class Layer {
     var scaleY: Float = 1f
     var isSelected: Boolean = false
 
+    // New Properties for Layer Management
+    var isVisible: Boolean = true
+    var isLocked: Boolean = false
+    var name: String = "Layer"
+
     // Backwards compatibility for uniform scale getter/setter (optional)
     var scale: Float
         get() = (scaleX + scaleY) / 2f
@@ -27,8 +32,13 @@ abstract class Layer {
     // Draw the content of the layer
     abstract fun draw(canvas: Canvas)
 
+    // Deep copy
+    abstract fun clone(): Layer
+
     // Check if a point (canvas coordinates) hits this layer
     fun contains(px: Float, py: Float): Boolean {
+        if (!isVisible || isLocked) return false
+
         // Transform point to local layer coordinates
         val tempMatrix = Matrix()
         tempMatrix.setTranslate(x, y)

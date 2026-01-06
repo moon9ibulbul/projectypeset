@@ -143,6 +143,136 @@ class EditorActivity : AppCompatActivity() {
         // Top Bar
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSave.setOnClickListener { saveImage() }
+
+        // Undo/Redo/Layers
+        binding.btnUndo.setOnClickListener {
+            val restored = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
+            if (restored != null) {
+                canvasView.setLayers(restored)
+            } else {
+                Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnRedo.setOnClickListener {
+            val restored = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
+            if (restored != null) {
+                canvasView.setLayers(restored)
+            } else {
+                Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnLayers.setOnClickListener { showLayerMenu() }
+
+        // Property Actions
+        binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    // --- LAYERS MENU ---
+    private fun showLayerMenu() {
+        val popupView = layoutInflater.inflate(R.layout.popup_layers, null)
+        val popupWindow = android.widget.PopupWindow(popupView, dpToPx(300), dpToPx(400), true)
+        popupWindow.elevation = 20f
+        popupWindow.showAsDropDown(binding.btnLayers, -dpToPx(200), 0)
+
+        val recyclerView = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerLayers)
+        recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+
+        val adapter = LayerAdapter(canvasView.getLayers()) {
+            // On Item Click? Maybe select
+            canvasView.selectLayer(it)
+            canvasView.invalidate()
+        }
+        recyclerView.adapter = adapter
+
+        // Drag and Drop
+        val callback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+            androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0
+        ) {
+            override fun onMove(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, target: androidx.recyclerview.widget.RecyclerView.ViewHolder): Boolean {
+                val from = vh.adapterPosition
+                val to = target.adapterPosition
+                java.util.Collections.swap(canvasView.getLayers(), from, to)
+                adapter.notifyItemMoved(from, to)
+                canvasView.invalidate()
+                return true
+            }
+            override fun onSwiped(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, dir: Int) {}
+        }
+        val itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(callback)
+        itemTouchHelper.attachToRecyclerView(recyclerView)
+    }
+
+    // --- STYLE MENU ---
+    private fun showStyleMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer
+
+        val scroll = HorizontalScrollView(this)
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(16,16,16,16)
+        }
+
+        // Saved Styles
+        val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
+
+        if (saved.isEmpty()) {
+            list.addView(TextView(this).apply { text = "No Saved Styles"; setTextColor(Color.GRAY) })
+        }
+
+        for ((index, style) in saved.withIndex()) {
+            val item = TextView(this).apply {
+                text = "Style ${index+1}"
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                    setStroke(2, Color.LTGRAY)
+                }
+                setPadding(32, 16, 32, 16)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(8, 0, 8, 0)
+                }
+                setOnClickListener {
+                    if (layer != null) {
+                        // Apply style properties
+                        com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+
+                        layer.color = style.color
+                        layer.fontSize = style.fontSize
+                        layer.typeface = style.typeface
+                        layer.opacity = style.opacity
+                        layer.shadowColor = style.shadowColor
+                        layer.shadowRadius = style.shadowRadius
+                        layer.shadowDx = style.shadowDx
+                        layer.shadowDy = style.shadowDy
+                        layer.isMotionShadow = style.isMotionShadow
+                        layer.motionShadowAngle = style.motionShadowAngle
+                        layer.motionShadowDistance = style.motionShadowDistance
+                        layer.isGradient = style.isGradient
+                        layer.gradientStartColor = style.gradientStartColor
+                        layer.gradientEndColor = style.gradientEndColor
+                        layer.gradientAngle = style.gradientAngle
+                        layer.isGradientText = style.isGradientText
+                        layer.isGradientStroke = style.isGradientStroke
+                        layer.isGradientShadow = style.isGradientShadow
+                        layer.strokeColor = style.strokeColor
+                        layer.strokeWidth = style.strokeWidth
+                        layer.doubleStrokeColor = style.doubleStrokeColor
+                        layer.doubleStrokeWidth = style.doubleStrokeWidth
+
+                        canvasView.invalidate()
+                        Toast.makeText(context, "Style Applied", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            list.addView(item)
+        }
+
+        scroll.addView(list)
+        container.addView(scroll)
     }
 
     private fun saveImage() {
@@ -407,12 +537,40 @@ class EditorActivity : AppCompatActivity() {
         fun loadTab(type: String) {
             contentContainer.removeAllViews()
 
+            val outerLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = FrameLayout.LayoutParams(
+                     ViewGroup.LayoutParams.MATCH_PARENT,
+                     ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
+
+            // Search Bar
+            val searchInput = EditText(this).apply {
+                hint = "Search fonts..."
+                setHintTextColor(Color.GRAY)
+                setTextColor(Color.WHITE)
+                textSize = 14f
+                setPadding(16, 8, 16, 8)
+                background = GradientDrawable().apply {
+                     setColor(Color.parseColor("#444444"))
+                     cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                     ViewGroup.LayoutParams.MATCH_PARENT,
+                     ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(16, 0, 16, 8) }
+                maxLines = 1
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+            }
+            outerLayout.addView(searchInput)
+
             // Vertical List Container
             val scroll = ScrollView(this).apply {
                 isVerticalScrollBarEnabled = false
-                layoutParams = FrameLayout.LayoutParams(
+                layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT // Fill remaining space
+                    ViewGroup.LayoutParams.MATCH_PARENT
                 )
             }
 
@@ -420,6 +578,9 @@ class EditorActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16, 0, 16, 0)
             }
+            scroll.addView(list)
+            outerLayout.addView(scroll)
+            contentContainer.addView(outerLayout)
 
             if (type == "My Font") {
                 val btnImport = TextView(this).apply {
@@ -440,69 +601,183 @@ class EditorActivity : AppCompatActivity() {
                 list.addView(btnImport)
             }
 
-            val fonts = when(type) {
-                "Standard" -> FontManager.getStandardFonts(this)
-                "My Font" -> FontManager.getCustomFonts(this)
-                "Favorite" -> FontManager.getFavoriteFonts(this)
-                else -> emptyList()
+            val progressBar = android.widget.ProgressBar(this).apply {
+                isIndeterminate = true
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { gravity = Gravity.CENTER }
             }
+            list.addView(progressBar)
 
-            for (font in fonts) {
-                val itemLayout = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL // Horizontal item, vertical list
-                    setPadding(16, 16, 16, 16)
-                    gravity = Gravity.CENTER_VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 4, 0, 4) }
+            // Async Load
+            kotlin.concurrent.thread {
+                val fonts = when(type) {
+                    "Standard" -> FontManager.getStandardFonts(this)
+                    "My Font" -> FontManager.getCustomFonts(this)
+                    "Favorite" -> FontManager.getFavoriteFonts(this)
+                    else -> emptyList()
+                }
 
-                    background = GradientDrawable().apply {
-                        setColor(Color.DKGRAY)
-                        cornerRadius = dpToPx(8).toFloat()
+                runOnUiThread {
+                    if (list.childCount > 0 && list.getChildAt(list.childCount - 1) == progressBar) {
+                        list.removeView(progressBar)
                     }
 
-                    setOnClickListener {
-                        val et = activeEditText
-                        if (et != null && et.selectionStart != et.selectionEnd) {
-                            applySpanToSelection(CustomTypefaceSpan(font.typeface))
-                        } else {
-                            layer.typeface = font.typeface
-                            canvasView.invalidate()
+                    val renderFonts = { query: String ->
+                        // Clear existing font items (Keep Import button if My Font)
+                        val startIndex = if (type == "My Font") 1 else 0
+                        while (list.childCount > startIndex) {
+                            list.removeViewAt(startIndex)
+                        }
+
+                        val filtered = if (query.isEmpty()) fonts else fonts.filter { it.name.contains(query, ignoreCase = true) }
+
+                        // Limit visible fonts for performance if list is huge (Lazy loading simulation)
+                        // Or just render all for now as filtered list is usually smaller.
+                        // If "My Font" is huge, filtered logic helps.
+
+                        val limit = 50
+                        var count = 0
+
+                        for (font in filtered) {
+                            if (count >= limit && query.isEmpty()) break // Only simple lazy load if no search
+                            count++
+
+                            val itemLayout = LinearLayout(this).apply {
+                                orientation = LinearLayout.HORIZONTAL
+                                setPadding(16, 16, 16, 16)
+                                gravity = Gravity.CENTER_VERTICAL
+                                layoutParams = LinearLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                ).apply { setMargins(0, 4, 0, 4) }
+
+                                background = GradientDrawable().apply {
+                                    setColor(Color.DKGRAY)
+                                    cornerRadius = dpToPx(8).toFloat()
+                                }
+
+                                setOnClickListener {
+                                    val et = activeEditText
+                                    if (et != null && et.selectionStart != et.selectionEnd) {
+                                        applySpanToSelection(CustomTypefaceSpan(font.typeface))
+                                    } else {
+                                        layer.typeface = font.typeface
+                                        canvasView.invalidate()
+                                    }
+                                }
+                            }
+
+                            val tvName = TextView(this).apply {
+                                text = font.name
+                                typeface = font.typeface
+                                textSize = 16f
+                                setTextColor(Color.WHITE)
+                                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                                maxLines = 1
+                                ellipsize = android.text.TextUtils.TruncateAt.END
+                                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                            }
+
+                            val btnStar = TextView(this).apply {
+                                text = if (font.isFavorite) "★" else "☆"
+                                setTextColor(Color.YELLOW)
+                                textSize = 24f
+                                setPadding(16, 0, 0, 0)
+                                setOnClickListener {
+                                    FontManager.toggleFavorite(this@EditorActivity, font)
+                                    text = if (font.isFavorite) "★" else "☆"
+                                    if (type == "Favorite" && !font.isFavorite) loadTab("Favorite")
+                                }
+                            }
+
+                            itemLayout.addView(tvName)
+                            itemLayout.addView(btnStar)
+                            list.addView(itemLayout)
+                        }
+
+                        if (filtered.size > limit && query.isEmpty()) {
+                             val moreBtn = TextView(this).apply {
+                                 text = "Load more..."
+                                 setTextColor(Color.LTGRAY)
+                                 setPadding(16,16,16,16)
+                                 gravity = Gravity.CENTER
+                                 setOnClickListener {
+                                     // Very simple "Load More" - just load rest.
+                                     // Ideally implement Recycler View but for now this patches the lag.
+                                     for (i in limit until filtered.size) {
+                                         val font = filtered[i]
+                                         val itemLayout = LinearLayout(this).apply {
+                                             orientation = LinearLayout.HORIZONTAL
+                                             setPadding(16, 16, 16, 16)
+                                             gravity = Gravity.CENTER_VERTICAL
+                                             layoutParams = LinearLayout.LayoutParams(
+                                                 ViewGroup.LayoutParams.MATCH_PARENT,
+                                                 ViewGroup.LayoutParams.WRAP_CONTENT
+                                             ).apply { setMargins(0, 4, 0, 4) }
+
+                                             background = GradientDrawable().apply {
+                                                 setColor(Color.DKGRAY)
+                                                 cornerRadius = dpToPx(8).toFloat()
+                                             }
+
+                                             setOnClickListener {
+                                                 val et = activeEditText
+                                                 if (et != null && et.selectionStart != et.selectionEnd) {
+                                                     applySpanToSelection(CustomTypefaceSpan(font.typeface))
+                                                 } else {
+                                                     layer.typeface = font.typeface
+                                                     canvasView.invalidate()
+                                                 }
+                                             }
+                                         }
+
+                                         val tvName = TextView(this).apply {
+                                             text = font.name
+                                             typeface = font.typeface
+                                             textSize = 16f
+                                             setTextColor(Color.WHITE)
+                                             gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                                             maxLines = 1
+                                             ellipsize = android.text.TextUtils.TruncateAt.END
+                                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                                         }
+
+                                         val btnStar = TextView(this).apply {
+                                             text = if (font.isFavorite) "★" else "☆"
+                                             setTextColor(Color.YELLOW)
+                                             textSize = 24f
+                                             setPadding(16, 0, 0, 0)
+                                             setOnClickListener {
+                                                 FontManager.toggleFavorite(this@EditorActivity, font)
+                                                 text = if (font.isFavorite) "★" else "☆"
+                                                 if (type == "Favorite" && !font.isFavorite) loadTab("Favorite")
+                                             }
+                                         }
+
+                                         itemLayout.addView(tvName)
+                                         itemLayout.addView(btnStar)
+                                         list.addView(itemLayout)
+                                     }
+                                     (parent as ViewGroup).removeView(this)
+                                 }
+                             }
+                             list.addView(moreBtn)
                         }
                     }
-                }
 
-                val tvName = TextView(this).apply {
-                    text = font.name
-                    typeface = font.typeface
-                    textSize = 16f
-                    setTextColor(Color.WHITE)
-                    gravity = Gravity.CENTER_VERTICAL or Gravity.START
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                }
+                    renderFonts("")
 
-                val btnStar = TextView(this).apply {
-                    text = if (font.isFavorite) "★" else "☆"
-                    setTextColor(Color.YELLOW)
-                    textSize = 24f
-                    setPadding(16, 0, 0, 0)
-                    setOnClickListener {
-                        FontManager.toggleFavorite(this@EditorActivity, font)
-                        text = if (font.isFavorite) "★" else "☆"
-                        if (type == "Favorite" && !font.isFavorite) loadTab("Favorite")
-                    }
+                    searchInput.addTextChangedListener(object: TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                             renderFonts(s?.toString() ?: "")
+                        }
+                        override fun afterTextChanged(s: Editable?) {}
+                    })
                 }
-
-                itemLayout.addView(tvName)
-                itemLayout.addView(btnStar)
-                list.addView(itemLayout)
             }
-
-            scroll.addView(list)
-            contentContainer.addView(scroll)
         }
 
         val tabNames = listOf("Standard", "My Font", "Favorite")
@@ -516,7 +791,6 @@ class EditorActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener {
                     loadTab(name)
-                    // Highlight selected tab visually (simplified)
                     alpha = 1.0f
                 }
             }
@@ -1108,6 +1382,30 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 16, 16, 16)
         }
+
+        // Toggles for Text, Stroke, Shadow
+        val togglesLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 16)
+        }
+
+        fun createToggle(text: String, isChecked: Boolean, onChecked: (Boolean) -> Unit): android.widget.CheckBox {
+            return android.widget.CheckBox(this).apply {
+                setText(text)
+                this.isChecked = isChecked
+                setTextColor(Color.WHITE)
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                setOnCheckedChangeListener { _, b -> onChecked(b) }
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+        }
+
+        togglesLayout.addView(createToggle("Text", layer.isGradientText) { b -> layer.isGradientText = b; canvasView.invalidate() })
+        togglesLayout.addView(createToggle("Stroke", layer.isGradientStroke) { b -> layer.isGradientStroke = b; canvasView.invalidate() })
+        togglesLayout.addView(createToggle("Shadow", layer.isGradientShadow) { b -> layer.isGradientShadow = b; canvasView.invalidate() })
+
+        mainLayout.addView(togglesLayout)
 
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })

@@ -39,6 +39,11 @@ class TextLayer(
     var gradientEndColor: Int = Color.BLUE
     var gradientAngle: Int = 0 // Degrees 0-360
 
+    // Gradient Toggles
+    var isGradientText: Boolean = true
+    var isGradientStroke: Boolean = false
+    var isGradientShadow: Boolean = false
+
     // Stroke
     var strokeColor: Int = Color.BLACK
     var strokeWidth: Float = 0f
@@ -50,6 +55,51 @@ class TextLayer(
 
     // Custom width for wrapping. If null or <=0, it wraps at maxWidth or fits content
     var boxWidth: Float? = null
+
+    init {
+        name = "Text Layer"
+    }
+
+    override fun clone(): Layer {
+        val newLayer = TextLayer(this.text.toString(), this.color)
+        newLayer.text = SpannableStringBuilder(this.text) // Deep copy text spans?
+        // Note: SpannableStringBuilder(other) copies spans, but might need careful verification for custom spans.
+        newLayer.fontSize = this.fontSize
+        newLayer.typeface = this.typeface
+        newLayer.textAlign = this.textAlign
+        newLayer.isJustified = this.isJustified
+        newLayer.opacity = this.opacity
+        newLayer.shadowColor = this.shadowColor
+        newLayer.shadowRadius = this.shadowRadius
+        newLayer.shadowDx = this.shadowDx
+        newLayer.shadowDy = this.shadowDy
+        newLayer.isMotionShadow = this.isMotionShadow
+        newLayer.motionShadowAngle = this.motionShadowAngle
+        newLayer.motionShadowDistance = this.motionShadowDistance
+        newLayer.isGradient = this.isGradient
+        newLayer.gradientStartColor = this.gradientStartColor
+        newLayer.gradientEndColor = this.gradientEndColor
+        newLayer.gradientAngle = this.gradientAngle
+        newLayer.isGradientText = this.isGradientText
+        newLayer.isGradientStroke = this.isGradientStroke
+        newLayer.isGradientShadow = this.isGradientShadow
+        newLayer.strokeColor = this.strokeColor
+        newLayer.strokeWidth = this.strokeWidth
+        newLayer.doubleStrokeColor = this.doubleStrokeColor
+        newLayer.doubleStrokeWidth = this.doubleStrokeWidth
+        newLayer.boxWidth = this.boxWidth
+
+        newLayer.x = this.x
+        newLayer.y = this.y
+        newLayer.rotation = this.rotation
+        newLayer.scaleX = this.scaleX
+        newLayer.scaleY = this.scaleY
+        newLayer.isVisible = this.isVisible
+        newLayer.isLocked = this.isLocked
+        newLayer.name = this.name
+
+        return newLayer
+    }
 
     override fun getWidth(): Float {
         ensureLayout()
@@ -73,22 +123,9 @@ class TextLayer(
             textPaint.clearShadowLayer()
         }
 
-        // Gradient (Note: Gradient might behave oddly with Spans that change color)
-        if (isGradient) {
-            val width = StaticLayout.getDesiredWidth(text, textPaint)
-            // We need height for accurate gradient, but textPaint doesn't know height yet.
-            // Approximation: Horizontal gradient for measurement is fine.
-            // Real gradient logic is applied during draw or when layout is built?
-            // StaticLayout uses the paint to measure. The shader doesn't affect measurement.
-            // We can set a dummy shader or keep it simple here.
-            textPaint.shader = android.graphics.LinearGradient(
-                0f, 0f, width, 0f,
-                gradientStartColor, gradientEndColor,
-                android.graphics.Shader.TileMode.CLAMP
-            )
-        } else {
-            textPaint.shader = null
-        }
+        // Gradient logic for text measurement is not critical, but we set it later for drawing.
+        // If we set shader here, it might affect measurement if measurement depends on it (unlikely).
+        textPaint.shader = null
 
         val desiredWidth = StaticLayout.getDesiredWidth(text, textPaint)
 
@@ -116,7 +153,46 @@ class TextLayer(
         }
     }
 
+    private fun getGradientShader(w: Float, h: Float): android.graphics.Shader? {
+        if (!isGradient) return null
+
+        val cx = w / 2f
+        val cy = h / 2f
+        val angleRad = Math.toRadians(gradientAngle.toDouble())
+        val cos = Math.cos(angleRad).toFloat()
+        val sin = Math.sin(angleRad).toFloat()
+
+        // Calculate gradient extents projected onto the angle vector
+        // Corners relative to center
+        val corners = listOf(
+            Pair(-cx, -cy), Pair(cx, -cy), Pair(-cx, cy), Pair(cx, cy)
+        )
+
+        var minP = Float.MAX_VALUE
+        var maxP = -Float.MAX_VALUE
+
+        for ((px, py) in corners) {
+            val p = px * cos + py * sin
+            if (p < minP) minP = p
+            if (p > maxP) maxP = p
+        }
+
+        val halfLen = (maxP - minP) / 2f
+        val x0 = cx - halfLen * cos
+        val y0 = cy - halfLen * sin
+        val x1 = cx + halfLen * cos
+        val y1 = cy + halfLen * sin
+
+        return android.graphics.LinearGradient(
+            x0, y0, x1, y1,
+            gradientStartColor, gradientEndColor,
+            android.graphics.Shader.TileMode.CLAMP
+        )
+    }
+
     override fun draw(canvas: Canvas) {
+        if (!isVisible) return
+
         ensureLayout()
         val layout = cachedLayout ?: return
         val paint = layout.paint
@@ -131,10 +207,14 @@ class TextLayer(
         val h = getHeight()
         canvas.translate(-w / 2f, -h / 2f)
 
+        // Prepare Gradient Shader
+        val gradientShader = if (isGradient) getGradientShader(w, h) else null
+
         // Motion Shadow (Drawn before everything else)
         if (isMotionShadow && motionShadowDistance > 0) {
             paint.style = Paint.Style.FILL
-            paint.shader = null
+            paint.shader = if (isGradient && isGradientShadow) gradientShader else null
+
             val originalAlpha = paint.alpha
             val iterations = 20
             val step = motionShadowDistance / iterations
@@ -142,12 +222,17 @@ class TextLayer(
             val cos = Math.cos(angleRad).toFloat()
             val sin = Math.sin(angleRad).toFloat()
 
-            paint.color = shadowColor
+            if (!isGradient || !isGradientShadow) {
+                 paint.color = shadowColor
+            }
             // Very low alpha per iteration
             paint.alpha = (30 * (opacity / 255f)).toInt().coerceAtLeast(1)
 
             if (shadowRadius > 0) {
-                paint.setShadowLayer(shadowRadius, 0f, 0f, shadowColor)
+                paint.setShadowLayer(shadowRadius, 0f, 0f, shadowColor) // Shadow color used for blur even if gradient?
+                // If gradient is active on shadow, the blur color usually takes the paint color,
+                // but setShadowLayer forces a color.
+                // We'll keep using shadowColor for the blur effect itself.
             } else {
                 paint.clearShadowLayer()
             }
@@ -180,8 +265,12 @@ class TextLayer(
         if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
+            paint.shader = null // Typically stroke doesn't use the main gradient unless specified?
+            // The prompt says "toggle stroke", presumably applying the same gradient.
+            // But Double Stroke is usually a solid backing. I'll leave double stroke solid for now unless asked.
+            // Or maybe "Stroke" applies to both? Let's assume just the main stroke.
+
             paint.color = doubleStrokeColor
-            paint.shader = null
             paint.clearShadowLayer()
             layout.draw(canvas)
         }
@@ -190,77 +279,38 @@ class TextLayer(
         if (strokeWidth > 0f) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = strokeWidth
-            paint.color = strokeColor
-            paint.shader = null
+
+            if (isGradient && isGradientStroke) {
+                paint.shader = gradientShader
+                paint.color = Color.WHITE // Needed for shader to show
+            } else {
+                paint.shader = null
+                paint.color = strokeColor
+            }
+
             paint.clearShadowLayer()
             layout.draw(canvas)
         }
 
         // 3. Fill
         paint.style = Paint.Style.FILL
-        paint.color = color
         paint.strokeWidth = 0f
 
-        if (isGradient) {
-            val w = layout.width.toFloat()
-            val h = layout.height.toFloat()
-            val cx = w / 2f
-            val cy = h / 2f
-            val angleRad = Math.toRadians(gradientAngle.toDouble())
-
-            // Calculate gradient vector based on box bounds
-            // A simple approach is finding the length of the projection of the box onto the angle vector
-            val diag = kotlin.math.sqrt(w*w + h*h)
-            val r = diag / 2f
-
-            // Calculate start and end points relative to 0,0 (top-left of text)
-            // This is a simplification. For perfect gradients, we project corners.
-            // But rotating around center is usually good enough.
-
-            val cos = Math.cos(angleRad).toFloat()
-            val sin = Math.sin(angleRad).toFloat()
-
-            // Find extreme points
-            // Corners: (0,0), (w,0), (0,h), (w,h)
-            // Project v . (cos, sin)
-            // p0 = 0
-            // p1 = w * cos
-            // p2 = h * sin
-            // p3 = w * cos + h * sin
-
-            val p0 = 0f
-            val p1 = w * cos
-            val p2 = h * sin
-            val p3 = w * cos + h * sin
-
-            val minP = minOf(p0, p1, p2, p3)
-            val maxP = maxOf(p0, p1, p2, p3)
-
-            // Reconstruct points on the line passing through center?
-            // Standard LinearGradient definition: (x0, y0) to (x1, y1).
-            // Lines perpendicular to this vector at these points have color0 and color1.
-
-            // Center projection
-            val cp = cx * cos + cy * sin
-            // We want the gradient to cover the range [minP, maxP]
-            // The center of that range isn't necessarily cp, but let's assume centered gradient.
-
-            val halfLen = (maxP - minP) / 2f
-            val x0 = cx - halfLen * cos
-            val y0 = cy - halfLen * sin
-            val x1 = cx + halfLen * cos
-            val y1 = cy + halfLen * sin
-
-            paint.shader = android.graphics.LinearGradient(
-                x0, y0, x1, y1,
-                gradientStartColor, gradientEndColor,
-                android.graphics.Shader.TileMode.CLAMP
-            )
+        if (isGradient && isGradientText) {
+            paint.shader = gradientShader
+            paint.color = Color.WHITE
         } else {
             paint.shader = null
+            paint.color = color
         }
 
         if (!isMotionShadow && shadowRadius > 0) {
+             // For drop shadow, if gradient is active on Shadow, we can't easily gradient the blur.
+             // setShadowLayer takes a single color.
+             // We can draw the text with gradient (if text toggle is on) and a shadow.
+             // If "Shadow Toggle" is on for gradient, it implies the *Text Itself* drawn as shadow has gradient?
+             // Or the shadow color is a gradient? (Impossible with standard Paint shadow).
+             // We will assume Drop Shadow ignores gradient toggle or just uses shadowColor.
             paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
         } else {
             paint.clearShadowLayer()
