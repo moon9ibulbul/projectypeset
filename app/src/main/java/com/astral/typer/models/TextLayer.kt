@@ -28,6 +28,11 @@ class TextLayer(
     var shadowDx: Float = 0f
     var shadowDy: Float = 0f
 
+    // Motion Shadow
+    var isMotionShadow: Boolean = false
+    var motionShadowAngle: Int = 0
+    var motionShadowDistance: Float = 0f
+
     // Gradient
     var isGradient: Boolean = false
     var gradientStartColor: Int = Color.RED
@@ -126,6 +131,51 @@ class TextLayer(
         val h = getHeight()
         canvas.translate(-w / 2f, -h / 2f)
 
+        // Motion Shadow (Drawn before everything else)
+        if (isMotionShadow && motionShadowDistance > 0) {
+            paint.style = Paint.Style.FILL
+            paint.shader = null
+            val originalAlpha = paint.alpha
+            val iterations = 20
+            val step = motionShadowDistance / iterations
+            val angleRad = Math.toRadians(motionShadowAngle.toDouble())
+            val cos = Math.cos(angleRad).toFloat()
+            val sin = Math.sin(angleRad).toFloat()
+
+            paint.color = shadowColor
+            // Very low alpha per iteration
+            paint.alpha = (30 * (opacity / 255f)).toInt().coerceAtLeast(1)
+
+            if (shadowRadius > 0) {
+                paint.setShadowLayer(shadowRadius, 0f, 0f, shadowColor)
+            } else {
+                paint.clearShadowLayer()
+            }
+
+            for (i in 1..iterations) {
+                val dist = step * i
+                val dx = dist * cos
+                val dy = dist * sin
+
+                // Draw in positive direction
+                canvas.save()
+                canvas.translate(dx, dy)
+                layout.draw(canvas)
+                canvas.restore()
+
+                // Draw in negative direction
+                canvas.save()
+                canvas.translate(-dx, -dy)
+                layout.draw(canvas)
+                canvas.restore()
+            }
+
+            // Restore paint
+            paint.alpha = originalAlpha
+            paint.color = color
+            paint.clearShadowLayer()
+        }
+
         // 1. Double Stroke (Outer)
         if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
             paint.style = Paint.Style.STROKE
@@ -210,7 +260,7 @@ class TextLayer(
             paint.shader = null
         }
 
-        if (shadowRadius > 0) {
+        if (!isMotionShadow && shadowRadius > 0) {
             paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
         } else {
             paint.clearShadowLayer()

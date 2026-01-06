@@ -32,6 +32,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.astral.typer.databinding.ActivityEditorBinding
 import com.astral.typer.models.Layer
 import com.astral.typer.models.TextLayer
+import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.CustomTypefaceSpan
 import com.astral.typer.utils.FontManager
 import com.astral.typer.views.AstralCanvasView
@@ -272,27 +273,45 @@ class EditorActivity : AppCompatActivity() {
         val start = et.selectionStart
         val end = et.selectionEnd
 
-        if (start != -1 && end != -1 && start != end) {
-            et.editableText.setSpan(span, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-            val layer = canvasView.getSelectedLayer() as? TextLayer
-            if (layer != null) {
-                layer.text = SpannableStringBuilder(et.editableText)
-                canvasView.invalidate()
+        val actualStart = if (start != -1 && end != -1 && start != end) start else 0
+        val actualEnd = if (start != -1 && end != -1 && start != end) end else et.length()
+
+        // Toggle Logic for StyleSpan, UnderlineSpan, StrikethroughSpan
+        if (span is StyleSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, StyleSpan::class.java)
+            var found = false
+            for (s in existing) {
+                if (s.style == span.style) {
+                    et.editableText.removeSpan(s)
+                    found = true
+                }
+            }
+            if (!found) {
+                et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        } else if (span is UnderlineSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, UnderlineSpan::class.java)
+            if (existing.isNotEmpty()) {
+                for (s in existing) et.editableText.removeSpan(s)
+            } else {
+                et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        } else if (span is StrikethroughSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, StrikethroughSpan::class.java)
+            if (existing.isNotEmpty()) {
+                for (s in existing) et.editableText.removeSpan(s)
+            } else {
+                et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         } else {
-             // If no selection, apply to entire text (Logic moved here or handled in listener)
-             // But wait, createFormattingTab uses this.
-             // If I change it here, it works for all calls.
-             val layer = canvasView.getSelectedLayer() as? TextLayer
-             if (layer != null) {
-                  // If no selection in EditText, but we want to apply style to layer?
-                  // The EditText has the content.
-                  if (start == end) {
-                       et.editableText.setSpan(span, 0, et.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                       layer.text = SpannableStringBuilder(et.editableText)
-                       canvasView.invalidate()
-                  }
-             }
+            // For other spans (Color, Typeface), just apply (replace)
+            et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+        val layer = canvasView.getSelectedLayer() as? TextLayer
+        if (layer != null) {
+            layer.text = SpannableStringBuilder(et.editableText)
+            canvasView.invalidate()
         }
     }
 
@@ -388,19 +407,18 @@ class EditorActivity : AppCompatActivity() {
         fun loadTab(type: String) {
             contentContainer.removeAllViews()
 
-            // Horizontal List Container
-            val scroll = HorizontalScrollView(this).apply {
-                isHorizontalScrollBarEnabled = false
+            // Vertical List Container
+            val scroll = ScrollView(this).apply {
+                isVerticalScrollBarEnabled = false
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                    ViewGroup.LayoutParams.MATCH_PARENT // Fill remaining space
                 )
             }
 
             val list = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
                 setPadding(16, 0, 16, 0)
-                gravity = Gravity.CENTER_VERTICAL
             }
 
             if (type == "My Font") {
@@ -409,6 +427,10 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(Color.WHITE)
                     setPadding(24, 16, 24, 16)
                     gravity = Gravity.CENTER
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 16) }
                     background = GradientDrawable().apply {
                         setColor(Color.DKGRAY)
                         cornerRadius = dpToPx(8).toFloat()
@@ -427,13 +449,13 @@ class EditorActivity : AppCompatActivity() {
 
             for (font in fonts) {
                 val itemLayout = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(12, 12, 12, 12)
-                    gravity = Gravity.CENTER
+                    orientation = LinearLayout.HORIZONTAL // Horizontal item, vertical list
+                    setPadding(16, 16, 16, 16)
+                    gravity = Gravity.CENTER_VERTICAL
                     layoutParams = LinearLayout.LayoutParams(
-                        dpToPx(100),
+                        ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(4, 0, 4, 0) }
+                    ).apply { setMargins(0, 4, 0, 4) }
 
                     background = GradientDrawable().apply {
                         setColor(Color.DKGRAY)
@@ -456,16 +478,17 @@ class EditorActivity : AppCompatActivity() {
                     typeface = font.typeface
                     textSize = 16f
                     setTextColor(Color.WHITE)
-                    gravity = Gravity.CENTER
+                    gravity = Gravity.CENTER_VERTICAL or Gravity.START
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
 
                 val btnStar = TextView(this).apply {
                     text = if (font.isFavorite) "★" else "☆"
                     setTextColor(Color.YELLOW)
-                    textSize = 18f
-                    setPadding(0, 4, 0, 0)
+                    textSize = 24f
+                    setPadding(16, 0, 0, 0)
                     setOnClickListener {
                         FontManager.toggleFavorite(this@EditorActivity, font)
                         text = if (font.isFavorite) "★" else "☆"
@@ -565,12 +588,10 @@ class EditorActivity : AppCompatActivity() {
         }
         list.addView(btnPalette)
 
-        val colors = listOf(
-            Color.BLACK, Color.WHITE, Color.RED, Color.GREEN, Color.BLUE,
-            Color.YELLOW, Color.CYAN, Color.MAGENTA, Color.GRAY, Color.DKGRAY
-        )
-
-        for (color in colors) {
+        // Show saved colors
+        // Show saved colors
+        val savedColors = com.astral.typer.utils.ColorPaletteManager.getSavedColors(this)
+        for (color in savedColors) {
             val item = View(this).apply {
                 layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(40)).apply {
                     setMargins(8, 0, 8, 0)
@@ -914,8 +935,9 @@ class EditorActivity : AppCompatActivity() {
         }
         list.addView(btnPalette)
 
-        val colors = listOf(Color.BLACK, Color.WHITE, Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.GRAY, Color.CYAN)
-        for (color in colors) {
+        // Show saved colors
+        val savedColors = com.astral.typer.utils.ColorPaletteManager.getSavedColors(this)
+        for (color in savedColors) {
             val item = View(this).apply {
                 layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(40)).apply { setMargins(8, 0, 8, 0) }
                 background = GradientDrawable().apply {
@@ -969,9 +991,6 @@ class EditorActivity : AppCompatActivity() {
             layout.addView(createSlider("Blur Radius", layer.shadowRadius.toInt(), 50) {
                 layer.shadowRadius = it.toFloat(); canvasView.invalidate()
             })
-            // Optional: User might want DX/DY controls for normal shadow too.
-            // But per request "Drop Shadow... principle same as Shadow now".
-            // The previous menu had DX/DY. I should probably keep them.
             layout.addView(createSlider("DX", (layer.shadowDx + 50).toInt(), 100) {
                 layer.shadowDx = (it - 50).toFloat(); canvasView.invalidate()
             })
@@ -981,7 +1000,7 @@ class EditorActivity : AppCompatActivity() {
             addView(layout)
         }
 
-        // 2. Motion Shadow
+        // 2. Motion Shadow (Corrected Definition)
         val motionShadowView = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             val layout = LinearLayout(this@EditorActivity).apply {
@@ -995,33 +1014,50 @@ class EditorActivity : AppCompatActivity() {
                 { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; canvasView.invalidate() } }
             ))
 
-            // Angle (0-360)
-            val currentAngle = Math.toDegrees(Math.atan2(layer.shadowDy.toDouble(), layer.shadowDx.toDouble())).toInt().let {
-                if (it < 0) it + 360 else it
+            // Angle
+            val angleLabel = TextView(this@EditorActivity).apply {
+                text = "Blur Angle: ${layer.motionShadowAngle}°"
+                setTextColor(Color.WHITE)
             }
-            layout.addView(createSlider("Blur Direction (Angle): $currentAngle°", currentAngle, 360) { angle ->
-                 // Recalculate dx, dy based on angle and current distance
-                 val dist = kotlin.math.sqrt(layer.shadowDx*layer.shadowDx + layer.shadowDy*layer.shadowDy)
-                 val rad = Math.toRadians(angle.toDouble())
-                 layer.shadowDx = (dist * Math.cos(rad)).toFloat()
-                 layer.shadowDy = (dist * Math.sin(rad)).toFloat()
-                 canvasView.invalidate()
-                 // Update label? Hard without reference.
-            })
+            layout.addView(angleLabel)
 
-            // Strength (Distance)
-            val currentDist = kotlin.math.sqrt(layer.shadowDx*layer.shadowDx + layer.shadowDy*layer.shadowDy).toInt()
-            layout.addView(createSlider("Blur Strength (Distance)", currentDist, 200) { dist ->
-                 val angleRad = Math.atan2(layer.shadowDy.toDouble(), layer.shadowDx.toDouble())
-                 layer.shadowDx = (dist * Math.cos(angleRad)).toFloat()
-                 layer.shadowDy = (dist * Math.sin(angleRad)).toFloat()
-                 canvasView.invalidate()
-            })
+            val sbAngle = SeekBar(this@EditorActivity).apply {
+                max = 360
+                progress = layer.motionShadowAngle
+                setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener{
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.motionShadowAngle = p
+                        angleLabel.text = "Blur Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+            }
+            layout.addView(sbAngle)
 
-            // Also Blur Radius?
-             layout.addView(createSlider("Blur Softness", layer.shadowRadius.toInt(), 50) {
-                layer.shadowRadius = it.toFloat(); canvasView.invalidate()
-            })
+            // Distance
+            val distLabel = TextView(this@EditorActivity).apply {
+                text = "Blur Distance: ${layer.motionShadowDistance.toInt()}"
+                setTextColor(Color.WHITE)
+                setPadding(0,16,0,0)
+            }
+            layout.addView(distLabel)
+
+            val sbDist = SeekBar(this@EditorActivity).apply {
+                max = 200
+                progress = layer.motionShadowDistance.toInt()
+                setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener{
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.motionShadowDistance = p.toFloat()
+                        distLabel.text = "Blur Distance: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+            }
+            layout.addView(sbDist)
 
             addView(layout)
         }
@@ -1029,6 +1065,9 @@ class EditorActivity : AppCompatActivity() {
         fun selectTab(isDrop: Boolean) {
             contentContainer.removeAllViews()
             contentContainer.addView(if (isDrop) dropShadowView else motionShadowView)
+
+            layer.isMotionShadow = !isDrop
+            canvasView.invalidate()
         }
 
         val btnDrop = TextView(this).apply {
@@ -1270,41 +1309,17 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showColorWheelDialogForProperty(layer: TextLayer, applyColor: (Int) -> Unit) {
-        val dialog = android.app.Dialog(this)
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#333333"))
-            }
-            gravity = Gravity.CENTER
-        }
-
-        val wheel = com.astral.typer.views.RectangularColorPickerView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(250), dpToPx(200))
-        }
-
-        val hexInput = EditText(this).apply {
-            hint = "#RRGGBB"
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = dpToPx(16)
-            }
-        }
-
-        wheel.onColorChangedListener = { color ->
-             val hex = String.format("#%06X", (0xFFFFFF and color))
-             hexInput.setText(hex)
-             applyColor(color)
-        }
-
-        root.addView(wheel)
-        root.addView(hexInput)
-
-        dialog.setContentView(root)
-        dialog.show()
+        ColorPickerHelper.showColorPickerDialog(
+            this,
+            // We don't have easy access to current color value here unless we passed it or read from layer.
+            // But applyColor is the setter.
+            // For now, default to WHITE or read from layer if possible, but the function signature doesn't pass current.
+            // Let's assume WHITE for now or try to match based on context.
+            // Actually, in the calls above, we pass lambda `c -> layer.shadowColor = c`.
+            // We can't read the getter easily from the lambda.
+            // But usually the user clicked on a color picker because they want to change it.
+            Color.WHITE,
+            applyColor
+        )
     }
 }
