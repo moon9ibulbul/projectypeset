@@ -55,6 +55,12 @@ class AstralCanvasView @JvmOverloads constructor(
     private var initialFingerAngle = 0f
     private var initialFingerDist = 0f
 
+    // Interaction Variables (Temp)
+    private var centerX = 0f
+    private var centerY = 0f
+    private var startAngle = 0f
+    private var startDist = 0f
+
     // Handles Constants
     private val HANDLE_RADIUS = 30f
     private val HANDLE_OFFSET = 40f
