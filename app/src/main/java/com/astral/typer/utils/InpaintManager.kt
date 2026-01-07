@@ -46,7 +46,7 @@ class InpaintManager(private val context: Context) {
 
             // Resize inputs
             val resizedImage = Bitmap.createScaledBitmap(originalBitmap, modelInputSize, modelInputSize, true)
-            val resizedMask = Bitmap.createScaledBitmap(maskBitmap, modelInputSize, modelInputSize, true)
+            val resizedMask = Bitmap.createScaledBitmap(maskBitmap, modelInputSize, modelInputSize, false)
 
             // Convert Mask to grayscale/single channel if needed by model, but TFLite support handles Bitmap -> Tensor
 

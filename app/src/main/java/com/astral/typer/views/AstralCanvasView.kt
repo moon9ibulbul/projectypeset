@@ -70,7 +70,16 @@ class AstralCanvasView @JvmOverloads constructor(
         alpha = 128
     }
 
-    var onMaskDrawn: ((android.graphics.Bitmap) -> Unit)? = null
+    // var onMaskDrawn: ((android.graphics.Bitmap) -> Unit)? = null
+
+    fun getInpaintMask(): android.graphics.Bitmap {
+        return renderMaskToBitmap()
+    }
+
+    fun clearInpaintMask() {
+        inpaintPath.reset()
+        invalidate()
+    }
 
     fun setInpaintMode(enabled: Boolean) {
         isInpaintMode = enabled
@@ -571,10 +580,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
-                    // Capture mask and trigger inpaint
-                    val mask = renderMaskToBitmap()
-                    onMaskDrawn?.invoke(mask)
-                    inpaintPath.reset()
+                    // Just invalidate to keep the path drawn
                     invalidate()
                 }
             }

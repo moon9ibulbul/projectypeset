@@ -54,6 +54,7 @@ class EditorActivity : AppCompatActivity() {
     private var currentMenuType: String? = null
 
     private var isInpaintMode = false
+    private var btnApplyInpaint: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -148,10 +149,6 @@ class EditorActivity : AppCompatActivity() {
                     }, 300)
                 }
             }
-        }
-
-        canvasView.onMaskDrawn = { maskBitmap ->
-            performInpaint(maskBitmap)
         }
     }
 
@@ -299,11 +296,46 @@ class EditorActivity : AppCompatActivity() {
 
             // Deselect any layer
             canvasView.selectLayer(null)
+
+            // Add Apply Button
+            val btn = android.widget.Button(this).apply {
+                text = "APPLY"
+                setTextColor(Color.WHITE)
+                textSize = 16f
+                setTypeface(null, Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#444444")) // Dark gray
+                    cornerRadius = dpToPx(20).toFloat()
+                    setStroke(dpToPx(2), Color.WHITE)
+                }
+                layoutParams = FrameLayout.LayoutParams(
+                    dpToPx(120),
+                    dpToPx(48)
+                ).apply {
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    setMargins(0, 0, 0, dpToPx(32))
+                }
+                setOnClickListener {
+                    val mask = canvasView.getInpaintMask()
+                    performInpaint(mask)
+                    canvasView.clearInpaintMask()
+                }
+            }
+            binding.canvasContainer.addView(btn)
+            btnApplyInpaint = btn
+
         } else {
             binding.btnEraser.setImageResource(R.drawable.ic_eraser)
             canvasView.setInpaintMode(false)
             binding.bottomMenuContainer.visibility = View.VISIBLE
             showInsertMenu()
+
+            // Remove Apply Button
+            btnApplyInpaint?.let {
+                binding.canvasContainer.removeView(it)
+                btnApplyInpaint = null
+            }
+            canvasView.clearInpaintMask()
         }
     }
 
