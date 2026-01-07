@@ -29,69 +29,61 @@ class InpaintManager(private val context: Context) {
             val options = Interpreter.Options()
             options.setNumThreads(4)
             interpreter = Interpreter(FileUtil.loadMappedFile(context, modelName), options)
+
+            // Debug Shapes
+            interpreter?.let {
+                val inputCount = it.inputTensorCount
+                android.util.Log.d("InpaintManager", "Input Count: $inputCount")
+                for (i in 0 until inputCount) {
+                     val shape = it.getInputTensor(i).shape()
+                     val type = it.getInputTensor(i).dataType()
+                     android.util.Log.d("InpaintManager", "Input $i Shape: ${shape.contentToString()} Type: $type")
+                }
+            }
+
         } catch (e: Exception) {
             e.printStackTrace()
+            android.util.Log.e("InpaintManager", "Error initializing model: ${e.message}")
         }
     }
 
     fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
-        if (interpreter == null) return null
+        if (interpreter == null) {
+            android.util.Log.e("InpaintManager", "Interpreter is null")
+            return null
+        }
 
         try {
-            // 1. Prepare Inputs
-            // The model likely expects two inputs: [1, 256, 256, 3] image and [1, 256, 256, 1] mask
-            // Or concatenated. Let's check the signature if possible, but standard behavior for this demo repo is usually
-            // Input 0: Image [1, 256, 256, 3]
-            // Input 1: Mask [1, 256, 256, 1]
-
-            // Resize inputs
+            // Resize inputs strictly to model size
             val resizedImage = Bitmap.createScaledBitmap(originalBitmap, modelInputSize, modelInputSize, true)
             val resizedMask = Bitmap.createScaledBitmap(maskBitmap, modelInputSize, modelInputSize, false)
 
-            // Convert Mask to grayscale/single channel if needed by model, but TFLite support handles Bitmap -> Tensor
-
-            // Image Processor
-            // Assuming model expects 0-1 float or 0-255 uint8. TFLite Support usually handles this.
-            // But GAN models often want normalized -1 to 1 or 0 to 1.
-            // The demo repo usually uses 0-255 normalized to 0-1 or just raw bytes.
-            // Let's assume float32 input [0,1] for now.
-
+            // Prepare Image (Float32, Normalized 0-1)
             val imageProcessor = ImageProcessor.Builder()
                 .add(ResizeOp(modelInputSize, modelInputSize, ResizeOp.ResizeMethod.BILINEAR))
-                .add(NormalizeOp(0f, 255f)) // Convert 0-255 to 0-1
-                .build()
-
-            val maskProcessor = ImageProcessor.Builder()
-                .add(ResizeOp(modelInputSize, modelInputSize, ResizeOp.ResizeMethod.NEAREST_NEIGHBOR))
-                .add(NormalizeOp(0f, 255f)) // Convert 0-255 to 0-1
+                .add(NormalizeOp(0f, 255f))
                 .build()
 
             val tImage = TensorImage(DataType.FLOAT32)
             tImage.load(resizedImage)
             val processedImage = imageProcessor.process(tImage)
 
-            val tMask = TensorImage(DataType.FLOAT32)
-            tMask.load(resizedMask)
-            // Note: Mask needs to be 1 channel usually. TensorImage loads as 3 channels (RGB) from Bitmap.
-            // We might need to extract one channel or feed it as is if model expects 3 channel mask (some do).
-            // Checking standard implementations: usually it's (image, mask).
-            // Let's check input tensor count and shape.
-
-            val input0 = processedImage.buffer
-
-            // Handle mask: The model likely expects [1, 256, 256, 1].
-            // We need to convert RGB mask to 1 channel.
+            // Prepare Mask (Float32, 1 Channel)
+            // Ensure strictly [1, 256, 256, 1] buffer
             val maskBuffer = convertBitmapToGrayscaleByteBuffer(resizedMask)
 
-            // Outputs
-            // Output 0: Inpainted image [1, 256, 256, 3]
+            // Prepare Output Buffer
             val outputBuffer = TensorBuffer.createFixedSize(intArrayOf(1, modelInputSize, modelInputSize, 3), DataType.FLOAT32)
 
-            // Run
-            val inputs = arrayOf(input0, maskBuffer)
+            // Run Inference
+            // Input order is usually [Image, Mask] for this specific model architecture (Generative Inpainting)
+            // We use runForMultipleInputsOutputs to be safe
+            val inputs = arrayOf(processedImage.buffer, maskBuffer)
             val outputs = mapOf(0 to outputBuffer.buffer)
 
+            val startTime = System.currentTimeMillis()
             interpreter?.runForMultipleInputsOutputs(inputs, outputs)
+            android.util.Log.d("InpaintManager", "Inference time: ${System.currentTimeMillis() - startTime}ms")
 
             // Post process
             val outputFloatArray = outputBuffer.floatArray
@@ -108,6 +100,7 @@ class InpaintManager(private val context: Context) {
 
         } catch (e: Exception) {
             e.printStackTrace()
+            android.util.Log.e("InpaintManager", "Inference Failed", e)
             return null
         }
     }

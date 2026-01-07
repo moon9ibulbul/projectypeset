@@ -152,16 +152,14 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun performInpaint(maskBitmap: android.graphics.Bitmap) {
+    private fun performInpaint(maskBitmap: android.graphics.Bitmap, onSuccess: () -> Unit) {
         val originalBitmap = canvasView.getBackgroundImage()
-        if (originalBitmap == null) return
+        if (originalBitmap == null) {
+            Toast.makeText(this, "No image to inpaint", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        // Save current state for Undo
-        // We need to extend UndoManager to handle Bitmaps, or just push a custom action?
-        // For now, let's assume we can push a special state or we just manage bitmap undo separately.
-        // Or if UndoManager is strictly Layers, we need to upgrade it.
-        // Let's check UndoManager later. For now, we proceed.
-
+        // Save current state for Undo (Bitmap History)
         com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
 
         binding.root.post {
@@ -174,8 +172,9 @@ class EditorActivity : AppCompatActivity() {
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                    onSuccess()
                 } else {
-                    Toast.makeText(this@EditorActivity, "Inpaint Failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -240,13 +239,8 @@ class EditorActivity : AppCompatActivity() {
         // Undo/Redo/Layers
         binding.btnUndo.setOnClickListener {
             if (isInpaintMode) {
-                 // Bitmap Undo
-                 val restored = com.astral.typer.utils.UndoManager.undoBitmap(canvasView.getBackgroundImage())
-                 if (restored != null) {
-                     canvasView.setBackgroundImage(restored)
-                 } else {
-                     Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
-                 }
+                 // Mask Undo
+                 canvasView.undoInpaintMask()
             } else {
                 val restored = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
                 if (restored != null) {
@@ -259,13 +253,8 @@ class EditorActivity : AppCompatActivity() {
 
         binding.btnRedo.setOnClickListener {
             if (isInpaintMode) {
-                // Bitmap Redo
-                val restored = com.astral.typer.utils.UndoManager.redoBitmap(canvasView.getBackgroundImage())
-                if (restored != null) {
-                    canvasView.setBackgroundImage(restored)
-                } else {
-                    Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
-                }
+                // Mask Redo
+                canvasView.redoInpaintMask()
             } else {
                 val restored = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
                 if (restored != null) {
@@ -317,8 +306,9 @@ class EditorActivity : AppCompatActivity() {
                 }
                 setOnClickListener {
                     val mask = canvasView.getInpaintMask()
-                    performInpaint(mask)
-                    canvasView.clearInpaintMask()
+                    performInpaint(mask) {
+                        canvasView.clearInpaintMask()
+                    }
                 }
             }
             binding.canvasContainer.addView(btn)
