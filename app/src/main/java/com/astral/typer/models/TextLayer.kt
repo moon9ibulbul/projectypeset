@@ -77,6 +77,15 @@ class TextLayer(
     // Erase
     var eraseMask: Bitmap? = null
 
+    // Effect
+    var currentEffect: TextEffectType = TextEffectType.NONE
+
+    // Caching for Pixelation
+    @Transient
+    private var cachedPixelBitmap: Bitmap? = null
+    @Transient
+    private var cachedPixelHash: Int = 0
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -139,6 +148,8 @@ class TextLayer(
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
         }
+
+        newLayer.currentEffect = this.currentEffect
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -459,7 +470,147 @@ class TextLayer(
             paint.clearShadowLayer()
         }
 
-        layout.draw(canvas)
+        if (currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
+             val originalXfermode = paint.xfermode
+             val originalColor = paint.color
+             val originalShader = paint.shader
+
+             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+             paint.shader = null
+
+             // Red Layer
+             paint.color = 0xFFFF0000.toInt()
+             canvas.save()
+             canvas.translate(-5f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Blue Layer
+             paint.color = 0xFF0000FF.toInt()
+             canvas.save()
+             canvas.translate(5f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Green Layer
+             paint.color = 0xFF00FF00.toInt()
+             layout.draw(canvas)
+
+             paint.xfermode = originalXfermode
+             paint.color = originalColor
+             paint.shader = originalShader
+        } else if (currentEffect == TextEffectType.PIXELATION) {
+             val scaleFactor = 0.1f
+             val w = getWidth()
+             val h = getHeight()
+             val scaledW = (w * scaleFactor).toInt().coerceAtLeast(1)
+             val scaledH = (h * scaleFactor).toInt().coerceAtLeast(1)
+
+             // Check if cache is valid
+             val currentHash = text.hashCode() + w.toInt() + h.toInt() + color + fontSize.toInt()
+
+             if (cachedPixelBitmap == null || cachedPixelBitmap!!.width != scaledW || cachedPixelBitmap!!.height != scaledH || cachedPixelHash != currentHash) {
+                 // Recycle old if exists (and different size/content)
+                 cachedPixelBitmap?.recycle()
+
+                 // Create temp bitmap for low-res
+                 val tempBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
+                 val tempCanvas = Canvas(tempBitmap)
+
+                 // Scale canvas to fit drawing into small bitmap
+                 tempCanvas.scale(scaleFactor, scaleFactor)
+
+                 // Draw text to small bitmap
+                 layout.draw(tempCanvas)
+
+                 cachedPixelBitmap = tempBitmap
+                 cachedPixelHash = currentHash
+             }
+
+             if (cachedPixelBitmap != null && !cachedPixelBitmap!!.isRecycled) {
+                 // Draw scaled up
+                 val pixelPaint = Paint()
+                 pixelPaint.isFilterBitmap = false // Nearest Neighbor
+
+                 // Draw back to main canvas, scaling up to original size
+                 val destRect = RectF(0f, 0f, w, h)
+                 canvas.drawBitmap(cachedPixelBitmap!!, null, destRect, pixelPaint)
+             }
+
+        } else if (currentEffect == TextEffectType.GLITCH) {
+             val w = getWidth()
+             val h = getHeight()
+             // Slice 1: Top 30%, Shift Left -10
+             canvas.save()
+             canvas.clipRect(0f, 0f, w, h * 0.3f)
+             canvas.translate(-10f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Slice 2: Middle 40%, Shift Right 15
+             canvas.save()
+             canvas.clipRect(0f, h * 0.3f, w, h * 0.7f)
+             canvas.translate(15f, 0f)
+             // Optional: Change color for middle slice? "Color: Cyan or Original"
+             // Let's use Original for basic implementation as per instruction "Draw Text (Color: Cyan or Original)"
+             // If we want Cyan, we'd need to change paint color. Let's stick to original for now unless stronger effect desired.
+             // But let's follow the "Cyan or Original" hint to make it look glitchier.
+             // However, modifying layout paint here might be complex if we want to restore it perfectly without impacting other draws if they were recursive.
+             // For safety and simplicity of "slice", original color is fine.
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Slice 3: Bottom 30%, Shift Left -5
+             canvas.save()
+             canvas.clipRect(0f, h * 0.7f, w, h)
+             canvas.translate(-5f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+        } else if (currentEffect == TextEffectType.NEON) {
+             val originalColor = paint.color
+             val originalStyle = paint.style
+             val originalMaskFilter = paint.maskFilter
+
+             // Step 1: Draw Glow
+             paint.style = Paint.Style.FILL
+             paint.color = color // Text Color
+             paint.maskFilter = BlurMaskFilter(30f, BlurMaskFilter.Blur.NORMAL)
+
+             layout.draw(canvas)
+
+             // Step 2: Draw Core
+             paint.maskFilter = null
+             paint.color = Color.WHITE
+             layout.draw(canvas)
+
+             // Restore
+             paint.color = originalColor
+             paint.style = originalStyle
+             paint.maskFilter = originalMaskFilter
+
+        } else if (currentEffect == TextEffectType.LONG_SHADOW) {
+             val originalColor = paint.color
+
+             // Step 1: Loop for shadow
+             paint.color = Color.DKGRAY
+             for (i in 1..30) {
+                 canvas.save()
+                 canvas.translate(i.toFloat(), i.toFloat())
+                 layout.draw(canvas)
+                 canvas.restore()
+             }
+
+             // Step 2: Main Text
+             paint.color = color
+             layout.draw(canvas)
+
+             // Restore
+             paint.color = originalColor
+
+        } else {
+            layout.draw(canvas)
+        }
 
         // Apply Erase Mask
         if (eraseMask != null) {
