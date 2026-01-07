@@ -27,7 +27,8 @@ object ColorPickerHelper {
     fun createPaletteView(
         context: Context,
         onColorSelected: (Int) -> Unit,
-        onAddCurrentColor: (() -> Int)? = null // If provided, shows + button which gets color from callback
+        onAddCurrentColor: (() -> Int)? = null, // If provided, shows + button which gets color from callback
+        selectedColor: Int? = null // Logic to highlight current color
     ): View {
         val scroll = HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = false
@@ -60,15 +61,13 @@ object ColorPickerHelper {
                 setOnClickListener {
                     val colorToSave = onAddCurrentColor()
                     ColorPaletteManager.addColor(context, colorToSave)
-                    // Refresh list - tricky since we are inside the view.
-                    // We can rebuild the list content.
-                    refreshPaletteList(context, list, onColorSelected, onAddCurrentColor)
+                    refreshPaletteList(context, list, onColorSelected, onAddCurrentColor, selectedColor)
                 }
             }
             list.addView(btnAdd)
         }
 
-        refreshPaletteList(context, list, onColorSelected, onAddCurrentColor)
+        refreshPaletteList(context, list, onColorSelected, onAddCurrentColor, selectedColor)
 
         scroll.addView(list)
         return scroll
@@ -78,7 +77,8 @@ object ColorPickerHelper {
         context: Context,
         container: LinearLayout,
         onColorSelected: (Int) -> Unit,
-        onAddCurrentColor: (() -> Int)?
+        onAddCurrentColor: (() -> Int)?,
+        selectedColor: Int?
     ) {
         // Keep the first child (the add button) if it exists
         val childCount = container.childCount
@@ -90,24 +90,52 @@ object ColorPickerHelper {
 
         val colors = ColorPaletteManager.getSavedColors(context)
         for (color in colors) {
-             val item = View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(dpToPx(context, 40), dpToPx(context, 40)).apply {
-                    setMargins(8, 0, 8, 0)
+            val wrapper = android.widget.FrameLayout(context).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(context, 46), dpToPx(context, 46)).apply {
+                     setMargins(4, 0, 4, 0)
                 }
+            }
+
+            // Selection indicator (Ring)
+            if (selectedColor != null && selectedColor == color) {
+                val ring = View(context).apply {
+                    layoutParams = android.widget.FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.TRANSPARENT)
+                        setStroke(dpToPx(context, 3), Color.CYAN)
+                    }
+                }
+                wrapper.addView(ring)
+            }
+
+            val item = View(context).apply {
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    dpToPx(context, 40),
+                    dpToPx(context, 40),
+                    Gravity.CENTER
+                )
                 background = GradientDrawable().apply {
                     setColor(color)
                     shape = GradientDrawable.OVAL
                     setStroke(2, Color.LTGRAY)
                 }
-                setOnClickListener { onColorSelected(color) }
+                setOnClickListener {
+                    onColorSelected(color)
+                    // Refresh to show selection moving
+                    refreshPaletteList(context, container, onColorSelected, onAddCurrentColor, color)
+                }
                 setOnLongClickListener {
-                    // Option to remove?
                     ColorPaletteManager.removeColor(context, color)
-                    refreshPaletteList(context, container, onColorSelected, onAddCurrentColor)
+                    refreshPaletteList(context, container, onColorSelected, onAddCurrentColor, selectedColor)
                     true
                 }
             }
-            container.addView(item)
+            wrapper.addView(item)
+            container.addView(wrapper)
         }
     }
 
@@ -180,12 +208,15 @@ object ColorPickerHelper {
 
         // Palette
         val palette = createPaletteView(context, { color ->
-             // On palette click
              currentColor = color
              wheel.setColor(color)
              val hex = String.format("#%06X", (0xFFFFFF and color))
              hexInput.setText(hex)
-        }, { currentColor })
+             // Dialog palette selection should likely also refresh to show ring?
+             // Since we use the same helper, it will refresh internally if we set the listener correctly.
+             // But inside Dialog, the `onColorSelected` does NOT close the dialog, it just updates `currentColor`.
+             // So visually highlighting the selected one in the palette list is good.
+        }, { currentColor }, initialColor)
 
         // Add views
         root.addView(wheel)
