@@ -43,6 +43,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.lifecycleScope
 
 class EditorActivity : AppCompatActivity() {
 
@@ -162,11 +163,10 @@ class EditorActivity : AppCompatActivity() {
         // Save current state for Undo (Bitmap History)
         com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
 
-        binding.root.post {
-            Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
-        }
+        Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
 
-        CoroutineScope(Dispatchers.Default).launch {
+        lifecycleScope.launch(Dispatchers.Default) {
+            // Run heavy OpenCV inpaint on background thread
             val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
             withContext(Dispatchers.Main) {
                 if (result != null) {
