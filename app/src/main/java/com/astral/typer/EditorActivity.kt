@@ -484,7 +484,13 @@ class EditorActivity : AppCompatActivity() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
 
-        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val scroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
