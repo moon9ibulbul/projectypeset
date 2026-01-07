@@ -615,8 +615,8 @@ class EditorActivity : AppCompatActivity() {
                          cornerRadius = dpToPx(8).toFloat()
                     }
                     layoutParams = GridLayout.LayoutParams().apply {
-                        width = dpToPx(60)
-                        height = dpToPx(60)
+                        width = dpToPx(40)
+                        height = dpToPx(40)
                         setMargins(4,4,4,4)
                     }
                     setOnClickListener {
@@ -629,19 +629,19 @@ class EditorActivity : AppCompatActivity() {
 
             // Grid Layout for Arrows
             // Row 0
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty TL
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty TL
             controls.addView(createArrow("▲", 0f, -10f)) // Up
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty TR
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty TR
 
             // Row 1
             controls.addView(createArrow("◄", -10f, 0f)) // Left
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Center (Maybe Reset?)
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Center (Maybe Reset?)
             controls.addView(createArrow("►", 10f, 0f)) // Right
 
             // Row 2
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty BL
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty BL
             controls.addView(createArrow("▼", 0f, 10f)) // Down
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty BR
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty BR
 
             layout.addView(controls)
         }
