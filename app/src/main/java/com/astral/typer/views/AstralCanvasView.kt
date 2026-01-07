@@ -61,8 +61,13 @@ class AstralCanvasView @JvmOverloads constructor(
     private var isInpaintMode = false
 
     // Inpaint Tools
-    private val inpaintPaths = mutableListOf<Path>()
-    private val redoPaths = mutableListOf<Path>()
+    enum class InpaintTool {
+        BRUSH, ERASER, LASSO
+    }
+
+    var currentInpaintTool = InpaintTool.BRUSH
+    private val inpaintOps = mutableListOf<Pair<Path, InpaintTool>>()
+    private val redoOps = mutableListOf<Pair<Path, InpaintTool>>()
     private var currentInpaintPath = Path()
 
     private val inpaintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -74,33 +79,54 @@ class AstralCanvasView @JvmOverloads constructor(
         alpha = 128
     }
 
-    // var onMaskDrawn: ((android.graphics.Bitmap) -> Unit)? = null
+    private val eraserPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        style = Paint.Style.STROKE
+        strokeWidth = 50f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private val lassoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
+        style = Paint.Style.FILL
+        alpha = 128
+    }
+    private val lassoStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+    }
 
     fun getInpaintMask(): android.graphics.Bitmap {
         return renderMaskToBitmap()
     }
 
     fun clearInpaintMask() {
-        inpaintPaths.clear()
-        redoPaths.clear()
+        inpaintOps.clear()
+        redoOps.clear()
         currentInpaintPath.reset()
         invalidate()
     }
 
-    fun undoInpaintMask() {
-        if (inpaintPaths.isNotEmpty()) {
-            val last = inpaintPaths.removeAt(inpaintPaths.size - 1)
-            redoPaths.add(last)
+    fun undoInpaintMask(): Boolean {
+        if (inpaintOps.isNotEmpty()) {
+            val last = inpaintOps.removeAt(inpaintOps.size - 1)
+            redoOps.add(last)
             invalidate()
+            return true
         }
+        return false
     }
 
-    fun redoInpaintMask() {
-        if (redoPaths.isNotEmpty()) {
-            val last = redoPaths.removeAt(redoPaths.size - 1)
-            inpaintPaths.add(last)
+    fun redoInpaintMask(): Boolean {
+        if (redoOps.isNotEmpty()) {
+            val last = redoOps.removeAt(redoOps.size - 1)
+            inpaintOps.add(last)
             invalidate()
+            return true
         }
+        return false
     }
 
     fun setInpaintMode(enabled: Boolean) {
@@ -112,6 +138,17 @@ class AstralCanvasView @JvmOverloads constructor(
             currentMode = Mode.NONE
         }
         invalidate()
+    }
+
+    fun getViewportCenter(): FloatArray {
+        // Calculate center of visible area in canvas coordinates
+        // viewMatrix maps Canvas -> View
+        // invert viewMatrix to map View Center -> Canvas
+        val inverse = Matrix()
+        viewMatrix.invert(inverse)
+        val center = floatArrayOf(width / 2f, height / 2f)
+        inverse.mapPoints(center)
+        return center
     }
 
     fun getBackgroundImage(): android.graphics.Bitmap? {
@@ -365,12 +402,29 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Inpaint Path (in World Space)
         if (isInpaintMode) {
-            for (path in inpaintPaths) {
-                canvas.drawPath(path, inpaintPaint)
+            val sc = canvas.saveLayer(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), null)
+
+            for ((path, tool) in inpaintOps) {
+                when(tool) {
+                    InpaintTool.BRUSH -> canvas.drawPath(path, inpaintPaint)
+                    InpaintTool.ERASER -> canvas.drawPath(path, eraserPaint)
+                    InpaintTool.LASSO -> {
+                        canvas.drawPath(path, lassoPaint)
+                        canvas.drawPath(path, lassoStrokePaint)
+                    }
+                }
             }
             if (!currentInpaintPath.isEmpty) {
-                canvas.drawPath(currentInpaintPath, inpaintPaint)
+                 when(currentInpaintTool) {
+                    InpaintTool.BRUSH -> canvas.drawPath(currentInpaintPath, inpaintPaint)
+                    InpaintTool.ERASER -> canvas.drawPath(currentInpaintPath, eraserPaint)
+                    InpaintTool.LASSO -> {
+                         canvas.drawPath(currentInpaintPath, lassoStrokePaint)
+                    }
+                }
             }
+
+            canvas.restoreToCount(sc)
         }
 
         // Draw Selection Overlay
@@ -649,9 +703,13 @@ class AstralCanvasView @JvmOverloads constructor(
                 MotionEvent.ACTION_UP -> {
                     // Commit path
                     if (!currentInpaintPath.isEmpty) {
-                         inpaintPaths.add(Path(currentInpaintPath))
-                         redoPaths.clear() // Clear redo stack on new action
+                         if (currentInpaintTool == InpaintTool.LASSO) {
+                             currentInpaintPath.close()
+                         }
+                         inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
+                         redoOps.clear() // Clear redo stack on new action
                          currentInpaintPath.reset()
+                         isMaskDirty = true
                     }
                     invalidate()
                 }
@@ -928,15 +986,31 @@ class AstralCanvasView @JvmOverloads constructor(
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.TRANSPARENT)
 
-        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE // White mask
+        val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
             style = Paint.Style.STROKE
             strokeWidth = 50f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
-        for (path in inpaintPaths) {
-            canvas.drawPath(path, maskPaint)
+        val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+            style = Paint.Style.STROKE
+            strokeWidth = 50f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+
+        for ((path, tool) in inpaintOps) {
+             when(tool) {
+                 InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
+                 InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
+                 InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+             }
         }
         return bitmap
     }
