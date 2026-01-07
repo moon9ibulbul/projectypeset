@@ -1,16 +1,22 @@
 package com.astral.typer.models
 
 import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Typeface
-import android.graphics.BlurMaskFilter
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.Typeface
 import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
+import kotlin.math.ceil
 
 class TextLayer(
     initialText: String = "Double tap to edit",
@@ -25,10 +31,9 @@ class TextLayer(
 
     // Spacing
     var letterSpacing: Float = 0f
-    var lineSpacing: Float = 0f // Additive (extra)
+    var lineSpacing: Float = 0f
 
-    // Advanced Properties
-    var opacity: Int = 255 // 0-255
+    // Shadow
     var shadowColor: Int = Color.GRAY
     var shadowRadius: Float = 0f
     var shadowDx: Float = 0f
@@ -38,15 +43,12 @@ class TextLayer(
     var isMotionShadow: Boolean = false
     var motionShadowAngle: Int = 0
     var motionShadowDistance: Float = 0f
-    var motionBlurStrength: Float = 0f // New: Blur for motion shadow
 
     // Gradient
     var isGradient: Boolean = false
     var gradientStartColor: Int = Color.RED
     var gradientEndColor: Int = Color.BLUE
-    var gradientAngle: Int = 0 // Degrees 0-360
-
-    // Gradient Toggles
+    var gradientAngle: Int = 0
     var isGradientText: Boolean = true
     var isGradientStroke: Boolean = false
     var isGradientShadow: Boolean = false
@@ -59,12 +61,17 @@ class TextLayer(
 
     // Perspective
     var isPerspective: Boolean = false
-    var perspectivePoints: FloatArray? = null // [x0, y0, x1, y1, x2, y2, x3, y3] relative to center
+    var perspectivePoints: FloatArray? = null
+
+    // Warp
+    var isWarp: Boolean = false
+    var warpRows: Int = 2
+    var warpCols: Int = 2
+    var warpMesh: FloatArray? = null
 
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
-    // Custom width for wrapping. If null or <=0, it wraps at maxWidth or fits content
     var boxWidth: Float? = null
 
     init {
@@ -80,7 +87,14 @@ class TextLayer(
         newLayer.isJustified = this.isJustified
         newLayer.letterSpacing = this.letterSpacing
         newLayer.lineSpacing = this.lineSpacing
+
         newLayer.opacity = this.opacity
+        newLayer.blendMode = this.blendMode
+        newLayer.isOpacityGradient = this.isOpacityGradient
+        newLayer.opacityStart = this.opacityStart
+        newLayer.opacityEnd = this.opacityEnd
+        newLayer.opacityAngle = this.opacityAngle
+
         newLayer.shadowColor = this.shadowColor
         newLayer.shadowRadius = this.shadowRadius
         newLayer.shadowDx = this.shadowDx
@@ -88,7 +102,7 @@ class TextLayer(
         newLayer.isMotionShadow = this.isMotionShadow
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
-        newLayer.motionBlurStrength = this.motionBlurStrength
+
         newLayer.isGradient = this.isGradient
         newLayer.gradientStartColor = this.gradientStartColor
         newLayer.gradientEndColor = this.gradientEndColor
@@ -104,6 +118,11 @@ class TextLayer(
 
         newLayer.isPerspective = this.isPerspective
         newLayer.perspectivePoints = this.perspectivePoints?.clone()
+
+        newLayer.isWarp = this.isWarp
+        newLayer.warpRows = this.warpRows
+        newLayer.warpCols = this.warpCols
+        newLayer.warpMesh = this.warpMesh?.clone()
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -131,7 +150,7 @@ class TextLayer(
         textPaint.textSize = fontSize
         textPaint.color = color
         textPaint.typeface = typeface
-        textPaint.alpha = opacity
+        textPaint.alpha = 255
         textPaint.letterSpacing = letterSpacing
 
         if (shadowRadius > 0 && !isMotionShadow) {
@@ -143,7 +162,6 @@ class TextLayer(
         textPaint.shader = null
 
         val desiredWidth = StaticLayout.getDesiredWidth(text, textPaint)
-
         val layoutWidth = if (boxWidth != null && boxWidth!! > 0) {
             boxWidth!!.toInt()
         } else {
@@ -157,11 +175,8 @@ class TextLayer(
              .setLineSpacing(lineSpacing, 1.0f)
 
             if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                // builder.setJustificationMode(LineBreaker.JUSTIFICATION_MODE_INTER_WORD) // Requires API 26 (LineBreaker) or just Int
-                // Using hardcoded int 1 for JUSTIFICATION_MODE_INTER_WORD to avoid import issues if not available in classpath
                 builder.setJustificationMode(1)
             }
-
             cachedLayout = builder.build()
         } else {
             cachedLayout = StaticLayout(
@@ -171,12 +186,21 @@ class TextLayer(
         }
     }
 
-    private fun getGradientShader(w: Float, h: Float): android.graphics.Shader? {
+    private fun getGradientShader(w: Float, h: Float): Shader? {
         if (!isGradient) return null
+        return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor)
+    }
 
+    private fun getOpacityGradientShader(w: Float, h: Float): Shader {
+        val startColor = (opacityStart shl 24) or 0x000000
+        val endColor = (opacityEnd shl 24) or 0x000000
+        return createGradient(w, h, opacityAngle, startColor, endColor)
+    }
+
+    private fun createGradient(w: Float, h: Float, angle: Int, startColor: Int, endColor: Int): Shader {
         val cx = w / 2f
         val cy = h / 2f
-        val angleRad = Math.toRadians(gradientAngle.toDouble())
+        val angleRad = Math.toRadians(angle.toDouble())
         val cos = Math.cos(angleRad).toFloat()
         val sin = Math.sin(angleRad).toFloat()
 
@@ -199,230 +223,152 @@ class TextLayer(
         val x1 = cx + halfLen * cos
         val y1 = cy + halfLen * sin
 
-        return android.graphics.LinearGradient(
-            x0, y0, x1, y1,
-            gradientStartColor, gradientEndColor,
-            android.graphics.Shader.TileMode.CLAMP
-        )
+        return LinearGradient(x0, y0, x1, y1, startColor, endColor, Shader.TileMode.CLAMP)
     }
 
     override fun draw(canvas: Canvas) {
         if (!isVisible) return
-
         ensureLayout()
         val layout = cachedLayout ?: return
 
         canvas.save()
         canvas.translate(x, y)
-        // If Perspective is active, we might disable standard Rotation/Scale or apply them before perspective?
-        // Usually perspective replaces the affine transform, but here the user toggles it.
-        // Let's keep the base transform, and apply perspective on top (or as the final step).
         canvas.rotate(rotation)
         canvas.scale(scaleX, scaleY)
 
         val w = getWidth()
         val h = getHeight()
-
-        // Center alignment for standard drawing
         val dx = -w / 2f
         val dy = -h / 2f
 
-        if (isPerspective && perspectivePoints != null) {
-            // Draw to a Bitmap first
-            // We need to capture everything (Shadow, Stroke, Text) into a bitmap
-            // Then distort it.
-            // Problem: Motion Shadow is large.
-            // To simplify, let's render the standard layer content into a bitmap.
-            // But we need to define the bounds.
+        val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        layerPaint.alpha = if (isOpacityGradient) 255 else opacity
 
-            // For now, let's handle Perspective by drawing the layout into a bitmap
-            // and using drawBitmapMesh.
-
-            // Calculate necessary bitmap size (including strokes/shadows)
-            val padding = 100 // Extra padding
-            val bmpW = w.toInt() + padding * 2
-            val bmpH = h.toInt() + padding * 2
-
-            if (bmpW > 0 && bmpH > 0) {
-                val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-                val bmpCanvas = Canvas(bitmap)
-
-                // Draw content centered in bitmap
-                bmpCanvas.translate(padding.toFloat(), padding.toFloat())
-
-                // Draw the actual content (recursive call logic essentially)
-                drawContent(bmpCanvas, layout, w, h, false) // false = don't apply gradient shader yet?
-                // Wait, if we draw to bitmap, we should apply gradient on the bitmap content.
-                // Yes.
-
-                // Now warp this bitmap
-                // The perspectivePoints are relative to Center (0,0) of the layer.
-                // The bitmap content (0,0) corresponds to (-w/2 - padding, -h/2 - padding) in layer space?
-                // No, inside drawContent we translated.
-
-                // Source Verts: Rectangle of the bitmap content
-                // Left: -w/2 - padding ?? No.
-                // In the bitmap, the TopLeft is (0,0).
-                // The Content TopLeft (Text start) is at (padding, padding).
-                // The Content BottomRight is at (padding+w, padding+h).
-
-                // The perspectivePoints correspond to the corners of the content box (-w/2, -h/2) to (w/2, h/2).
-                // We need to map the Bitmap texture coordinates to the Screen coordinates.
-                // But `drawBitmapMesh` maps the *entire* bitmap to a mesh.
-
-                // Let's define the mesh points.
-                // We have 4 corner points for the *Content Box*.
-                // We need to interpolate where the *Bitmap Corners* (including padding) would land.
-                // Or simpler: Just render the content box without padding? (Risk of clipping strokes).
-                // Let's use padding.
-
-                // Perspective Points are: TL, TR, BR, BL (assuming standard order)
-                // P0(x,y), P1(x,y), P2(x,y), P3(x,y)
-
-                // If we assume the transformation is a Perspective Projection, we can calculate the matrix
-                // that maps the Source Rect (Content) to Destination Quad (Perspective Points).
-                // Then apply that matrix to the Source Rect (Bitmap Bounds) to get Destination Quad (Bitmap).
-                // BUT `drawBitmapMesh` just takes points.
-
-                // Simpler approach for this task:
-                // Only warp the Content Box. Padding might be clipped if we don't extend the mesh.
-                // But the user manipulates the corners of the text box.
-                // If we warp just the text box, strokes outside might look weird?
-                // Actually, `drawBitmapMesh` is linear interpolation between points.
-                // Perspective is non-linear. `drawBitmapMesh` with 1x1 grid is affine (skew).
-                // We need a grid (e.g. 20x20) and calculate the perspective mapping for each point.
-
-                // Given the complexity constraints and "no external libs",
-                // I will use `drawBitmapMesh` with a finer grid and manually calculate the perspective projection.
-
-                val pts = perspectivePoints!!
-                // TL, TR, BR, BL order?
-                // Usually: 0:TL, 1:TR, 2:BR, 3:BL
-
-                val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
-                val dstQuad = pts // [x0,y0, x1,y1, x2,y2, x3,y3]
-
-                // Calculate Homography Matrix (Perspective Matrix) mapping srcRect to dstQuad
-                val matrix = calculatePerspectiveMatrix(srcRect, dstQuad)
-
-                // Create Mesh
-                val meshW = 20
-                val meshH = 20
-                val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
-
-                // Bitmap Bounds (0,0 to bmpW, bmpH)
-                // These correspond to Layer Space: (-padding, -padding) to (w+padding, h+padding) relative to Content TopLeft?
-                // In Layer Space (where srcRect is centered at 0,0):
-                // Bitmap TopLeft is (-w/2 - padding, -h/2 - padding)
-                // Bitmap BottomRight is (w/2 + padding, h/2 + padding)
-
-                val bLeft = -w/2f - padding
-                val bTop = -h/2f - padding
-                val bRight = w/2f + padding
-                val bBottom = h/2f + padding
-
-                var index = 0
-                for (y in 0..meshH) {
-                    val fy = y.toFloat() / meshH
-                    val py = bTop + (bBottom - bTop) * fy
-
-                    for (x in 0..meshW) {
-                        val fx = x.toFloat() / meshW
-                        val px = bLeft + (bRight - bLeft) * fx
-
-                        // Map (px, py) using matrix
-                        val mapped = mapPoint(matrix, px, py)
-
-                        verts[index++] = mapped[0]
-                        verts[index++] = mapped[1]
-                    }
-                }
-
-                canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
-                // bitmap.recycle() // Ideally recycle, but in draw() loop be careful creating too many.
-                // For a prototype, GC will handle it, but it might stutter.
-            }
-
-        } else {
-            canvas.translate(dx, dy)
-            drawContent(canvas, layout, w, h, true)
+        val mode = when(blendMode) {
+             "OVERLAY" -> PorterDuff.Mode.OVERLAY
+             "ADD" -> PorterDuff.Mode.ADD
+             "MULTIPLY" -> PorterDuff.Mode.MULTIPLY
+             "SCREEN" -> PorterDuff.Mode.SCREEN
+             "DARKEN" -> PorterDuff.Mode.DARKEN
+             "LIGHTEN" -> PorterDuff.Mode.LIGHTEN
+             else -> PorterDuff.Mode.SRC_OVER
+        }
+        if (blendMode != "NORMAL") {
+            layerPaint.xfermode = PorterDuffXfermode(mode)
         }
 
+        val saveCount = canvas.saveLayer(null, layerPaint)
+
+        if (isWarp && warpMesh != null) {
+            drawWarped(canvas, layout, w, h, warpRows, warpCols, warpMesh!!)
+        } else if (isPerspective && perspectivePoints != null) {
+             drawPerspective(canvas, layout, w, h)
+        } else {
+             canvas.translate(dx, dy)
+             drawContent(canvas, layout, w, h)
+        }
+
+        if (isOpacityGradient) {
+            val maskPaint = Paint()
+            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+            val size = Math.max(w, h) * 3
+            maskPaint.shader = getOpacityGradientShader(w, h)
+            canvas.drawRect(-size, -size, size, size, maskPaint)
+        }
+
+        canvas.restoreToCount(saveCount)
         canvas.restore()
     }
 
-    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, usePositioning: Boolean) {
+    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
+        val padding = 100
+        val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
+        val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
+
+        val meshW = 20
+        val meshH = 20
+        val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
+
+        val bLeft = -w/2f - padding
+        val bTop = -h/2f - padding
+        val bRight = w/2f + padding
+        val bBottom = h/2f + padding
+
+        var index = 0
+        for (y in 0..meshH) {
+            val fy = y.toFloat() / meshH
+            val py = bTop + (bBottom - bTop) * fy
+            for (x in 0..meshW) {
+                val fx = x.toFloat() / meshW
+                val px = bLeft + (bRight - bLeft) * fx
+
+                val pts = floatArrayOf(px, py)
+                matrix.mapPoints(pts)
+                verts[index++] = pts[0]
+                verts[index++] = pts[1]
+            }
+        }
+
+        val bmpW = ceil(w + padding * 2).toInt()
+        val bmpH = ceil(h + padding * 2).toInt()
+        if (bmpW > 0 && bmpH > 0) {
+            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bitmap)
+            c.translate(padding.toFloat(), padding.toFloat())
+            drawContent(c, layout, w, h)
+            canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
+        }
+    }
+
+    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
+        val bmpW = ceil(w).toInt()
+        val bmpH = ceil(h).toInt()
+
+        if (bmpW > 0 && bmpH > 0) {
+            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bitmap)
+            drawContent(c, layout, w, h)
+            canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
+        }
+    }
+
+    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
         val paint = layout.paint
+        val gradientShader = getGradientShader(w, h)
 
-        // Prepare Gradient Shader
-        val gradientShader = if (isGradient) getGradientShader(w, h) else null
-
-        // Motion Shadow
         if (isMotionShadow && motionShadowDistance > 0) {
             paint.style = Paint.Style.FILL
             paint.shader = if (isGradient && isGradientShadow) gradientShader else null
 
             val originalAlpha = paint.alpha
-            val iterations = 20
-            val step = motionShadowDistance / iterations
+            val iterations = 30
+            val effectiveDistance = motionShadowDistance
             val angleRad = Math.toRadians(motionShadowAngle.toDouble())
             val cos = Math.cos(angleRad).toFloat()
             val sin = Math.sin(angleRad).toFloat()
+            val maxBlur = 10f
 
             paint.color = shadowColor
-            paint.alpha = (30 * (opacity / 255f)).toInt().coerceAtLeast(1)
+            paint.alpha = (30 * (255 / 255f)).toInt().coerceAtLeast(1)
 
-            // Blur for Motion Shadow: Remove Gaussian Blur, use Strength to extend the directional smear
-            paint.maskFilter = null
+            for (i in 1..iterations) {
+                val t = i / iterations.toFloat()
+                val d = (t * t + t)/2f * effectiveDistance
+                val blur = t * maxBlur
+                if (blur > 0.5f) {
+                    paint.maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                } else {
+                    paint.maskFilter = null
+                }
 
-            // Effective Distance = Base Distance + Strength (Strength acts as additional directional blur length)
-            val effectiveDistance = motionShadowDistance + (motionBlurStrength * 3) // Multiplier to make strength noticeable
+                val dx = d * cos
+                val dy = d * sin
 
-            // Adjust iterations for smoothness based on length
-            val effectiveIterations = (effectiveDistance / 2).toInt().coerceIn(20, 100)
-            val effectiveStep = effectiveDistance / effectiveIterations
-
-            // Standard Shadow for Motion? Usually disabled or replaced by the motion itself.
-            paint.clearShadowLayer()
-
-            // Draw in both positive and negative directions (bi-directional)
-            // Use a range from -effectiveIterations to +effectiveIterations
-            // We can optimize by iterating 1..N and drawing both + and -
-            // But if we want it centered and uniform, we just do offsets.
-            // The current loop below correctly draws at +dx and -dx, which IS bidirectional relative to the center.
-            // Wait, the review said "The loop calculates offsets ... increasing in positive direction ... smears downwards only. It does not smear upwards".
-            // BUT:
-            // canvas.translate(dx, dy) -> positive offset (Down-Right for 90deg? No, 90deg is Down (0,1))
-            // canvas.translate(-dx, -dy) -> negative offset (Up-Left)
-            // So the code ALREADY draws in both directions!
-            // Let's verify angles. Math.cos/sin.
-            // 0 deg -> cos=1, sin=0. dx=dist, dy=0. (+Right, -Left) -> Left/Right. Correct.
-            // 90 deg -> cos=0, sin=1. dx=0, dy=dist. (+Down, -Up) -> Up/Down. Correct.
-            // Maybe the reviewer missed the second draw call?
-            // Or maybe the user wants the "Blur Strength" to extend the trail FURTHER than distance?
-            // My previous change: effectiveDistance = motionShadowDistance + (motionBlurStrength * 3)
-            // This increases the length.
-            // The loop iterates 1..effectiveIterations.
-            // So it draws at steps 1*step, 2*step ... N*step.
-            // And also -1*step, -2*step ... -N*step.
-            // This IS bi-directional.
-            // Perhaps the reviewer wants me to be explicit about the direction?
-            // Or maybe the issue is density?
-            // I will keep the bi-directional drawing logic as it seems correct (drawing +/- dx/dy).
-            // However, to be absolutely safe and clear, I'll rewrite the loop to be explicit -N to N.
-
-            for (i in 1..effectiveIterations) {
-                val dist = effectiveStep * i
-                val dx = dist * cos
-                val dy = dist * sin
-
-                // Positive direction
                 canvas.save()
                 canvas.translate(dx, dy)
                 layout.draw(canvas)
                 canvas.restore()
 
-                // Negative direction
                 canvas.save()
                 canvas.translate(-dx, -dy)
                 layout.draw(canvas)
@@ -433,7 +379,6 @@ class TextLayer(
             paint.color = color
         }
 
-        // 1. Double Stroke
         if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
@@ -443,11 +388,9 @@ class TextLayer(
             layout.draw(canvas)
         }
 
-        // 2. Stroke
         if (strokeWidth > 0f) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = strokeWidth
-
             if (isGradient && isGradientStroke) {
                 paint.shader = gradientShader
                 paint.color = Color.WHITE
@@ -455,15 +398,12 @@ class TextLayer(
                 paint.shader = null
                 paint.color = strokeColor
             }
-
             paint.clearShadowLayer()
             layout.draw(canvas)
         }
 
-        // 3. Fill
         paint.style = Paint.Style.FILL
         paint.strokeWidth = 0f
-
         if (isGradient && isGradientText) {
             paint.shader = gradientShader
             paint.color = Color.WHITE
@@ -481,25 +421,15 @@ class TextLayer(
         layout.draw(canvas)
     }
 
-    // Matrix Helper for Perspective
-    private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): android.graphics.Matrix {
-        val matrix = android.graphics.Matrix()
-        // Map Rect to Poly (4 points)
-        // src points: TL, TR, BR, BL
+    private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
+        val matrix = Matrix()
         val srcPts = floatArrayOf(
             src.left, src.top,
             src.right, src.top,
             src.right, src.bottom,
             src.left, src.bottom
         )
-
         matrix.setPolyToPoly(srcPts, 0, dst, 0, 4)
         return matrix
-    }
-
-    private fun mapPoint(matrix: android.graphics.Matrix, x: Float, y: Float): FloatArray {
-        val pts = floatArrayOf(x, y)
-        matrix.mapPoints(pts)
-        return pts
     }
 }

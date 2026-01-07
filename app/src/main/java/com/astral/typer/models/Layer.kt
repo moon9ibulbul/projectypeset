@@ -17,6 +17,16 @@ abstract class Layer {
     var isLocked: Boolean = false
     var name: String = "Layer"
 
+    // Opacity & Blend
+    var opacity: Int = 255
+    var blendMode: String = "NORMAL" // NORMAL, OVERLAY, ADD, MULTIPLY, SCREEN, DARKEN, LIGHTEN
+
+    // Opacity Gradient
+    var isOpacityGradient: Boolean = false
+    var opacityStart: Int = 255
+    var opacityEnd: Int = 0
+    var opacityAngle: Int = 0
+
     // Backwards compatibility for uniform scale getter/setter (optional)
     var scale: Float
         get() = (scaleX + scaleY) / 2f
