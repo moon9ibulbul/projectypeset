@@ -214,6 +214,7 @@ class AstralCanvasView @JvmOverloads constructor(
     // Multi-touch tracking
     private var activePointerId = MotionEvent.INVALID_POINTER_ID
     private var secondaryPointerId = MotionEvent.INVALID_POINTER_ID
+    private var isMultiTouch = false // Flag to track if we are in a multi-touch session
 
     // Listener
     interface OnLayerSelectedListener {
@@ -562,14 +563,34 @@ class AstralCanvasView @JvmOverloads constructor(
         // Multi-touch tracking
         val pointerCount = event.pointerCount
 
-        // If 2 fingers are down, we force PAN_ZOOM mode
+        // Update multi-touch state
         if (pointerCount >= 2) {
+            isMultiTouch = true
             if (currentMode != Mode.EYEDROPPER) {
                 currentMode = Mode.PAN_ZOOM
+            }
+            // If we were inpainting, cancel the current stroke immediately
+            if (isInpaintMode && !currentInpaintPath.isEmpty) {
+                currentInpaintPath.reset()
+                invalidate()
             }
             scaleDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event) // Allow scroll/pan
             return true
+        }
+
+        // If we are still in multi-touch mode (fingers lifting one by one), ignore single touch drawing
+        if (isMultiTouch) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                 // Reset flag only when ALL fingers are up
+                 isMultiTouch = false
+                 currentMode = Mode.NONE
+            } else {
+                 // Still lifting fingers, maintain zoom/pan logic or just ignore
+                 scaleDetector.onTouchEvent(event)
+                 gestureDetector.onTouchEvent(event)
+                 return true
+            }
         }
 
         // Map touch to canvas coordinates
@@ -595,17 +616,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (isInpaintMode) {
-            // Check for multi-touch (Pan/Zoom) cancellation
-            if (pointerCount >= 2) {
-                if (!currentInpaintPath.isEmpty) {
-                    currentInpaintPath.reset() // Cancel current stroke
-                    invalidate()
-                }
-                // Allow gesture detector to handle pan/zoom
-                scaleDetector.onTouchEvent(event)
-                gestureDetector.onTouchEvent(event)
-                return true
-            }
+            // Check for multi-touch (Pan/Zoom) cancellation is now handled at top
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -614,15 +625,20 @@ class AstralCanvasView @JvmOverloads constructor(
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    currentInpaintPath.lineTo(cx, cy)
-                    invalidate()
+                    // Only draw if NOT in multi-touch lockout
+                    if (!isMultiTouch) {
+                        currentInpaintPath.lineTo(cx, cy)
+                        invalidate()
+                    }
                 }
                 MotionEvent.ACTION_UP -> {
-                    // Commit path
-                    if (!currentInpaintPath.isEmpty) {
+                    // Commit path only if we haven't cancelled it via multi-touch
+                    if (!currentInpaintPath.isEmpty && !isMultiTouch) {
                          inpaintPaths.add(Path(currentInpaintPath))
                          redoPaths.clear() // Clear redo stack on new action
                          currentInpaintPath.reset()
+                    } else {
+                        currentInpaintPath.reset()
                     }
                     invalidate()
                 }

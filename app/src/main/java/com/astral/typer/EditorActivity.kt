@@ -39,6 +39,7 @@ import com.astral.typer.views.AstralCanvasView
 import android.widget.GridLayout
 import com.astral.typer.utils.StyleManager
 import com.astral.typer.utils.InpaintManager
+import com.astral.typer.utils.TfliteInpaintHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,6 +58,8 @@ class EditorActivity : AppCompatActivity() {
     private var isInpaintMode = false
     private var btnApplyInpaint: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
+    private lateinit var tfliteInpaintHelper: TfliteInpaintHelper
+    private var useTflite = false // Default to OpenCV
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -109,6 +112,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Initialize InpaintManager
         inpaintManager = InpaintManager(this)
+        tfliteInpaintHelper = TfliteInpaintHelper(this)
 
         // Listeners
         setupCanvasListeners()
@@ -118,6 +122,7 @@ class EditorActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         inpaintManager.close()
+        tfliteInpaintHelper.close()
         com.astral.typer.utils.UndoManager.clearMemory()
     }
 
@@ -166,8 +171,13 @@ class EditorActivity : AppCompatActivity() {
         Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.Default) {
-            // Run heavy OpenCV inpaint on background thread
-            val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
+            // Run heavy inpaint on background thread
+            val result = if (useTflite) {
+                 tfliteInpaintHelper.inpaint(originalBitmap, maskBitmap)
+            } else {
+                 inpaintManager.inpaint(originalBitmap, maskBitmap)
+            }
+
             withContext(Dispatchers.Main) {
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
@@ -286,6 +296,41 @@ class EditorActivity : AppCompatActivity() {
             // Deselect any layer
             canvasView.selectLayer(null)
 
+            val engineLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    setMargins(0, 0, 0, dpToPx(90)) // Above Apply button
+                }
+                background = GradientDrawable().apply {
+                     setColor(Color.parseColor("#88000000"))
+                     cornerRadius = dpToPx(16).toFloat()
+                }
+                setPadding(16, 8, 16, 8)
+            }
+
+            val rbOpenCV = android.widget.RadioButton(this).apply {
+                text = "OpenCV"
+                setTextColor(Color.WHITE)
+                isChecked = !useTflite
+                setOnCheckedChangeListener { _, b -> if(b) useTflite = false }
+            }
+            val rbAI = android.widget.RadioButton(this).apply {
+                text = "AI (TFLite)"
+                setTextColor(Color.WHITE)
+                isChecked = useTflite
+                setOnCheckedChangeListener { _, b -> if(b) useTflite = true }
+                setPadding(16,0,0,0)
+            }
+            engineLayout.addView(rbOpenCV)
+            engineLayout.addView(rbAI)
+            binding.canvasContainer.addView(engineLayout)
+            engineLayout.tag = "ENGINE_SELECTOR"
+
             // Add Apply Button
             val btn = android.widget.Button(this).apply {
                 text = "APPLY"
@@ -325,6 +370,10 @@ class EditorActivity : AppCompatActivity() {
                 binding.canvasContainer.removeView(it)
                 btnApplyInpaint = null
             }
+            // Remove Engine Selector
+            val selector = binding.canvasContainer.findViewWithTag<View>("ENGINE_SELECTOR")
+            if (selector != null) binding.canvasContainer.removeView(selector)
+
             canvasView.clearInpaintMask()
         }
     }
