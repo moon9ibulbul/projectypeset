@@ -104,6 +104,10 @@ class AstralCanvasView @JvmOverloads constructor(
     // Interaction State
     private var lastTouchX = 0f
     private var lastTouchY = 0f
+    private var startTouchX = 0f
+    private var startTouchY = 0f
+    private var hasMoved = false
+    private var wasSelectedInitially = false
     private var initialRotation = 0f
     private var initialScaleX = 1f
     private var initialScaleY = 1f
@@ -422,22 +426,7 @@ class AstralCanvasView @JvmOverloads constructor(
         val sy = halfH + HANDLE_OFFSET
         canvas.drawLine(0f, sy - sSize, 0f, sy + sSize, iconPaint)
 
-        // 6. Edit Handle (Bottom-Left) -> Pencil Icon
-        drawHandle(-halfW - HANDLE_OFFSET, halfH + HANDLE_OFFSET, Color.YELLOW)
-        val editDrawable = ContextCompat.getDrawable(context, R.drawable.ic_edit)
-        if (editDrawable != null) {
-            editDrawable.setBounds(
-                (-halfW - HANDLE_OFFSET - 15).toInt(),
-                (halfH + HANDLE_OFFSET - 15).toInt(),
-                (-halfW - HANDLE_OFFSET + 15).toInt(),
-                (halfH + HANDLE_OFFSET + 15).toInt()
-            )
-            // Tint if needed, or just draw
-            editDrawable.setTint(Color.WHITE)
-            editDrawable.draw(canvas)
-        }
-
-        // 7. Box Width (Right-Middle) -> Rect icon (Resize box)
+        // 6. Box Width (Right-Middle) -> Rect icon (Resize box)
         if (layer is TextLayer) {
              drawHandle(halfW + HANDLE_OFFSET, 0f, Color.MAGENTA)
              val bx = halfW + HANDLE_OFFSET
@@ -500,11 +489,13 @@ class AstralCanvasView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 currentMode = Mode.NONE
+                hasMoved = false
+                startTouchX = cx
+                startTouchY = cy
 
                 // 1. Check Handles (if layer selected)
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
-                    val layerCenter = floatArrayOf(layer.x, layer.y)
 
                     // Transform touch to local layer space
                     val localPoint = floatArrayOf(cx, cy)
@@ -549,12 +540,6 @@ class AstralCanvasView @JvmOverloads constructor(
                         return true
                     }
 
-                    // Edit Handle (Bottom-Left)
-                    if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
-                        onLayerEditListener?.onLayerDoubleTap(layer)
-                        return true
-                    }
-
                     // Stretch Horizontal (Left-Middle)
                     if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, 0f) <= hitRadius) {
                         currentMode = Mode.STRETCH_H
@@ -589,22 +574,25 @@ class AstralCanvasView @JvmOverloads constructor(
                 // 2. Check for layer hit (Selection / Move)
                 val hitLayer = layers.findLast { it.contains(cx, cy) }
                 if (hitLayer != null) {
+                    wasSelectedInitially = (selectedLayer == hitLayer)
                     selectLayer(hitLayer)
                     currentMode = Mode.DRAG_LAYER
                     lastTouchX = cx
                     lastTouchY = cy
                     invalidate()
                 } else {
-                    // Click on empty space -> Deselect? Or just do nothing?
-                    // User requested "Jangan biarkan kanvas bisa digeser dengan satu jari"
-                    // So if we touch background with 1 finger, we do nothing (or deselect).
-                    // selectLayer(null) // Removed to persist selection/menu
+                    // Click on empty space
                     currentMode = Mode.NONE
                     invalidate()
                 }
             }
             MotionEvent.ACTION_MOVE -> {
                 if (currentMode == Mode.NONE || currentMode == Mode.PAN_ZOOM) return true
+
+                // Check movement threshold
+                if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 5f) {
+                    hasMoved = true
+                }
 
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
@@ -740,6 +728,9 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_UP -> {
+                if (currentMode == Mode.DRAG_LAYER && !hasMoved && wasSelectedInitially && selectedLayer != null) {
+                    onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
+                }
                 currentMode = Mode.NONE
             }
         }

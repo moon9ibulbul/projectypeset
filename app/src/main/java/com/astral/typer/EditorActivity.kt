@@ -95,6 +95,9 @@ class EditorActivity : AppCompatActivity() {
         canvasView.onLayerSelectedListener = object : AstralCanvasView.OnLayerSelectedListener {
             override fun onLayerSelected(layer: Layer?) {
                 if (layer != null) {
+                    if (currentMenuType == "QUICK_EDIT") {
+                        hidePropertyDetail()
+                    }
                     showPropertiesMenu()
                 } else {
                     showInsertMenu()
@@ -318,6 +321,12 @@ class EditorActivity : AppCompatActivity() {
     // --- QUICK EDIT MENU ---
     private fun showQuickEditMenu() {
         val container = prepareContainer()
+
+        // Custom setup for Quick Edit: Hide standard bottom menu and adjust container
+        binding.bottomMenuContainer.visibility = View.GONE
+        binding.propertyDetailContainer.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
+        binding.propertyDetailContainer.requestLayout()
+
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
         val originalText = SpannableStringBuilder(layer.text)
 
