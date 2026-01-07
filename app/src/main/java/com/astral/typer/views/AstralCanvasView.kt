@@ -272,10 +272,12 @@ class AstralCanvasView @JvmOverloads constructor(
         PERSPECTIVE_DRAG_TR,
         PERSPECTIVE_DRAG_BR,
         PERSPECTIVE_DRAG_BL,
-        INPAINT
+        INPAINT,
+        WARP_DRAG
     }
 
     private var currentMode = Mode.NONE
+    private var warpPointIndex = -1
 
     var onColorPickedListener: ((Int) -> Unit)? = null
 
@@ -589,6 +591,44 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.rotate(layer.rotation)
         canvas.scale(layer.scaleX, layer.scaleY)
 
+        // If Warp Mode
+        if (layer is TextLayer && layer.isWarp) {
+             val mesh = layer.warpMesh
+             val rows = layer.warpRows
+             val cols = layer.warpCols
+             if (mesh != null) {
+                 paint.style = Paint.Style.STROKE
+                 paint.color = Color.CYAN
+                 paint.strokeWidth = 2f
+
+                 // Draw Grid
+                 for (r in 0..rows) {
+                     val startIdx = r * (cols + 1)
+                     for (c in 0 until cols) {
+                         val i1 = (startIdx + c) * 2
+                         val i2 = (startIdx + c + 1) * 2
+                         canvas.drawLine(mesh[i1], mesh[i1+1], mesh[i2], mesh[i2+1], paint)
+                     }
+                 }
+                 for (c in 0..cols) {
+                     for (r in 0 until rows) {
+                          val idx1 = (r * (cols + 1) + c) * 2
+                          val idx2 = ((r + 1) * (cols + 1) + c) * 2
+                          canvas.drawLine(mesh[idx1], mesh[idx1+1], mesh[idx2], mesh[idx2+1], paint)
+                     }
+                 }
+
+                 // Draw Handles
+                 val handleRadius = 15f / ((layer.scaleX + layer.scaleY)/2f)
+                 handlePaint.color = Color.YELLOW
+                 for (i in 0 until (mesh.size / 2)) {
+                     canvas.drawCircle(mesh[i*2], mesh[i*2+1], handleRadius, handlePaint)
+                 }
+             }
+             canvas.restore()
+             return
+        }
+
         // If Perspective Mode, we hide normal box and show 4 corners
         if (isPerspectiveMode && layer is TextLayer) {
             // "semua ikon control hilang... sudut jadi titik"
@@ -817,6 +857,30 @@ class AstralCanvasView @JvmOverloads constructor(
                     val lx = localPoint[0]
                     val ly = localPoint[1]
 
+                    // Warp Mode Handling
+                    if (layer is TextLayer && layer.isWarp) {
+                         val mesh = layer.warpMesh
+                         if (mesh != null) {
+                             val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
+                             var bestIdx = -1
+                             var minD = Float.MAX_VALUE
+
+                             for (i in 0 until (mesh.size / 2)) {
+                                 val d = getDistance(lx, ly, mesh[i*2], mesh[i*2+1])
+                                 if (d < hitRadius && d < minD) {
+                                     minD = d
+                                     bestIdx = i
+                                 }
+                             }
+
+                             if (bestIdx != -1) {
+                                 warpPointIndex = bestIdx
+                                 currentMode = Mode.WARP_DRAG
+                                 return true
+                             }
+                         }
+                    }
+
                     // Perspective Mode Handling
                     if (isPerspectiveMode && layer is TextLayer) {
                          val pts = layer.perspectivePoints
@@ -936,6 +1000,23 @@ class AstralCanvasView @JvmOverloads constructor(
 
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
+
+                    if (currentMode == Mode.WARP_DRAG && layer is TextLayer) {
+                         val localPoint = floatArrayOf(cx, cy)
+                         val globalToLocal = Matrix()
+                         globalToLocal.postTranslate(-layer.x, -layer.y)
+                         globalToLocal.postRotate(-layer.rotation)
+                         globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
+                         globalToLocal.mapPoints(localPoint)
+
+                         val mesh = layer.warpMesh
+                         if (mesh != null && warpPointIndex != -1) {
+                             mesh[warpPointIndex*2] = localPoint[0]
+                             mesh[warpPointIndex*2+1] = localPoint[1]
+                             invalidate()
+                         }
+                         return true
+                    }
 
                     // Perspective Drag Logic
                     if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {

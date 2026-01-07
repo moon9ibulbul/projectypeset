@@ -319,6 +319,20 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropDoubleStroke.setOnClickListener { toggleMenu("DOUBLE_STROKE") { showDoubleStrokeMenu() } }
         binding.btnPropShadow.setOnClickListener { toggleMenu("SHADOW") { showShadowControls() } }
         binding.btnPropGradation.setOnClickListener { toggleMenu("GRADATION") { showGradationControls() } }
+
+        binding.btnPropWarp.setOnClickListener {
+            if (currentMenuType == "WARP") {
+                toggleWarpMode(false)
+                hidePropertyDetail()
+            } else {
+                toggleMenu("WARP") {
+                    showWarpMenu()
+                }
+            }
+        }
+
+        binding.btnPropOpacity.setOnClickListener { toggleMenu("OPACITY") { showOpacityMenu() } }
+
         binding.btnPropPerspective.setOnClickListener {
             if (currentMenuType == "PERSPECTIVE") {
                 // Toggle Off (Exit Mode)
@@ -1104,6 +1118,9 @@ class EditorActivity : AppCompatActivity() {
         if (currentMenuType == "PERSPECTIVE") {
             togglePerspectiveMode(false)
         }
+        if (currentMenuType == "WARP") {
+            toggleWarpMode(false)
+        }
 
         currentMenuType = null
     }
@@ -1115,6 +1132,9 @@ class EditorActivity : AppCompatActivity() {
             // Switching menus
             if (currentMenuType == "PERSPECTIVE" && type != "PERSPECTIVE") {
                 togglePerspectiveMode(false)
+            }
+            if (currentMenuType == "WARP" && type != "WARP") {
+                toggleWarpMode(false)
             }
             showAction()
             currentMenuType = type
@@ -2299,28 +2319,6 @@ class EditorActivity : AppCompatActivity() {
             }
             layout.addView(sbDist)
 
-            // Blur Strength (New)
-            val blurLabel = TextView(this@EditorActivity).apply {
-                text = "Blur Strength: ${layer.motionBlurStrength.toInt()}"
-                setTextColor(Color.WHITE)
-                setPadding(0,16,0,0)
-            }
-            layout.addView(blurLabel)
-
-            val sbBlur = SeekBar(this@EditorActivity).apply {
-                max = 50
-                progress = layer.motionBlurStrength.toInt()
-                setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener{
-                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.motionBlurStrength = p.toFloat()
-                        blurLabel.text = "Blur Strength: $p"
-                        canvasView.invalidate()
-                    }
-                    override fun onStartTrackingTouch(s: SeekBar?) {}
-                    override fun onStopTrackingTouch(s: SeekBar?) {}
-                })
-            }
-            layout.addView(sbBlur)
 
             addView(layout)
         }
@@ -2363,8 +2361,9 @@ class EditorActivity : AppCompatActivity() {
     private fun showGradationControls() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
-        layer.isGradient = true
-        canvasView.invalidate()
+        // Do not auto-apply gradient
+        // layer.isGradient = true
+        // canvasView.invalidate()
 
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val mainLayout = LinearLayout(this).apply {
@@ -2400,20 +2399,22 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
         mainLayout.addView(createColorScroll(layer.gradientStartColor,
              { c ->
-                 // Fixed: Do NOT toggle off gradient if same color selected
                  layer.gradientStartColor = c
+                 if (!layer.isGradient) layer.isGradient = true
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer) { c -> layer.gradientStartColor = c; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer) { c -> layer.gradientStartColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
         ))
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
         mainLayout.addView(createColorScroll(layer.gradientEndColor,
              { c ->
-                 layer.gradientEndColor = c; canvasView.invalidate()
+                 layer.gradientEndColor = c
+                 if (!layer.isGradient) layer.isGradient = true
+                 canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer) { c -> layer.gradientEndColor = c; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer) { c -> layer.gradientEndColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
         ))
 
         // Angle
@@ -2624,5 +2625,190 @@ class EditorActivity : AppCompatActivity() {
             Color.WHITE,
             applyColor
         )
+    }
+
+    private fun showWarpMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        toggleWarpMode(true)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 8, 16, 8)
+        }
+
+        // Row/Col Controls
+        val row = LinearLayout(this).apply {
+             orientation = LinearLayout.HORIZONTAL
+             gravity = Gravity.CENTER_VERTICAL
+             setPadding(0, 8, 0, 8)
+        }
+
+        fun createCounter(label: String, value: Int, min: Int, onChange: (Int) -> Unit): View {
+            val sub = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                gravity = Gravity.CENTER
+            }
+            val tv = TextView(this).apply { text = "$label: $value"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0,0,8,0) }
+            val btnMinus = TextView(this).apply {
+                text = "-"
+                setTextColor(Color.WHITE)
+                textSize=20f
+                setPadding(16,0,16,0)
+                setOnClickListener { onChange((value - 1).coerceAtLeast(min)) }
+            }
+            val btnPlus = TextView(this).apply {
+                text = "+"
+                setTextColor(Color.WHITE)
+                textSize=20f
+                setPadding(16,0,16,0)
+                setOnClickListener { onChange(value + 1) }
+            }
+            sub.addView(btnMinus); sub.addView(tv); sub.addView(btnPlus)
+            return sub
+        }
+
+        row.addView(createCounter("Rows", layer.warpRows, 1) {
+            initWarpMesh(layer, it, layer.warpCols)
+            canvasView.invalidate()
+            showWarpMenu() // Refresh UI
+        })
+
+        row.addView(createCounter("Cols", layer.warpCols, 1) {
+            initWarpMesh(layer, layer.warpRows, it)
+            canvasView.invalidate()
+            showWarpMenu() // Refresh UI
+        })
+
+        layout.addView(row)
+
+        // Reset Button
+        val btnReset = android.widget.Button(this).apply {
+            text = "Reset Points"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            setOnClickListener {
+                initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                canvasView.invalidate()
+            }
+        }
+        layout.addView(btnReset)
+
+        container.addView(layout)
+    }
+
+    private fun toggleWarpMode(enabled: Boolean) {
+        val layer = canvasView.getSelectedLayer() as? TextLayer
+        if (layer != null) {
+            if (enabled) {
+                layer.isWarp = true
+                if (layer.warpMesh == null) {
+                    initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                }
+            }
+        }
+        canvasView.invalidate()
+    }
+
+    private fun initWarpMesh(layer: TextLayer, rows: Int, cols: Int) {
+         val w = layer.getWidth()
+         val h = layer.getHeight()
+         val count = (rows + 1) * (cols + 1)
+         val mesh = FloatArray(count * 2)
+
+         // Init grid centered at 0,0 relative to layer
+         var index = 0
+         for (r in 0..rows) {
+             val y = -h/2f + (h * r / rows.toFloat())
+             for (c in 0..cols) {
+                 val x = -w/2f + (w * c / cols.toFloat())
+                 mesh[index++] = x
+                 mesh[index++] = y
+             }
+         }
+         layer.warpMesh = mesh
+         layer.warpRows = rows
+         layer.warpCols = cols
+    }
+
+    private fun showOpacityMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() ?: return
+
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(16,16,16,16) }
+
+        // 1. Blend Mode
+        val modes = arrayOf("NORMAL", "OVERLAY", "ADD", "MULTIPLY", "SCREEN", "DARKEN", "LIGHTEN")
+        val spinner = android.widget.Spinner(this)
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+
+        // Set selection
+        var currentIdx = 0
+        for ((i, m) in modes.withIndex()) {
+            if (m == layer.blendMode) currentIdx = i
+        }
+        spinner.setSelection(currentIdx)
+
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
+                layer.blendMode = modes[pos]
+                canvasView.invalidate()
+            }
+            override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+        }
+        layout.addView(TextView(this).apply { text = "Blend Mode"; setTextColor(Color.LTGRAY) })
+        layout.addView(spinner)
+
+        // 2. Global Opacity
+        layout.addView(createSlider("Opacity: ${(layer.opacity/2.55f).toInt()}%", layer.opacity, 255) {
+            layer.opacity = it
+            canvasView.invalidate()
+            (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: ${(it/2.55f).toInt()}%" }
+        })
+
+        // 3. Gradient Opacity
+        val toggleGrad = android.widget.CheckBox(this).apply {
+            text = "Gradient Opacity"
+            isChecked = layer.isOpacityGradient
+            setTextColor(Color.WHITE)
+            buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+            setOnCheckedChangeListener { _, b ->
+                layer.isOpacityGradient = b
+                canvasView.invalidate()
+            }
+        }
+        layout.addView(toggleGrad)
+
+        // Start Alpha
+        layout.addView(createSlider("Left Alpha: ${(layer.opacityStart/2.55f).toInt()}%", layer.opacityStart, 255) {
+            layer.opacityStart = it
+            canvasView.invalidate()
+             (layout.getChildAt(4) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Left Alpha: ${(it/2.55f).toInt()}%" }
+        })
+
+        // End Alpha
+        layout.addView(createSlider("Right Alpha: ${(layer.opacityEnd/2.55f).toInt()}%", layer.opacityEnd, 255) {
+            layer.opacityEnd = it
+            canvasView.invalidate()
+             (layout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Right Alpha: ${(it/2.55f).toInt()}%" }
+        })
+
+        // Angle
+        layout.addView(createSlider("Angle: ${layer.opacityAngle}°", layer.opacityAngle, 360) {
+            layer.opacityAngle = it
+            canvasView.invalidate()
+            (layout.getChildAt(6) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+        })
+
+        scroll.addView(layout)
+        container.addView(scroll)
     }
 }
