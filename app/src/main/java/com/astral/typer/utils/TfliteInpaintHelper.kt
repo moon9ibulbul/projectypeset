@@ -103,9 +103,10 @@ class TfliteInpaintHelper(private val context: Context) {
 
         for (pixel in pixels) {
             // Extract RGB, ignore Alpha
-            val r = Color.red(pixel) / 255.0f
-            val g = Color.green(pixel) / 255.0f
-            val b = Color.blue(pixel) / 255.0f
+            // Normalize to [-1, 1] usually preferred for GANs/Inpainting models
+            val r = (Color.red(pixel) / 127.5f) - 1.0f
+            val g = (Color.green(pixel) / 127.5f) - 1.0f
+            val b = (Color.blue(pixel) / 127.5f) - 1.0f
 
             buffer.putFloat(r)
             buffer.putFloat(g)
@@ -149,9 +150,14 @@ class TfliteInpaintHelper(private val context: Context) {
 
         for (i in pixels.indices) {
             val offset = i * 3
-            var r = (floatArray[offset] * 255).toInt()
-            var g = (floatArray[offset + 1] * 255).toInt()
-            var b = (floatArray[offset + 2] * 255).toInt()
+            // Denormalize from [-1, 1] to [0, 255]
+            val rVal = (floatArray[offset] + 1.0f) * 127.5f
+            val gVal = (floatArray[offset + 1] + 1.0f) * 127.5f
+            val bVal = (floatArray[offset + 2] + 1.0f) * 127.5f
+
+            var r = rVal.toInt()
+            var g = gVal.toInt()
+            var b = bVal.toInt()
 
             // Clamp values
             r = r.coerceIn(0, 255)
