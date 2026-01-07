@@ -8,6 +8,11 @@ object UndoManager {
     private val redoStack = java.util.Stack<List<Layer>>()
     private const val MAX_HISTORY = 50
 
+    // Bitmap History for Inpainting
+    private val bitmapHistory = java.util.Stack<android.graphics.Bitmap>()
+    private val bitmapRedoStack = java.util.Stack<android.graphics.Bitmap>()
+    private const val MAX_BITMAP_HISTORY = 5 // Bitmaps are large
+
     fun saveState(layers: List<Layer>) {
         // Deep copy list
         val snapshot = layers.map { it.clone() }
@@ -16,6 +21,47 @@ object UndoManager {
         if (history.size > MAX_HISTORY) {
             history.removeAt(0)
         }
+        redoStack.clear()
+    }
+
+    fun saveBitmapState(bitmap: android.graphics.Bitmap) {
+        val snapshot = bitmap.copy(bitmap.config, true)
+        bitmapHistory.push(snapshot)
+        if (bitmapHistory.size > MAX_BITMAP_HISTORY) {
+            bitmapHistory.removeAt(0)
+        }
+        bitmapRedoStack.clear()
+    }
+
+    fun undoBitmap(currentBitmap: android.graphics.Bitmap?): android.graphics.Bitmap? {
+        if (bitmapHistory.isEmpty()) return null
+
+        if (currentBitmap != null) {
+            val snapshot = currentBitmap.copy(currentBitmap.config, true)
+            bitmapRedoStack.push(snapshot)
+        }
+
+        return bitmapHistory.pop()
+    }
+
+    fun redoBitmap(currentBitmap: android.graphics.Bitmap?): android.graphics.Bitmap? {
+        if (bitmapRedoStack.isEmpty()) return null
+
+        if (currentBitmap != null) {
+            val snapshot = currentBitmap.copy(currentBitmap.config, true)
+            bitmapHistory.push(snapshot)
+        }
+
+        return bitmapRedoStack.pop()
+    }
+
+    fun clearMemory() {
+        // Recycle bitmaps to free memory
+        bitmapHistory.forEach { it.recycle() }
+        bitmapRedoStack.forEach { it.recycle() }
+        bitmapHistory.clear()
+        bitmapRedoStack.clear()
+        history.clear()
         redoStack.clear()
     }
 
