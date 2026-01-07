@@ -81,8 +81,17 @@ class EditorActivity : AppCompatActivity() {
             try {
                 val uri = android.net.Uri.parse(imageUriString)
                 val inputStream = contentResolver.openInputStream(uri)
-                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
-                canvasView.setBackgroundImage(bitmap)
+                val options = android.graphics.BitmapFactory.Options().apply {
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                }
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
+                if (bitmap != null) {
+                    canvasView.setBackgroundImage(bitmap)
+                } else {
+                    Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: OutOfMemoryError) {
+                Toast.makeText(this, "Image too large for memory!", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
