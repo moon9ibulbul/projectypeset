@@ -998,7 +998,7 @@ class EditorActivity : AppCompatActivity() {
                 setMargins(0, 0, 16, 0)
             }
             setOnClickListener {
-                ColorPickerHelper.showColorPickerDialog(this, layer.color) { color ->
+                ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layer.color) { color ->
                     val et = activeEditText
                     if (et != null && et.selectionStart != et.selectionEnd) {
                         applySpanToSelection(ForegroundColorSpan(color))
