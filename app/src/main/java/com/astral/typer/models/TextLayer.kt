@@ -80,6 +80,12 @@ class TextLayer(
     // Effect
     var currentEffect: TextEffectType = TextEffectType.NONE
 
+    // Caching for Pixelation
+    @Transient
+    private var cachedPixelBitmap: Bitmap? = null
+    @Transient
+    private var cachedPixelHash: Int = 0
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -493,6 +499,74 @@ class TextLayer(
              paint.xfermode = originalXfermode
              paint.color = originalColor
              paint.shader = originalShader
+        } else if (currentEffect == TextEffectType.PIXELATION) {
+             val scaleFactor = 0.1f
+             val w = getWidth()
+             val h = getHeight()
+             val scaledW = (w * scaleFactor).toInt().coerceAtLeast(1)
+             val scaledH = (h * scaleFactor).toInt().coerceAtLeast(1)
+
+             // Check if cache is valid
+             val currentHash = text.hashCode() + w.toInt() + h.toInt() + color + fontSize.toInt()
+
+             if (cachedPixelBitmap == null || cachedPixelBitmap!!.width != scaledW || cachedPixelBitmap!!.height != scaledH || cachedPixelHash != currentHash) {
+                 // Recycle old if exists (and different size/content)
+                 cachedPixelBitmap?.recycle()
+
+                 // Create temp bitmap for low-res
+                 val tempBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
+                 val tempCanvas = Canvas(tempBitmap)
+
+                 // Scale canvas to fit drawing into small bitmap
+                 tempCanvas.scale(scaleFactor, scaleFactor)
+
+                 // Draw text to small bitmap
+                 layout.draw(tempCanvas)
+
+                 cachedPixelBitmap = tempBitmap
+                 cachedPixelHash = currentHash
+             }
+
+             if (cachedPixelBitmap != null && !cachedPixelBitmap!!.isRecycled) {
+                 // Draw scaled up
+                 val pixelPaint = Paint()
+                 pixelPaint.isFilterBitmap = false // Nearest Neighbor
+
+                 // Draw back to main canvas, scaling up to original size
+                 val destRect = RectF(0f, 0f, w, h)
+                 canvas.drawBitmap(cachedPixelBitmap!!, null, destRect, pixelPaint)
+             }
+
+        } else if (currentEffect == TextEffectType.GLITCH) {
+             val w = getWidth()
+             val h = getHeight()
+             // Slice 1: Top 30%, Shift Left -10
+             canvas.save()
+             canvas.clipRect(0f, 0f, w, h * 0.3f)
+             canvas.translate(-10f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Slice 2: Middle 40%, Shift Right 15
+             canvas.save()
+             canvas.clipRect(0f, h * 0.3f, w, h * 0.7f)
+             canvas.translate(15f, 0f)
+             // Optional: Change color for middle slice? "Color: Cyan or Original"
+             // Let's use Original for basic implementation as per instruction "Draw Text (Color: Cyan or Original)"
+             // If we want Cyan, we'd need to change paint color. Let's stick to original for now unless stronger effect desired.
+             // But let's follow the "Cyan or Original" hint to make it look glitchier.
+             // However, modifying layout paint here might be complex if we want to restore it perfectly without impacting other draws if they were recursive.
+             // For safety and simplicity of "slice", original color is fine.
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Slice 3: Bottom 30%, Shift Left -5
+             canvas.save()
+             canvas.clipRect(0f, h * 0.7f, w, h)
+             canvas.translate(-5f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
         } else {
             layout.draw(canvas)
         }

@@ -532,6 +532,20 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
+        // Glitch
+        layout.addView(createCard("Glitch", layer.currentEffect == TextEffectType.GLITCH) {
+            layer.currentEffect = TextEffectType.GLITCH
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Pixelation
+        layout.addView(createCard("Pixelation", layer.currentEffect == TextEffectType.PIXELATION) {
+            layer.currentEffect = TextEffectType.PIXELATION
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
         scroll.addView(layout)
         container.addView(scroll)
     }
