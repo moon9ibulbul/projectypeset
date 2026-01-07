@@ -55,6 +55,9 @@ class AstralCanvasView @JvmOverloads constructor(
     private val layers = mutableListOf<Layer>()
     private var selectedLayer: Layer? = null
 
+    // Modes
+    private var isPerspectiveMode = false
+
     fun getLayers(): MutableList<Layer> {
         return layers
     }
@@ -68,6 +71,12 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun getSelectedLayer(): Layer? {
         return selectedLayer
+    }
+
+    fun setPerspectiveMode(enabled: Boolean) {
+        isPerspectiveMode = enabled
+        if (!enabled) currentMode = Mode.NONE
+        invalidate()
     }
 
     // Handles Constants
@@ -85,7 +94,11 @@ class AstralCanvasView @JvmOverloads constructor(
         BOX_WIDTH,
         PAN_ZOOM,
         EYEDROPPER,
-        EDIT_LAYER
+        EDIT_LAYER,
+        PERSPECTIVE_DRAG_TL,
+        PERSPECTIVE_DRAG_TR,
+        PERSPECTIVE_DRAG_BR,
+        PERSPECTIVE_DRAG_BL
     }
 
     private var currentMode = Mode.NONE
@@ -99,16 +112,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun getPixelColor(x: Float, y: Float): Int {
         if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight) return Color.WHITE
-        // This is expensive, but simple for now.
-        // Ideally we cache the bitmap or render a small patch.
-        // Given constraints, I'll render the whole bitmap.
-        // Optimization: render only 1x1 pixel?
-        // But layers might be complex.
-        // Let's rely on renderToBitmap which is already implemented but heavy.
         val bmp = renderToBitmap()
         val pixel = bmp.getPixel(x.toInt(), y.toInt())
-        // bmp.recycle() // renderToBitmap returns a new bitmap, so recycle it?
-        // renderToBitmap createBitmap. Yes.
         return pixel
     }
 
@@ -176,6 +181,9 @@ class AstralCanvasView @JvmOverloads constructor(
         if (selectedLayer != layer) {
             selectedLayer = layer
             onLayerSelectedListener?.onLayerSelected(layer)
+            // Reset mode on selection change
+            isPerspectiveMode = false
+            (layer as? TextLayer)?.isPerspective = false
             invalidate()
         }
     }
@@ -283,11 +291,9 @@ class AstralCanvasView @JvmOverloads constructor(
 
         canvas.restore()
 
-        // Draw Eyedropper UI (Overlay on top of everything, unaffected by zoom/pan of canvas?)
-        // The Canvas is currently in Screen Space (after restore).
-
+        // Draw Eyedropper UI (Overlay on top of everything)
         if (currentMode == Mode.EYEDROPPER) {
-             // 1. Crosshair (In Screen Space, follows finger directly)
+             // 1. Crosshair (In Screen Space)
              paint.style = Paint.Style.STROKE
              paint.color = Color.BLACK
              paint.strokeWidth = 2f
@@ -300,9 +306,6 @@ class AstralCanvasView @JvmOverloads constructor(
 
              // 2. Preview Box (In Screen Space)
              canvas.save()
-             // Canvas is already in Screen Space (identity), so we don't need setMatrix(null) unless we messed it up.
-             // But we should be safe.
-
              val boxSize = 200f
              val boxMargin = 30f
              val boxRect = RectF(width - boxSize - boxMargin, boxMargin, width - boxMargin, boxMargin + boxSize)
@@ -315,22 +318,8 @@ class AstralCanvasView @JvmOverloads constructor(
              // Draw zoomed content
              canvas.save()
              canvas.clipRect(boxRect)
-
-             // Transform to center the eyedropper point in the box and scale up
-             val zoomLevel = 4f
-             // We want `eyedropperX, eyedropperY` to map to `boxRect.centerX(), boxRect.centerY()`
-             // And scale applied.
-             // Final Coord = (WorldCoord * Scale * Zoom) + Translate
-
-             // Matrix logic:
-             // 1. Translate world so eyedropper is at 0,0: T(-ex, -ey)
-             // 2. Scale up: S(zoom)
-             // 3. Translate to box center: T(bx, by)
-             // 4. Apply ViewMatrix (since we are drawing the scene which assumes viewMatrix? No, drawScene draws raw layers)
-             // Wait, drawScene draws layers at their world coords.
-             // So we just need to transform World -> Box.
-
              canvas.translate(boxRect.centerX(), boxRect.centerY())
+             val zoomLevel = 4f
              canvas.scale(zoomLevel, zoomLevel)
              canvas.translate(-eyedropperX, -eyedropperY)
 
@@ -373,17 +362,42 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun getScale(): Float {
-        val values = FloatArray(9)
-        viewMatrix.getValues(values)
-        return values[Matrix.MSCALE_X]
-    }
-
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {
         canvas.save()
         canvas.translate(layer.x, layer.y)
         canvas.rotate(layer.rotation)
         canvas.scale(layer.scaleX, layer.scaleY)
+
+        // If Perspective Mode, we hide normal box and show 4 corners
+        if (isPerspectiveMode && layer is TextLayer) {
+            // "semua ikon control hilang... sudut jadi titik"
+            val pts = layer.perspectivePoints
+            if (pts != null && pts.size >= 8) {
+                // Draw connecting lines (the deformed box)
+                paint.style = Paint.Style.STROKE
+                paint.color = Color.CYAN
+                paint.strokeWidth = 2f
+                val path = Path()
+                path.moveTo(pts[0], pts[1])
+                path.lineTo(pts[2], pts[3])
+                path.lineTo(pts[4], pts[5])
+                path.lineTo(pts[6], pts[7])
+                path.close()
+                canvas.drawPath(path, paint)
+
+                // Draw 4 handles
+                val handleRadius = 20f / ((layer.scaleX + layer.scaleY)/2f)
+                handlePaint.color = Color.CYAN
+
+                canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint) // TL
+                canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint) // TR
+                canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint) // BR
+                canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint) // BL
+            }
+
+            canvas.restore()
+            return
+        }
 
         val halfW = layer.getWidth() / 2f
         val halfH = layer.getHeight() / 2f
@@ -396,11 +410,8 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.drawRect(box, paint)
 
         // --- Draw Handles ---
-        // Helper to draw handle circle
         fun drawHandle(x: Float, y: Float, color: Int) {
             handlePaint.color = color
-            // Draw handle
-            // We need to invert the scale for handles so they stay consistent size
             val size = HANDLE_RADIUS / ((layer.scaleX + layer.scaleY)/2f)
             canvas.drawCircle(x, y, size, handlePaint)
             canvas.drawCircle(x, y, size, strokePaint)
@@ -408,16 +419,14 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // 1. Delete Handle (Top-Left) -> X
         drawHandle(-halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET, Color.RED)
-        // Draw X Icon
         val xSize = 15f / ((layer.scaleX + layer.scaleY)/2f)
         val cx = -halfW - HANDLE_OFFSET
         val cy = -halfH - HANDLE_OFFSET
         canvas.drawLine(cx - xSize, cy - xSize, cx + xSize, cy + xSize, iconPaint)
         canvas.drawLine(cx + xSize, cy - xSize, cx - xSize, cy + xSize, iconPaint)
 
-        // 2. Rotate Handle (Top-Right) -> Circle Arrow (Simplified)
+        // 2. Rotate Handle (Top-Right) -> Circle Arrow
         drawHandle(halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET, Color.GREEN)
-        // Icon (small circle arc?)
         canvas.drawCircle(halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET, 10f / ((layer.scaleX + layer.scaleY)/2f), iconPaint)
 
         // 3. Resize Handle (Bottom-Right) -> Diagonal Arrow
@@ -425,15 +434,12 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // 4. Stretch Horizontal (Left-Middle) -> Horizontal Arrow
         drawHandle(-halfW - HANDLE_OFFSET, 0f, Color.DKGRAY)
-        // Icon <->
         val sx = -halfW - HANDLE_OFFSET
         val sSize = 15f / ((layer.scaleX + layer.scaleY)/2f)
         canvas.drawLine(sx - sSize, 0f, sx + sSize, 0f, iconPaint)
 
         // 5. Stretch Vertical (Bottom-Middle) -> Vertical Arrow
         drawHandle(0f, halfH + HANDLE_OFFSET, Color.DKGRAY)
-        // Icon ^
-        //      v
         val sy = halfH + HANDLE_OFFSET
         canvas.drawLine(0f, sy - sSize, 0f, sy + sSize, iconPaint)
 
@@ -445,17 +451,14 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         // --- Top Action Icons (Duplicate & Copy Style) ---
-        // Positioned slightly above the top edge
         val topY = -halfH - HANDLE_OFFSET * 2.5f
         val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
 
-        // Duplicate Icon (Left side of top)
+        // Duplicate Icon
         val dupX = -20f
         handlePaint.color = Color.DKGRAY
         canvas.drawCircle(dupX - iconSize, topY, iconSize, handlePaint)
         canvas.drawCircle(dupX - iconSize, topY, iconSize, strokePaint)
-        // Icon (D)
-        // Simple 2 rects
         val dSize = iconSize * 0.5f
         paint.color = Color.WHITE
         paint.style = Paint.Style.STROKE
@@ -463,26 +466,22 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.drawRect(dupX - iconSize - dSize/2, topY - dSize/2, dupX - iconSize + dSize/2, topY + dSize/2, paint)
         canvas.drawRect(dupX - iconSize - dSize/2 + 5, topY - dSize/2 - 5, dupX - iconSize + dSize/2 + 5, topY + dSize/2 - 5, paint)
 
-        // Copy Style Icon (Right side of top)
+        // Copy Style Icon
         val copyX = 20f
         canvas.drawCircle(copyX + iconSize, topY, iconSize, handlePaint)
         canvas.drawCircle(copyX + iconSize, topY, iconSize, strokePaint)
-        // Icon (C)
-        // Paint Brush or C
         paint.style = Paint.Style.FILL
         canvas.drawCircle(copyX + iconSize, topY, dSize, paint)
 
         canvas.restore()
     }
 
-    // Helper to get distance between two points
     private fun getDistance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x1 - x2
         val dy = y1 - y2
         return kotlin.math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
     }
 
-    // Helper to get angle
     private fun getAngle(x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x2 - x1
         val dy = y2 - y1
@@ -518,22 +517,6 @@ class AstralCanvasView @JvmOverloads constructor(
              invalidate()
 
              if (event.actionMasked == MotionEvent.ACTION_UP) {
-                 // Do not reset mode immediately to keep crosshair visible?
-                 // Prompt: "jangan hilangkan crosshair di canvas saat user berinteraksi dengan canvas"
-                 // If the user lifts finger, interaction stops?
-                 // Or maybe they mean "don't clear crosshair WHILE dragging".
-                 // Current code is fine with dragging (ACTION_MOVE updates).
-                 // We will maintain existing behavior but ensure crosshair persists if needed.
-                 // Actually, standard behavior is pick on UP.
-                 // We will update color but NOT hide crosshair if that's what user wants?
-                 // No, usually "eyedropping" implies the action.
-                 // If they want continuous picking, they drag.
-                 // Let's assume they want the crosshair to NOT disappear when they lift finger, maybe?
-                 // Re-reading: "Saat user melakukan eyedropping, jangan hilangkan crosshair di canvas saat user berinteraksi dengan canvas."
-                 // Likely means: When dragging, crosshair should be visible. (It is).
-                 // Maybe they mean the crosshair is being clipped or cleared?
-                 // We moved drawing to after restore(), so it's top overlay.
-
                  val color = getPixelColor(cx, cy)
                  onColorPickedListener?.invoke(color)
                  setEyedropperMode(false)
@@ -562,102 +545,107 @@ class AstralCanvasView @JvmOverloads constructor(
 
                     val lx = localPoint[0]
                     val ly = localPoint[1]
-                    val halfW = layer.getWidth() / 2f
-                    val halfH = layer.getHeight() / 2f
 
-                    // Adjust radius check based on scale to make it easier to hit
-                    val hitRadius = HANDLE_RADIUS * 1.5f
-
-                    // --- Check Top Action Icons ---
-                    val topY = -halfH - HANDLE_OFFSET * 2.5f
-                    // Duplicate (-20 - iconSize) -> Left
-                    // Copy Style (20 + iconSize) -> Right
-                    val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
-
-                    val dupX = -20f - iconSize
-                    val copyX = 20f + iconSize
-
-                    if (getDistance(lx, ly, dupX, topY) <= hitRadius) {
-                        // DUPLICATE
-                        com.astral.typer.utils.UndoManager.saveState(layers)
-                        val newLayer = layer.clone()
-                        newLayer.x += 20 // Offset slightly
-                        newLayer.y += 20
-                        layers.add(newLayer)
-                        selectLayer(newLayer)
-                        return true
+                    // Perspective Mode Handling
+                    if (isPerspectiveMode && layer is TextLayer) {
+                         val pts = layer.perspectivePoints
+                         if (pts != null) {
+                             val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
+                             // Points: 0,1 TL; 2,3 TR; 4,5 BR; 6,7 BL
+                             if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TL; return true }
+                             if (getDistance(lx, ly, pts[2], pts[3]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TR; return true }
+                             if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BR; return true }
+                             if (getDistance(lx, ly, pts[6], pts[7]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BL; return true }
+                         }
+                         // If miss, do not allow drag layer in perspective mode to avoid accidents?
+                         // Prompt says "sudut ... yang bisa ditarik". Doesn't say we can't move layer.
+                         // But usually perspective mode is focused on warping.
+                         // Let's assume hitting body does nothing or moves layer.
                     }
 
-                    if (getDistance(lx, ly, copyX, topY) <= hitRadius) {
-                        // COPY STYLE
-                        if (layer is TextLayer) {
-                            com.astral.typer.utils.StyleManager.copyStyle(layer)
-                            com.astral.typer.utils.StyleManager.saveStyle(layer) // Also save to list? User said "Masuk ke menu Style"
-                            android.widget.Toast.makeText(context, "Style Copied to Menu", android.widget.Toast.LENGTH_SHORT).show()
+                    if (!isPerspectiveMode) {
+                        val halfW = layer.getWidth() / 2f
+                        val halfH = layer.getHeight() / 2f
+                        val hitRadius = HANDLE_RADIUS * 1.5f
+
+                        // Top Actions
+                        val topY = -halfH - HANDLE_OFFSET * 2.5f
+                        val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
+                        val dupX = -20f - iconSize
+                        val copyX = 20f + iconSize
+
+                        if (getDistance(lx, ly, dupX, topY) <= hitRadius) {
+                            // DUPLICATE
+                            com.astral.typer.utils.UndoManager.saveState(layers)
+                            val newLayer = layer.clone()
+                            newLayer.x += 20
+                            newLayer.y += 20
+                            layers.add(newLayer)
+                            selectLayer(newLayer)
+                            return true
                         }
-                        return true
-                    }
 
-                    // Delete Handle (Top-Left)
-                    if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
-                        com.astral.typer.utils.UndoManager.saveState(layers)
-                        deleteSelectedLayer()
-                        return true
-                    }
+                        if (getDistance(lx, ly, copyX, topY) <= hitRadius) {
+                            // COPY STYLE
+                            if (layer is TextLayer) {
+                                com.astral.typer.utils.StyleManager.copyStyle(layer)
+                                com.astral.typer.utils.StyleManager.saveStyle(layer)
+                                android.widget.Toast.makeText(context, "Style Copied to Menu", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            return true
+                        }
 
-                    // Rotate Handle (Top-Right)
-                    if (getDistance(lx, ly, halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
-                        currentMode = Mode.ROTATE_LAYER
-                        initialRotation = layer.rotation
-                        centerX = layer.x
-                        centerY = layer.y
-                        startAngle = getAngle(centerX, centerY, cx, cy)
-                        return true
-                    }
-
-                    // Resize Handle (Bottom-Right)
-                    if (getDistance(lx, ly, halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
-                        currentMode = Mode.RESIZE_LAYER
-                        initialScaleX = layer.scaleX
-                        initialScaleY = layer.scaleY
-                        centerX = layer.x
-                        centerY = layer.y
-                        startDist = getDistance(centerX, centerY, cx, cy)
-                        return true
-                    }
-
-                    // Stretch Horizontal (Left-Middle)
-                    if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, 0f) <= hitRadius) {
-                        currentMode = Mode.STRETCH_H
-                        initialScaleX = layer.scaleX
-                        centerX = layer.x
-                        centerY = layer.y
-                        startX = lx // Relative to center
-                        return true
-                    }
-
-                    // Stretch Vertical (Bottom-Middle)
-                    if (getDistance(lx, ly, 0f, halfH + HANDLE_OFFSET) <= hitRadius) {
-                        currentMode = Mode.STRETCH_V
-                        initialScaleY = layer.scaleY
-                        centerX = layer.x
-                        centerY = layer.y
-                        startY = ly
-                        return true
-                    }
-
-                    // Box Width (Right-Middle)
-                    if (layer is TextLayer && getDistance(lx, ly, halfW + HANDLE_OFFSET, 0f) <= hitRadius) {
-                        currentMode = Mode.BOX_WIDTH
-                        initialBoxWidth = layer.getWidth()
-                        centerX = layer.x
-                        centerY = layer.y
-                        startDist = lx // use lx as distance from center
-                        return true
+                        // Standard Handles
+                        if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                            com.astral.typer.utils.UndoManager.saveState(layers)
+                            deleteSelectedLayer()
+                            return true
+                        }
+                        if (getDistance(lx, ly, halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                            currentMode = Mode.ROTATE_LAYER
+                            initialRotation = layer.rotation
+                            centerX = layer.x
+                            centerY = layer.y
+                            startAngle = getAngle(centerX, centerY, cx, cy)
+                            return true
+                        }
+                        if (getDistance(lx, ly, halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
+                            currentMode = Mode.RESIZE_LAYER
+                            initialScaleX = layer.scaleX
+                            initialScaleY = layer.scaleY
+                            centerX = layer.x
+                            centerY = layer.y
+                            startDist = getDistance(centerX, centerY, cx, cy)
+                            return true
+                        }
+                        if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, 0f) <= hitRadius) {
+                            currentMode = Mode.STRETCH_H
+                            initialScaleX = layer.scaleX
+                            centerX = layer.x
+                            centerY = layer.y
+                            startX = lx
+                            return true
+                        }
+                        if (getDistance(lx, ly, 0f, halfH + HANDLE_OFFSET) <= hitRadius) {
+                            currentMode = Mode.STRETCH_V
+                            initialScaleY = layer.scaleY
+                            centerX = layer.x
+                            centerY = layer.y
+                            startY = ly
+                            return true
+                        }
+                        if (layer is TextLayer && getDistance(lx, ly, halfW + HANDLE_OFFSET, 0f) <= hitRadius) {
+                            currentMode = Mode.BOX_WIDTH
+                            initialBoxWidth = layer.getWidth()
+                            centerX = layer.x
+                            centerY = layer.y
+                            startDist = lx
+                            return true
+                        }
                     }
                 }
 
-                // 2. Check for layer hit (Selection / Move)
+                // 2. Check for layer hit
                 val hitLayer = layers.findLast { it.contains(cx, cy) }
                 if (hitLayer != null) {
                     wasSelectedInitially = (selectedLayer == hitLayer)
@@ -667,7 +655,6 @@ class AstralCanvasView @JvmOverloads constructor(
                     lastTouchY = cy
                     invalidate()
                 } else {
-                    // Click on empty space
                     currentMode = Mode.NONE
                     invalidate()
                 }
@@ -675,13 +662,38 @@ class AstralCanvasView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 if (currentMode == Mode.NONE || currentMode == Mode.PAN_ZOOM) return true
 
-                // Check movement threshold
                 if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 5f) {
                     hasMoved = true
                 }
 
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
+
+                    // Perspective Drag Logic
+                    if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
+                         // We need to map global touch back to local space to update the points
+                         val localPoint = floatArrayOf(cx, cy)
+                         val globalToLocal = Matrix()
+                         globalToLocal.postTranslate(-layer.x, -layer.y)
+                         globalToLocal.postRotate(-layer.rotation)
+                         globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
+                         globalToLocal.mapPoints(localPoint)
+
+                         val lx = localPoint[0]
+                         val ly = localPoint[1]
+
+                         val pts = layer.perspectivePoints!!
+
+                         when(currentMode) {
+                             Mode.PERSPECTIVE_DRAG_TL -> { pts[0] = lx; pts[1] = ly }
+                             Mode.PERSPECTIVE_DRAG_TR -> { pts[2] = lx; pts[3] = ly }
+                             Mode.PERSPECTIVE_DRAG_BR -> { pts[4] = lx; pts[5] = ly }
+                             Mode.PERSPECTIVE_DRAG_BL -> { pts[6] = lx; pts[7] = ly }
+                             else -> {}
+                         }
+                         invalidate()
+                         return true
+                    }
 
                     when (currentMode) {
                         Mode.DRAG_LAYER -> {
@@ -709,79 +721,24 @@ class AstralCanvasView @JvmOverloads constructor(
                             }
                         }
                         Mode.STRETCH_H -> {
-                            // Complex math to project current touch point onto the local X axis
-                            // Simplified: Just use distance change from center logic, but directional?
-
-                            // Re-calculate local X
-                            val localPoint = floatArrayOf(cx, cy)
-                            val globalToLocal = Matrix()
-                            globalToLocal.postTranslate(-layer.x, -layer.y)
-                            globalToLocal.postRotate(-layer.rotation)
-                            globalToLocal.postScale(1/initialScaleX, 1/initialScaleY) // Use initial scale to see relative movement?
-                            // No, simpler: get distance from center.
-
-                            // Let's use distance from center to finger.
-                            // If finger is to the left of center, distance increases as we go left.
-                            // Handle is at Left Middle (-Width/2).
-
-                            val dist = getDistance(centerX, centerY, cx, cy)
-                            // We need to know if we are pulling away or pushing in.
-                            // Original handle distance (approx) was halfW * scaleX.
-
-                            // Let's project touch onto the layer's X-axis vector
                             val rad = Math.toRadians(layer.rotation.toDouble())
                             val cos = Math.cos(rad)
                             val sin = Math.sin(rad)
-                            // Vector from center to touch
                             val dx = cx - centerX
                             val dy = cy - centerY
-
-                            // Project onto local X axis (rotated)
-                            // Local X axis vector is (cos, sin)
-                            // But handle is on the LEFT, so vector is (-cos, -sin)
                             val proj = -(dx * cos + dy * sin)
-
-                            // Original projection (approx half width * scale)
-                            val originalW = layer.getWidth() / 2f
-
-                            if (originalW > 0) {
-                                // New scale is proportional to how far out we are relative to unscaled width
-                                // But wait, Layer.getWidth() returns width based on text content.
-                                // We are changing ScaleX.
-
-                                // initialScaleX * (currentProj / startProj)
-                                // But getting startProj is tricky if we didn't save it.
-
-                                // Let's try simpler:
-                                // ScaleX = Proj / (Width_Unscaled/2)
-                                val newScale = proj / (layer.getWidth() / 2f / layer.scaleX) // layer.getWidth() uses current scale? No, Layer.getWidth() logic in TextLayer ensures layout which might depend on boxWidth but not scale.
-                                // TextLayer.getWidth() returns layout width (unscaled).
-
-                                if (proj > 10) { // Minimum threshold
-                                     layer.scaleX = (proj / (layer.getWidth() / 2f)).toFloat().coerceAtLeast(0.1f)
-                                     invalidate()
-                                }
+                            if (proj > 10) {
+                                 layer.scaleX = (proj / (layer.getWidth() / 2f)).toFloat().coerceAtLeast(0.1f)
+                                 invalidate()
                             }
                         }
                         Mode.STRETCH_V -> {
-                             // Handle at Bottom Middle (+Height/2)
-                             // Vector is (sin, -cos) for Y? No.
-                             // Local Y axis is (-sin, cos) relative to screen X,Y?
-                             // Canvas Y is down.
-                             // Rotation is clockwise.
-                             // 0 deg: Y axis is (0, 1).
-
                              val rad = Math.toRadians(layer.rotation.toDouble())
                              val cos = Math.cos(rad)
                              val sin = Math.sin(rad)
-
                              val dx = cx - centerX
                              val dy = cy - centerY
-
-                             // Project onto local Y axis
-                             // Local Y vector (rotated) is (-sin, cos)
                              val proj = -dx * sin + dy * cos
-
                              if (proj > 10) {
                                  layer.scaleY = (proj / (layer.getHeight() / 2f)).toFloat().coerceAtLeast(0.1f)
                                  invalidate()
@@ -789,20 +746,12 @@ class AstralCanvasView @JvmOverloads constructor(
                         }
                         Mode.BOX_WIDTH -> {
                             if (layer is TextLayer) {
-                                // Right Middle Handle (+Width/2)
-                                // Project onto X axis
                                 val rad = Math.toRadians(layer.rotation.toDouble())
                                 val cos = Math.cos(rad)
                                 val sin = Math.sin(rad)
                                 val dx = cx - centerX
                                 val dy = cy - centerY
                                 val proj = dx * cos + dy * sin
-
-                                // Proj is distance from center in local scaled space.
-                                // We want to change the underlying boxWidth (unscaled).
-                                // proj = (boxWidth / 2) * scaleX
-                                // boxWidth = (proj / scaleX) * 2
-
                                 if (proj > 20) {
                                     layer.boxWidth = ((proj / layer.scaleX) * 2f).toFloat()
                                     invalidate()
@@ -854,7 +803,6 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            // Keep double tap for reset/center logic on empty space
              val touchPoint = floatArrayOf(e.x, e.y)
              val inverse = Matrix()
              viewMatrix.invert(inverse)

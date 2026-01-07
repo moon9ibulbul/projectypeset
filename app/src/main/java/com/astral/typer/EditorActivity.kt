@@ -36,6 +36,8 @@ import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.CustomTypefaceSpan
 import com.astral.typer.utils.FontManager
 import com.astral.typer.views.AstralCanvasView
+import android.widget.GridLayout
+import com.astral.typer.utils.StyleManager
 
 class EditorActivity : AppCompatActivity() {
 
@@ -138,10 +140,38 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
         binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
         binding.btnPropFormat.setOnClickListener { toggleMenu("FORMAT") { showFormatMenu() } }
+
+        // New Spacing Menu
+        binding.btnPropSpacing.setOnClickListener { toggleMenu("SPACING") { showSpacingMenu() } }
+
         binding.btnPropStroke.setOnClickListener { toggleMenu("STROKE") { showStrokeMenu() } }
         binding.btnPropDoubleStroke.setOnClickListener { toggleMenu("DOUBLE_STROKE") { showDoubleStrokeMenu() } }
         binding.btnPropShadow.setOnClickListener { toggleMenu("SHADOW") { showShadowControls() } }
         binding.btnPropGradation.setOnClickListener { toggleMenu("GRADATION") { showGradationControls() } }
+        binding.btnPropPerspective.setOnClickListener {
+            // Toggle Perspective Mode directly or open menu?
+            // "saat menu ini ditekan... semua ikon control hilang... sudut jadi titik"
+            // "To cancel... click again or click another menu"
+            if (currentMenuType == "PERSPECTIVE") {
+                // Toggle Off
+                togglePerspectiveMode(false)
+                hidePropertyDetail() // Close container if open (though perspective has no container usually? prompt implies it's a mode)
+                // "Jangan lupa untuk memunculkan kembali semua ikon"
+            } else {
+                toggleMenu("PERSPECTIVE") {
+                    togglePerspectiveMode(true)
+                    // Show a message or dummy container?
+                    val container = prepareContainer()
+                    val tv = TextView(this).apply {
+                        text = "Drag corners to warp text.\nClick menu again to exit."
+                        setTextColor(Color.WHITE)
+                        gravity = Gravity.CENTER
+                        setPadding(32,32,32,32)
+                    }
+                    container.addView(tv)
+                }
+            }
+        }
 
         // Top Bar
         binding.btnBack.setOnClickListener { finish() }
@@ -170,6 +200,33 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    private fun togglePerspectiveMode(enabled: Boolean) {
+        val layer = canvasView.getSelectedLayer() as? TextLayer
+        if (layer != null) {
+            // We set a flag on the layer or the canvas?
+            // "Menu Perspective ... ditekan"
+            // The prompt implies it's a tool mode.
+            // Let's implement it in AstralCanvasView by setting a mode on the layer.
+            layer.isPerspective = enabled
+            // If enabled, initialize points if null
+            if (enabled && layer.perspectivePoints == null) {
+                // Initialize to current corners relative to center
+                val w = layer.getWidth()
+                val h = layer.getHeight()
+                layer.perspectivePoints = floatArrayOf(
+                    -w/2f, -h/2f, // TL
+                    w/2f, -h/2f,  // TR
+                    w/2f, h/2f,   // BR
+                    -w/2f, h/2f   // BL
+                )
+            }
+
+            // Notify Canvas
+            canvasView.setPerspectiveMode(enabled) // We need to add this method to CanvasView
+            canvasView.invalidate()
+        }
     }
 
     // --- LAYERS MENU ---
@@ -212,9 +269,10 @@ class EditorActivity : AppCompatActivity() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer
 
-        val scroll = HorizontalScrollView(this)
-        val list = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val scroll = ScrollView(this)
+        // 3 Column Grid
+        val grid = GridLayout(this).apply {
+            columnCount = 3
             setPadding(16,16,16,16)
         }
 
@@ -222,21 +280,23 @@ class EditorActivity : AppCompatActivity() {
         val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
 
         if (saved.isEmpty()) {
-            list.addView(TextView(this).apply { text = "No Saved Styles"; setTextColor(Color.GRAY) })
+            grid.addView(TextView(this).apply { text = "No Saved Styles"; setTextColor(Color.GRAY) })
         }
 
         for ((index, style) in saved.withIndex()) {
-            val item = TextView(this).apply {
-                text = "Style ${index+1}"
-                setTextColor(Color.WHITE)
+            // Container for item
+            val itemContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                layoutParams = GridLayout.LayoutParams().apply {
+                    width = dpToPx(100)
+                    height = ViewGroup.LayoutParams.WRAP_CONTENT
+                    setMargins(8, 8, 8, 8)
+                }
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
                     cornerRadius = dpToPx(8).toFloat()
                     setStroke(2, Color.LTGRAY)
-                }
-                setPadding(32, 16, 32, 16)
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    setMargins(8, 0, 8, 0)
                 }
                 setOnClickListener {
                     if (layer != null) {
@@ -254,6 +314,7 @@ class EditorActivity : AppCompatActivity() {
                         layer.isMotionShadow = style.isMotionShadow
                         layer.motionShadowAngle = style.motionShadowAngle
                         layer.motionShadowDistance = style.motionShadowDistance
+                        layer.motionBlurStrength = style.motionBlurStrength
                         layer.isGradient = style.isGradient
                         layer.gradientStartColor = style.gradientStartColor
                         layer.gradientEndColor = style.gradientEndColor
@@ -265,16 +326,41 @@ class EditorActivity : AppCompatActivity() {
                         layer.strokeWidth = style.strokeWidth
                         layer.doubleStrokeColor = style.doubleStrokeColor
                         layer.doubleStrokeWidth = style.doubleStrokeWidth
+                        // Spacing
+                        layer.letterSpacing = style.letterSpacing
+                        layer.lineSpacing = style.lineSpacing
 
                         canvasView.invalidate()
                         Toast.makeText(context, "Style Applied", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
-            list.addView(item)
+
+            // Preview Image
+            val bmp = StyleManager.getPreview(style)
+            val img = android.widget.ImageView(this).apply {
+                setImageBitmap(bmp)
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), dpToPx(80)).apply {
+                    setMargins(0, 10, 0, 0)
+                }
+                scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            }
+            itemContainer.addView(img)
+
+            // Label
+            val tv = TextView(this).apply {
+                text = "Style ${index+1}"
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setPadding(0, 4, 0, 8)
+            }
+            itemContainer.addView(tv)
+
+            grid.addView(itemContainer)
         }
 
-        scroll.addView(list)
+        scroll.addView(grid)
         container.addView(scroll)
     }
 
@@ -340,6 +426,13 @@ class EditorActivity : AppCompatActivity() {
         binding.propertyDetailContainer.visibility = View.GONE
         activeEditText = null
         isFontPickerVisible = false
+
+        // If exiting perspective menu, ensure mode is off (if user didn't explicitly toggle off, assume exit cancels/applies? Prompt said "klik menu lain" cancels)
+        // Check if we were in perspective
+        if (currentMenuType == "PERSPECTIVE") {
+            togglePerspectiveMode(false)
+        }
+
         currentMenuType = null
     }
 
@@ -347,6 +440,10 @@ class EditorActivity : AppCompatActivity() {
         if (currentMenuType == type && binding.propertyDetailContainer.visibility == View.VISIBLE) {
             hidePropertyDetail()
         } else {
+            // Switching menus
+            if (currentMenuType == "PERSPECTIVE" && type != "PERSPECTIVE") {
+                togglePerspectiveMode(false)
+            }
             showAction()
             currentMenuType = type
         }
@@ -679,15 +776,11 @@ class EditorActivity : AppCompatActivity() {
 
                         val filtered = if (query.isEmpty()) fonts else fonts.filter { it.name.contains(query, ignoreCase = true) }
 
-                        // Limit visible fonts for performance if list is huge (Lazy loading simulation)
-                        // Or just render all for now as filtered list is usually smaller.
-                        // If "My Font" is huge, filtered logic helps.
-
                         val limit = 50
                         var count = 0
 
                         for (font in filtered) {
-                            if (count >= limit && query.isEmpty()) break // Only simple lazy load if no search
+                            if (count >= limit && query.isEmpty()) break
                             count++
 
                             val itemLayout = LinearLayout(this).apply {
@@ -750,8 +843,6 @@ class EditorActivity : AppCompatActivity() {
                                  setPadding(16,16,16,16)
                                  gravity = Gravity.CENTER
                                  setOnClickListener {
-                                     // Very simple "Load More" - just load rest.
-                                     // Ideally implement Recycler View but for now this patches the lag.
                                      for (i in limit until filtered.size) {
                                          val font = filtered[i]
                                          val itemLayout = LinearLayout(this@EditorActivity).apply {
@@ -883,7 +974,9 @@ class EditorActivity : AppCompatActivity() {
                       if (et != null && et.selectionStart != et.selectionEnd) {
                             applySpanToSelection(ForegroundColorSpan(color))
                       } else {
+                            // Apply Color and Disable Gradient
                             layer.color = color
+                            layer.isGradient = false
                             canvasView.invalidate()
                       }
                       Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
@@ -904,35 +997,62 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 0, 16, 0)
             }
-            setOnClickListener { showColorWheelDialog(layer) }
-        }
-        list.addView(btnPalette)
-
-        // Show saved colors
-        // Show saved colors
-        val savedColors = com.astral.typer.utils.ColorPaletteManager.getSavedColors(this)
-        for (color in savedColors) {
-            val item = View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(40)).apply {
-                    setMargins(8, 0, 8, 0)
-                }
-                background = GradientDrawable().apply {
-                    setColor(color)
-                    shape = GradientDrawable.OVAL
-                    setStroke(2, Color.LTGRAY)
-                }
-                setOnClickListener {
+            setOnClickListener {
+                ColorPickerHelper.showColorPickerDialog(this, layer.color) { color ->
                     val et = activeEditText
                     if (et != null && et.selectionStart != et.selectionEnd) {
                         applySpanToSelection(ForegroundColorSpan(color))
                     } else {
+                        // Apply Color and Disable Gradient
                         layer.color = color
+                        layer.isGradient = false
                         canvasView.invalidate()
                     }
                 }
             }
-            list.addView(item)
         }
+        list.addView(btnPalette)
+
+        // Add saved colors view using helper
+        // We use the helper directly, passing the current color for selection highlight
+        val paletteView = ColorPickerHelper.createPaletteView(
+            this,
+            { color ->
+                val et = activeEditText
+                if (et != null && et.selectionStart != et.selectionEnd) {
+                    applySpanToSelection(ForegroundColorSpan(color))
+                } else {
+                    // Toggle Off Logic: "Jika warna yang sedang aktif ditekan kembali, maka akan membatalkan efek text terkait"
+                    // For Main Text Color, it doesn't make sense to "cancel" it (invisible text?).
+                    // But if Gradient is active, maybe revert to solid?
+                    // Let's assume for Main Color, it just sets it.
+                    // But we MUST Disable Gradient if solid color is picked.
+
+                    // Actually, prompt says: "jika dia menambahkan text color ... akan membatalkan gradation"
+
+                    if (layer.color == color && !layer.isGradient) {
+                        // Already active and solid. Do nothing or toggle?
+                        // For main text, invisible is bad. So do nothing.
+                    } else {
+                        layer.color = color
+                        layer.isGradient = false
+                        canvasView.invalidate()
+                    }
+                }
+            },
+            null, // No add button here? Or keep it? The helper has logic for saved colors internally.
+            layer.color // Selected color
+        )
+        // Extract the list from ScrollView returned by helper because we are already inside a scroll/linear layout structure?
+        // No, current structure adds buttons then list.
+        // Helper returns a ScrollView. We can add that ScrollView to our container, but we are inside a horizontal linear layout 'list'.
+        // Better to just add the items.
+        // But Helper encapsulates creation.
+        // Let's just use the Helper's view instead of iterating manually.
+
+        list.addView(paletteView)
+
+        // Remove the old loop for saved colors
 
         scroll.addView(list)
         container.addView(scroll)
@@ -996,6 +1116,97 @@ class EditorActivity : AppCompatActivity() {
         container.addView(contentContainer)
 
         selectTab(true) // Default
+    }
+
+    // --- SPACING MENU ---
+    private fun showSpacingMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        container.addView(createInputView(layer, false))
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 8, 16, 8)
+        }
+
+        fun createControl(label: String, valueStr: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 8, 0, 8)
+            }
+            val tvLabel = TextView(this).apply {
+                text = label
+                setTextColor(Color.LTGRAY)
+                textSize = 14f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val btnMinus = TextView(this).apply {
+                text = "-"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+                setOnClickListener { onMinus() }
+            }
+            val tvValue = TextView(this).apply {
+                text = valueStr
+                setTextColor(Color.CYAN)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+            val btnPlus = TextView(this).apply {
+                text = "+"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+                setOnClickListener { onPlus() }
+            }
+            row.addView(tvLabel); row.addView(btnMinus); row.addView(tvValue); row.addView(btnPlus)
+            return row
+        }
+
+        // Letter Spacing
+        val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing),
+            onMinus = {
+                layer.letterSpacing -= 0.05f
+                canvasView.invalidate()
+                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
+            },
+            onPlus = {
+                layer.letterSpacing += 0.05f
+                canvasView.invalidate()
+                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
+            }
+        )
+        layout.addView(letterSpacingRow)
+
+        // Line Spacing
+        val lineSpacingRow = createControl("Line Spacing", "${layer.lineSpacing.toInt()}",
+            onMinus = {
+                layer.lineSpacing -= 5f
+                canvasView.invalidate()
+                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.lineSpacing.toInt()}" }
+            },
+            onPlus = {
+                layer.lineSpacing += 5f
+                canvasView.invalidate()
+                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.lineSpacing.toInt()}" }
+            }
+        )
+        layout.addView(lineSpacingRow)
+
+        container.addView(layout)
     }
 
     private fun createFormattingTab(layer: TextLayer): View {
@@ -1237,12 +1448,42 @@ class EditorActivity : AppCompatActivity() {
         onColorPicked: (Int) -> Unit,
         onPaletteClick: () -> Unit
     ): View {
+        // Use ColorPickerHelper.createPaletteView logic
+        return ColorPickerHelper.createPaletteView(
+            this,
+            { color ->
+                // Toggle off logic for list items in submenu?
+                // "Jika warna yang sedang aktif itu di tekan kembali, maka akan membatalkan efek text terkait"
+                // Checking previous value:
+                if (currentColor == color) {
+                     // Trigger "Disable" logic. How?
+                     // We need to pass a "disabled" state or -1?
+                     // Or handled by caller.
+                     // Since onColorPicked expects Int, let's just callback.
+                     // The caller (e.g. showShadowControls) needs to handle toggle.
+                     onColorPicked(color)
+                } else {
+                     onColorPicked(color)
+                }
+            },
+            { onPaletteClick(); 0 }, // Fake add button to trigger palette dialog? No, design calls for Palette Button separately.
+            currentColor
+        )
+    }
+
+    // Adjusted Color List creation to match new Helper
+    private fun createColorScroll(
+        currentColor: Int,
+        onColorPicked: (Int) -> Unit,
+        onPaletteClick: () -> Unit
+    ): View {
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(16, 8, 16, 8)
         }
 
+        // Palette Button
         val btnPalette = android.widget.ImageView(this).apply {
             setImageResource(R.drawable.ic_menu_palette)
             setColorFilter(Color.WHITE)
@@ -1255,20 +1496,10 @@ class EditorActivity : AppCompatActivity() {
         }
         list.addView(btnPalette)
 
-        // Show saved colors
-        val savedColors = com.astral.typer.utils.ColorPaletteManager.getSavedColors(this)
-        for (color in savedColors) {
-            val item = View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(40)).apply { setMargins(8, 0, 8, 0) }
-                background = GradientDrawable().apply {
-                    setColor(color)
-                    shape = GradientDrawable.OVAL
-                    setStroke(2, Color.LTGRAY)
-                }
-                setOnClickListener { onColorPicked(color) }
-            }
-            list.addView(item)
-        }
+        // Use Helper for the rest
+        val palette = ColorPickerHelper.createPaletteView(this, onColorPicked, null, currentColor)
+        list.addView(palette)
+
         scroll.addView(list)
         return scroll
     }
@@ -1303,9 +1534,18 @@ class EditorActivity : AppCompatActivity() {
                 setPadding(16,8,16,8)
             }
             // Color
-            layout.addView(createColorList(layer.shadowColor,
-                { c -> layer.shadowColor = c; canvasView.invalidate() },
-                { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; canvasView.invalidate() } }
+            layout.addView(createColorScroll(layer.shadowColor,
+                { c ->
+                    if (layer.shadowColor == c && layer.shadowRadius > 0) {
+                        // Toggle Off Shadow?
+                        layer.shadowRadius = 0f
+                    } else {
+                        layer.shadowColor = c
+                        if (layer.shadowRadius == 0f) layer.shadowRadius = 10f // Enable if was disabled
+                    }
+                    canvasView.invalidate()
+                },
+                { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; if(layer.shadowRadius==0f) layer.shadowRadius=10f; canvasView.invalidate() } }
             ))
 
             layout.addView(createSlider("Blur Radius", layer.shadowRadius.toInt(), 50) {
@@ -1320,7 +1560,7 @@ class EditorActivity : AppCompatActivity() {
             addView(layout)
         }
 
-        // 2. Motion Shadow (Corrected Definition)
+        // 2. Motion Shadow
         val motionShadowView = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             val layout = LinearLayout(this@EditorActivity).apply {
@@ -1329,9 +1569,17 @@ class EditorActivity : AppCompatActivity() {
             }
 
              // Color
-            layout.addView(createColorList(layer.shadowColor,
-                { c -> layer.shadowColor = c; canvasView.invalidate() },
-                { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; canvasView.invalidate() } }
+            layout.addView(createColorScroll(layer.shadowColor,
+                { c ->
+                    if (layer.shadowColor == c && layer.motionShadowDistance > 0) {
+                        layer.motionShadowDistance = 0f // Toggle off
+                    } else {
+                        layer.shadowColor = c
+                        if (layer.motionShadowDistance == 0f) layer.motionShadowDistance = 20f
+                    }
+                    canvasView.invalidate()
+                },
+                { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; if(layer.motionShadowDistance==0f) layer.motionShadowDistance=20f; canvasView.invalidate() } }
             ))
 
             // Angle
@@ -1378,6 +1626,29 @@ class EditorActivity : AppCompatActivity() {
                 })
             }
             layout.addView(sbDist)
+
+            // Blur Strength (New)
+            val blurLabel = TextView(this@EditorActivity).apply {
+                text = "Blur Strength: ${layer.motionBlurStrength.toInt()}"
+                setTextColor(Color.WHITE)
+                setPadding(0,16,0,0)
+            }
+            layout.addView(blurLabel)
+
+            val sbBlur = SeekBar(this@EditorActivity).apply {
+                max = 50
+                progress = layer.motionBlurStrength.toInt()
+                setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener{
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.motionBlurStrength = p.toFloat()
+                        blurLabel.text = "Blur Strength: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+            }
+            layout.addView(sbBlur)
 
             addView(layout)
         }
@@ -1455,15 +1726,25 @@ class EditorActivity : AppCompatActivity() {
 
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
-        mainLayout.addView(createColorList(layer.gradientStartColor,
-             { c -> layer.gradientStartColor = c; canvasView.invalidate() },
+        mainLayout.addView(createColorScroll(layer.gradientStartColor,
+             { c ->
+                 if (layer.gradientStartColor == c) {
+                     // Toggle off gradient?
+                     layer.isGradient = false
+                 } else {
+                     layer.gradientStartColor = c
+                 }
+                 canvasView.invalidate()
+             },
              { showColorWheelDialogForProperty(layer) { c -> layer.gradientStartColor = c; canvasView.invalidate() } }
         ))
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
-        mainLayout.addView(createColorList(layer.gradientEndColor,
-             { c -> layer.gradientEndColor = c; canvasView.invalidate() },
+        mainLayout.addView(createColorScroll(layer.gradientEndColor,
+             { c ->
+                 layer.gradientEndColor = c; canvasView.invalidate()
+             },
              { showColorWheelDialogForProperty(layer) { c -> layer.gradientEndColor = c; canvasView.invalidate() } }
         ))
 
@@ -1487,9 +1768,17 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Color List (Moved to Top)
-        val colorList = createColorList(layer.strokeColor,
-             { c -> layer.strokeColor = c; canvasView.invalidate() },
-             { showColorWheelDialogForProperty(layer) { c -> layer.strokeColor = c; canvasView.invalidate() } }
+        val colorList = createColorScroll(layer.strokeColor,
+             { c ->
+                 if (layer.strokeColor == c && layer.strokeWidth > 0) {
+                     layer.strokeWidth = 0f
+                 } else {
+                     layer.strokeColor = c
+                     if (layer.strokeWidth == 0f) layer.strokeWidth = 5f
+                 }
+                 canvasView.invalidate()
+             },
+             { showColorWheelDialogForProperty(layer) { c -> layer.strokeColor = c; if(layer.strokeWidth==0f) layer.strokeWidth=5f; canvasView.invalidate() } }
         )
         mainLayout.addView(colorList)
 
@@ -1570,9 +1859,17 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Color List (Moved to Top)
-        val colorList = createColorList(layer.doubleStrokeColor,
-             { c -> layer.doubleStrokeColor = c; canvasView.invalidate() },
-             { showColorWheelDialogForProperty(layer) { c -> layer.doubleStrokeColor = c; canvasView.invalidate() } }
+        val colorList = createColorScroll(layer.doubleStrokeColor,
+             { c ->
+                 if (layer.doubleStrokeColor == c && layer.doubleStrokeWidth > 0) {
+                     layer.doubleStrokeWidth = 0f
+                 } else {
+                     layer.doubleStrokeColor = c
+                     if (layer.doubleStrokeWidth == 0f) layer.doubleStrokeWidth = 5f
+                 }
+                 canvasView.invalidate()
+             },
+             { showColorWheelDialogForProperty(layer) { c -> layer.doubleStrokeColor = c; if(layer.doubleStrokeWidth==0f) layer.doubleStrokeWidth=5f; canvasView.invalidate() } }
         )
         mainLayout.addView(colorList)
 
@@ -1647,6 +1944,7 @@ class EditorActivity : AppCompatActivity() {
                 applySpanToSelection(ForegroundColorSpan(color))
              } else {
                 layer.color = color
+                layer.isGradient = false
                 canvasView.invalidate()
              }
         }
@@ -1655,13 +1953,6 @@ class EditorActivity : AppCompatActivity() {
     private fun showColorWheelDialogForProperty(layer: TextLayer, applyColor: (Int) -> Unit) {
         ColorPickerHelper.showColorPickerDialog(
             this,
-            // We don't have easy access to current color value here unless we passed it or read from layer.
-            // But applyColor is the setter.
-            // For now, default to WHITE or read from layer if possible, but the function signature doesn't pass current.
-            // Let's assume WHITE for now or try to match based on context.
-            // Actually, in the calls above, we pass lambda `c -> layer.shadowColor = c`.
-            // We can't read the getter easily from the lambda.
-            // But usually the user clicked on a color picker because they want to change it.
             Color.WHITE,
             applyColor
         )
