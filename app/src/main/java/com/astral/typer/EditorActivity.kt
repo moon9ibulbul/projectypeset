@@ -320,26 +320,56 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropShadow.setOnClickListener { toggleMenu("SHADOW") { showShadowControls() } }
         binding.btnPropGradation.setOnClickListener { toggleMenu("GRADATION") { showGradationControls() } }
         binding.btnPropPerspective.setOnClickListener {
-            // Toggle Perspective Mode directly or open menu?
-            // "saat menu ini ditekan... semua ikon control hilang... sudut jadi titik"
-            // "To cancel... click again or click another menu"
             if (currentMenuType == "PERSPECTIVE") {
-                // Toggle Off
+                // Toggle Off (Exit Mode)
                 togglePerspectiveMode(false)
-                hidePropertyDetail() // Close container if open (though perspective has no container usually? prompt implies it's a mode)
-                // "Jangan lupa untuk memunculkan kembali semua ikon"
+                hidePropertyDetail()
             } else {
                 toggleMenu("PERSPECTIVE") {
                     togglePerspectiveMode(true)
-                    // Show a message or dummy container?
                     val container = prepareContainer()
-                    val tv = TextView(this).apply {
-                        text = "Drag corners to warp text.\nClick menu again to exit."
-                        setTextColor(Color.WHITE)
+
+                    val layout = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER
-                        setPadding(32,32,32,32)
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
                     }
-                    container.addView(tv)
+
+                    val btnReset = android.widget.Button(this).apply {
+                        text = "Reset"
+                        setTextColor(Color.WHITE)
+                        background = GradientDrawable().apply {
+                            setColor(Color.DKGRAY)
+                            cornerRadius = dpToPx(8).toFloat()
+                        }
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                        setOnClickListener {
+                            val layer = canvasView.getSelectedLayer() as? TextLayer
+                            if (layer != null) {
+                                layer.perspectivePoints = null
+                                // Re-init points to reset visual
+                                val w = layer.getWidth()
+                                val h = layer.getHeight()
+                                layer.perspectivePoints = floatArrayOf(
+                                    -w/2f, -h/2f, // TL
+                                    w/2f, -h/2f,  // TR
+                                    w/2f, h/2f,   // BR
+                                    -w/2f, h/2f   // BL
+                                )
+                                canvasView.invalidate()
+                                Toast.makeText(this@EditorActivity, "Perspective Reset", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+
+                    layout.addView(btnReset)
+                    container.addView(layout)
                 }
             }
         }
@@ -686,26 +716,29 @@ class EditorActivity : AppCompatActivity() {
     private fun togglePerspectiveMode(enabled: Boolean) {
         val layer = canvasView.getSelectedLayer() as? TextLayer
         if (layer != null) {
-            // We set a flag on the layer or the canvas?
             // "Menu Perspective ... ditekan"
             // The prompt implies it's a tool mode.
-            // Let's implement it in AstralCanvasView by setting a mode on the layer.
-            layer.isPerspective = enabled
-            // If enabled, initialize points if null
-            if (enabled && layer.perspectivePoints == null) {
-                // Initialize to current corners relative to center
-                val w = layer.getWidth()
-                val h = layer.getHeight()
-                layer.perspectivePoints = floatArrayOf(
-                    -w/2f, -h/2f, // TL
-                    w/2f, -h/2f,  // TR
-                    w/2f, h/2f,   // BR
-                    -w/2f, h/2f   // BL
-                )
+
+            // Only set layer.isPerspective = true when entering.
+            // DO NOT set it to false on exit, to persist the effect.
+            if (enabled) {
+                layer.isPerspective = true
+                // If enabled, initialize points if null
+                if (layer.perspectivePoints == null) {
+                    // Initialize to current corners relative to center
+                    val w = layer.getWidth()
+                    val h = layer.getHeight()
+                    layer.perspectivePoints = floatArrayOf(
+                        -w/2f, -h/2f, // TL
+                        w/2f, -h/2f,  // TR
+                        w/2f, h/2f,   // BR
+                        -w/2f, h/2f   // BL
+                    )
+                }
             }
 
-            // Notify Canvas
-            canvasView.setPerspectiveMode(enabled) // We need to add this method to CanvasView
+            // Notify Canvas about the Interaction Mode
+            canvasView.setPerspectiveMode(enabled)
             canvasView.invalidate()
         }
     }
@@ -2187,12 +2220,8 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
         mainLayout.addView(createColorScroll(layer.gradientStartColor,
              { c ->
-                 if (layer.gradientStartColor == c) {
-                     // Toggle off gradient?
-                     layer.isGradient = false
-                 } else {
-                     layer.gradientStartColor = c
-                 }
+                 // Fixed: Do NOT toggle off gradient if same color selected
+                 layer.gradientStartColor = c
                  canvasView.invalidate()
              },
              { showColorWheelDialogForProperty(layer) { c -> layer.gradientStartColor = c; canvasView.invalidate() } }
