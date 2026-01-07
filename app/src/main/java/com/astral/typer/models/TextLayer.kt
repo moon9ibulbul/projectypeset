@@ -69,6 +69,14 @@ class TextLayer(
     var warpCols: Int = 2
     var warpMesh: FloatArray? = null
 
+    // Texture
+    var textureBitmap: Bitmap? = null
+    var textureOffsetX: Float = 0f
+    var textureOffsetY: Float = 0f
+
+    // Erase
+    var eraseMask: Bitmap? = null
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -124,6 +132,14 @@ class TextLayer(
         newLayer.warpCols = this.warpCols
         newLayer.warpMesh = this.warpMesh?.clone()
 
+        newLayer.textureBitmap = this.textureBitmap // Bitmap references are shared usually
+        newLayer.textureOffsetX = this.textureOffsetX
+        newLayer.textureOffsetY = this.textureOffsetY
+
+        if (this.eraseMask != null) {
+            newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
+        }
+
         newLayer.x = this.x
         newLayer.y = this.y
         newLayer.rotation = this.rotation
@@ -159,7 +175,16 @@ class TextLayer(
             textPaint.clearShadowLayer()
         }
 
-        textPaint.shader = null
+        // Texture Application
+        if (textureBitmap != null) {
+            val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            val matrix = Matrix()
+            matrix.postTranslate(textureOffsetX, textureOffsetY)
+            shader.setLocalMatrix(matrix)
+            textPaint.shader = shader
+        } else {
+            textPaint.shader = null
+        }
 
         val desiredWidth = StaticLayout.getDesiredWidth(text, textPaint)
         val layoutWidth = if (boxWidth != null && boxWidth!! > 0) {
@@ -407,6 +432,22 @@ class TextLayer(
         if (isGradient && isGradientText) {
             paint.shader = gradientShader
             paint.color = Color.WHITE
+        } else if (textureBitmap != null) {
+            // Texture is already set in ensureLayout (textPaint), but we need to ensure layout paint has it
+            // StaticLayout copies paint.
+            // But we might need to refresh it if it was lost?
+            // ensureLayout sets textPaint.shader. Layout uses it.
+            // But here we are setting paint.shader manually for gradient, overriding layout paint?
+            // Yes, layout.draw(canvas) uses the paint from the layout object.
+            // But we are modifying 'paint' which comes from 'layout.paint'.
+            // So if we set paint.shader = null, we remove the texture.
+            // We should check textureBitmap.
+             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+             val matrix = Matrix()
+             matrix.postTranslate(textureOffsetX, textureOffsetY)
+             shader.setLocalMatrix(matrix)
+             paint.shader = shader
+             paint.color = Color.WHITE // Texture needs white base usually
         } else {
             paint.shader = null
             paint.color = color
@@ -419,6 +460,18 @@ class TextLayer(
         }
 
         layout.draw(canvas)
+
+        // Apply Erase Mask
+        if (eraseMask != null) {
+            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            // Mask is drawn at 0,0 relative to content
+            // Need to scale mask to fit content? Or assume mask matches content size?
+            // We'll assume mask matches box dimensions.
+            // If text grew, mask might be smaller.
+            // We should draw it.
+            canvas.drawBitmap(eraseMask!!, 0f, 0f, maskPaint)
+        }
     }
 
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {

@@ -1,6 +1,7 @@
 package com.astral.typer.views
 
 import android.content.Context
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
@@ -59,6 +60,12 @@ class AstralCanvasView @JvmOverloads constructor(
     // Modes
     private var isPerspectiveMode = false
     private var isInpaintMode = false
+    private var isWarpToolActive = false
+
+    // Layer Erase Settings
+    var layerEraseSize = 50f
+    var layerEraseOpacity = 255
+    var layerEraseHardness = 0f // 0 to 100? Or Blur Radius? Let's use Radius.
 
     // Inpaint Tools
     enum class InpaintTool {
@@ -252,6 +259,30 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun setWarpToolActive(enabled: Boolean) {
+        isWarpToolActive = enabled
+        // If disabling, ensure we exit warp drag mode
+        if (!enabled && currentMode == Mode.WARP_DRAG) {
+            currentMode = Mode.NONE
+        }
+        invalidate()
+    }
+
+    fun setEraseLayerMode(enabled: Boolean) {
+        if (enabled) {
+            currentMode = Mode.ERASE_LAYER
+            // Deselect logic? No, we need a selected layer to erase it.
+            if (selectedLayer !is TextLayer) {
+                 // Maybe warn or auto select?
+            }
+        } else {
+            if (currentMode == Mode.ERASE_LAYER) {
+                currentMode = Mode.NONE
+            }
+        }
+        invalidate()
+    }
+
     // Handles Constants
     private val HANDLE_RADIUS = 30f
     private val HANDLE_OFFSET = 40f
@@ -273,7 +304,8 @@ class AstralCanvasView @JvmOverloads constructor(
         PERSPECTIVE_DRAG_BR,
         PERSPECTIVE_DRAG_BL,
         INPAINT,
-        WARP_DRAG
+        WARP_DRAG,
+        ERASE_LAYER
     }
 
     private var currentMode = Mode.NONE
@@ -597,7 +629,7 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.scale(layer.scaleX, layer.scaleY)
 
         // If Warp Mode
-        if (layer is TextLayer && layer.isWarp) {
+        if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
              val mesh = layer.warpMesh
              val rows = layer.warpRows
              val cols = layer.warpCols
@@ -838,6 +870,76 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
             return true
+        }
+
+        // Layer Erase Mode
+        if (currentMode == Mode.ERASE_LAYER && selectedLayer is TextLayer) {
+             val layer = selectedLayer as TextLayer
+             if (pointerCount >= 2 || (event.actionMasked != MotionEvent.ACTION_DOWN && currentMode == Mode.PAN_ZOOM)) {
+                 currentMode = Mode.PAN_ZOOM
+                 scaleDetector.onTouchEvent(event)
+                 gestureDetector.onTouchEvent(event)
+                 if (event.actionMasked == MotionEvent.ACTION_UP) currentMode = Mode.ERASE_LAYER
+                 return true
+             }
+
+             // Map to Local
+             val localPoint = floatArrayOf(cx, cy)
+             val globalToLocal = Matrix()
+             globalToLocal.postTranslate(-layer.x, -layer.y)
+             globalToLocal.postRotate(-layer.rotation)
+             globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
+             globalToLocal.mapPoints(localPoint)
+             val lx = localPoint[0]
+             val ly = localPoint[1]
+
+             val w = layer.getWidth().toInt().coerceAtLeast(1)
+             val h = layer.getHeight().toInt().coerceAtLeast(1)
+             val maskX = lx + w/2f
+             val maskY = ly + h/2f
+
+             when(event.actionMasked) {
+                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                     if (layer.eraseMask == null || layer.eraseMask!!.width != w || layer.eraseMask!!.height != h) {
+                         // Create or Resize mask?
+                         // If resize, we lose old mask unless we draw it.
+                         val old = layer.eraseMask
+                         val newMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                         val c = Canvas(newMask)
+                         // Fill with transparent (no erase)
+                         // But actually eraseMask works by having pixels where we want to erase?
+                         // DST_OUT: Destination pixels (Content) are multiplied by (1 - SourceAlpha).
+                         // So if Source (Mask) is Transparent (Alpha 0), (1-0)=1 -> Content Kept.
+                         // If Source is Opaque (Alpha 255), (1-1)=0 -> Content Removed.
+                         // So we want to DRAW on the mask to erase.
+                         // Initialize with Transparent.
+                         c.drawColor(Color.TRANSPARENT)
+                         if (old != null) {
+                             // Draw old mask centered? Or top-left?
+                             // Since we assume top-left alignment in draw(), we draw at 0,0.
+                             c.drawBitmap(old, 0f, 0f, null)
+                         }
+                         layer.eraseMask = newMask
+                     }
+
+                     val c = Canvas(layer.eraseMask!!)
+                     val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                         color = Color.BLACK // Color doesn't matter for DST_OUT alpha calculation, but Alpha does.
+                         style = Paint.Style.FILL // Draw circle
+                         alpha = layerEraseOpacity
+                         if (layerEraseHardness < 100) {
+                             val radius = layerEraseSize / 2f
+                             val blur = radius * (1f - (layerEraseHardness / 100f))
+                             if (blur > 0.5f) {
+                                maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                             }
+                         }
+                     }
+                     c.drawCircle(maskX, maskY, layerEraseSize / 2f, p)
+                     invalidate()
+                 }
+             }
+             return true
         }
 
         when (event.actionMasked) {
