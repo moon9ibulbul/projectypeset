@@ -525,6 +525,8 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.layoutSaveFileForm.visibility = View.GONE
     }
 
+    private var inpaintToolbar: android.widget.LinearLayout? = null
+
     private fun toggleInpaintMode() {
         isInpaintMode = !isInpaintMode
 
@@ -595,6 +597,9 @@ class EditorActivity : AppCompatActivity() {
             binding.canvasContainer.addView(toggle)
             toggleInpaintEngine = toggle
 
+            // Add Inpaint Toolbar (Brush, Eraser, Lasso, Touch)
+            showInpaintToolbar()
+
         } else {
             binding.btnEraser.setImageResource(R.drawable.ic_eraser)
             canvasView.setInpaintMode(false)
@@ -611,7 +616,70 @@ class EditorActivity : AppCompatActivity() {
                 binding.canvasContainer.removeView(it)
                 toggleInpaintEngine = null
             }
+            // Remove Toolbar
+            removeInpaintToolbar()
             canvasView.clearInpaintMask()
+        }
+    }
+
+    private fun showInpaintToolbar() {
+        if (inpaintToolbar != null) return
+
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#88000000"))
+            setPadding(16, 16, 16, 16)
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, dpToPx(90)) // Above Apply button
+            }
+        }
+
+        fun addButton(iconRes: Int, text: String, tool: AstralCanvasView.InpaintTool) {
+            val btn = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(16, 8, 16, 8)
+                setOnClickListener {
+                    canvasView.currentInpaintTool = tool
+                    Toast.makeText(this@EditorActivity, "$text Selected", Toast.LENGTH_SHORT).show()
+                }
+            }
+            val iv = android.widget.ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24))
+            }
+            val tv = TextView(this).apply {
+                this.text = text
+                setTextColor(Color.WHITE)
+                textSize = 10f
+            }
+            btn.addView(iv)
+            btn.addView(tv)
+            toolbar.addView(btn)
+        }
+
+        // Icons
+        addButton(R.drawable.ic_pencil, "Brush", AstralCanvasView.InpaintTool.BRUSH)
+        addButton(R.drawable.ic_eraser, "Eraser", AstralCanvasView.InpaintTool.ERASER)
+        // Re-use pencil for Lasso if no other icons available
+        addButton(R.drawable.ic_pencil, "Lasso", AstralCanvasView.InpaintTool.LASSO)
+        // "Touch" is just Brush in this context
+        addButton(R.drawable.ic_menu_palette, "Touch", AstralCanvasView.InpaintTool.BRUSH)
+
+        binding.canvasContainer.addView(toolbar)
+        inpaintToolbar = toolbar
+    }
+
+    private fun removeInpaintToolbar() {
+        inpaintToolbar?.let {
+            binding.canvasContainer.removeView(it)
+            inpaintToolbar = null
         }
     }
 

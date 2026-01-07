@@ -70,6 +70,10 @@ class AstralCanvasView @JvmOverloads constructor(
     private val redoOps = mutableListOf<Pair<Path, InpaintTool>>()
     private var currentInpaintPath = Path()
 
+    // Cached Mask Bitmap
+    private var cachedMaskBitmap: android.graphics.Bitmap? = null
+    private var isMaskDirty = true
+
     private val inpaintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         style = Paint.Style.STROKE
@@ -99,7 +103,48 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun getInpaintMask(): android.graphics.Bitmap {
-        return renderMaskToBitmap()
+        return getCachedInpaintMask()
+    }
+
+    private fun getCachedInpaintMask(): android.graphics.Bitmap {
+        if (cachedMaskBitmap == null || cachedMaskBitmap?.width != canvasWidth || cachedMaskBitmap?.height != canvasHeight) {
+            cachedMaskBitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+            isMaskDirty = true
+        }
+
+        if (isMaskDirty) {
+            val canvas = Canvas(cachedMaskBitmap!!)
+            canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR) // Clear
+
+            val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = 50f
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                style = Paint.Style.STROKE
+                strokeWidth = 50f
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = Paint.Style.FILL
+            }
+
+            for ((path, tool) in inpaintOps) {
+                when(tool) {
+                    InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
+                    InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
+                    InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+                }
+            }
+            isMaskDirty = false
+        }
+        return cachedMaskBitmap!!
     }
 
     fun clearInpaintMask() {
@@ -114,6 +159,7 @@ class AstralCanvasView @JvmOverloads constructor(
         if (inpaintOps.isNotEmpty()) {
             val last = inpaintOps.removeAt(inpaintOps.size - 1)
             redoOps.add(last)
+            isMaskDirty = true
             invalidate()
             return true
         }
@@ -124,6 +170,7 @@ class AstralCanvasView @JvmOverloads constructor(
         if (redoOps.isNotEmpty()) {
             val last = redoOps.removeAt(redoOps.size - 1)
             inpaintOps.add(last)
+            isMaskDirty = true
             invalidate()
             return true
         }
@@ -403,18 +450,15 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Inpaint Path (in World Space)
         if (isInpaintMode) {
-            val sc = canvas.saveLayer(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), null)
+            // Draw cached mask
+            val mask = getCachedInpaintMask()
+            val p = Paint()
+            // Tint Red for visibility
+            p.colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
+            p.alpha = 128
+            canvas.drawBitmap(mask, 0f, 0f, p)
 
-            for ((path, tool) in inpaintOps) {
-                when(tool) {
-                    InpaintTool.BRUSH -> canvas.drawPath(path, inpaintPaint)
-                    InpaintTool.ERASER -> canvas.drawPath(path, eraserPaint)
-                    InpaintTool.LASSO -> {
-                        canvas.drawPath(path, lassoPaint)
-                        canvas.drawPath(path, lassoStrokePaint)
-                    }
-                }
-            }
+            // Draw live path
             if (!currentInpaintPath.isEmpty) {
                  when(currentInpaintTool) {
                     InpaintTool.BRUSH -> canvas.drawPath(currentInpaintPath, inpaintPaint)
@@ -424,8 +468,6 @@ class AstralCanvasView @JvmOverloads constructor(
                     }
                 }
             }
-
-            canvas.restoreToCount(sc)
         }
 
         // Draw Selection Overlay
