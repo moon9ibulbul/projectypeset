@@ -18,6 +18,7 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import com.astral.typer.models.Layer
 import com.astral.typer.models.TextLayer
+import com.astral.typer.models.ImageLayer
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
@@ -232,6 +233,24 @@ class AstralCanvasView @JvmOverloads constructor(
             x = canvasWidth / 2f
             y = canvasHeight / 2f
             color = Color.BLACK
+        }
+        layers.add(layer)
+        selectLayer(layer)
+    }
+
+    fun addImageLayer(bitmap: android.graphics.Bitmap, path: String? = null) {
+        // Limit initial size if too big relative to canvas?
+        // For now, scale to 50% of canvas width if huge
+        var scale = 1f
+        if (bitmap.width > canvasWidth * 0.8f) {
+            scale = (canvasWidth * 0.8f) / bitmap.width
+        }
+
+        val layer = ImageLayer(bitmap, path).apply {
+            x = canvasWidth / 2f
+            y = canvasHeight / 2f
+            this.scaleX = scale
+            this.scaleY = scale
         }
         layers.add(layer)
         selectLayer(layer)

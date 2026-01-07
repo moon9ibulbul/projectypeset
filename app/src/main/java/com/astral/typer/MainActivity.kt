@@ -2,17 +2,33 @@ package com.astral.typer
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.astral.typer.databinding.ActivityMainBinding
 import com.astral.typer.databinding.DialogNewProjectBinding
 import com.astral.typer.utils.ColorPickerHelper
+import com.astral.typer.utils.ProjectManager
+import java.io.File
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,6 +36,31 @@ class MainActivity : AppCompatActivity() {
 
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { openEditorWithImage(it) }
+    }
+
+    // Open Project (.atd) picker
+    private val openProjectLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            // Need to copy file to cache to open? Or just read from stream?
+            // ProjectManager.loadProject expects a File.
+            // Copy uri content to temp file in background
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val inputStream = contentResolver.openInputStream(it)
+                    val tempFile = File(cacheDir, "temp_open.atd")
+                    tempFile.outputStream().use { out ->
+                        inputStream?.copyTo(out)
+                    }
+                    withContext(Dispatchers.Main) {
+                        openProject(tempFile)
+                    }
+                } catch(e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Failed to open project file", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,12 +74,103 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnOpenProject.setOnClickListener {
-            Toast.makeText(this, "Open Project Not Implemented Yet", Toast.LENGTH_SHORT).show()
+            openProjectLauncher.launch(arrayOf("application/octet-stream", "*/*"))
         }
 
         binding.btnImportImage.setOnClickListener {
             getContent.launch("image/*")
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        setupRecentProjects()
+    }
+
+    private fun setupRecentProjects() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val projects = ProjectManager.getRecentProjects()
+            withContext(Dispatchers.Main) {
+                if (projects.isNotEmpty()) {
+                    binding.tvRecentLabel.visibility = View.VISIBLE
+                    binding.recentRecycler.visibility = View.VISIBLE
+
+                    binding.recentRecycler.layoutManager = LinearLayoutManager(this@MainActivity, LinearLayoutManager.HORIZONTAL, false)
+                    binding.recentRecycler.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+                            val layout = LinearLayout(parent.context).apply {
+                                orientation = LinearLayout.VERTICAL
+                                layoutParams = RecyclerView.LayoutParams(
+                                    (100 * resources.displayMetrics.density).toInt(),
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply { setMargins(8,0,8,0) }
+                                background = GradientDrawable().apply {
+                                     setColor(Color.DKGRAY)
+                                     cornerRadius = 16f
+                                     setStroke(2, Color.LTGRAY)
+                                }
+                                setPadding(8,8,8,8)
+                            }
+
+                            val img = ImageView(parent.context).apply {
+                                id = View.generateViewId()
+                                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                            }
+
+                            val text = TextView(parent.context).apply {
+                                id = View.generateViewId()
+                                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                                gravity = Gravity.CENTER
+                                setTextColor(Color.WHITE)
+                                textSize = 12f
+                                maxLines = 1
+                                ellipsize = android.text.TextUtils.TruncateAt.END
+                            }
+
+                            layout.addView(img)
+                            layout.addView(text)
+
+                            return object : RecyclerView.ViewHolder(layout) {}
+                        }
+
+                        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                            val file = projects[position]
+                            val layout = holder.itemView as LinearLayout
+                            val img = layout.getChildAt(0) as ImageView
+                            val text = layout.getChildAt(1) as TextView
+
+                            text.text = file.nameWithoutExtension
+                            if (file.nameWithoutExtension == "autosave") {
+                                text.text = "Auto Save"
+                                text.setTextColor(Color.YELLOW)
+                            } else {
+                                text.setTextColor(Color.WHITE)
+                            }
+
+                            img.setImageResource(android.R.drawable.ic_menu_gallery)
+                            img.setColorFilter(Color.GRAY)
+
+                            holder.itemView.setOnClickListener {
+                                openProject(file)
+                            }
+                        }
+
+                        override fun getItemCount() = projects.size
+                    }
+                } else {
+                    binding.tvRecentLabel.visibility = View.GONE
+                    binding.recentRecycler.visibility = View.GONE
+                }
+            }
+        }
+    }
+
+    private fun openProject(file: File) {
+        val intent = Intent(this, EditorActivity::class.java).apply {
+            putExtra("PROJECT_PATH", file.absolutePath)
+        }
+        startActivity(intent)
     }
 
     private fun openEditorWithImage(uri: Uri) {

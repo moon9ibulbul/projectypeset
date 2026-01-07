@@ -42,6 +42,14 @@
             app:tint="@color/white"
             android:layout_marginStart="24dp"/>
 
+        <ImageView
+            android:id="@+id/btnAdd"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_input_add"
+            app:tint="@color/white"
+            android:layout_marginStart="24dp"/>
+
         <Space
              android:layout_width="0dp"
              android:layout_height="wrap_content"
@@ -114,14 +122,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Image"
-                 style="@style/Widget.MaterialComponents.Button.TextButton"
-                 android:textColor="@color/white"/>
-
-             <Button
-                android:id="@+id/btnInsertShape"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Shape"
                  style="@style/Widget.MaterialComponents.Button.TextButton"
                  android:textColor="@color/white"/>
 
@@ -249,5 +249,13 @@
              android:textColor="@color/white"/>
 
     </FrameLayout>
+
+    <!-- Save Sidebar Stub/Include -->
+    <include
+        android:id="@+id/saveSidebar"
+        layout="@layout/layout_sidebar_save"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

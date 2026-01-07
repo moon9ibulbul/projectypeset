@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#DD000000"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Right Sidebar -->
+    <LinearLayout
+        android:id="@+id/sidebarContent"
+        android:layout_width="300dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/surface_dark"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tvSidebarTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save Options"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Initial Options -->
+        <LinearLayout
+            android:id="@+id/layoutSaveOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnSaveProjectOption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save as Project (.atd)"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
+                android:id="@+id/btnSaveFileOption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save as File (Export)"/>
+
+        </LinearLayout>
+
+        <!-- Save Project Form -->
+        <LinearLayout
+            android:id="@+id/layoutSaveProjectForm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Project Name"
+                android:textColor="@color/white"
+                android:layout_marginBottom="8dp"/>
+
+            <EditText
+                android:id="@+id/etProjectName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Enter project name"
+                android:textColor="@color/white"
+                android:textColorHint="@android:color/darker_gray"
+                android:background="@android:drawable/editbox_background"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
+                android:id="@+id/btnConfirmSaveProject"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save Project"/>
+
+            <Button
+                android:id="@+id/btnCancelSaveProject"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:text="Back"
+                android:textColor="@color/white"/>
+
+        </LinearLayout>
+
+        <!-- Save File Form -->
+        <LinearLayout
+            android:id="@+id/layoutSaveFileForm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="File Name"
+                android:textColor="@color/white"
+                android:layout_marginBottom="8dp"/>
+
+            <EditText
+                android:id="@+id/etFileName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Enter file name"
+                android:textColor="@color/white"
+                android:textColorHint="@android:color/darker_gray"
+                android:background="@android:drawable/editbox_background"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Format"
+                android:textColor="@color/white"
+                android:layout_marginBottom="8dp"/>
+
+            <Spinner
+                android:id="@+id/spinnerFormat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/white"
+                android:layout_marginBottom="16dp"/>
+
+            <LinearLayout
+                android:id="@+id/qualityContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvQualityLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Quality: 100%"
+                    android:textColor="@color/white"
+                    android:layout_marginBottom="8dp"/>
+
+                <SeekBar
+                    android:id="@+id/seekBarQuality"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="100"
+                    android:layout_marginBottom="16dp"/>
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnConfirmSaveFile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Export File"/>
+
+            <Button
+                android:id="@+id/btnCancelSaveFile"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:text="Back"
+                android:textColor="@color/white"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Click outside to dismiss -->
+    <View
+        android:id="@+id/viewOverlay"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/sidebarContent"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -39,6 +39,8 @@ import com.astral.typer.views.AstralCanvasView
 import android.widget.GridLayout
 import com.astral.typer.utils.StyleManager
 import com.astral.typer.utils.InpaintManager
+import com.astral.typer.utils.ProjectManager
+import com.astral.typer.models.ImageLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,7 +73,24 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private val addImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                val inputStream = contentResolver.openInputStream(it)
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                     // We need a path for saving later.
+                     // For now pass null, ProjectManager will save the bitmap to temp when saving.
+                     canvasView.addImageLayer(bitmap, null)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private var isFontPickerVisible = false
+    private lateinit var sidebarBinding: com.astral.typer.databinding.LayoutSidebarSaveBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,33 +98,92 @@ class EditorActivity : AppCompatActivity() {
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Bind included sidebar
+        // Use findViewById to ensure we get the View, avoiding Binding vs View ambiguity
+        sidebarBinding = com.astral.typer.databinding.LayoutSidebarSaveBinding.bind(binding.root.findViewById(R.id.saveSidebar))
+
         // Setup Canvas
-        val width = intent.getIntExtra("CANVAS_WIDTH", 1080)
-        val height = intent.getIntExtra("CANVAS_HEIGHT", 1080)
-        val color = intent.getIntExtra("CANVAS_COLOR", -1)
-        val imageUriString = intent.getStringExtra("IMAGE_URI")
+        // Check if loading a project
+        val projectPath = intent.getStringExtra("PROJECT_PATH")
 
         canvasView = AstralCanvasView(this)
         binding.canvasContainer.addView(canvasView)
-        canvasView.initCanvas(width, height, if (color == -1) Color.WHITE else color)
 
-        if (imageUriString != null) {
-            try {
-                val uri = android.net.Uri.parse(imageUriString)
-                val inputStream = contentResolver.openInputStream(uri)
-                val options = android.graphics.BitmapFactory.Options().apply {
-                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+        if (projectPath != null) {
+             val file = java.io.File(projectPath)
+             // Load Async
+             lifecycleScope.launch(Dispatchers.IO) {
+                 val data = ProjectManager.loadProject(this@EditorActivity, file)
+                 withContext(Dispatchers.Main) {
+                     if (data != null) {
+                         val (proj, images) = data
+                         canvasView.initCanvas(proj.canvasWidth, proj.canvasHeight, proj.canvasColor)
+
+                         // Restore background
+                         if (images.containsKey("background")) {
+                             canvasView.setBackgroundImage(images["background"]!!)
+                         }
+
+                         // Restore layers
+                         val restoredLayers = mutableListOf<Layer>()
+                         for (model in proj.layers) {
+                             if (model.type == "TEXT") {
+                                 val l = TextLayer(model.text ?: "").apply {
+                                     x = model.x; y = model.y; rotation = model.rotation
+                                     scaleX = model.scaleX; scaleY = model.scaleY
+                                     color = model.color ?: Color.BLACK
+                                     fontSize = model.fontSize ?: 24f
+                                     boxWidth = model.boxWidth
+                                     shadowColor = model.shadowColor ?: 0
+                                     shadowRadius = model.shadowRadius ?: 0f
+                                     shadowDx = model.shadowDx ?: 0f
+                                     shadowDy = model.shadowDy ?: 0f
+                                 }
+                                 restoredLayers.add(l)
+                             } else if (model.type == "IMAGE") {
+                                 val bmp = images[model.imagePath]
+                                 if (bmp != null) {
+                                     val l = ImageLayer(bmp, model.imagePath).apply {
+                                         x = model.x; y = model.y; rotation = model.rotation
+                                         scaleX = model.scaleX; scaleY = model.scaleY
+                                     }
+                                     restoredLayers.add(l)
+                                 }
+                             }
+                         }
+                         canvasView.setLayers(restoredLayers)
+                     } else {
+                         Toast.makeText(this@EditorActivity, "Failed to load project", Toast.LENGTH_SHORT).show()
+                         finish()
+                     }
+                 }
+             }
+        } else {
+            val width = intent.getIntExtra("CANVAS_WIDTH", 1080)
+            val height = intent.getIntExtra("CANVAS_HEIGHT", 1080)
+            val color = intent.getIntExtra("CANVAS_COLOR", -1)
+            val imageUriString = intent.getStringExtra("IMAGE_URI")
+
+            canvasView.initCanvas(width, height, if (color == -1) Color.WHITE else color)
+
+            if (imageUriString != null) {
+                try {
+                    val uri = android.net.Uri.parse(imageUriString)
+                    val inputStream = contentResolver.openInputStream(uri)
+                    val options = android.graphics.BitmapFactory.Options().apply {
+                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                    }
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
+                    if (bitmap != null) {
+                        canvasView.setBackgroundImage(bitmap)
+                    } else {
+                        Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: OutOfMemoryError) {
+                    Toast.makeText(this, "Image too large for memory!", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
                 }
-                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
-                if (bitmap != null) {
-                    canvasView.setBackgroundImage(bitmap)
-                } else {
-                    Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: OutOfMemoryError) {
-                Toast.makeText(this, "Image too large for memory!", Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -115,6 +193,29 @@ class EditorActivity : AppCompatActivity() {
         // Listeners
         setupCanvasListeners()
         setupBottomMenu()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Auto Save
+        // Capture data on Main Thread
+        val layers = canvasView.getLayers().toList() // Shallow copy list
+        val bgBitmap = canvasView.getBackgroundImage()
+        val bmp = canvasView.renderToBitmap()
+        val w = bmp.width
+        val h = bmp.height
+
+        lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            ProjectManager.saveProject(
+                this@EditorActivity,
+                layers,
+                w,
+                h,
+                Color.WHITE,
+                bgBitmap,
+                "autosave"
+            )
+        }
     }
 
     override fun onDestroy() {
@@ -189,7 +290,20 @@ class EditorActivity : AppCompatActivity() {
         }
 
         binding.btnInsertImage.setOnClickListener {
-            Toast.makeText(this, "Image Import Not Implemented", Toast.LENGTH_SHORT).show()
+            addImageLauncher.launch("image/*")
+        }
+
+        // Top Bar Add Button
+        binding.btnAdd.setOnClickListener { view ->
+            val popup = android.widget.PopupMenu(this, view)
+            popup.menu.add("Text")
+            popup.menu.add("Image")
+            popup.setOnMenuItemClickListener {
+                 if (it.title == "Text") canvasView.addTextLayer("Double Tap to Edit")
+                 else if (it.title == "Image") addImageLauncher.launch("image/*")
+                 true
+            }
+            popup.show()
         }
 
         // Property Actions
@@ -232,7 +346,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Top Bar
         binding.btnBack.setOnClickListener { finish() }
-        binding.btnSave.setOnClickListener { saveImage() }
+        binding.btnSave.setOnClickListener { showSaveSidebar() }
 
         binding.btnEraser.setOnClickListener {
             toggleInpaintMode()
@@ -271,6 +385,144 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    // --- SIDEBAR LOGIC ---
+    private fun showSaveSidebar() {
+        binding.saveSidebar.root.visibility = View.VISIBLE
+        resetSidebarUI()
+
+        sidebarBinding.viewOverlay.setOnClickListener {
+            binding.saveSidebar.root.visibility = View.GONE
+        }
+
+        sidebarBinding.btnSaveProjectOption.setOnClickListener {
+            sidebarBinding.layoutSaveOptions.visibility = View.GONE
+            sidebarBinding.layoutSaveProjectForm.visibility = View.VISIBLE
+        }
+
+        sidebarBinding.btnSaveFileOption.setOnClickListener {
+            sidebarBinding.layoutSaveOptions.visibility = View.GONE
+            sidebarBinding.layoutSaveFileForm.visibility = View.VISIBLE
+
+            // Setup Spinner
+            val formats = arrayOf("PNG", "JPG", "WEBP")
+            val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, formats)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            sidebarBinding.spinnerFormat.adapter = adapter
+
+            sidebarBinding.spinnerFormat.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
+                    val fmt = formats[pos]
+                    if (fmt == "PNG") sidebarBinding.qualityContainer.visibility = View.GONE
+                    else sidebarBinding.qualityContainer.visibility = View.VISIBLE
+                }
+                override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+            }
+        }
+
+        sidebarBinding.seekBarQuality.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                sidebarBinding.tvQualityLabel.text = "Quality: $p%"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+
+        // Back Buttons
+        val backAction = {
+             sidebarBinding.layoutSaveProjectForm.visibility = View.GONE
+             sidebarBinding.layoutSaveFileForm.visibility = View.GONE
+             sidebarBinding.layoutSaveOptions.visibility = View.VISIBLE
+        }
+        sidebarBinding.btnCancelSaveProject.setOnClickListener { backAction() }
+        sidebarBinding.btnCancelSaveFile.setOnClickListener { backAction() }
+
+        // CONFIRM ACTIONS
+        sidebarBinding.btnConfirmSaveProject.setOnClickListener {
+            val name = sidebarBinding.etProjectName.text.toString()
+            if (name.isBlank()) {
+                Toast.makeText(this, "Enter project name", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // Capture Data on Main Thread
+            val layers = canvasView.getLayers().toList()
+            val bgBitmap = canvasView.getBackgroundImage()
+            val bmp = canvasView.renderToBitmap()
+            val w = bmp.width
+            val h = bmp.height
+
+            // Save logic
+             lifecycleScope.launch(Dispatchers.IO) {
+                val success = ProjectManager.saveProject(
+                    this@EditorActivity,
+                    layers,
+                    w,
+                    h,
+                    Color.WHITE,
+                    bgBitmap,
+                    name
+                )
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
+                        binding.saveSidebar.root.visibility = View.GONE
+                    } else {
+                        Toast.makeText(this@EditorActivity, "Save Failed", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        sidebarBinding.btnConfirmSaveFile.setOnClickListener {
+            val name = sidebarBinding.etFileName.text.toString()
+             if (name.isBlank()) {
+                Toast.makeText(this, "Enter file name", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val formatStr = sidebarBinding.spinnerFormat.selectedItem.toString()
+            val quality = sidebarBinding.seekBarQuality.progress
+
+            // Export
+            val bitmap = canvasView.renderToBitmap() // Full resolution
+            val compressFormat = when(formatStr) {
+                "JPG" -> android.graphics.Bitmap.CompressFormat.JPEG
+                "WEBP" -> if (android.os.Build.VERSION.SDK_INT >= 30) android.graphics.Bitmap.CompressFormat.WEBP_LOSSLESS else android.graphics.Bitmap.CompressFormat.WEBP
+                else -> android.graphics.Bitmap.CompressFormat.PNG
+            }
+            val ext = formatStr.lowercase()
+
+            val filename = "$name.$ext"
+            val contentValues = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, filename)
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/$ext")
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+            }
+
+            val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                try {
+                    contentResolver.openOutputStream(uri).use { stream ->
+                        if (stream != null) {
+                            bitmap.compress(compressFormat, quality, stream)
+                        }
+                    }
+                    Toast.makeText(this, "File Exported!", Toast.LENGTH_SHORT).show()
+                    binding.saveSidebar.root.visibility = View.GONE
+                } catch (e: Exception) {
+                     Toast.makeText(this, "Export Failed", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Failed to create file", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun resetSidebarUI() {
+        sidebarBinding.layoutSaveOptions.visibility = View.VISIBLE
+        sidebarBinding.layoutSaveProjectForm.visibility = View.GONE
+        sidebarBinding.layoutSaveFileForm.visibility = View.GONE
     }
 
     private fun toggleInpaintMode() {
@@ -523,28 +775,6 @@ class EditorActivity : AppCompatActivity() {
 
         scroll.addView(grid)
         container.addView(scroll)
-    }
-
-    private fun saveImage() {
-        val bitmap = canvasView.renderToBitmap()
-        val filename = "AstralTyper_${System.currentTimeMillis()}.png"
-        val contentValues = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, filename)
-            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
-        }
-
-        val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        if (uri != null) {
-            contentResolver.openOutputStream(uri).use { stream ->
-                if (stream != null) {
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
-                }
-            }
-            Toast.makeText(this, "Image Saved!", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Failed to save", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun showInsertMenu() {
