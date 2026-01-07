@@ -106,6 +106,7 @@ class AstralCanvasView @JvmOverloads constructor(
         inpaintOps.clear()
         redoOps.clear()
         currentInpaintPath.reset()
+        isMaskDirty = true
         invalidate()
     }
 
