@@ -7,6 +7,7 @@ import org.opencv.android.Utils
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
+import org.opencv.photo.Photo
 
 class InpaintManager(private val context: Context) {
 
@@ -40,7 +41,7 @@ class InpaintManager(private val context: Context) {
 
             // 4. Inpaint
             // Radius 3.0 is standard for Telea
-            Imgproc.inpaint(srcMat, grayMask, dstMat, 5.0, Imgproc.INPAINT_TELEA)
+            Photo.inpaint(srcMat, grayMask, dstMat, 5.0, Photo.INPAINT_TELEA)
 
             // 5. Convert back to Bitmap
             val outputBitmap = Bitmap.createBitmap(originalBitmap.width, originalBitmap.height, Bitmap.Config.ARGB_8888)
