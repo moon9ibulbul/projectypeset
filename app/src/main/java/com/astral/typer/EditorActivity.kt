@@ -89,8 +89,39 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private val importTextureLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                val inputStream = contentResolver.openInputStream(it)
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                     val layer = canvasView.getSelectedLayer() as? TextLayer
+                     if (layer != null) {
+                         layer.textureBitmap = bitmap
+                         layer.isGradient = false // Texture overrides gradient usually
+                         canvasView.invalidate()
+                         Toast.makeText(this, "Texture Imported", Toast.LENGTH_SHORT).show()
+                     }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to load texture", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private var isFontPickerVisible = false
     private lateinit var sidebarBinding: com.astral.typer.databinding.LayoutSidebarSaveBinding
+
+    // Sync listener references
+    private var sizeMenuListeners: UpdateListeners? = null
+
+    // Helper class to store references to update UI
+    data class UpdateListeners(
+        val updateWidth: () -> Unit,
+        val updateSize: () -> Unit,
+        val updateScale: () -> Unit,
+        val updateRotate: () -> Unit
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -254,6 +285,20 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
         }
+
+        canvasView.onLayerUpdateListener = object : AstralCanvasView.OnLayerUpdateListener {
+            override fun onLayerUpdate(layer: Layer) {
+                if (currentMenuType == "SIZE" || currentMenuType == "FORMAT") {
+                    // We only need to update if the relevant tab is active, but we can try updating active listeners
+                    sizeMenuListeners?.let {
+                        it.updateWidth()
+                        it.updateSize()
+                        it.updateScale()
+                        it.updateRotate()
+                    }
+                }
+            }
+        }
     }
 
     private fun performInpaint(maskBitmap: android.graphics.Bitmap, onSuccess: () -> Unit) {
@@ -388,6 +433,33 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
+        // --- NEW MENUS ---
+        // Add buttons for Texture and Hapus (Erase)
+        // Since we are running out of space in the horizontal scroll view 'menuProperties', I'll append them.
+        // We need to add buttons dynamically or modify XML.
+        // Since I only modified XML for `activity_editor.xml` earlier (but I actually just read it),
+        // I should have added buttons to XML.
+        // However, I can add them programmatically here to the LinearLayout inside HorizontalScrollView.
+
+        val propContainer = (binding.menuProperties.getChildAt(0) as LinearLayout)
+
+        // Texture Button
+        val btnTexture = android.widget.Button(this).apply {
+             text = "Texture"
+             style(this)
+             setOnClickListener { toggleMenu("TEXTURE") { showTextureMenu() } }
+        }
+        propContainer.addView(btnTexture)
+
+        // Hapus Button
+        val btnHapus = android.widget.Button(this).apply {
+             text = "Hapus"
+             style(this)
+             setOnClickListener { toggleMenu("HAPUS") { showHapusMenu() } }
+        }
+        propContainer.addView(btnHapus)
+
+
         // Top Bar
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSave.setOnClickListener { showSaveSidebar() }
@@ -449,6 +521,16 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    private fun style(btn: android.widget.Button) {
+        // Apply same style as XML buttons
+        // @style/Widget.MaterialComponents.Button.TextButton + White Color
+        // Since we can't easily apply style res programmatically without ContextThemeWrapper or inflation,
+        // we'll just set properties manually to match "TextButton" look in dark theme.
+        btn.setTextColor(Color.WHITE)
+        btn.background = null // Transparent background
+        btn.isAllCaps = true
     }
 
     // --- SIDEBAR LOGIC ---
@@ -1120,8 +1202,12 @@ class EditorActivity : AppCompatActivity() {
         if (currentMenuType == "WARP") {
             toggleWarpMode(false)
         }
+        if (currentMenuType == "HAPUS") {
+            canvasView.setEraseLayerMode(false)
+        }
 
         currentMenuType = null
+        sizeMenuListeners = null
     }
 
     private fun toggleMenu(type: String, showAction: () -> Unit) {
@@ -1134,6 +1220,9 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "WARP" && type != "WARP") {
                 toggleWarpMode(false)
+            }
+            if (currentMenuType == "HAPUS" && type != "HAPUS") {
+                canvasView.setEraseLayerMode(false)
             }
             showAction()
             currentMenuType = type
@@ -1250,7 +1339,15 @@ class EditorActivity : AppCompatActivity() {
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
         val originalText = SpannableStringBuilder(layer.text)
 
-        container.addView(createInputView(layer, true))
+        val inputView = createInputView(layer, true)
+        container.addView(inputView)
+
+        // Set selection to end of text
+        activeEditText?.let {
+            it.post {
+                it.setSelection(it.text.length)
+            }
+        }
 
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1910,7 +2007,7 @@ class EditorActivity : AppCompatActivity() {
         val stylesRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            weightSum = 4f
+            weightSum = 6f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1940,6 +2037,31 @@ class EditorActivity : AppCompatActivity() {
         addStyleBtn("I") { StyleSpan(Typeface.ITALIC) }
         addStyleBtn("U") { UnderlineSpan() }
         addStyleBtn("S") { StrikethroughSpan() }
+
+        // Mirror Buttons
+        // Icon for Mirror H: |<|>| (using generic icon for now, e.g. sort)
+        val btnMirrorH = android.widget.ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_menu_sort_by_size) // Placeholder
+            rotation = 90f // Make it look horizontal
+            setColorFilter(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                layer.scaleX *= -1
+                canvasView.invalidate()
+            }
+        }
+        stylesRow.addView(btnMirrorH)
+
+        val btnMirrorV = android.widget.ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_menu_sort_by_size) // Placeholder
+            setColorFilter(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                layer.scaleY *= -1
+                canvasView.invalidate()
+            }
+        }
+        stylesRow.addView(btnMirrorV)
 
         layout.addView(stylesRow)
 
@@ -2066,31 +2188,39 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
+                // Update will be handled by listener or manual invalidate
+                //Manual update for click
+                // (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
             },
             onPlus = {
                 layer.fontSize += 1
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
             }
         )
         layout.addView(textSizeRow)
 
         // Box Scale
-        val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%",
+        val scaleRow = createControl("Box Scale", "${(layer.scaleX * 100).toInt()}%",
             onMinus = {
-                val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
-                layer.scaleX = s
-                layer.scaleY = s
+                val s = (layer.scaleX - 0.01f) // ScaleX might differ from ScaleY if mirrored
+                // Simple scalar scaling assuming uniform or handling separate?
+                // Using abs scale to increase/decrease magnitude
+                val signX = Math.signum(layer.scaleX)
+                val signY = Math.signum(layer.scaleY)
+                val absS = kotlin.math.abs(layer.scaleX)
+                val newS = (absS - 0.01f).coerceAtLeast(0.01f)
+                layer.scaleX = newS * signX
+                layer.scaleY = newS * signY // Maintain aspect
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${(layer.scale * 100).toInt()}%" }
             },
             onPlus = {
-                val s = layer.scale + 0.01f
-                layer.scaleX = s
-                layer.scaleY = s
+                val signX = Math.signum(layer.scaleX)
+                val signY = Math.signum(layer.scaleY)
+                val absS = kotlin.math.abs(layer.scaleX)
+                val newS = absS + 0.01f
+                layer.scaleX = newS * signX
+                layer.scaleY = newS * signY
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${(layer.scale * 100).toInt()}%" }
             }
         )
         layout.addView(scaleRow)
@@ -2103,16 +2233,53 @@ class EditorActivity : AppCompatActivity() {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
                 canvasView.invalidate()
-                (layout.getChildAt(2) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.boxWidth!!.toInt()} pt" }
             },
             onPlus = {
                  val w = (layer.boxWidth ?: layer.getWidth()) + 1f
                 layer.boxWidth = w
                 canvasView.invalidate()
-                (layout.getChildAt(2) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.boxWidth!!.toInt()} pt" }
             }
         )
         layout.addView(widthRow)
+
+        // Rotate
+        val rotateRow = createControl("Rotate", "${layer.rotation.toInt()}°",
+            onMinus = {
+                layer.rotation -= 1
+                canvasView.invalidate()
+            },
+            onPlus = {
+                layer.rotation += 1
+                canvasView.invalidate()
+            }
+        )
+        layout.addView(rotateRow)
+
+        // Register listeners for Realtime Sync
+        sizeMenuListeners = UpdateListeners(
+            updateWidth = {
+                val w = layer.boxWidth ?: 0f
+                val s = if (w <= 0) "Auto" else "${w.toInt()} pt"
+                (widthRow.findViewById<TextView>(widthRow.childCount-2) as? TextView)?.text = s // Hacky index find?
+                // Better: find by index in layout. The structure is Label, Minus, Value, Plus. Value is index 2.
+                (widthRow.getChildAt(2) as TextView).text = s
+            },
+            updateSize = {
+                (textSizeRow.getChildAt(2) as TextView).text = "${layer.fontSize.toInt()} pt"
+            },
+            updateScale = {
+                (scaleRow.getChildAt(2) as TextView).text = "${(kotlin.math.abs(layer.scaleX) * 100).toInt()}%"
+            },
+            updateRotate = {
+                (rotateRow.getChildAt(2) as TextView).text = "${layer.rotation.toInt()}°"
+            }
+        )
+
+        // Initial set (already done by createControl but good to ensure sync)
+        sizeMenuListeners?.updateWidth?.invoke()
+        sizeMenuListeners?.updateSize?.invoke()
+        sizeMenuListeners?.updateScale?.invoke()
+        sizeMenuListeners?.updateRotate?.invoke()
 
         return layout
     }
@@ -2809,5 +2976,124 @@ class EditorActivity : AppCompatActivity() {
 
         scroll.addView(layout)
         container.addView(scroll)
+    }
+
+    private fun showTextureMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 16, 16, 16)
+        }
+
+        // Import Button
+        val btnImport = android.widget.Button(this).apply {
+            text = "Import Texture"
+            style(this)
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            setOnClickListener {
+                importTextureLauncher.launch("image/*")
+            }
+        }
+        layout.addView(btnImport)
+
+        // Arrows Control
+        val arrowsLayout = GridLayout(this).apply {
+            columnCount = 3
+            rowCount = 3
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                gravity = Gravity.CENTER
+                setMargins(0, 32, 0, 0)
+            }
+        }
+
+        fun createArrow(text: String, row: Int, col: Int, onClick: () -> Unit) {
+            val btn = android.widget.Button(this).apply {
+                this.text = text
+                textSize = 20f
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#444444"))
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = GridLayout.LayoutParams().apply {
+                    rowSpec = GridLayout.spec(row)
+                    columnSpec = GridLayout.spec(col)
+                    width = dpToPx(60)
+                    height = dpToPx(60)
+                    setMargins(8,8,8,8)
+                }
+                setOnClickListener { onClick() }
+            }
+            arrowsLayout.addView(btn)
+        }
+
+        // Up (0, 1)
+        createArrow("↑", 0, 1) {
+            layer.textureOffsetY -= 5f
+            canvasView.invalidate()
+        }
+        // Left (1, 0)
+        createArrow("←", 1, 0) {
+            layer.textureOffsetX -= 5f
+            canvasView.invalidate()
+        }
+        // Right (1, 2)
+        createArrow("→", 1, 2) {
+            layer.textureOffsetX += 5f
+            canvasView.invalidate()
+        }
+        // Down (2, 1)
+        createArrow("↓", 2, 1) {
+            layer.textureOffsetY += 5f
+            canvasView.invalidate()
+        }
+
+        layout.addView(arrowsLayout)
+        container.addView(layout)
+    }
+
+    private fun showHapusMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        // Enter Erase Mode
+        canvasView.setEraseLayerMode(true)
+
+        val layout = LinearLayout(this).apply {
+             orientation = LinearLayout.VERTICAL
+             setPadding(16, 16, 16, 16)
+        }
+
+        layout.addView(TextView(this).apply {
+            text = "Erase Layer Mode"
+            setTextColor(Color.YELLOW)
+            gravity = Gravity.CENTER
+            setPadding(0,0,0,16)
+        })
+
+        // Brush Size
+        layout.addView(createSlider("Size: ${canvasView.layerEraseBrushSize.toInt()}", canvasView.layerEraseBrushSize.toInt(), 200) {
+            canvasView.layerEraseBrushSize = it.toFloat().coerceAtLeast(1f)
+            (layout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Size: $it" }
+        })
+
+        // Opacity
+        layout.addView(createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
+            canvasView.layerEraseOpacity = it
+             (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: $it" }
+        })
+
+        // Hardness
+        layout.addView(createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
+            canvasView.layerEraseHardness = it.toFloat()
+             (layout.getChildAt(3) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Hardness: $it%" }
+        })
+
+        container.addView(layout)
     }
 }
