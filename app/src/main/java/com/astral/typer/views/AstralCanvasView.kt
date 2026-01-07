@@ -7,8 +7,12 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.VectorDrawable
 import android.util.AttributeSet
 import android.view.GestureDetector
+import androidx.core.content.ContextCompat
+import com.astral.typer.R
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -69,7 +73,8 @@ class AstralCanvasView @JvmOverloads constructor(
         STRETCH_V,
         BOX_WIDTH,
         PAN_ZOOM,
-        EYEDROPPER
+        EYEDROPPER,
+        EDIT_LAYER
     }
 
     private var currentMode = Mode.NONE
@@ -417,7 +422,22 @@ class AstralCanvasView @JvmOverloads constructor(
         val sy = halfH + HANDLE_OFFSET
         canvas.drawLine(0f, sy - sSize, 0f, sy + sSize, iconPaint)
 
-        // 6. Box Width (Right-Middle) -> Rect icon (Resize box)
+        // 6. Edit Handle (Bottom-Left) -> Pencil Icon
+        drawHandle(-halfW - HANDLE_OFFSET, halfH + HANDLE_OFFSET, Color.YELLOW)
+        val editDrawable = ContextCompat.getDrawable(context, R.drawable.ic_edit)
+        if (editDrawable != null) {
+            editDrawable.setBounds(
+                (-halfW - HANDLE_OFFSET - 15).toInt(),
+                (halfH + HANDLE_OFFSET - 15).toInt(),
+                (-halfW - HANDLE_OFFSET + 15).toInt(),
+                (halfH + HANDLE_OFFSET + 15).toInt()
+            )
+            // Tint if needed, or just draw
+            editDrawable.setTint(Color.WHITE)
+            editDrawable.draw(canvas)
+        }
+
+        // 7. Box Width (Right-Middle) -> Rect icon (Resize box)
         if (layer is TextLayer) {
              drawHandle(halfW + HANDLE_OFFSET, 0f, Color.MAGENTA)
              val bx = halfW + HANDLE_OFFSET
@@ -526,6 +546,12 @@ class AstralCanvasView @JvmOverloads constructor(
                         centerX = layer.x
                         centerY = layer.y
                         startDist = getDistance(centerX, centerY, cx, cy)
+                        return true
+                    }
+
+                    // Edit Handle (Bottom-Left)
+                    if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
+                        onLayerEditListener?.onLayerDoubleTap(layer)
                         return true
                     }
 
@@ -766,21 +792,5 @@ class AstralCanvasView @JvmOverloads constructor(
              return true
         }
 
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            val touchPoint = floatArrayOf(e.x, e.y)
-            val inverse = Matrix()
-            viewMatrix.invert(inverse)
-            inverse.mapPoints(touchPoint)
-            val cx = touchPoint[0]
-            val cy = touchPoint[1]
-
-            val hitLayer = layers.findLast { it.contains(cx, cy) }
-            if (hitLayer != null && hitLayer == selectedLayer) {
-                // Trigger edit mode on single tap of selected layer
-                onLayerEditListener?.onLayerDoubleTap(hitLayer)
-                return true
-            }
-            return false
-        }
     }
 }
