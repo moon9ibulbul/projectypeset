@@ -162,6 +162,15 @@
                     android:text="@string/format"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
+
+                 <Button
+                    android:id="@+id/btnPropSpacing"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Spacing"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
                  <Button
                     android:id="@+id/btnPropColor"
                     android:layout_width="wrap_content"
@@ -198,6 +207,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/gradation"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
+                  <Button
+                    android:id="@+id/btnPropPerspective"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Perspective"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
             </LinearLayout>

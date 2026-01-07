@@ -1497,7 +1497,7 @@ class EditorActivity : AppCompatActivity() {
         list.addView(btnPalette)
 
         // Use Helper for the rest
-        val palette = ColorPickerHelper.createPaletteView(this, onColorPicked, null, currentColor)
+        val palette = ColorPickerHelper.createPaletteView(this@EditorActivity, onColorPicked, null, currentColor)
         list.addView(palette)
 
         scroll.addView(list)
