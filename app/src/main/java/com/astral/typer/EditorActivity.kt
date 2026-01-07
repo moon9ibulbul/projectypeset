@@ -32,6 +32,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.astral.typer.databinding.ActivityEditorBinding
 import com.astral.typer.models.Layer
 import com.astral.typer.models.TextLayer
+import com.astral.typer.models.TextEffectType
 import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.CustomTypefaceSpan
 import com.astral.typer.utils.FontManager
@@ -336,6 +337,7 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
         binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
         binding.btnPropFormat.setOnClickListener { toggleMenu("FORMAT") { showFormatMenu() } }
+        binding.btnPropEffect.setOnClickListener { toggleMenu("EFFECT") { showEffectMenu() } }
 
         // New Spacing Menu
         binding.btnPropSpacing.setOnClickListener { toggleMenu("SPACING") { showSpacingMenu() } }
@@ -476,6 +478,62 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    private fun showEffectMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(16, 16, 16, 16)
+        }
+
+        // Helper to create Effect Cards
+        fun createCard(title: String, isSelected: Boolean, onClick: () -> Unit): View {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpToPx(120), dpToPx(100)).apply {
+                    setMargins(8, 8, 8, 8)
+                }
+                background = GradientDrawable().apply {
+                    setColor(if (isSelected) Color.DKGRAY else Color.parseColor("#333333"))
+                    cornerRadius = dpToPx(8).toFloat()
+                    setStroke(dpToPx(2), if (isSelected) Color.CYAN else Color.TRANSPARENT)
+                }
+                setOnClickListener { onClick() }
+            }
+
+            val tv = TextView(this).apply {
+                text = title
+                setTextColor(Color.WHITE)
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding(8, 8, 8, 8)
+            }
+            card.addView(tv)
+            return card
+        }
+
+        // None
+        layout.addView(createCard("None", layer.currentEffect == TextEffectType.NONE) {
+            layer.currentEffect = TextEffectType.NONE
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Chromatic Aberration
+        layout.addView(createCard("Chromatic Aberration", layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
+            layer.currentEffect = TextEffectType.CHROMATIC_ABERRATION
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        scroll.addView(layout)
+        container.addView(scroll)
     }
 
     private fun showTextureMenu() {

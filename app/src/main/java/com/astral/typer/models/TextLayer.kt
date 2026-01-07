@@ -77,6 +77,9 @@ class TextLayer(
     // Erase
     var eraseMask: Bitmap? = null
 
+    // Effect
+    var currentEffect: TextEffectType = TextEffectType.NONE
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -139,6 +142,8 @@ class TextLayer(
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
         }
+
+        newLayer.currentEffect = this.currentEffect
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -459,7 +464,38 @@ class TextLayer(
             paint.clearShadowLayer()
         }
 
-        layout.draw(canvas)
+        if (currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
+             val originalXfermode = paint.xfermode
+             val originalColor = paint.color
+             val originalShader = paint.shader
+
+             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+             paint.shader = null
+
+             // Red Layer
+             paint.color = 0xFFFF0000.toInt()
+             canvas.save()
+             canvas.translate(-5f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Blue Layer
+             paint.color = 0xFF0000FF.toInt()
+             canvas.save()
+             canvas.translate(5f, 0f)
+             layout.draw(canvas)
+             canvas.restore()
+
+             // Green Layer
+             paint.color = 0xFF00FF00.toInt()
+             layout.draw(canvas)
+
+             paint.xfermode = originalXfermode
+             paint.color = originalColor
+             paint.shader = originalShader
+        } else {
+            layout.draw(canvas)
+        }
 
         // Apply Erase Mask
         if (eraseMask != null) {
