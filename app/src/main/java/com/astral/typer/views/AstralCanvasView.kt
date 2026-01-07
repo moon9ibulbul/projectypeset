@@ -51,6 +51,17 @@ class AstralCanvasView @JvmOverloads constructor(
     private val layers = mutableListOf<Layer>()
     private var selectedLayer: Layer? = null
 
+    fun getLayers(): MutableList<Layer> {
+        return layers
+    }
+
+    fun setLayers(newLayers: List<Layer>) {
+        layers.clear()
+        layers.addAll(newLayers)
+        selectedLayer = null // Reset selection or try to maintain?
+        invalidate()
+    }
+
     fun getSelectedLayer(): Layer? {
         return selectedLayer
     }
@@ -424,6 +435,34 @@ class AstralCanvasView @JvmOverloads constructor(
              canvas.drawRect(bx - 10, -10f, bx + 10, 10f, iconPaint)
         }
 
+        // --- Top Action Icons (Duplicate & Copy Style) ---
+        // Positioned slightly above the top edge
+        val topY = -halfH - HANDLE_OFFSET * 2.5f
+        val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
+
+        // Duplicate Icon (Left side of top)
+        val dupX = -20f
+        handlePaint.color = Color.DKGRAY
+        canvas.drawCircle(dupX - iconSize, topY, iconSize, handlePaint)
+        canvas.drawCircle(dupX - iconSize, topY, iconSize, strokePaint)
+        // Icon (D)
+        // Simple 2 rects
+        val dSize = iconSize * 0.5f
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        canvas.drawRect(dupX - iconSize - dSize/2, topY - dSize/2, dupX - iconSize + dSize/2, topY + dSize/2, paint)
+        canvas.drawRect(dupX - iconSize - dSize/2 + 5, topY - dSize/2 - 5, dupX - iconSize + dSize/2 + 5, topY + dSize/2 - 5, paint)
+
+        // Copy Style Icon (Right side of top)
+        val copyX = 20f
+        canvas.drawCircle(copyX + iconSize, topY, iconSize, handlePaint)
+        canvas.drawCircle(copyX + iconSize, topY, iconSize, strokePaint)
+        // Icon (C)
+        // Paint Brush or C
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(copyX + iconSize, topY, dSize, paint)
+
         canvas.restore()
     }
 
@@ -470,6 +509,22 @@ class AstralCanvasView @JvmOverloads constructor(
              invalidate()
 
              if (event.actionMasked == MotionEvent.ACTION_UP) {
+                 // Do not reset mode immediately to keep crosshair visible?
+                 // Prompt: "jangan hilangkan crosshair di canvas saat user berinteraksi dengan canvas"
+                 // If the user lifts finger, interaction stops?
+                 // Or maybe they mean "don't clear crosshair WHILE dragging".
+                 // Current code is fine with dragging (ACTION_MOVE updates).
+                 // We will maintain existing behavior but ensure crosshair persists if needed.
+                 // Actually, standard behavior is pick on UP.
+                 // We will update color but NOT hide crosshair if that's what user wants?
+                 // No, usually "eyedropping" implies the action.
+                 // If they want continuous picking, they drag.
+                 // Let's assume they want the crosshair to NOT disappear when they lift finger, maybe?
+                 // Re-reading: "Saat user melakukan eyedropping, jangan hilangkan crosshair di canvas saat user berinteraksi dengan canvas."
+                 // Likely means: When dragging, crosshair should be visible. (It is).
+                 // Maybe they mean the crosshair is being clipped or cleared?
+                 // We moved drawing to after restore(), so it's top overlay.
+
                  val color = getPixelColor(cx, cy)
                  onColorPickedListener?.invoke(color)
                  setEyedropperMode(false)
@@ -502,8 +557,39 @@ class AstralCanvasView @JvmOverloads constructor(
                     // Adjust radius check based on scale to make it easier to hit
                     val hitRadius = HANDLE_RADIUS * 1.5f
 
+                    // --- Check Top Action Icons ---
+                    val topY = -halfH - HANDLE_OFFSET * 2.5f
+                    // Duplicate (-20 - iconSize) -> Left
+                    // Copy Style (20 + iconSize) -> Right
+                    val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
+
+                    val dupX = -20f - iconSize
+                    val copyX = 20f + iconSize
+
+                    if (getDistance(lx, ly, dupX, topY) <= hitRadius) {
+                        // DUPLICATE
+                        com.astral.typer.utils.UndoManager.saveState(layers)
+                        val newLayer = layer.clone()
+                        newLayer.x += 20 // Offset slightly
+                        newLayer.y += 20
+                        layers.add(newLayer)
+                        selectLayer(newLayer)
+                        return true
+                    }
+
+                    if (getDistance(lx, ly, copyX, topY) <= hitRadius) {
+                        // COPY STYLE
+                        if (layer is TextLayer) {
+                            com.astral.typer.utils.StyleManager.copyStyle(layer)
+                            com.astral.typer.utils.StyleManager.saveStyle(layer) // Also save to list? User said "Masuk ke menu Style"
+                            android.widget.Toast.makeText(context, "Style Copied to Menu", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        return true
+                    }
+
                     // Delete Handle (Top-Left)
                     if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                        com.astral.typer.utils.UndoManager.saveState(layers)
                         deleteSelectedLayer()
                         return true
                     }

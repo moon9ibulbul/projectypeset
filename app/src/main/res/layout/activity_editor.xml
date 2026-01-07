@@ -25,10 +25,35 @@
             android:src="@android:drawable/ic_menu_revert"
             app:tint="@color/white" />
 
+        <ImageView
+            android:id="@+id/btnUndo"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_rotate"
+            android:scaleX="-1"
+            app:tint="@color/white"
+            android:layout_marginStart="24dp"/>
+
+        <ImageView
+            android:id="@+id/btnRedo"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_rotate"
+            app:tint="@color/white"
+            android:layout_marginStart="24dp"/>
+
         <Space
              android:layout_width="0dp"
              android:layout_height="wrap_content"
              android:layout_weight="1"/>
+
+        <ImageView
+            android:id="@+id/btnLayers"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            app:tint="@color/white"
+            android:layout_marginEnd="24dp"/>
 
          <ImageView
             android:id="@+id/btnSave"
