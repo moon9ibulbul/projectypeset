@@ -7,8 +7,12 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.VectorDrawable
 import android.util.AttributeSet
 import android.view.GestureDetector
+import androidx.core.content.ContextCompat
+import com.astral.typer.R
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -80,7 +84,8 @@ class AstralCanvasView @JvmOverloads constructor(
         STRETCH_V,
         BOX_WIDTH,
         PAN_ZOOM,
-        EYEDROPPER
+        EYEDROPPER,
+        EDIT_LAYER
     }
 
     private var currentMode = Mode.NONE
@@ -110,6 +115,10 @@ class AstralCanvasView @JvmOverloads constructor(
     // Interaction State
     private var lastTouchX = 0f
     private var lastTouchY = 0f
+    private var startTouchX = 0f
+    private var startTouchY = 0f
+    private var hasMoved = false
+    private var wasSelectedInitially = false
     private var initialRotation = 0f
     private var initialScaleX = 1f
     private var initialScaleY = 1f
@@ -535,11 +544,13 @@ class AstralCanvasView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 currentMode = Mode.NONE
+                hasMoved = false
+                startTouchX = cx
+                startTouchY = cy
 
                 // 1. Check Handles (if layer selected)
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
-                    val layerCenter = floatArrayOf(layer.x, layer.y)
 
                     // Transform touch to local layer space
                     val localPoint = floatArrayOf(cx, cy)
@@ -649,22 +660,25 @@ class AstralCanvasView @JvmOverloads constructor(
                 // 2. Check for layer hit (Selection / Move)
                 val hitLayer = layers.findLast { it.contains(cx, cy) }
                 if (hitLayer != null) {
+                    wasSelectedInitially = (selectedLayer == hitLayer)
                     selectLayer(hitLayer)
                     currentMode = Mode.DRAG_LAYER
                     lastTouchX = cx
                     lastTouchY = cy
                     invalidate()
                 } else {
-                    // Click on empty space -> Deselect? Or just do nothing?
-                    // User requested "Jangan biarkan kanvas bisa digeser dengan satu jari"
-                    // So if we touch background with 1 finger, we do nothing (or deselect).
-                    // selectLayer(null) // Removed to persist selection/menu
+                    // Click on empty space
                     currentMode = Mode.NONE
                     invalidate()
                 }
             }
             MotionEvent.ACTION_MOVE -> {
                 if (currentMode == Mode.NONE || currentMode == Mode.PAN_ZOOM) return true
+
+                // Check movement threshold
+                if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 5f) {
+                    hasMoved = true
+                }
 
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
@@ -800,6 +814,9 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_UP -> {
+                if (currentMode == Mode.DRAG_LAYER && !hasMoved && wasSelectedInitially && selectedLayer != null) {
+                    onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
+                }
                 currentMode = Mode.NONE
             }
         }
@@ -837,7 +854,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            // Find touched layer
+            // Keep double tap for reset/center logic on empty space
              val touchPoint = floatArrayOf(e.x, e.y)
              val inverse = Matrix()
              viewMatrix.invert(inverse)
@@ -846,12 +863,11 @@ class AstralCanvasView @JvmOverloads constructor(
              val cy = touchPoint[1]
 
              val hitLayer = layers.findLast { it.contains(cx, cy) }
-             if (hitLayer != null) {
-                  onLayerEditListener?.onLayerDoubleTap(hitLayer)
-             } else {
+             if (hitLayer == null) {
                   centerCanvas()
              }
              return true
         }
+
     }
 }
