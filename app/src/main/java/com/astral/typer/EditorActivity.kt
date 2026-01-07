@@ -484,7 +484,7 @@ class EditorActivity : AppCompatActivity() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
 
-        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -542,6 +542,20 @@ class EditorActivity : AppCompatActivity() {
         // Pixelation
         layout.addView(createCard("Pixelation", layer.currentEffect == TextEffectType.PIXELATION) {
             layer.currentEffect = TextEffectType.PIXELATION
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Neon
+        layout.addView(createCard("Neon", layer.currentEffect == TextEffectType.NEON) {
+            layer.currentEffect = TextEffectType.NEON
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Long Shadow
+        layout.addView(createCard("Long Shadow", layer.currentEffect == TextEffectType.LONG_SHADOW) {
+            layer.currentEffect = TextEffectType.LONG_SHADOW
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })

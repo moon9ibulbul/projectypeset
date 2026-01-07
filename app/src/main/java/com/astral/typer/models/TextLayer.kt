@@ -567,6 +567,47 @@ class TextLayer(
              layout.draw(canvas)
              canvas.restore()
 
+        } else if (currentEffect == TextEffectType.NEON) {
+             val originalColor = paint.color
+             val originalStyle = paint.style
+             val originalMaskFilter = paint.maskFilter
+
+             // Step 1: Draw Glow
+             paint.style = Paint.Style.FILL
+             paint.color = color // Text Color
+             paint.maskFilter = BlurMaskFilter(30f, BlurMaskFilter.Blur.NORMAL)
+
+             layout.draw(canvas)
+
+             // Step 2: Draw Core
+             paint.maskFilter = null
+             paint.color = Color.WHITE
+             layout.draw(canvas)
+
+             // Restore
+             paint.color = originalColor
+             paint.style = originalStyle
+             paint.maskFilter = originalMaskFilter
+
+        } else if (currentEffect == TextEffectType.LONG_SHADOW) {
+             val originalColor = paint.color
+
+             // Step 1: Loop for shadow
+             paint.color = Color.DKGRAY
+             for (i in 1..30) {
+                 canvas.save()
+                 canvas.translate(i.toFloat(), i.toFloat())
+                 layout.draw(canvas)
+                 canvas.restore()
+             }
+
+             // Step 2: Main Text
+             paint.color = color
+             layout.draw(canvas)
+
+             // Restore
+             paint.color = originalColor
+
         } else {
             layout.draw(canvas)
         }
