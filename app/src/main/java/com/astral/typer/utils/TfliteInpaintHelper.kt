@@ -52,15 +52,15 @@ class TfliteInpaintHelper(private val context: Context) {
 
             // Resize first to avoid processing huge arrays
             val resizedImage = Bitmap.createScaledBitmap(original, inputSize, inputSize, true)
-            val resizedMask = Bitmap.createScaledBitmap(mask, inputSize, inputSize, true)
+            // Use filter = FALSE for Mask to prevent thin lines from fading into gray during downscaling
+            val resizedMask = Bitmap.createScaledBitmap(mask, inputSize, inputSize, false)
 
             // Convert Bitmap to ByteBuffer (RGB floats)
-            // Model likely expects values normalized to [0, 1] or [-1, 1].
-            // Most generative inpainting models (like the one linked) expect 0..1 or -1..1.
-            // The linked repo suggests it's a standard generative model.
-            // Let's assume [0, 1] first or check the repo code if I could.
-            // Since I can't check the repo code easily, I'll assume standard float input [0, 1].
-            // However, the user specifically mentioned "Especially the RGBA to RGB conversion part".
+            // JiahuiYu/DeepFill model expects:
+            // - Normalization: [-1.0, 1.0]
+            // - Formula: (pixel / 127.5f) - 1.0f
+            // - Input 0: Image [1, 256, 256, 3]
+            // - Input 1: Mask [1, 256, 256, 1]
 
             val imageBuffer = convertBitmapToRGBFloatBuffer(resizedImage)
             val maskBuffer = convertMaskToGrayscaleFloatBuffer(resizedMask)
@@ -79,10 +79,12 @@ class TfliteInpaintHelper(private val context: Context) {
             // Post-process: Convert Output Buffer back to Bitmap
             val outputBitmap = convertOutputToBitmap(outputBuffer.floatArray, inputSize, inputSize)
 
-            // Resize back to original size
-            val finalBitmap = Bitmap.createScaledBitmap(outputBitmap, original.width, original.height, true)
+            // 3. UPSCALE & COMPOSITE
+            // Scale AI output back to Original Size
+            val upscaledInpaint = Bitmap.createScaledBitmap(outputBitmap, original.width, original.height, true)
 
-            return finalBitmap
+            // Return the stitched result
+            return compositeResult(original, upscaledInpaint, mask)
 
         } catch (e: Exception) {
             Log.e("TfliteInpaintHelper", "Inference failed", e)
@@ -103,7 +105,7 @@ class TfliteInpaintHelper(private val context: Context) {
 
         for (pixel in pixels) {
             // Extract RGB, ignore Alpha
-            // Normalize to [-1, 1] usually preferred for GANs/Inpainting models
+            // Normalize to [-1, 1] as per DeepFill requirements
             val r = (Color.red(pixel) / 127.5f) - 1.0f
             val g = (Color.green(pixel) / 127.5f) - 1.0f
             val b = (Color.blue(pixel) / 127.5f) - 1.0f
@@ -137,16 +139,54 @@ class TfliteInpaintHelper(private val context: Context) {
             val alpha = Color.alpha(pixel)
             val r = Color.red(pixel)
 
-            // Inverted Mask for typical generative models:
-            // 1.0 = Valid Pixel (Keep)
-            // 0.0 = Hole / Mask (Inpaint this area)
-            // Previous logic was 1.0 for hole, which inverted the model's attention.
-            val isMask = (alpha > 0 && r > 10)
-            val value = if (isMask) 0.0f else 1.0f
+            // Mask Logic for JiahuiYu/DeepFill architecture:
+            // 1.0 (White) = The Hole / Area to inpaint (Mask)
+            // 0.0 (Black) = The Valid Background / Area to keep
+
+            // Aggressive Threshold: If there is ANY ink/paint here, treat it as a full Hole (1.0).
+            // Even faint edges from resizing must be treated as 1.0 to ensure removal.
+            val isHole = (alpha > 10) || (r > 10)
+            val value = if (isHole) 1.0f else 0.0f
             buffer.putFloat(value)
         }
         buffer.rewind()
         return buffer
+    }
+
+    private fun compositeResult(original: Bitmap, inpainted: Bitmap, mask: Bitmap): Bitmap {
+        val width = original.width
+        val height = original.height
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+        // Ensure inputs match original size
+        val scaledMask = Bitmap.createScaledBitmap(mask, width, height, false) // filter=false for sharp edges
+
+        val origPixels = IntArray(width * height)
+        val inpaintPixels = IntArray(width * height)
+        val maskPixels = IntArray(width * height)
+        val resultPixels = IntArray(width * height)
+
+        original.getPixels(origPixels, 0, width, 0, 0, width, height)
+        inpainted.getPixels(inpaintPixels, 0, width, 0, 0, width, height)
+        scaledMask.getPixels(maskPixels, 0, width, 0, 0, width, height)
+
+        for (i in resultPixels.indices) {
+            val alpha = Color.alpha(maskPixels[i])
+            val red = Color.red(maskPixels[i])
+
+            // LOGIC FIX: Detect ANY paint as a hole.
+            // If the user painted anything (Alpha > 0), treat it as a 100% Hole to force removal.
+            val isHole = alpha > 10 || red > 10
+
+            if (isHole) {
+                resultPixels[i] = inpaintPixels[i] // Use AI result
+            } else {
+                resultPixels[i] = origPixels[i] // Keep original sharp background
+            }
+        }
+
+        result.setPixels(resultPixels, 0, width, 0, 0, width, height)
+        return result
     }
 
     private fun convertOutputToBitmap(floatArray: FloatArray, width: Int, height: Int): Bitmap {
