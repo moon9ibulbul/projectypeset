@@ -1,6 +1,7 @@
 package com.astral.typer.models
 
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
@@ -69,6 +70,15 @@ class TextLayer(
     var warpCols: Int = 2
     var warpMesh: FloatArray? = null
 
+    // Texture
+    var textureBitmap: Bitmap? = null
+    var textureOffsetX: Float = 0f
+    var textureOffsetY: Float = 0f
+
+    // Erase (Hapus)
+    var eraseBitmap: Bitmap? = null
+    var eraseCanvas: Canvas? = null
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -133,6 +143,19 @@ class TextLayer(
         newLayer.isLocked = this.isLocked
         newLayer.name = this.name
 
+        // Texture and Erase are not deeply cloned for now (Bitmap reuse might be okay or copy needed?)
+        // Usually cloning bitmaps is heavy. If the user edits cloned layer, they might expect independent erase/texture.
+        // For now, let's copy texture ref, but create new eraseBitmap if needed (or just leave null for clean slate).
+        newLayer.textureBitmap = this.textureBitmap
+        newLayer.textureOffsetX = this.textureOffsetX
+        newLayer.textureOffsetY = this.textureOffsetY
+        // newLayer.eraseBitmap = this.eraseBitmap?.copy(this.eraseBitmap!!.config, true) // Deep copy erase?
+        // Let's assume clone resets erase or copies it. User didn't specify. Deep copy is safer.
+        if (this.eraseBitmap != null) {
+            newLayer.eraseBitmap = this.eraseBitmap!!.copy(this.eraseBitmap!!.config, true)
+            newLayer.eraseCanvas = Canvas(newLayer.eraseBitmap!!)
+        }
+
         return newLayer
     }
 
@@ -189,6 +212,15 @@ class TextLayer(
     private fun getGradientShader(w: Float, h: Float): Shader? {
         if (!isGradient) return null
         return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor)
+    }
+
+    private fun getTextureShader(): Shader? {
+        val bmp = textureBitmap ?: return null
+        val shader = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        val matrix = Matrix()
+        matrix.postTranslate(textureOffsetX, textureOffsetY)
+        shader.setLocalMatrix(matrix)
+        return shader
     }
 
     private fun getOpacityGradientShader(w: Float, h: Float): Shader {
@@ -268,6 +300,32 @@ class TextLayer(
              drawContent(canvas, layout, w, h)
         }
 
+        // Apply Erase Bitmap (Mask)
+        if (eraseBitmap != null) {
+             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+             // Align mask to content center
+             // eraseBitmap is created to match content bounds or canvas bounds?
+             // Since "Hapus" is editing the layer, the eraseBitmap should probably be in layer coordinates.
+             // We'll assume eraseBitmap is same size as content (w, h) + padding?
+             // Or better, make eraseBitmap big enough.
+             // If we draw it at dx, dy (Top-Left of content), it matches.
+             // But wait, if Warp/Perspective is active, the content is deformed.
+             // If we erase BEFORE warp, the hole warps with text.
+             // If we erase AFTER warp, the hole is in screen space (relative to layer box).
+             // "Layer text seperti dirasterasi". Usually this means the result is erased.
+             // If I use DST_OUT here (after drawing warped/perspective), it applies to the visual result.
+             // BUT, the eraseBitmap needs to map correctly.
+             // If I erase on the layer in normal mode, then warp it, the erase marks warp too.
+             // That is usually preferred for a "Text Layer".
+             // However, `drawWarped` draws to a temporary bitmap then draws mesh.
+             // If I want holes to warp, I must apply erase INSIDE `drawWarped`.
+             // If I want to erase the FINAL result (like a screen mask), I do it here.
+             // Given "Layer text seperti dirasterasi", it implies the layer itself (pixels) is modified.
+             // So if I warp, the pixels move.
+             // So I should apply erase inside `drawContent`.
+        }
+
         if (isOpacityGradient) {
             val maskPaint = Paint()
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
@@ -335,10 +393,15 @@ class TextLayer(
     private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
         val paint = layout.paint
         val gradientShader = getGradientShader(w, h)
+        val textureShader = getTextureShader()
+
+        // Prioritize Texture over Gradient? Yes.
+        // If texture exists, use it for Text fill.
 
         if (isMotionShadow && motionShadowDistance > 0) {
             paint.style = Paint.Style.FILL
             paint.shader = if (isGradient && isGradientShadow) gradientShader else null
+            // Shadow doesn't usually use texture, usually solid or gradient.
 
             val originalAlpha = paint.alpha
             val iterations = 30
@@ -404,7 +467,10 @@ class TextLayer(
 
         paint.style = Paint.Style.FILL
         paint.strokeWidth = 0f
-        if (isGradient && isGradientText) {
+        if (textureBitmap != null) {
+             paint.shader = textureShader
+             paint.color = Color.WHITE // Needed to show texture
+        } else if (isGradient && isGradientText) {
             paint.shader = gradientShader
             paint.color = Color.WHITE
         } else {
@@ -419,6 +485,23 @@ class TextLayer(
         }
 
         layout.draw(canvas)
+
+        // Apply Erase (Hapus)
+        // We apply it here so it affects the content before warping/perspective
+        if (eraseBitmap != null) {
+            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            // eraseBitmap is expected to be sized to the text bounds (w, h)
+            // or we align it at (0,0) of this content draw (which is shifted by dx, dy in draw())
+            // Wait, drawContent is called with canvas translated to (dx, dy) in draw() ELSE block.
+            // But in drawWarped/drawPerspective, drawContent is called on a temp canvas at (0,0) or (padding, padding).
+            // So we should draw eraseBitmap at (0,0)?
+            // We need to ensure eraseBitmap size matches w,h.
+            // When we create eraseBitmap, we should match layer size.
+            // If layer grows, we might clip.
+            // For now, let's assume we draw it at (0,0).
+            canvas.drawBitmap(eraseBitmap!!, 0f, 0f, maskPaint)
+        }
     }
 
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
@@ -431,5 +514,19 @@ class TextLayer(
         )
         matrix.setPolyToPoly(srcPts, 0, dst, 0, 4)
         return matrix
+    }
+
+    fun ensureEraseBitmap(w: Int, h: Int) {
+         if (w <= 0 || h <= 0) return
+         if (eraseBitmap == null || eraseBitmap!!.width < w || eraseBitmap!!.height < h) {
+             // Create new or expand
+             val newBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+             val newCanvas = Canvas(newBmp)
+             if (eraseBitmap != null) {
+                 newCanvas.drawBitmap(eraseBitmap!!, 0f, 0f, null)
+             }
+             eraseBitmap = newBmp
+             eraseCanvas = newCanvas
+         }
     }
 }
