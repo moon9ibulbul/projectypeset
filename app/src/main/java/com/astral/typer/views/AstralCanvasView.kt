@@ -965,7 +965,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     val ly = localPoint[1]
 
                     // Warp Mode Handling
-                    if (layer is TextLayer && layer.isWarp) {
+                    if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
                          val mesh = layer.warpMesh
                          if (mesh != null) {
                              val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
@@ -1075,6 +1075,12 @@ class AstralCanvasView @JvmOverloads constructor(
                         }
                         if (layer is TextLayer && getDistance(lx, ly, halfW + HANDLE_OFFSET, 0f) <= hitRadius) {
                             currentMode = Mode.BOX_WIDTH
+                            // Reset warp and perspective to prevent stretching
+                            layer.isWarp = false
+                            layer.isPerspective = false
+                            layer.warpMesh = null
+                            layer.perspectivePoints = null
+
                             initialBoxWidth = layer.getWidth()
                             centerX = layer.x
                             centerY = layer.y
