@@ -6,6 +6,7 @@ import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
+import org.opencv.photo.Photo
 
 class InpaintManager(private val context: Context) {
 
@@ -57,9 +58,12 @@ class InpaintManager(private val context: Context) {
             // Transparent/Black becomes 0, White becomes 255
             Imgproc.cvtColor(maskMat, grayMask, Imgproc.COLOR_RGBA2GRAY)
 
-            // 3. Inpaint
-            // Radius 3.0-5.0 is standard for Telea
-            Imgproc.inpaint(rgbMat, grayMask, dstMat, 5.0, Imgproc.INPAINT_TELEA)
+            // 3. Prepare Output Mat
+            val dstMat = Mat()
+
+            // 4. Inpaint
+            // Radius 3.0 is standard for Telea
+            Photo.inpaint(srcMat, grayMask, dstMat, 5.0, Photo.INPAINT_TELEA)
 
             // 4. Convert back to Bitmap
             // dstMat is RGB. Utils.matToBitmap handles conversion to ARGB (adds opaque alpha)
