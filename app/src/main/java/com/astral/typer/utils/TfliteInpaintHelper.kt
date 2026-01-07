@@ -55,12 +55,11 @@ class TfliteInpaintHelper(private val context: Context) {
             val resizedMask = Bitmap.createScaledBitmap(mask, inputSize, inputSize, true)
 
             // Convert Bitmap to ByteBuffer (RGB floats)
-            // Model likely expects values normalized to [0, 1] or [-1, 1].
-            // Most generative inpainting models (like the one linked) expect 0..1 or -1..1.
-            // The linked repo suggests it's a standard generative model.
-            // Let's assume [0, 1] first or check the repo code if I could.
-            // Since I can't check the repo code easily, I'll assume standard float input [0, 1].
-            // However, the user specifically mentioned "Especially the RGBA to RGB conversion part".
+            // JiahuiYu/DeepFill model expects:
+            // - Normalization: [-1.0, 1.0]
+            // - Formula: (pixel / 127.5f) - 1.0f
+            // - Input 0: Image [1, 256, 256, 3]
+            // - Input 1: Mask [1, 256, 256, 1]
 
             val imageBuffer = convertBitmapToRGBFloatBuffer(resizedImage)
             val maskBuffer = convertMaskToGrayscaleFloatBuffer(resizedMask)
@@ -103,7 +102,7 @@ class TfliteInpaintHelper(private val context: Context) {
 
         for (pixel in pixels) {
             // Extract RGB, ignore Alpha
-            // Normalize to [-1, 1] usually preferred for GANs/Inpainting models
+            // Normalize to [-1, 1] as per DeepFill requirements
             val r = (Color.red(pixel) / 127.5f) - 1.0f
             val g = (Color.green(pixel) / 127.5f) - 1.0f
             val b = (Color.blue(pixel) / 127.5f) - 1.0f
@@ -137,12 +136,11 @@ class TfliteInpaintHelper(private val context: Context) {
             val alpha = Color.alpha(pixel)
             val r = Color.red(pixel)
 
-            // Inverted Mask for typical generative models:
-            // 1.0 = Valid Pixel (Keep)
-            // 0.0 = Hole / Mask (Inpaint this area)
-            // Previous logic was 1.0 for hole, which inverted the model's attention.
+            // Mask Logic for JiahuiYu/DeepFill architecture:
+            // 1.0 (White) = The Hole / Area to inpaint (Mask)
+            // 0.0 (Black) = The Valid Background / Area to keep
             val isMask = (alpha > 0 && r > 10)
-            val value = if (isMask) 0.0f else 1.0f
+            val value = if (isMask) 1.0f else 0.0f
             buffer.putFloat(value)
         }
         buffer.rewind()
