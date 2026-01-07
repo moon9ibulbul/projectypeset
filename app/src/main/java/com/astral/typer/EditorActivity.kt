@@ -99,7 +99,8 @@ class EditorActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Bind included sidebar
-        sidebarBinding = com.astral.typer.databinding.LayoutSidebarSaveBinding.bind(binding.saveSidebar.root)
+        // Use findViewById to ensure we get the View, avoiding Binding vs View ambiguity
+        sidebarBinding = com.astral.typer.databinding.LayoutSidebarSaveBinding.bind(binding.root.findViewById(R.id.saveSidebar))
 
         // Setup Canvas
         // Check if loading a project
@@ -204,7 +205,7 @@ class EditorActivity : AppCompatActivity() {
         val w = bmp.width
         val h = bmp.height
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
             ProjectManager.saveProject(
                 this@EditorActivity,
                 layers,

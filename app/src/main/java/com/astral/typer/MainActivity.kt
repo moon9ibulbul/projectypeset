@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -87,74 +88,81 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupRecentProjects() {
-        val projects = ProjectManager.getRecentProjects()
+        lifecycleScope.launch(Dispatchers.IO) {
+            val projects = ProjectManager.getRecentProjects()
+            withContext(Dispatchers.Main) {
+                if (projects.isNotEmpty()) {
+                    binding.tvRecentLabel.visibility = View.VISIBLE
+                    binding.recentRecycler.visibility = View.VISIBLE
 
-        binding.recentRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        binding.recentRecycler.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-                val layout = LinearLayout(parent.context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = RecyclerView.LayoutParams(
-                        (100 * resources.displayMetrics.density).toInt(),
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    ).apply { setMargins(8,0,8,0) }
-                    background = GradientDrawable().apply {
-                         setColor(Color.DKGRAY)
-                         cornerRadius = 16f
-                         setStroke(2, Color.LTGRAY)
+                    binding.recentRecycler.layoutManager = LinearLayoutManager(this@MainActivity, LinearLayoutManager.HORIZONTAL, false)
+                    binding.recentRecycler.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+                            val layout = LinearLayout(parent.context).apply {
+                                orientation = LinearLayout.VERTICAL
+                                layoutParams = RecyclerView.LayoutParams(
+                                    (100 * resources.displayMetrics.density).toInt(),
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                ).apply { setMargins(8,0,8,0) }
+                                background = GradientDrawable().apply {
+                                     setColor(Color.DKGRAY)
+                                     cornerRadius = 16f
+                                     setStroke(2, Color.LTGRAY)
+                                }
+                                setPadding(8,8,8,8)
+                            }
+
+                            val img = ImageView(parent.context).apply {
+                                id = View.generateViewId()
+                                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                            }
+
+                            val text = TextView(parent.context).apply {
+                                id = View.generateViewId()
+                                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                                gravity = Gravity.CENTER
+                                setTextColor(Color.WHITE)
+                                textSize = 12f
+                                maxLines = 1
+                                ellipsize = android.text.TextUtils.TruncateAt.END
+                            }
+
+                            layout.addView(img)
+                            layout.addView(text)
+
+                            return object : RecyclerView.ViewHolder(layout) {}
+                        }
+
+                        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                            val file = projects[position]
+                            val layout = holder.itemView as LinearLayout
+                            val img = layout.getChildAt(0) as ImageView
+                            val text = layout.getChildAt(1) as TextView
+
+                            text.text = file.nameWithoutExtension
+                            if (file.nameWithoutExtension == "autosave") {
+                                text.text = "Auto Save"
+                                text.setTextColor(Color.YELLOW)
+                            } else {
+                                text.setTextColor(Color.WHITE)
+                            }
+
+                            img.setImageResource(android.R.drawable.ic_menu_gallery)
+                            img.setColorFilter(Color.GRAY)
+
+                            holder.itemView.setOnClickListener {
+                                openProject(file)
+                            }
+                        }
+
+                        override fun getItemCount() = projects.size
                     }
-                    setPadding(8,8,8,8)
-                }
-
-                val img = ImageView(parent.context).apply {
-                    id = View.generateViewId()
-                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-                    scaleType = ImageView.ScaleType.CENTER_INSIDE
-                }
-
-                val text = TextView(parent.context).apply {
-                    id = View.generateViewId()
-                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                    gravity = Gravity.CENTER
-                    textColor = Color.WHITE
-                    textSize = 12f
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }
-
-                layout.addView(img)
-                layout.addView(text)
-
-                return object : RecyclerView.ViewHolder(layout) {}
-            }
-
-            override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-                val file = projects[position]
-                val layout = holder.itemView as LinearLayout
-                val img = layout.getChildAt(0) as ImageView
-                val text = layout.getChildAt(1) as TextView
-
-                text.text = file.nameWithoutExtension
-                if (file.nameWithoutExtension == "autosave") {
-                    text.text = "Auto Save"
-                    text.setTextColor(Color.YELLOW)
                 } else {
-                    text.setTextColor(Color.WHITE)
-                }
-
-                // Try to load thumbnail?
-                // Currently .atd is a zip. We'd need to unzip to show thumb.
-                // Too heavy for main thread list.
-                // For now, just show generic icon or placeholder.
-                img.setImageResource(android.R.drawable.ic_menu_gallery)
-                img.setColorFilter(Color.GRAY)
-
-                holder.itemView.setOnClickListener {
-                    openProject(file)
+                    binding.tvRecentLabel.visibility = View.GONE
+                    binding.recentRecycler.visibility = View.GONE
                 }
             }
-
-            override fun getItemCount() = projects.size
         }
     }
 

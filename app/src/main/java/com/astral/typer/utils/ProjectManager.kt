@@ -228,6 +228,11 @@ object ProjectManager {
                 val fileName = zipEntry.name
                 val newFile = File(targetDirectory, fileName)
 
+                // Zip Slip Protection
+                if (!newFile.canonicalPath.startsWith(targetDirectory.canonicalPath + File.separator)) {
+                    throw IOException("Zip entry is outside of the target dir: $fileName")
+                }
+
                 // create all non exists folders
                 // else you will hit FileNotFoundException for compressed folder
                 if (zipEntry.isDirectory) {
