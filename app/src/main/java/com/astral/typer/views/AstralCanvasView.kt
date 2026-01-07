@@ -60,7 +60,10 @@ class AstralCanvasView @JvmOverloads constructor(
     private var isInpaintMode = false
 
     // Inpaint Tools
-    private val inpaintPath = Path()
+    private val inpaintPaths = mutableListOf<Path>()
+    private val redoPaths = mutableListOf<Path>()
+    private var currentInpaintPath = Path()
+
     private val inpaintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         style = Paint.Style.STROKE
@@ -70,7 +73,34 @@ class AstralCanvasView @JvmOverloads constructor(
         alpha = 128
     }
 
-    var onMaskDrawn: ((android.graphics.Bitmap) -> Unit)? = null
+    // var onMaskDrawn: ((android.graphics.Bitmap) -> Unit)? = null
+
+    fun getInpaintMask(): android.graphics.Bitmap {
+        return renderMaskToBitmap()
+    }
+
+    fun clearInpaintMask() {
+        inpaintPaths.clear()
+        redoPaths.clear()
+        currentInpaintPath.reset()
+        invalidate()
+    }
+
+    fun undoInpaintMask() {
+        if (inpaintPaths.isNotEmpty()) {
+            val last = inpaintPaths.removeAt(inpaintPaths.size - 1)
+            redoPaths.add(last)
+            invalidate()
+        }
+    }
+
+    fun redoInpaintMask() {
+        if (redoPaths.isNotEmpty()) {
+            val last = redoPaths.removeAt(redoPaths.size - 1)
+            inpaintPaths.add(last)
+            invalidate()
+        }
+    }
 
     fun setInpaintMode(enabled: Boolean) {
         isInpaintMode = enabled
@@ -315,8 +345,13 @@ class AstralCanvasView @JvmOverloads constructor(
         drawScene(canvas)
 
         // Draw Inpaint Path (in World Space)
-        if (isInpaintMode && !inpaintPath.isEmpty) {
-            canvas.drawPath(inpaintPath, inpaintPaint)
+        if (isInpaintMode) {
+            for (path in inpaintPaths) {
+                canvas.drawPath(path, inpaintPaint)
+            }
+            if (!currentInpaintPath.isEmpty) {
+                canvas.drawPath(currentInpaintPath, inpaintPaint)
+            }
         }
 
         // Draw Selection Overlay
@@ -560,21 +595,35 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (isInpaintMode) {
+            // Check for multi-touch (Pan/Zoom) cancellation
+            if (pointerCount >= 2) {
+                if (!currentInpaintPath.isEmpty) {
+                    currentInpaintPath.reset() // Cancel current stroke
+                    invalidate()
+                }
+                // Allow gesture detector to handle pan/zoom
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+                return true
+            }
+
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    inpaintPath.reset()
-                    inpaintPath.moveTo(cx, cy)
+                    currentInpaintPath.reset()
+                    currentInpaintPath.moveTo(cx, cy)
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    inpaintPath.lineTo(cx, cy)
+                    currentInpaintPath.lineTo(cx, cy)
                     invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
-                    // Capture mask and trigger inpaint
-                    val mask = renderMaskToBitmap()
-                    onMaskDrawn?.invoke(mask)
-                    inpaintPath.reset()
+                    // Commit path
+                    if (!currentInpaintPath.isEmpty) {
+                         inpaintPaths.add(Path(currentInpaintPath))
+                         redoPaths.clear() // Clear redo stack on new action
+                         currentInpaintPath.reset()
+                    }
                     invalidate()
                 }
             }
@@ -857,7 +906,9 @@ class AstralCanvasView @JvmOverloads constructor(
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
-        canvas.drawPath(inpaintPath, maskPaint)
+        for (path in inpaintPaths) {
+            canvas.drawPath(path, maskPaint)
+        }
         return bitmap
     }
 

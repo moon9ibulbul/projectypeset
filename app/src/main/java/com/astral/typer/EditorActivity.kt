@@ -43,6 +43,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.lifecycleScope
 
 class EditorActivity : AppCompatActivity() {
 
@@ -54,6 +55,7 @@ class EditorActivity : AppCompatActivity() {
     private var currentMenuType: String? = null
 
     private var isInpaintMode = false
+    private var btnApplyInpaint: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -149,36 +151,30 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
         }
-
-        canvasView.onMaskDrawn = { maskBitmap ->
-            performInpaint(maskBitmap)
-        }
     }
 
-    private fun performInpaint(maskBitmap: android.graphics.Bitmap) {
+    private fun performInpaint(maskBitmap: android.graphics.Bitmap, onSuccess: () -> Unit) {
         val originalBitmap = canvasView.getBackgroundImage()
-        if (originalBitmap == null) return
-
-        // Save current state for Undo
-        // We need to extend UndoManager to handle Bitmaps, or just push a custom action?
-        // For now, let's assume we can push a special state or we just manage bitmap undo separately.
-        // Or if UndoManager is strictly Layers, we need to upgrade it.
-        // Let's check UndoManager later. For now, we proceed.
-
-        com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
-
-        binding.root.post {
-            Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
+        if (originalBitmap == null) {
+            Toast.makeText(this, "No image to inpaint", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        CoroutineScope(Dispatchers.Default).launch {
+        // Save current state for Undo (Bitmap History)
+        com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
+
+        Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.Default) {
+            // Run heavy OpenCV inpaint on background thread
             val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
             withContext(Dispatchers.Main) {
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                    onSuccess()
                 } else {
-                    Toast.makeText(this@EditorActivity, "Inpaint Failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -243,13 +239,8 @@ class EditorActivity : AppCompatActivity() {
         // Undo/Redo/Layers
         binding.btnUndo.setOnClickListener {
             if (isInpaintMode) {
-                 // Bitmap Undo
-                 val restored = com.astral.typer.utils.UndoManager.undoBitmap(canvasView.getBackgroundImage())
-                 if (restored != null) {
-                     canvasView.setBackgroundImage(restored)
-                 } else {
-                     Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
-                 }
+                 // Mask Undo
+                 canvasView.undoInpaintMask()
             } else {
                 val restored = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
                 if (restored != null) {
@@ -262,13 +253,8 @@ class EditorActivity : AppCompatActivity() {
 
         binding.btnRedo.setOnClickListener {
             if (isInpaintMode) {
-                // Bitmap Redo
-                val restored = com.astral.typer.utils.UndoManager.redoBitmap(canvasView.getBackgroundImage())
-                if (restored != null) {
-                    canvasView.setBackgroundImage(restored)
-                } else {
-                    Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
-                }
+                // Mask Redo
+                canvasView.redoInpaintMask()
             } else {
                 val restored = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
                 if (restored != null) {
@@ -299,11 +285,47 @@ class EditorActivity : AppCompatActivity() {
 
             // Deselect any layer
             canvasView.selectLayer(null)
+
+            // Add Apply Button
+            val btn = android.widget.Button(this).apply {
+                text = "APPLY"
+                setTextColor(Color.WHITE)
+                textSize = 16f
+                setTypeface(null, Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#444444")) // Dark gray
+                    cornerRadius = dpToPx(20).toFloat()
+                    setStroke(dpToPx(2), Color.WHITE)
+                }
+                layoutParams = FrameLayout.LayoutParams(
+                    dpToPx(120),
+                    dpToPx(48)
+                ).apply {
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    setMargins(0, 0, 0, dpToPx(32))
+                }
+                setOnClickListener {
+                    val mask = canvasView.getInpaintMask()
+                    performInpaint(mask) {
+                        canvasView.clearInpaintMask()
+                    }
+                }
+            }
+            binding.canvasContainer.addView(btn)
+            btnApplyInpaint = btn
+
         } else {
             binding.btnEraser.setImageResource(R.drawable.ic_eraser)
             canvasView.setInpaintMode(false)
             binding.bottomMenuContainer.visibility = View.VISIBLE
             showInsertMenu()
+
+            // Remove Apply Button
+            btnApplyInpaint?.let {
+                binding.canvasContainer.removeView(it)
+                btnApplyInpaint = null
+            }
+            canvasView.clearInpaintMask()
         }
     }
 
