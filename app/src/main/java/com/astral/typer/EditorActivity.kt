@@ -344,6 +344,8 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropDoubleStroke.setOnClickListener { toggleMenu("DOUBLE_STROKE") { showDoubleStrokeMenu() } }
         binding.btnPropShadow.setOnClickListener { toggleMenu("SHADOW") { showShadowControls() } }
         binding.btnPropGradation.setOnClickListener { toggleMenu("GRADATION") { showGradationControls() } }
+        binding.btnPropTexture.setOnClickListener { toggleMenu("TEXTURE") { showTextureMenu() } }
+        binding.btnPropErase.setOnClickListener { toggleMenu("ERASE") { showEraseMenu() } }
 
         binding.btnPropWarp.setOnClickListener {
             if (currentMenuType == "WARP") {
@@ -474,6 +476,137 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    private fun showTextureMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setPadding(16, 16, 16, 16)
+        }
+
+        // Import Button
+        val btnImport = android.widget.Button(this).apply {
+            text = "Import Texture"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            setOnClickListener {
+                importTextureLauncher.launch("image/*")
+            }
+        }
+        layout.addView(btnImport)
+
+        if (layer.textureBitmap != null) {
+            val controls = GridLayout(this).apply {
+                columnCount = 3
+                rowCount = 3
+                alignmentMode = GridLayout.ALIGN_BOUNDS
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = dpToPx(16)
+                }
+            }
+
+            fun createArrow(text: String, dx: Float, dy: Float): View {
+                return android.widget.Button(this).apply {
+                    this.text = text
+                    textSize = 20f
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply {
+                         setColor(Color.parseColor("#444444"))
+                         cornerRadius = dpToPx(8).toFloat()
+                    }
+                    layoutParams = GridLayout.LayoutParams().apply {
+                        width = dpToPx(60)
+                        height = dpToPx(60)
+                        setMargins(4,4,4,4)
+                    }
+                    setOnClickListener {
+                        layer.textureOffsetX += dx
+                        layer.textureOffsetY += dy
+                        canvasView.invalidate()
+                    }
+                }
+            }
+
+            // Grid Layout for Arrows
+            // Row 0
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty TL
+            controls.addView(createArrow("▲", 0f, -10f)) // Up
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty TR
+
+            // Row 1
+            controls.addView(createArrow("◄", -10f, 0f)) // Left
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Center (Maybe Reset?)
+            controls.addView(createArrow("►", 10f, 0f)) // Right
+
+            // Row 2
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty BL
+            controls.addView(createArrow("▼", 0f, 10f)) // Down
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(60); height = dpToPx(60) }) // Empty BR
+
+            layout.addView(controls)
+        }
+
+        container.addView(layout)
+    }
+
+    private val importTextureLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                val inputStream = contentResolver.openInputStream(it)
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                val layer = canvasView.getSelectedLayer() as? TextLayer
+                if (bitmap != null && layer != null) {
+                     layer.textureBitmap = bitmap
+                     layer.textureOffsetX = 0f
+                     layer.textureOffsetY = 0f
+                     // Disable Gradient and Color (Texture overrides)
+                     layer.isGradient = false
+                     canvasView.invalidate()
+                     showTextureMenu() // Refresh to show controls
+                     Toast.makeText(this, "Texture Applied", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to load texture", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showEraseMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        canvasView.setEraseLayerMode(true)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setPadding(16, 16, 16, 16)
+        }
+
+        layout.addView(createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
+            canvasView.layerEraseSize = it.toFloat().coerceAtLeast(1f)
+            (layout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Size: $it" }
+        })
+
+        layout.addView(createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
+            canvasView.layerEraseOpacity = it
+            (layout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: $it" }
+        })
+
+        layout.addView(createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
+            canvasView.layerEraseHardness = it.toFloat()
+            (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Hardness: $it%" }
+        })
+
+        container.addView(layout)
     }
 
     // --- SIDEBAR LOGIC ---
@@ -1137,13 +1270,15 @@ class EditorActivity : AppCompatActivity() {
         activeEditText = null
         isFontPickerVisible = false
 
-        // If exiting perspective menu, ensure mode is off (if user didn't explicitly toggle off, assume exit cancels/applies? Prompt said "klik menu lain" cancels)
-        // Check if we were in perspective
+        // If exiting perspective menu, ensure mode is off
         if (currentMenuType == "PERSPECTIVE") {
             togglePerspectiveMode(false)
         }
         if (currentMenuType == "WARP") {
             toggleWarpMode(false)
+        }
+        if (currentMenuType == "ERASE") {
+            canvasView.setEraseLayerMode(false)
         }
 
         currentMenuType = null
@@ -1159,6 +1294,9 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "WARP" && type != "WARP") {
                 toggleWarpMode(false)
+            }
+            if (currentMenuType == "ERASE" && type != "ERASE") {
+                canvasView.setEraseLayerMode(false)
             }
             showAction()
             currentMenuType = type
@@ -1803,8 +1941,17 @@ class EditorActivity : AppCompatActivity() {
             )
         }
 
-        val formattingView = createFormattingTab(layer)
-        val sizeView = createSizeTab(layer)
+        // Fix: Wrap Formatting View in ScrollView
+        val formattingView = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(createFormattingTab(layer))
+        }
+
+        // Fix: Wrap Size View in ScrollView
+        val sizeView = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(createSizeTab(layer))
+        }
 
         fun selectTab(isFormatting: Boolean) {
             contentContainer.removeAllViews()
@@ -2784,14 +2931,19 @@ class EditorActivity : AppCompatActivity() {
     private fun toggleWarpMode(enabled: Boolean) {
         val layer = canvasView.getSelectedLayer() as? TextLayer
         if (layer != null) {
-            layer.isWarp = enabled
+            // We set isWarp to true when entering, but WE DO NOT disable it when exiting,
+            // to persist the effect (rendering).
+            // We only control the Interaction Tool (Grid visibility/dragging).
+
             if (enabled) {
+                layer.isWarp = true
                 if (layer.warpMesh == null) {
                     initWarpMesh(layer, layer.warpRows, layer.warpCols)
                 }
             }
+            // Notify Canvas to show/hide tool handles
+            canvasView.setWarpToolActive(enabled)
         }
-        canvasView.invalidate()
     }
 
     private fun initWarpMesh(layer: TextLayer, rows: Int, cols: Int) {

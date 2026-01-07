@@ -219,6 +219,22 @@
                     android:textColor="@color/white"/>
 
                   <Button
+                    android:id="@+id/btnPropTexture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Texture"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
+                  <Button
+                    android:id="@+id/btnPropErase"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Erase"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
+                  <Button
                     android:id="@+id/btnPropPerspective"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
