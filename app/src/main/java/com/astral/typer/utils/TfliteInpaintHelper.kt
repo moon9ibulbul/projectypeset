@@ -79,10 +79,12 @@ class TfliteInpaintHelper(private val context: Context) {
             // Post-process: Convert Output Buffer back to Bitmap
             val outputBitmap = convertOutputToBitmap(outputBuffer.floatArray, inputSize, inputSize)
 
-            // Resize back to original size
-            val finalBitmap = Bitmap.createScaledBitmap(outputBitmap, original.width, original.height, true)
+            // 3. UPSCALE & COMPOSITE
+            // Scale AI output back to Original Size
+            val upscaledInpaint = Bitmap.createScaledBitmap(outputBitmap, original.width, original.height, true)
 
-            return finalBitmap
+            // Return the stitched result
+            return compositeResult(original, upscaledInpaint, mask)
 
         } catch (e: Exception) {
             Log.e("TfliteInpaintHelper", "Inference failed", e)
@@ -143,14 +145,48 @@ class TfliteInpaintHelper(private val context: Context) {
 
             // Aggressive Threshold: If there is ANY ink/paint here, treat it as a full Hole (1.0).
             // Even faint edges from resizing must be treated as 1.0 to ensure removal.
-            // MUST be AND condition: (Alpha > 0) AND (Red > 0).
-            // If we use OR, an opaque black background (Alpha 255, R 0) would be treated as a Hole.
-            val isHole = (alpha > 0) && (r > 0)
+            val isHole = (alpha > 10) || (r > 10)
             val value = if (isHole) 1.0f else 0.0f
             buffer.putFloat(value)
         }
         buffer.rewind()
         return buffer
+    }
+
+    private fun compositeResult(original: Bitmap, inpainted: Bitmap, mask: Bitmap): Bitmap {
+        val width = original.width
+        val height = original.height
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+        // Ensure inputs match original size
+        val scaledMask = Bitmap.createScaledBitmap(mask, width, height, false) // filter=false for sharp edges
+
+        val origPixels = IntArray(width * height)
+        val inpaintPixels = IntArray(width * height)
+        val maskPixels = IntArray(width * height)
+        val resultPixels = IntArray(width * height)
+
+        original.getPixels(origPixels, 0, width, 0, 0, width, height)
+        inpainted.getPixels(inpaintPixels, 0, width, 0, 0, width, height)
+        scaledMask.getPixels(maskPixels, 0, width, 0, 0, width, height)
+
+        for (i in resultPixels.indices) {
+            val alpha = Color.alpha(maskPixels[i])
+            val red = Color.red(maskPixels[i])
+
+            // LOGIC FIX: Detect ANY paint as a hole.
+            // If the user painted anything (Alpha > 0), treat it as a 100% Hole to force removal.
+            val isHole = alpha > 10 || red > 10
+
+            if (isHole) {
+                resultPixels[i] = inpaintPixels[i] // Use AI result
+            } else {
+                resultPixels[i] = origPixels[i] // Keep original sharp background
+            }
+        }
+
+        result.setPixels(resultPixels, 0, width, 0, 0, width, height)
+        return result
     }
 
     private fun convertOutputToBitmap(floatArray: FloatArray, width: Int, height: Int): Bitmap {
