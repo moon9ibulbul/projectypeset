@@ -340,8 +340,13 @@ class AstralCanvasView @JvmOverloads constructor(
         fun onLayerDoubleTap(layer: Layer)
     }
 
+    interface OnLayerUpdateListener {
+        fun onLayerUpdate(layer: Layer)
+    }
+
     var onLayerSelectedListener: OnLayerSelectedListener? = null
     var onLayerEditListener: OnLayerEditListener? = null
+    var onLayerUpdateListener: OnLayerUpdateListener? = null
 
     fun addTextLayer(text: String) {
         val center = getViewportCenter()
@@ -1062,12 +1067,14 @@ class AstralCanvasView @JvmOverloads constructor(
                             lastTouchX = cx
                             lastTouchY = cy
                             invalidate()
+                            onLayerUpdateListener?.onLayerUpdate(layer)
                         }
                         Mode.ROTATE_LAYER -> {
                             val currentAngle = getAngle(centerX, centerY, cx, cy)
                             val angleDiff = currentAngle - startAngle
                             layer.rotation = initialRotation + angleDiff
                             invalidate()
+                            onLayerUpdateListener?.onLayerUpdate(layer)
                         }
                         Mode.RESIZE_LAYER -> {
                             val currentDist = getDistance(centerX, centerY, cx, cy)
@@ -1076,6 +1083,7 @@ class AstralCanvasView @JvmOverloads constructor(
                                 layer.scaleX = initialScaleX * scaleFactor
                                 layer.scaleY = initialScaleY * scaleFactor
                                 invalidate()
+                                onLayerUpdateListener?.onLayerUpdate(layer)
                             }
                         }
                         Mode.STRETCH_H -> {
@@ -1088,6 +1096,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             if (proj > 10) {
                                  layer.scaleX = (proj / (layer.getWidth() / 2f)).toFloat().coerceAtLeast(0.1f)
                                  invalidate()
+                                 onLayerUpdateListener?.onLayerUpdate(layer)
                             }
                         }
                         Mode.STRETCH_V -> {
@@ -1100,6 +1109,7 @@ class AstralCanvasView @JvmOverloads constructor(
                              if (proj > 10) {
                                  layer.scaleY = (proj / (layer.getHeight() / 2f)).toFloat().coerceAtLeast(0.1f)
                                  invalidate()
+                                 onLayerUpdateListener?.onLayerUpdate(layer)
                              }
                         }
                         Mode.BOX_WIDTH -> {
@@ -1113,6 +1123,7 @@ class AstralCanvasView @JvmOverloads constructor(
                                 if (proj > 20) {
                                     layer.boxWidth = ((proj / layer.scaleX) * 2f).toFloat()
                                     invalidate()
+                                    onLayerUpdateListener?.onLayerUpdate(layer)
                                 }
                             }
                         }

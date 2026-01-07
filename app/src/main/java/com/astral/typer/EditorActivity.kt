@@ -254,6 +254,31 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
         }
+
+        canvasView.onLayerUpdateListener = object : AstralCanvasView.OnLayerUpdateListener {
+            override fun onLayerUpdate(layer: Layer) {
+                if (binding.propertyDetailContainer.visibility == View.VISIBLE) {
+                    // Update Size Tab Values if visible
+                    val container = binding.propertyDetailContainer
+
+                    // Rotate
+                    container.findViewWithTag<TextView>("VAL_ROTATE")?.text = "${layer.rotation.toInt()}°"
+
+                    // Box Scale
+                    container.findViewWithTag<TextView>("VAL_BOX_SCALE")?.text = "${(layer.scale * 100).toInt()}%"
+
+                    if (layer is TextLayer) {
+                        // Text Size
+                        container.findViewWithTag<TextView>("VAL_TEXT_SIZE")?.text = "${layer.fontSize.toInt()} pt"
+
+                        // Box Width
+                        val widthVal = layer.boxWidth ?: 0f
+                        val widthStr = if (widthVal <= 0) "Auto" else "${widthVal.toInt()} pt"
+                        container.findViewWithTag<TextView>("VAL_BOX_WIDTH")?.text = widthStr
+                    }
+                }
+            }
+        }
     }
 
     private fun performInpaint(maskBitmap: android.graphics.Bitmap, onSuccess: () -> Unit) {
@@ -1252,6 +1277,11 @@ class EditorActivity : AppCompatActivity() {
 
         container.addView(createInputView(layer, true))
 
+        // Move cursor to end
+        activeEditText?.let { et ->
+            et.setSelection(et.text.length)
+        }
+
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -1997,7 +2027,41 @@ class EditorActivity : AppCompatActivity() {
         }
         alignRow.addView(btnJustify)
 
-        layout.addView(alignRow)
+        // Transform Row (Mirror)
+        val transformRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            weightSum = 2f
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(0, 16, 0, 0)
+        }
+
+        fun addMirrorBtn(iconRes: Int, onClick: () -> Unit) {
+             val btn = android.widget.ImageView(this).apply {
+                setImageResource(iconRes)
+                setColorFilter(Color.WHITE)
+                setPadding(0, 16, 0, 16)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { onClick() }
+            }
+            transformRow.addView(btn)
+        }
+
+        addMirrorBtn(R.drawable.ic_mirror_horizontal) {
+            layer.scaleX *= -1
+            canvasView.invalidate()
+        }
+        addMirrorBtn(R.drawable.ic_mirror_vertical) {
+            layer.scaleY *= -1
+            canvasView.invalidate()
+        }
+
+        layout.addView(alignRow) // Ensure Align row is added first
+        layout.addView(transformRow)
+
         return layout
     }
 
@@ -2007,7 +2071,7 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
-        fun createControl(label: String, valueStr: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
+        fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -2036,6 +2100,7 @@ class EditorActivity : AppCompatActivity() {
 
             val tvValue = TextView(this).apply {
                 text = valueStr
+                this.tag = tag // Set Tag for Sync
                 setTextColor(Color.CYAN)
                 gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -2062,7 +2127,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Text Size
-        val textSizeRow = createControl("Text Size", "${layer.fontSize.toInt()} pt",
+        val textSizeRow = createControl("Text Size", "${layer.fontSize.toInt()} pt", "VAL_TEXT_SIZE",
             onMinus = {
                 layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
                 canvasView.invalidate()
@@ -2077,7 +2142,7 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(textSizeRow)
 
         // Box Scale
-        val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%",
+        val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%", "VAL_BOX_SCALE",
             onMinus = {
                 val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
                 layer.scaleX = s
@@ -2098,7 +2163,7 @@ class EditorActivity : AppCompatActivity() {
         // Box Width
         val widthVal = layer.boxWidth ?: 0f
         val widthStr = if (widthVal <= 0) "Auto" else "${widthVal.toInt()} pt"
-        val widthRow = createControl("Box Width", widthStr,
+        val widthRow = createControl("Box Width", widthStr, "VAL_BOX_WIDTH",
             onMinus = {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
@@ -2113,6 +2178,21 @@ class EditorActivity : AppCompatActivity() {
             }
         )
         layout.addView(widthRow)
+
+        // Rotate
+        val rotateRow = createControl("Rotate", "${layer.rotation.toInt()}°", "VAL_ROTATE",
+            onMinus = {
+                layer.rotation -= 1f
+                canvasView.invalidate()
+                (layout.getChildAt(3) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.rotation.toInt()}°" }
+            },
+            onPlus = {
+                layer.rotation += 1f
+                canvasView.invalidate()
+                (layout.getChildAt(3) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.rotation.toInt()}°" }
+            }
+        )
+        layout.addView(rotateRow)
 
         return layout
     }
@@ -2704,8 +2784,8 @@ class EditorActivity : AppCompatActivity() {
     private fun toggleWarpMode(enabled: Boolean) {
         val layer = canvasView.getSelectedLayer() as? TextLayer
         if (layer != null) {
+            layer.isWarp = enabled
             if (enabled) {
-                layer.isWarp = true
                 if (layer.warpMesh == null) {
                     initWarpMesh(layer, layer.warpRows, layer.warpCols)
                 }
