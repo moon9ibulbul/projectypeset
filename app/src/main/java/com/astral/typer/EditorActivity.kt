@@ -171,11 +171,13 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showInsertMenu() {
+        binding.bottomMenuContainer.visibility = View.VISIBLE
         binding.menuInsert.visibility = View.VISIBLE
         binding.menuProperties.visibility = View.GONE
     }
 
     private fun showPropertiesMenu() {
+        binding.bottomMenuContainer.visibility = View.VISIBLE
         binding.menuInsert.visibility = View.GONE
         binding.menuProperties.visibility = View.VISIBLE
     }
@@ -361,6 +363,7 @@ class EditorActivity : AppCompatActivity() {
             layer.text = originalText
             canvasView.invalidate()
             hidePropertyDetail()
+            showPropertiesMenu()
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
         }
@@ -413,6 +416,7 @@ class EditorActivity : AppCompatActivity() {
         // 6. Done (Check)
         addIcon(R.drawable.ic_check) {
             hidePropertyDetail()
+            showPropertiesMenu()
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
         }
