@@ -24,6 +24,10 @@ import com.astral.typer.databinding.DialogNewProjectBinding
 import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.ProjectManager
 import java.io.File
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,16 +42,22 @@ class MainActivity : AppCompatActivity() {
         uri?.let {
             // Need to copy file to cache to open? Or just read from stream?
             // ProjectManager.loadProject expects a File.
-            // Copy uri content to temp file.
-            try {
-                val inputStream = contentResolver.openInputStream(it)
-                val tempFile = File(cacheDir, "temp_open.atd")
-                tempFile.outputStream().use { out ->
-                    inputStream?.copyTo(out)
+            // Copy uri content to temp file in background
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val inputStream = contentResolver.openInputStream(it)
+                    val tempFile = File(cacheDir, "temp_open.atd")
+                    tempFile.outputStream().use { out ->
+                        inputStream?.copyTo(out)
+                    }
+                    withContext(Dispatchers.Main) {
+                        openProject(tempFile)
+                    }
+                } catch(e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Failed to open project file", Toast.LENGTH_SHORT).show()
+                    }
                 }
-                openProject(tempFile)
-            } catch(e: Exception) {
-                Toast.makeText(this, "Failed to open project file", Toast.LENGTH_SHORT).show()
             }
         }
     }

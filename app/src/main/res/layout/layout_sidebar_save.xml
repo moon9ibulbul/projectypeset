@@ -70,7 +70,7 @@
                 android:layout_height="wrap_content"
                 android:hint="Enter project name"
                 android:textColor="@color/white"
-                android:textColorHint="@color/gray"
+                android:textColorHint="@android:color/darker_gray"
                 android:background="@android:drawable/editbox_background"
                 android:layout_marginBottom="16dp"/>
 
@@ -111,7 +111,7 @@
                 android:layout_height="wrap_content"
                 android:hint="Enter file name"
                 android:textColor="@color/white"
-                android:textColorHint="@color/gray"
+                android:textColorHint="@android:color/darker_gray"
                 android:background="@android:drawable/editbox_background"
                 android:layout_marginBottom="16dp"/>
 

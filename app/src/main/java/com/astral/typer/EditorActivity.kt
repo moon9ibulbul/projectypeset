@@ -110,48 +110,52 @@ class EditorActivity : AppCompatActivity() {
 
         if (projectPath != null) {
              val file = java.io.File(projectPath)
-             val data = ProjectManager.loadProject(this, file)
-             if (data != null) {
-                 val (proj, images) = data
-                 canvasView.initCanvas(proj.canvasWidth, proj.canvasHeight, proj.canvasColor)
+             // Load Async
+             lifecycleScope.launch(Dispatchers.IO) {
+                 val data = ProjectManager.loadProject(this@EditorActivity, file)
+                 withContext(Dispatchers.Main) {
+                     if (data != null) {
+                         val (proj, images) = data
+                         canvasView.initCanvas(proj.canvasWidth, proj.canvasHeight, proj.canvasColor)
 
-                 // Restore background
-                 if (images.containsKey("background")) {
-                     canvasView.setBackgroundImage(images["background"]!!)
-                 }
-
-                 // Restore layers
-                 val restoredLayers = mutableListOf<Layer>()
-                 for (model in proj.layers) {
-                     if (model.type == "TEXT") {
-                         val l = TextLayer(model.text ?: "").apply {
-                             x = model.x; y = model.y; rotation = model.rotation
-                             scaleX = model.scaleX; scaleY = model.scaleY
-                             color = model.color ?: Color.BLACK
-                             fontSize = model.fontSize ?: 24f
-                             boxWidth = model.boxWidth
-                             shadowColor = model.shadowColor ?: 0
-                             shadowRadius = model.shadowRadius ?: 0f
-                             shadowDx = model.shadowDx ?: 0f
-                             shadowDy = model.shadowDy ?: 0f
+                         // Restore background
+                         if (images.containsKey("background")) {
+                             canvasView.setBackgroundImage(images["background"]!!)
                          }
-                         restoredLayers.add(l)
-                     } else if (model.type == "IMAGE") {
-                         val bmp = images[model.imagePath]
-                         if (bmp != null) {
-                             val l = ImageLayer(bmp, model.imagePath).apply {
-                                 x = model.x; y = model.y; rotation = model.rotation
-                                 scaleX = model.scaleX; scaleY = model.scaleY
+
+                         // Restore layers
+                         val restoredLayers = mutableListOf<Layer>()
+                         for (model in proj.layers) {
+                             if (model.type == "TEXT") {
+                                 val l = TextLayer(model.text ?: "").apply {
+                                     x = model.x; y = model.y; rotation = model.rotation
+                                     scaleX = model.scaleX; scaleY = model.scaleY
+                                     color = model.color ?: Color.BLACK
+                                     fontSize = model.fontSize ?: 24f
+                                     boxWidth = model.boxWidth
+                                     shadowColor = model.shadowColor ?: 0
+                                     shadowRadius = model.shadowRadius ?: 0f
+                                     shadowDx = model.shadowDx ?: 0f
+                                     shadowDy = model.shadowDy ?: 0f
+                                 }
+                                 restoredLayers.add(l)
+                             } else if (model.type == "IMAGE") {
+                                 val bmp = images[model.imagePath]
+                                 if (bmp != null) {
+                                     val l = ImageLayer(bmp, model.imagePath).apply {
+                                         x = model.x; y = model.y; rotation = model.rotation
+                                         scaleX = model.scaleX; scaleY = model.scaleY
+                                     }
+                                     restoredLayers.add(l)
+                                 }
                              }
-                             restoredLayers.add(l)
                          }
+                         canvasView.setLayers(restoredLayers)
+                     } else {
+                         Toast.makeText(this@EditorActivity, "Failed to load project", Toast.LENGTH_SHORT).show()
+                         finish()
                      }
                  }
-                 canvasView.setLayers(restoredLayers)
-             } else {
-                 Toast.makeText(this, "Failed to load project", Toast.LENGTH_SHORT).show()
-                 finish()
-                 return
              }
         } else {
             val width = intent.getIntExtra("CANVAS_WIDTH", 1080)
@@ -193,14 +197,21 @@ class EditorActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         // Auto Save
+        // Capture data on Main Thread
+        val layers = canvasView.getLayers().toList() // Shallow copy list
+        val bgBitmap = canvasView.getBackgroundImage()
+        val bmp = canvasView.renderToBitmap()
+        val w = bmp.width
+        val h = bmp.height
+
         lifecycleScope.launch(Dispatchers.IO) {
             ProjectManager.saveProject(
                 this@EditorActivity,
-                canvasView.getLayers(),
-                canvasView.renderToBitmap().width, // Assuming canvas dimensions match render
-                canvasView.renderToBitmap().height,
-                Color.WHITE, // Need to get actual canvas color
-                canvasView.getBackgroundImage(),
+                layers,
+                w,
+                h,
+                Color.WHITE,
+                bgBitmap,
                 "autosave"
             )
         }
@@ -433,15 +444,23 @@ class EditorActivity : AppCompatActivity() {
                 Toast.makeText(this, "Enter project name", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
+            // Capture Data on Main Thread
+            val layers = canvasView.getLayers().toList()
+            val bgBitmap = canvasView.getBackgroundImage()
+            val bmp = canvasView.renderToBitmap()
+            val w = bmp.width
+            val h = bmp.height
+
             // Save logic
              lifecycleScope.launch(Dispatchers.IO) {
                 val success = ProjectManager.saveProject(
                     this@EditorActivity,
-                    canvasView.getLayers(),
-                    canvasView.renderToBitmap().width,
-                    canvasView.renderToBitmap().height,
+                    layers,
+                    w,
+                    h,
                     Color.WHITE,
-                    canvasView.getBackgroundImage(),
+                    bgBitmap,
                     name
                 )
                 withContext(Dispatchers.Main) {
