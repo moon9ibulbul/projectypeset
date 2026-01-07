@@ -139,8 +139,11 @@ class TfliteInpaintHelper(private val context: Context) {
             // Mask Logic for JiahuiYu/DeepFill architecture:
             // 1.0 (White) = The Hole / Area to inpaint (Mask)
             // 0.0 (Black) = The Valid Background / Area to keep
-            val isMask = (alpha > 0 && r > 10)
-            val value = if (isMask) 1.0f else 0.0f
+
+            // Aggressive Threshold: If there is ANY ink/paint here, treat it as a full Hole (1.0).
+            // Even faint edges from resizing must be treated as 1.0 to ensure removal.
+            val isHole = (alpha > 20) || (r > 20)
+            val value = if (isHole) 1.0f else 0.0f
             buffer.putFloat(value)
         }
         buffer.rewind()
