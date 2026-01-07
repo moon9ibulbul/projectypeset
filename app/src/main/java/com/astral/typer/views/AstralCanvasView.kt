@@ -596,14 +596,21 @@ class AstralCanvasView @JvmOverloads constructor(
 
         if (isInpaintMode) {
             // Check for multi-touch (Pan/Zoom) cancellation
-            if (pointerCount >= 2) {
+            // The issue is that ACTION_POINTER_DOWN (2nd finger) triggers a short MOVE or is missed if we only check pointerCount
+            // We need to check if ANY gesture is multi-touch or if Mode is already PAN_ZOOM
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 if (!currentInpaintPath.isEmpty) {
-                    currentInpaintPath.reset() // Cancel current stroke
+                    currentInpaintPath.reset() // Cancel current stroke immediately
                     invalidate()
                 }
                 // Allow gesture detector to handle pan/zoom
+                currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
+
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.INPAINT
+                }
                 return true
             }
 
@@ -614,8 +621,11 @@ class AstralCanvasView @JvmOverloads constructor(
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    currentInpaintPath.lineTo(cx, cy)
-                    invalidate()
+                    // Double check pointer count again to be safe
+                    if (event.pointerCount == 1) {
+                        currentInpaintPath.lineTo(cx, cy)
+                        invalidate()
+                    }
                 }
                 MotionEvent.ACTION_UP -> {
                     // Commit path

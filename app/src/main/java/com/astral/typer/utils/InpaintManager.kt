@@ -16,6 +16,7 @@ import org.opencv.photo.Photo
 class InpaintManager(private val context: Context) {
 
     private var isOpenCvInitialized = false
+    private val tfliteHelper: TfliteInpaintHelper by lazy { TfliteInpaintHelper(context) }
 
     init {
         try {
@@ -34,9 +35,15 @@ class InpaintManager(private val context: Context) {
      * Inpaints the original bitmap using the provided mask.
      * @param originalBitmap The source image (ARGB_8888 recommended).
      * @param maskBitmap The mask image (where non-transparent pixels indicate areas to remove).
+     * @param useTflite If true, uses TensorFlow Lite model instead of OpenCV.
      * @return A new Bitmap with the area inpainted, or null if absolutely everything failed.
      */
-    fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
+    fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap, useTflite: Boolean = false): Bitmap? {
+        if (useTflite) {
+            Log.d("InpaintManager", "Using TFLite engine")
+            return tfliteHelper.inpaint(originalBitmap, maskBitmap) ?: inpaintFallback(originalBitmap, maskBitmap)
+        }
+
         // Try OpenCV first
         if (isOpenCvInitialized) {
             val result = inpaintWithOpenCV(originalBitmap, maskBitmap)
