@@ -56,6 +56,8 @@ class EditorActivity : AppCompatActivity() {
 
     private var isInpaintMode = false
     private var btnApplyInpaint: android.widget.Button? = null
+    private var toggleInpaintEngine: android.widget.ToggleButton? = null
+    private var useTfliteEngine = false
     private lateinit var inpaintManager: InpaintManager
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -167,7 +169,7 @@ class EditorActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.Default) {
             // Run heavy OpenCV inpaint on background thread
-            val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
+            val result = inpaintManager.inpaint(originalBitmap, maskBitmap, useTfliteEngine)
             withContext(Dispatchers.Main) {
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
@@ -314,6 +316,33 @@ class EditorActivity : AppCompatActivity() {
             binding.canvasContainer.addView(btn)
             btnApplyInpaint = btn
 
+            // Add Engine Toggle
+            val toggle = android.widget.ToggleButton(this).apply {
+                textOn = "TFLite"
+                textOff = "OpenCV"
+                isChecked = useTfliteEngine
+                text = if(isChecked) textOn else textOff
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#666666"))
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    setMargins(dpToPx(16), dpToPx(16), 0, 0)
+                }
+                setOnCheckedChangeListener { _, isChecked ->
+                    useTfliteEngine = isChecked
+                    text = if(isChecked) textOn else textOff
+                    Toast.makeText(this@EditorActivity, "Engine: ${if(isChecked) "TFLite" else "OpenCV"}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            binding.canvasContainer.addView(toggle)
+            toggleInpaintEngine = toggle
+
         } else {
             binding.btnEraser.setImageResource(R.drawable.ic_eraser)
             canvasView.setInpaintMode(false)
@@ -324,6 +353,11 @@ class EditorActivity : AppCompatActivity() {
             btnApplyInpaint?.let {
                 binding.canvasContainer.removeView(it)
                 btnApplyInpaint = null
+            }
+            // Remove Toggle
+            toggleInpaintEngine?.let {
+                binding.canvasContainer.removeView(it)
+                toggleInpaintEngine = null
             }
             canvasView.clearInpaintMask()
         }
