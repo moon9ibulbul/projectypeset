@@ -795,10 +795,7 @@ class AstralCanvasView @JvmOverloads constructor(
                              if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BR; return true }
                              if (getDistance(lx, ly, pts[6], pts[7]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BL; return true }
                          }
-                         // If miss, do not allow drag layer in perspective mode to avoid accidents?
-                         // Prompt says "sudut ... yang bisa ditarik". Doesn't say we can't move layer.
-                         // But usually perspective mode is focused on warping.
-                         // Let's assume hitting body does nothing or moves layer.
+                         // Fallthrough to allow dragging body in Perspective Mode
                     }
 
                     if (!isPerspectiveMode) {
@@ -927,6 +924,15 @@ class AstralCanvasView @JvmOverloads constructor(
                              Mode.PERSPECTIVE_DRAG_TR -> { pts[2] = lx; pts[3] = ly }
                              Mode.PERSPECTIVE_DRAG_BR -> { pts[4] = lx; pts[5] = ly }
                              Mode.PERSPECTIVE_DRAG_BL -> { pts[6] = lx; pts[7] = ly }
+                             Mode.DRAG_LAYER -> {
+                                 // Allow dragging the whole layer in Perspective Mode
+                                 val dx = cx - lastTouchX
+                                 val dy = cy - lastTouchY
+                                 layer.x += dx
+                                 layer.y += dy
+                                 lastTouchX = cx
+                                 lastTouchY = cy
+                             }
                              else -> {}
                          }
                          invalidate()

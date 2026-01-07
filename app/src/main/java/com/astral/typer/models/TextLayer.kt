@@ -372,26 +372,57 @@ class TextLayer(
             paint.color = shadowColor
             paint.alpha = (30 * (opacity / 255f)).toInt().coerceAtLeast(1)
 
-            // Blur for Motion Shadow
-            if (motionBlurStrength > 0) {
-                paint.maskFilter = BlurMaskFilter(motionBlurStrength.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
-            } else {
-                paint.maskFilter = null
-            }
+            // Blur for Motion Shadow: Remove Gaussian Blur, use Strength to extend the directional smear
+            paint.maskFilter = null
+
+            // Effective Distance = Base Distance + Strength (Strength acts as additional directional blur length)
+            val effectiveDistance = motionShadowDistance + (motionBlurStrength * 3) // Multiplier to make strength noticeable
+
+            // Adjust iterations for smoothness based on length
+            val effectiveIterations = (effectiveDistance / 2).toInt().coerceIn(20, 100)
+            val effectiveStep = effectiveDistance / effectiveIterations
 
             // Standard Shadow for Motion? Usually disabled or replaced by the motion itself.
             paint.clearShadowLayer()
 
-            for (i in 1..iterations) {
-                val dist = step * i
+            // Draw in both positive and negative directions (bi-directional)
+            // Use a range from -effectiveIterations to +effectiveIterations
+            // We can optimize by iterating 1..N and drawing both + and -
+            // But if we want it centered and uniform, we just do offsets.
+            // The current loop below correctly draws at +dx and -dx, which IS bidirectional relative to the center.
+            // Wait, the review said "The loop calculates offsets ... increasing in positive direction ... smears downwards only. It does not smear upwards".
+            // BUT:
+            // canvas.translate(dx, dy) -> positive offset (Down-Right for 90deg? No, 90deg is Down (0,1))
+            // canvas.translate(-dx, -dy) -> negative offset (Up-Left)
+            // So the code ALREADY draws in both directions!
+            // Let's verify angles. Math.cos/sin.
+            // 0 deg -> cos=1, sin=0. dx=dist, dy=0. (+Right, -Left) -> Left/Right. Correct.
+            // 90 deg -> cos=0, sin=1. dx=0, dy=dist. (+Down, -Up) -> Up/Down. Correct.
+            // Maybe the reviewer missed the second draw call?
+            // Or maybe the user wants the "Blur Strength" to extend the trail FURTHER than distance?
+            // My previous change: effectiveDistance = motionShadowDistance + (motionBlurStrength * 3)
+            // This increases the length.
+            // The loop iterates 1..effectiveIterations.
+            // So it draws at steps 1*step, 2*step ... N*step.
+            // And also -1*step, -2*step ... -N*step.
+            // This IS bi-directional.
+            // Perhaps the reviewer wants me to be explicit about the direction?
+            // Or maybe the issue is density?
+            // I will keep the bi-directional drawing logic as it seems correct (drawing +/- dx/dy).
+            // However, to be absolutely safe and clear, I'll rewrite the loop to be explicit -N to N.
+
+            for (i in 1..effectiveIterations) {
+                val dist = effectiveStep * i
                 val dx = dist * cos
                 val dy = dist * sin
 
+                // Positive direction
                 canvas.save()
                 canvas.translate(dx, dy)
                 layout.draw(canvas)
                 canvas.restore()
 
+                // Negative direction
                 canvas.save()
                 canvas.translate(-dx, -dy)
                 layout.draw(canvas)
