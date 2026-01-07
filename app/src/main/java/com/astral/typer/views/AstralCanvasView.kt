@@ -751,7 +751,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            // Find touched layer
+            // Keep double tap for reset/center logic on empty space
              val touchPoint = floatArrayOf(e.x, e.y)
              val inverse = Matrix()
              viewMatrix.invert(inverse)
@@ -760,12 +760,27 @@ class AstralCanvasView @JvmOverloads constructor(
              val cy = touchPoint[1]
 
              val hitLayer = layers.findLast { it.contains(cx, cy) }
-             if (hitLayer != null) {
-                  onLayerEditListener?.onLayerDoubleTap(hitLayer)
-             } else {
+             if (hitLayer == null) {
                   centerCanvas()
              }
              return true
+        }
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            val touchPoint = floatArrayOf(e.x, e.y)
+            val inverse = Matrix()
+            viewMatrix.invert(inverse)
+            inverse.mapPoints(touchPoint)
+            val cx = touchPoint[0]
+            val cy = touchPoint[1]
+
+            val hitLayer = layers.findLast { it.contains(cx, cy) }
+            if (hitLayer != null && hitLayer == selectedLayer) {
+                // Trigger edit mode on single tap of selected layer
+                onLayerEditListener?.onLayerDoubleTap(hitLayer)
+                return true
+            }
+            return false
         }
     }
 }

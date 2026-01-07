@@ -319,63 +319,96 @@ class EditorActivity : AppCompatActivity() {
     private fun showQuickEditMenu() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val originalText = SpannableStringBuilder(layer.text)
 
         container.addView(createInputView(layer, true))
 
-        val alignRow = LinearLayout(this).apply {
+        val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            weightSum = 4f
+            weightSum = 6f // X, Left, Center, Right, Overflow, Check
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
-            setPadding(0, 16, 0, 0)
+            setPadding(0, 8, 0, 0)
         }
 
-        fun addAlignBtn(iconRes: Int, align: Layout.Alignment) {
+        // Helper for icons
+        fun addIcon(iconRes: Int, onClick: (View) -> Unit) {
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
                 setColorFilter(Color.WHITE)
                 setPadding(0, 16, 0, 16)
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    1f
-                )
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener(onClick)
+            }
+            toolbar.addView(btn)
+        }
 
-                setOnClickListener {
-                    layer.textAlign = align
-                    layer.isJustified = false
-                    canvasView.invalidate()
+        // 1. Cancel (X)
+        addIcon(R.drawable.ic_close) {
+            // Restore text
+            layer.text = originalText
+            canvasView.invalidate()
+            hidePropertyDetail()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+        }
+
+        // 2. Align Left
+        addIcon(R.drawable.ic_format_align_left) {
+            layer.textAlign = Layout.Alignment.ALIGN_NORMAL
+            layer.isJustified = false
+            canvasView.invalidate()
+        }
+
+        // 3. Align Center
+        addIcon(R.drawable.ic_format_align_center) {
+            layer.textAlign = Layout.Alignment.ALIGN_CENTER
+            layer.isJustified = false
+            canvasView.invalidate()
+        }
+
+        // 4. Align Right
+        addIcon(R.drawable.ic_format_align_right) {
+            layer.textAlign = Layout.Alignment.ALIGN_OPPOSITE
+            layer.isJustified = false
+            canvasView.invalidate()
+        }
+
+        // 5. Overflow (Dots)
+        addIcon(R.drawable.ic_more_vert) { view ->
+            val popup = android.widget.PopupMenu(this, view)
+            popup.menu.add("UPPERCASE")
+            popup.menu.add("lowercase")
+            popup.menu.add("Capitalize Each Word")
+            popup.setOnMenuItemClickListener { item ->
+                val currentText = activeEditText?.text?.toString() ?: ""
+                val newText = when (item.title) {
+                    "UPPERCASE" -> currentText.uppercase()
+                    "lowercase" -> currentText.lowercase()
+                    "Capitalize Each Word" -> {
+                         currentText.split(" ").joinToString(" ") {
+                             it.replaceFirstChar { char -> char.uppercase() }
+                         }
+                    }
+                    else -> currentText
                 }
+                activeEditText?.setText(newText)
+                true
             }
-            alignRow.addView(btn)
+            popup.show()
         }
 
-        addAlignBtn(R.drawable.ic_format_align_left, Layout.Alignment.ALIGN_NORMAL)
-        addAlignBtn(R.drawable.ic_format_align_center, Layout.Alignment.ALIGN_CENTER)
-        addAlignBtn(R.drawable.ic_format_align_right, Layout.Alignment.ALIGN_OPPOSITE)
-
-        val btnJustify = android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_format_align_justify)
-            setColorFilter(Color.WHITE)
-            setPadding(0, 16, 0, 16)
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-
-            setOnClickListener {
-                layer.textAlign = Layout.Alignment.ALIGN_NORMAL
-                layer.isJustified = true
-                canvasView.invalidate()
-            }
+        // 6. Done (Check)
+        addIcon(R.drawable.ic_check) {
+            hidePropertyDetail()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
         }
-        alignRow.addView(btnJustify)
 
-        container.addView(alignRow)
+        container.addView(toolbar)
     }
 
     // --- FONT MENU ---
