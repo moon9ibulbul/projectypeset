@@ -137,7 +137,12 @@ class TfliteInpaintHelper(private val context: Context) {
             val alpha = Color.alpha(pixel)
             val r = Color.red(pixel)
 
-            val value = if (alpha > 0 && r > 10) 1.0f else 0.0f
+            // Inverted Mask for typical generative models:
+            // 1.0 = Valid Pixel (Keep)
+            // 0.0 = Hole / Mask (Inpaint this area)
+            // Previous logic was 1.0 for hole, which inverted the model's attention.
+            val isMask = (alpha > 0 && r > 10)
+            val value = if (isMask) 0.0f else 1.0f
             buffer.putFloat(value)
         }
         buffer.rewind()
