@@ -1022,7 +1022,6 @@ class EditorActivity : AppCompatActivity() {
                         layer.isMotionShadow = style.isMotionShadow
                         layer.motionShadowAngle = style.motionShadowAngle
                         layer.motionShadowDistance = style.motionShadowDistance
-                        layer.motionBlurStrength = style.motionBlurStrength
                         layer.isGradient = style.isGradient
                         layer.gradientStartColor = style.gradientStartColor
                         layer.gradientEndColor = style.gradientEndColor
