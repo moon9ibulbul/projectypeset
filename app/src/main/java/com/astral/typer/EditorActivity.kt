@@ -1638,12 +1638,12 @@ class EditorActivity : AppCompatActivity() {
         // Letter Spacing
         val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing),
             onMinus = {
-                layer.letterSpacing -= 0.05f
+                layer.letterSpacing -= 0.01f
                 canvasView.invalidate()
                 (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
             },
             onPlus = {
-                layer.letterSpacing += 0.05f
+                layer.letterSpacing += 0.01f
                 canvasView.invalidate()
                 (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
             }

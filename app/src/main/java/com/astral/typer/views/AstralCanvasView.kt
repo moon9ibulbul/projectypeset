@@ -314,9 +314,10 @@ class AstralCanvasView @JvmOverloads constructor(
     var onLayerEditListener: OnLayerEditListener? = null
 
     fun addTextLayer(text: String) {
+        val center = getViewportCenter()
         val layer = TextLayer(text).apply {
-            x = canvasWidth / 2f
-            y = canvasHeight / 2f
+            x = center[0]
+            y = center[1]
             color = Color.BLACK
         }
         layers.add(layer)
@@ -331,9 +332,10 @@ class AstralCanvasView @JvmOverloads constructor(
             scale = (canvasWidth * 0.8f) / bitmap.width
         }
 
+        val center = getViewportCenter()
         val layer = ImageLayer(bitmap, path).apply {
-            x = canvasWidth / 2f
-            y = canvasHeight / 2f
+            x = center[0]
+            y = center[1]
             this.scaleX = scale
             this.scaleY = scale
         }
