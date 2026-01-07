@@ -8,6 +8,7 @@ import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
+import org.opencv.photo.Photo
 
 /**
  * Manages inpainting operations, providing a robust fallback if OpenCV fails.
@@ -85,7 +86,7 @@ class InpaintManager(private val context: Context) {
 
             // 3. Inpaint
             // Radius 5.0 is standard for Telea
-            Imgproc.inpaint(rgbMat, grayMask, dstMat, 5.0, Imgproc.INPAINT_TELEA)
+            Photo.inpaint(rgbMat, grayMask, dstMat, 5.0, Photo.INPAINT_TELEA)
 
             // 4. Convert back to Bitmap
             // dstMat is RGB. Utils.matToBitmap handles conversion to ARGB (adds opaque alpha)
@@ -179,28 +180,43 @@ class InpaintManager(private val context: Context) {
                         var count = 0
 
                         // Check 4 neighbors
-                        val neighbors = arrayOf(
-                            idx - 1 to (x > 0),
-                            idx + 1 to (x < w - 1),
-                            idx - w to (y > 0),
-                            idx + w to (y < h - 1)
-                        )
+                        // Manually unrolled for performance to avoid alloc
 
-                        for ((nIdx, isValid) in neighbors) {
-                            if (isValid) {
-                                // If neighbor is valid (not a hole originally OR we allow filling from partially filled holes?)
-                                // Better: Use values from previous iteration (tempPixels)
-                                // If we treat 'hole' as permanent metadata, we just smooth inside the hole.
-                                // We need initialized values.
-
-                                val p = tempPixels[nIdx]
-                                // Only count if neighbor is VALID (not a hole) or if we are late in iterations?
-                                // Standard diffusion: average of ALL neighbors.
-                                rSum += Color.red(p)
-                                gSum += Color.green(p)
-                                bSum += Color.blue(p)
-                                count++
-                            }
+                        // Left
+                        if (x > 0) {
+                            val nIdx = idx - 1
+                            val p = tempPixels[nIdx]
+                            rSum += Color.red(p)
+                            gSum += Color.green(p)
+                            bSum += Color.blue(p)
+                            count++
+                        }
+                        // Right
+                        if (x < w - 1) {
+                            val nIdx = idx + 1
+                            val p = tempPixels[nIdx]
+                            rSum += Color.red(p)
+                            gSum += Color.green(p)
+                            bSum += Color.blue(p)
+                            count++
+                        }
+                        // Top
+                        if (y > 0) {
+                            val nIdx = idx - w
+                            val p = tempPixels[nIdx]
+                            rSum += Color.red(p)
+                            gSum += Color.green(p)
+                            bSum += Color.blue(p)
+                            count++
+                        }
+                        // Bottom
+                        if (y < h - 1) {
+                            val nIdx = idx + w
+                            val p = tempPixels[nIdx]
+                            rSum += Color.red(p)
+                            gSum += Color.green(p)
+                            bSum += Color.blue(p)
+                            count++
                         }
 
                         if (count > 0) {
