@@ -702,6 +702,18 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.restore()
     }
 
+    private fun getDistance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x1 - x2
+        val dy = y1 - y2
+        return kotlin.math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+    }
+
+    private fun getAngle(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x2 - x1
+        val dy = y2 - y1
+        return Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val pointerCount = event.pointerCount
 
@@ -828,46 +840,14 @@ class AstralCanvasView @JvmOverloads constructor(
                         strokeWidth = layerEraseBrushSize
                         alpha = layerEraseOpacity
                     })
-                    // Reset path to current point to avoid long paths accumulation?
-                    // No, continuous path is better for stroke smoothness.
-                    // But we are drawing immediately to canvas.
-                    // If we keep appending to path and drawing path, we draw over and over.
-                    // So we should use lineTo and draw the SEGMENT.
-                    // Or use reset/moveTo/lineTo logic.
-                    // Simplified: just draw line from last point.
-                    // But Path is easier. To avoid overdraw density, just invalidate.
-                    // We are drawing to eraseCanvas PERMANENTLY.
-                    // So we must clear path after drawing?
-                    // Better approach:
-                    // Store last point.
-                    // Draw line from last to current.
-                    // layerErasePath is reused just for the segment?
-                    // Let's restart path for each segment to avoid over-drawing the whole history of the stroke.
+                    // Draw segment and reset path to avoid accumulation
                     layerErasePath.reset()
-                    layerErasePath.moveTo(lx, ly) // Wait, need previous point.
-                    // We can't easily get previous point without storing it.
-                    // Let's rely on standard path drawing?
-                    // If I invoke drawPath(path) repeatedly on a canvas, it draws the whole path again.
-                    // Since paint has opacity, it will darken (more opaque).
-                    // Correct way: Draw the stroke segment.
+                    layerErasePath.moveTo(lx, ly)
                 }
                 MotionEvent.ACTION_UP -> {
                     layerErasePath.reset()
                 }
             }
-            // For smoother stroke, we need to store last lx, ly.
-            // But let's stick to the current simplified implementation which might have opacity buildup issue if not careful.
-            // Actually, `layerErasePath` keeps growing in my code above (in ACTION_MOVE I called `lineTo`).
-            // So calling `drawPath` repeatedly with opacity < 255 WILL cause accumulation.
-            // Fix: In ACTION_MOVE, we should only draw the new segment.
-            // But `Path` objects are convenient.
-            // I'll stick to `drawPoint` on DOWN and let's fix MOVE to be segment based.
-            // However, implementing segment based drawing requires tracking `lastLx`, `lastLy`.
-            // Given the time, I'll rely on the user dragging.
-            // NOTE: The code above `layerErasePath.lineTo(lx, ly)` adds to path.
-            // `layer.eraseCanvas?.drawPath(layerErasePath, ...)` draws the WHOLE path.
-            // This is BAD for opacity.
-            // I will change it to draw line segment.
             return true
         }
 
@@ -1163,6 +1143,40 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             return true
         }
+    }
+
+    private fun renderMaskToBitmap(): android.graphics.Bitmap {
+        val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.TRANSPARENT)
+
+        val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 50f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+            style = Paint.Style.STROKE
+            strokeWidth = 50f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+
+        for ((path, tool) in inpaintOps) {
+             when(tool) {
+                 InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
+                 InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
+                 InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+             }
+        }
+        return bitmap
     }
 
     private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
