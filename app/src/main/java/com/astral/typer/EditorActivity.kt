@@ -38,6 +38,11 @@ import com.astral.typer.utils.FontManager
 import com.astral.typer.views.AstralCanvasView
 import android.widget.GridLayout
 import com.astral.typer.utils.StyleManager
+import com.astral.typer.utils.InpaintManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class EditorActivity : AppCompatActivity() {
 
@@ -47,6 +52,9 @@ class EditorActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val MENU_HEIGHT_DP = 180
     private var currentMenuType: String? = null
+
+    private var isInpaintMode = false
+    private lateinit var inpaintManager: InpaintManager
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -97,9 +105,18 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
+        // Initialize InpaintManager
+        inpaintManager = InpaintManager(this)
+
         // Listeners
         setupCanvasListeners()
         setupBottomMenu()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        inpaintManager.close()
+        com.astral.typer.utils.UndoManager.clearMemory()
     }
 
     private fun setupCanvasListeners() {
@@ -129,6 +146,39 @@ class EditorActivity : AppCompatActivity() {
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.showSoftInput(activeEditText, InputMethodManager.SHOW_IMPLICIT)
                     }, 300)
+                }
+            }
+        }
+
+        canvasView.onMaskDrawn = { maskBitmap ->
+            performInpaint(maskBitmap)
+        }
+    }
+
+    private fun performInpaint(maskBitmap: android.graphics.Bitmap) {
+        val originalBitmap = canvasView.getBackgroundImage()
+        if (originalBitmap == null) return
+
+        // Save current state for Undo
+        // We need to extend UndoManager to handle Bitmaps, or just push a custom action?
+        // For now, let's assume we can push a special state or we just manage bitmap undo separately.
+        // Or if UndoManager is strictly Layers, we need to upgrade it.
+        // Let's check UndoManager later. For now, we proceed.
+
+        com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
+
+        binding.root.post {
+            Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
+        }
+
+        CoroutineScope(Dispatchers.Default).launch {
+            val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
+            withContext(Dispatchers.Main) {
+                if (result != null) {
+                    canvasView.setBackgroundImage(result)
+                    Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@EditorActivity, "Inpaint Failed", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -186,22 +236,46 @@ class EditorActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSave.setOnClickListener { saveImage() }
 
+        binding.btnEraser.setOnClickListener {
+            toggleInpaintMode()
+        }
+
         // Undo/Redo/Layers
         binding.btnUndo.setOnClickListener {
-            val restored = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
-            if (restored != null) {
-                canvasView.setLayers(restored)
+            if (isInpaintMode) {
+                 // Bitmap Undo
+                 val restored = com.astral.typer.utils.UndoManager.undoBitmap(canvasView.getBackgroundImage())
+                 if (restored != null) {
+                     canvasView.setBackgroundImage(restored)
+                 } else {
+                     Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+                 }
             } else {
-                Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+                val restored = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
+                if (restored != null) {
+                    canvasView.setLayers(restored)
+                } else {
+                    Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
         binding.btnRedo.setOnClickListener {
-            val restored = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
-            if (restored != null) {
-                canvasView.setLayers(restored)
+            if (isInpaintMode) {
+                // Bitmap Redo
+                val restored = com.astral.typer.utils.UndoManager.redoBitmap(canvasView.getBackgroundImage())
+                if (restored != null) {
+                    canvasView.setBackgroundImage(restored)
+                } else {
+                    Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
+                }
             } else {
-                Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
+                val restored = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
+                if (restored != null) {
+                    canvasView.setLayers(restored)
+                } else {
+                    Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
@@ -209,6 +283,28 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    private fun toggleInpaintMode() {
+        isInpaintMode = !isInpaintMode
+
+        if (isInpaintMode) {
+            binding.btnEraser.setImageResource(R.drawable.ic_pencil)
+            canvasView.setInpaintMode(true)
+            Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
+
+            // Hide bottom menu in inpaint mode?
+            binding.bottomMenuContainer.visibility = View.GONE
+            hidePropertyDetail()
+
+            // Deselect any layer
+            canvasView.selectLayer(null)
+        } else {
+            binding.btnEraser.setImageResource(R.drawable.ic_eraser)
+            canvasView.setInpaintMode(false)
+            binding.bottomMenuContainer.visibility = View.VISIBLE
+            showInsertMenu()
+        }
     }
 
     private fun togglePerspectiveMode(enabled: Boolean) {

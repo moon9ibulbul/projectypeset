@@ -57,6 +57,35 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Modes
     private var isPerspectiveMode = false
+    private var isInpaintMode = false
+
+    // Inpaint Tools
+    private val inpaintPath = Path()
+    private val inpaintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
+        style = Paint.Style.STROKE
+        strokeWidth = 50f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        alpha = 128
+    }
+
+    var onMaskDrawn: ((android.graphics.Bitmap) -> Unit)? = null
+
+    fun setInpaintMode(enabled: Boolean) {
+        isInpaintMode = enabled
+        if (enabled) {
+            selectLayer(null)
+            currentMode = Mode.INPAINT
+        } else {
+            currentMode = Mode.NONE
+        }
+        invalidate()
+    }
+
+    fun getBackgroundImage(): android.graphics.Bitmap? {
+        return canvasBitmap
+    }
 
     fun getLayers(): MutableList<Layer> {
         return layers
@@ -98,7 +127,8 @@ class AstralCanvasView @JvmOverloads constructor(
         PERSPECTIVE_DRAG_TL,
         PERSPECTIVE_DRAG_TR,
         PERSPECTIVE_DRAG_BR,
-        PERSPECTIVE_DRAG_BL
+        PERSPECTIVE_DRAG_BL,
+        INPAINT
     }
 
     private var currentMode = Mode.NONE
@@ -284,8 +314,13 @@ class AstralCanvasView @JvmOverloads constructor(
         // Draw Layers
         drawScene(canvas)
 
+        // Draw Inpaint Path (in World Space)
+        if (isInpaintMode && !inpaintPath.isEmpty) {
+            canvas.drawPath(inpaintPath, inpaintPaint)
+        }
+
         // Draw Selection Overlay
-        if (currentMode != Mode.EYEDROPPER) {
+        if (currentMode != Mode.EYEDROPPER && !isInpaintMode) {
              selectedLayer?.let { drawSelectionOverlay(canvas, it) }
         }
 
@@ -522,6 +557,28 @@ class AstralCanvasView @JvmOverloads constructor(
                  setEyedropperMode(false)
              }
              return true
+        }
+
+        if (isInpaintMode) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    inpaintPath.reset()
+                    inpaintPath.moveTo(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    inpaintPath.lineTo(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP -> {
+                    // Capture mask and trigger inpaint
+                    val mask = renderMaskToBitmap()
+                    onMaskDrawn?.invoke(mask)
+                    inpaintPath.reset()
+                    invalidate()
+                }
+            }
+            return true
         }
 
         when (event.actionMasked) {
@@ -786,6 +843,22 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             return true
         }
+    }
+
+    private fun renderMaskToBitmap(): android.graphics.Bitmap {
+        val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.TRANSPARENT)
+
+        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE // White mask
+            style = Paint.Style.STROKE
+            strokeWidth = 50f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        canvas.drawPath(inpaintPath, maskPaint)
+        return bitmap
     }
 
     private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {

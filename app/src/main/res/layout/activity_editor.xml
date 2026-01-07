@@ -48,6 +48,14 @@
              android:layout_weight="1"/>
 
         <ImageView
+            android:id="@+id/btnEraser"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_eraser"
+            app:tint="@color/white"
+            android:layout_marginEnd="24dp"/>
+
+        <ImageView
             android:id="@+id/btnLayers"
             android:layout_width="24dp"
             android:layout_height="24dp"
