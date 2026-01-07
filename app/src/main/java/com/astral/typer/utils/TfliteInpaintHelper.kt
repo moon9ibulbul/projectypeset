@@ -52,7 +52,8 @@ class TfliteInpaintHelper(private val context: Context) {
 
             // Resize first to avoid processing huge arrays
             val resizedImage = Bitmap.createScaledBitmap(original, inputSize, inputSize, true)
-            val resizedMask = Bitmap.createScaledBitmap(mask, inputSize, inputSize, true)
+            // Use filter = FALSE for Mask to prevent thin lines from fading into gray during downscaling
+            val resizedMask = Bitmap.createScaledBitmap(mask, inputSize, inputSize, false)
 
             // Convert Bitmap to ByteBuffer (RGB floats)
             // JiahuiYu/DeepFill model expects:
@@ -142,7 +143,9 @@ class TfliteInpaintHelper(private val context: Context) {
 
             // Aggressive Threshold: If there is ANY ink/paint here, treat it as a full Hole (1.0).
             // Even faint edges from resizing must be treated as 1.0 to ensure removal.
-            val isHole = (alpha > 20) || (r > 20)
+            // MUST be AND condition: (Alpha > 0) AND (Red > 0).
+            // If we use OR, an opaque black background (Alpha 255, R 0) would be treated as a Hole.
+            val isHole = (alpha > 0) && (r > 0)
             val value = if (isHole) 1.0f else 0.0f
             buffer.putFloat(value)
         }
