@@ -814,20 +814,20 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         // --- Draw Handles Helper ---
-        fun drawIconHandle(x: Float, y: Float, path: Path, color: Int, useStroke: Boolean = true) {
+        fun drawIconHandle(x: Float, y: Float, path: Path, iconColor: Int, useStroke: Boolean = true) {
             canvas.save()
             canvas.translate(x, y)
             canvas.scale(localIconScale, localIconScale)
 
             // Draw Icon
-            iconPaint.color = color
+            iconPaint.color = iconColor
             iconPaint.strokeWidth = 3f // Thicker for visibility
             iconPaint.style = Paint.Style.STROKE
 
             // Background shadow/outline for visibility
             val shadowPaint = Paint(iconPaint).apply {
-                color = Color.BLACK
-                strokeWidth = 5f
+                this.color = Color.BLACK
+                this.strokeWidth = 5f
             }
             if (useStroke) canvas.drawPath(path, shadowPaint)
             canvas.drawPath(path, iconPaint)
