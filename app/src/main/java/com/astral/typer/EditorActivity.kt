@@ -174,6 +174,9 @@ class EditorActivity : AppCompatActivity() {
         // Initialize InpaintManager
         inpaintManager = InpaintManager(this)
 
+        // Initialize StyleManager to load saved styles
+        StyleManager.init(this)
+
         // Listeners
         setupCanvasListeners()
         setupBottomMenu()
@@ -516,6 +519,20 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+    }
+
+    private fun saveCurrentStyle(layer: TextLayer) {
+        val input = EditText(this)
+        input.hint = "Enter Style Name"
+
+        // Actually StyleManager doesn't support naming yet, just list.
+        // And user didn't ask for it.
+        // But we need to call StyleManager.saveStyle(context, layer).
+
+        StyleManager.saveStyle(this, layer)
+        Toast.makeText(this, "Style Saved", Toast.LENGTH_SHORT).show()
+        hidePropertyDetail()
+        showStyleMenu() // Refresh
     }
 
     private fun showEffectMenu() {
@@ -1251,6 +1268,25 @@ class EditorActivity : AppCompatActivity() {
         // Saved Styles
         val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
 
+        // Add "Save Current Style" button
+        if (layer != null) {
+            val btnSaveStyle = android.widget.Button(this).apply {
+                text = "Save Current Style"
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(16,0,16,16)
+                }
+                setOnClickListener {
+                    saveCurrentStyle(layer)
+                }
+            }
+            container.addView(btnSaveStyle)
+        }
+
         if (saved.isEmpty()) {
             grid.addView(TextView(this).apply { text = "No Saved Styles"; setTextColor(Color.GRAY) })
         }
@@ -1277,6 +1313,17 @@ class EditorActivity : AppCompatActivity() {
 
                         layer.color = style.color
                         layer.fontSize = style.fontSize
+                        layer.fontPath = style.fontPath
+                        // Resolve typeface if fontPath exists?
+                        // StyleManager just holds data. Editor needs to load font.
+                        if (style.fontPath != null) {
+                             val found = FontManager.getStandardFonts(this@EditorActivity).find { it.name == style.fontPath }
+                                 ?: FontManager.getCustomFonts(this@EditorActivity).find { it.path == style.fontPath }
+
+                             if (found != null) {
+                                 layer.typeface = found.typeface
+                             }
+                        }
                         layer.typeface = style.typeface
                         layer.opacity = style.opacity
                         layer.shadowColor = style.shadowColor

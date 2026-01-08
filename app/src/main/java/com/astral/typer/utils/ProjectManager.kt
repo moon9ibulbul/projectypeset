@@ -123,23 +123,49 @@ object ProjectManager {
             val json = gson.toJson(projectData)
             File(tempDir, "project.json").writeText(json)
 
-            // 4. Zip to Target (Attempt Primary Public Path first)
+            // 4. Zip to Target (Try MediaStore for Public Access on Q+, else legacy File)
             val cleanName = projectName.trim()
-            val primaryFile = getPublicProjectFile(cleanName)
-
             var success = false
-            try {
-                // Ensure parent directory exists
-                primaryFile.parentFile?.let {
-                    if (!it.exists()) it.mkdirs()
+
+            // Attempt MediaStore save (Primary for Android 10+)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$cleanName.atd")
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/zip") // or application/octet-stream
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/AstralTyper/Project")
+                    }
+                    val resolver = context.contentResolver
+                    val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { out ->
+                            // Zip directly to the output stream?
+                            // We have a tempDir. We can zip tempDir to a temp file then copy?
+                            // Or zip directly to 'out'.
+                            ZipOutputStream(out).use { zipOut ->
+                                zipFile(tempDir, tempDir.name, zipOut)
+                            }
+                        }
+                        success = true
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    success = false
                 }
-                success = zipFolder(tempDir, primaryFile)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                success = false
+            } else {
+                // Legacy Android < 10: Use direct File
+                try {
+                    val primaryFile = getPublicProjectFile(cleanName)
+                    primaryFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+                    success = zipFolder(tempDir, primaryFile)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    success = false
+                }
             }
 
-            // 5. Fallback to App-Specific Storage if Primary failed
+            // 5. Fallback to App-Specific Storage if Primary failed (Scoped Storage or Permission denied)
             if (!success) {
                 val fallbackFile = getPrivateProjectFile(context, cleanName)
                 fallbackFile.parentFile?.let { if (!it.exists()) it.mkdirs() }

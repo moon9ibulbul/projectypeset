@@ -80,6 +80,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnImportImage.setOnClickListener {
             getContent.launch("image/*")
         }
+
+        binding.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
     }
 
     override fun onResume() {
