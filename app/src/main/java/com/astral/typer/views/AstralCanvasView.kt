@@ -1282,7 +1282,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     // Cut Mode Handling
                     if (cutPoints != null && layer is ImageLayer) {
                         val pts = cutPoints!!
-                        val hitRadius = 40f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
+                        val hitRadius = 60f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f) // Increased hit radius
                         if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.CUT_DRAG_TL; return true }
                         if (getDistance(lx, ly, pts[2], pts[3]) < hitRadius) { currentMode = Mode.CUT_DRAG_TR; return true }
                         if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.CUT_DRAG_BR; return true }
@@ -1482,26 +1482,75 @@ class AstralCanvasView @JvmOverloads constructor(
                     // Perspective Drag Logic
                     // Cut Mode Drag
                     if (cutPoints != null && layer is ImageLayer) {
-                         val localPoint = floatArrayOf(cx, cy)
-                         val globalToLocal = Matrix()
-                         globalToLocal.postTranslate(-layer.x, -layer.y)
-                         globalToLocal.postRotate(-layer.rotation)
-                         globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
-                         globalToLocal.mapPoints(localPoint)
+                        val localPoint = floatArrayOf(cx, cy)
+                        val globalToLocal = Matrix()
+                        globalToLocal.postTranslate(-layer.x, -layer.y)
+                        globalToLocal.postRotate(-layer.rotation)
+                        globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
+                        globalToLocal.mapPoints(localPoint)
 
-                         val lx = localPoint[0]
-                         val ly = localPoint[1]
-                         val pts = cutPoints!!
+                        val lx = localPoint[0]
+                        val ly = localPoint[1]
+                        val pts = cutPoints!!
 
-                         when(currentMode) {
-                             Mode.CUT_DRAG_TL -> { pts[0] = lx; pts[1] = ly }
-                             Mode.CUT_DRAG_TR -> { pts[2] = lx; pts[3] = ly }
-                             Mode.CUT_DRAG_BR -> { pts[4] = lx; pts[5] = ly }
-                             Mode.CUT_DRAG_BL -> { pts[6] = lx; pts[7] = ly }
-                             else -> {}
-                         }
-                         invalidate()
-                         return true
+                        // Image Bounds (Local Space centered at 0,0)
+                        val w = layer.getWidth()
+                        val h = layer.getHeight()
+                        val boundLeft = -w / 2f
+                        val boundRight = w / 2f
+                        val boundTop = -h / 2f
+                        val boundBottom = h / 2f
+
+                        // Constraint helper
+                        fun constrain(v: Float, min: Float, max: Float): Float {
+                            return v.coerceIn(min, max)
+                        }
+
+                        when (currentMode) {
+                            Mode.CUT_DRAG_TL -> {
+                                val newX = constrain(lx, boundLeft, pts[2] - 10) // Must be left of TR
+                                val newY = constrain(ly, boundTop, pts[7] - 10)  // Must be above BL (pts[7] is BL Y)
+                                // Update TL
+                                pts[0] = newX; pts[1] = newY
+                                // Update related corners to maintain rectangle
+                                pts[6] = newX // BL X follows TL X
+                                pts[3] = newY // TR Y follows TL Y
+                            }
+
+                            Mode.CUT_DRAG_TR -> {
+                                val newX = constrain(lx, pts[0] + 10, boundRight) // Must be right of TL
+                                val newY = constrain(ly, boundTop, pts[5] - 10)   // Must be above BR (pts[5] is BR Y)
+                                // Update TR
+                                pts[2] = newX; pts[3] = newY
+                                // Update related corners
+                                pts[4] = newX // BR X follows TR X
+                                pts[1] = newY // TL Y follows TR Y
+                            }
+
+                            Mode.CUT_DRAG_BR -> {
+                                val newX = constrain(lx, pts[6] + 10, boundRight) // Must be right of BL
+                                val newY = constrain(ly, pts[3] + 10, boundBottom) // Must be below TR (pts[3] is TR Y)
+                                // Update BR
+                                pts[4] = newX; pts[5] = newY
+                                // Update related corners
+                                pts[2] = newX // TR X follows BR X
+                                pts[7] = newY // BL Y follows BR Y
+                            }
+
+                            Mode.CUT_DRAG_BL -> {
+                                val newX = constrain(lx, boundLeft, pts[4] - 10) // Must be left of BR
+                                val newY = constrain(ly, pts[1] + 10, boundBottom) // Must be below TL (pts[1] is TL Y)
+                                // Update BL
+                                pts[6] = newX; pts[7] = newY
+                                // Update related corners
+                                pts[0] = newX // TL X follows BL X
+                                pts[5] = newY // BR Y follows BL Y
+                            }
+
+                            else -> {}
+                        }
+                        invalidate()
+                        return true
                     }
 
                     if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
