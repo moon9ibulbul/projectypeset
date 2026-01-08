@@ -41,6 +41,7 @@
         android:textColor="@color/white"
         android:layout_marginStart="40dp"
         android:layout_marginBottom="8dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/recentRecycler"
         app:layout_constraintStart_toStartOf="parent"/>
 
@@ -50,6 +51,7 @@
         android:layout_height="120dp"
         android:layout_marginHorizontal="30dp"
         android:layout_marginBottom="32dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/btnNewProject"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
