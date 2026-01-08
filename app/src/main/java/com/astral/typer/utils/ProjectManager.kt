@@ -51,6 +51,12 @@ object ProjectManager {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
+    sealed class LoadResult {
+        data class Success(val projectData: ProjectData, val images: Map<String, Bitmap>) : LoadResult()
+        data class MissingAssets(val projectData: ProjectData, val images: Map<String, Bitmap>, val missingFonts: List<String>) : LoadResult()
+        data class Error(val message: String) : LoadResult()
+    }
+
     fun saveProject(
         context: Context,
         layers: List<Layer>,
@@ -65,7 +71,8 @@ object ProjectManager {
             val tempDir = File(context.cacheDir, "temp_save")
             if (tempDir.exists()) tempDir.deleteRecursively()
             if (!tempDir.mkdirs()) {
-                if (!tempDir.exists()) return false // Failed to create temp dir
+                // Try again if deleteRecursively didn't finish immediately or failed partially
+                if (!tempDir.exists() && !tempDir.mkdirs()) return false
             }
 
             val imagesDir = File(tempDir, "images")
@@ -91,6 +98,7 @@ object ProjectManager {
                         text = layer.text.toString(),
                         color = layer.color,
                         fontSize = layer.fontSize,
+                        fontName = layer.fontPath, // Save Font Path
                         boxWidth = layer.boxWidth,
                         // Basic Shadow
                         shadowColor = layer.shadowColor,
@@ -132,30 +140,30 @@ object ProjectManager {
     }
 
     private fun getProjectFile(name: String): File {
-        val root = File(Environment.getExternalStorageDirectory(), "Pictures/AstralTyper/Project")
+        val root = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
         if (!root.exists()) root.mkdirs()
         return File(root, "$name.atd")
     }
 
     fun getRecentProjects(): List<File> {
-        val root = File(Environment.getExternalStorageDirectory(), "Pictures/AstralTyper/Project")
+        val root = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
         if (!root.exists()) return emptyList()
         return root.listFiles { file -> file.extension == "atd" }
             ?.sortedByDescending { it.lastModified() }
             ?.take(10) ?: emptyList()
     }
 
-    fun loadProject(context: Context, file: File): Pair<ProjectData, Map<String, Bitmap>>? {
+    fun loadProject(context: Context, file: File): LoadResult {
          // 1. Unzip to temp
         val tempDir = File(context.cacheDir, "temp_load")
         if (tempDir.exists()) tempDir.deleteRecursively()
         tempDir.mkdirs()
 
-        if (!unzip(file, tempDir)) return null
+        if (!unzip(file, tempDir)) return LoadResult.Error("Failed to unzip project file")
 
         // 2. Read JSON
         val jsonFile = File(tempDir, "project.json")
-        if (!jsonFile.exists()) return null
+        if (!jsonFile.exists()) return LoadResult.Error("Invalid project structure: project.json missing")
 
         val projectData = gson.fromJson(jsonFile.readText(), ProjectData::class.java)
 
@@ -175,7 +183,51 @@ object ProjectManager {
             }
         }
 
-        return Pair(projectData, imageMap)
+        // 4. Verify Fonts
+        val missingFonts = mutableSetOf<String>()
+        val availableFonts = FontManager.getStandardFonts(context) + FontManager.getCustomFonts(context)
+        val availableFontNames = availableFonts.map { if(it.isCustom) it.path else it.name } // Identifier logic
+
+        for (layer in projectData.layers) {
+            if (layer.type == "TEXT" && !layer.fontName.isNullOrEmpty()) {
+                val fontIdentifier = layer.fontName
+                // Check if this identifier exists in current available fonts
+                // Logic:
+                // Standard fonts: stored as "Name" (e.g. "Serif")
+                // Custom fonts: stored as path? If path is absolute "/sdcard/...", it might fail on other device.
+                // If it fails, we treat it as missing.
+
+                // Better check:
+                // If standard name matches any standard name -> OK
+                // If path, check file existence.
+
+                val exists = availableFonts.any {
+                    if (it.isCustom) it.path == fontIdentifier // Path match
+                    else it.name == fontIdentifier // Name match
+                }
+
+                if (!exists) {
+                    // Try by name for custom fonts as fallback?
+                    // If stored path is "/old/path/font.ttf" and we have "/new/path/font.ttf" with same name?
+                    // Not guaranteed.
+
+                    // Simple check: File existence if it looks like a path
+                    val asFile = File(fontIdentifier)
+                    if (asFile.isAbsolute) {
+                        if (!asFile.exists()) missingFonts.add(fontIdentifier)
+                    } else {
+                        // It's a name, and not found in standard list
+                         missingFonts.add(fontIdentifier)
+                    }
+                }
+            }
+        }
+
+        if (missingFonts.isNotEmpty()) {
+            return LoadResult.MissingAssets(projectData, imageMap, missingFonts.toList())
+        }
+
+        return LoadResult.Success(projectData, imageMap)
     }
 
     private fun saveBitmap(bitmap: Bitmap, file: File) {

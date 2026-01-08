@@ -26,6 +26,7 @@ class TextLayer(
     var text: SpannableStringBuilder = SpannableStringBuilder(initialText)
     var fontSize: Float = 100f
     var typeface: Typeface = Typeface.DEFAULT
+    var fontPath: String? = null // Identifier for the font (e.g., "Standard:Serif" or "/path/to/font.ttf")
     var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
     var isJustified: Boolean = false
 
@@ -100,6 +101,7 @@ class TextLayer(
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
         newLayer.typeface = this.typeface
+        newLayer.fontPath = this.fontPath
         newLayer.textAlign = this.textAlign
         newLayer.isJustified = this.isJustified
         newLayer.letterSpacing = this.letterSpacing
