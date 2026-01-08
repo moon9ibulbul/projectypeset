@@ -798,6 +798,14 @@ class EditorActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            // Check permissions for better chance at Public storage
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 1001)
+                    return@setOnClickListener
+                }
+            }
+
             // Capture Data on Main Thread
             val layers = canvasView.getLayers().toList()
             val bgBitmap = canvasView.getBackgroundImage()

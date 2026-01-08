@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecentProjects() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val projects = ProjectManager.getRecentProjects()
+            val projects = ProjectManager.getRecentProjects(this@MainActivity)
             withContext(Dispatchers.Main) {
                 if (projects.isNotEmpty()) {
                     binding.tvRecentLabel.visibility = View.VISIBLE

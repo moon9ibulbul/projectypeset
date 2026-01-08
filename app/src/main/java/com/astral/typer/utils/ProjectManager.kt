@@ -123,34 +123,71 @@ object ProjectManager {
             val json = gson.toJson(projectData)
             File(tempDir, "project.json").writeText(json)
 
-            // 4. Zip to Target
+            // 4. Zip to Target (Attempt Primary Public Path first)
             val cleanName = projectName.trim()
-            val targetFile = getProjectFile(cleanName)
+            val primaryFile = getPublicProjectFile(cleanName)
 
-            // Ensure parent directory exists
-            targetFile.parentFile?.let {
-                if (!it.exists()) it.mkdirs()
+            var success = false
+            try {
+                // Ensure parent directory exists
+                primaryFile.parentFile?.let {
+                    if (!it.exists()) it.mkdirs()
+                }
+                success = zipFolder(tempDir, primaryFile)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                success = false
             }
 
-            return zipFolder(tempDir, targetFile)
+            // 5. Fallback to App-Specific Storage if Primary failed
+            if (!success) {
+                val fallbackFile = getPrivateProjectFile(context, cleanName)
+                fallbackFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+                success = zipFolder(tempDir, fallbackFile)
+            }
+
+            return success
         } catch (e: Exception) {
             e.printStackTrace()
             return false
         }
     }
 
-    private fun getProjectFile(name: String): File {
+    private fun getPublicProjectFile(name: String): File {
         val root = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        // Try to create if not exists
+        try {
+            if (!root.exists()) root.mkdirs()
+        } catch (e: Exception) { e.printStackTrace() }
+        return File(root, "$name.atd")
+    }
+
+    private fun getPrivateProjectFile(context: Context, name: String): File {
+        val root = context.getExternalFilesDir("Projects") ?: File(context.filesDir, "Projects")
         if (!root.exists()) root.mkdirs()
         return File(root, "$name.atd")
     }
 
-    fun getRecentProjects(): List<File> {
-        val root = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
-        if (!root.exists()) return emptyList()
-        return root.listFiles { file -> file.extension == "atd" }
-            ?.sortedByDescending { it.lastModified() }
-            ?.take(10) ?: emptyList()
+    fun getRecentProjects(context: Context? = null): List<File> {
+        val projects = mutableListOf<File>()
+
+        // 1. Scan Public Dir
+        val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        if (publicRoot.exists()) {
+             publicRoot.listFiles { file -> file.extension == "atd" }?.let { projects.addAll(it) }
+        }
+
+        // 2. Scan Private Dir (Fallback)
+        if (context != null) {
+             val privateRoot = context.getExternalFilesDir("Projects")
+             if (privateRoot != null && privateRoot.exists()) {
+                  privateRoot.listFiles { file -> file.extension == "atd" }?.let { projects.addAll(it) }
+             }
+        }
+
+        return projects.sortedByDescending { it.lastModified() }
+            .distinctBy { it.name } // Avoid duplicates if same name exists? Unlikely with paths, but safe.
+            .take(10)
     }
 
     fun loadProject(context: Context, file: File): LoadResult {
