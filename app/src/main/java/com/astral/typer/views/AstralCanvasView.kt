@@ -707,6 +707,12 @@ class AstralCanvasView @JvmOverloads constructor(
         val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
         canvas.drawRect(box, paint)
 
+        // Hide handles if in Erase Mode
+        if (currentMode == Mode.ERASE_LAYER) {
+            canvas.restore()
+            return
+        }
+
         // --- Draw Handles ---
         fun drawHandle(x: Float, y: Float, color: Int) {
             handlePaint.color = color
@@ -965,7 +971,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     val ly = localPoint[1]
 
                     // Warp Mode Handling
-                    if (layer is TextLayer && layer.isWarp) {
+                    if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
                          val mesh = layer.warpMesh
                          if (mesh != null) {
                              val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
@@ -1041,6 +1047,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
                         if (getDistance(lx, ly, halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                            com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.ROTATE_LAYER
                             initialRotation = layer.rotation
                             centerX = layer.x
@@ -1049,6 +1056,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
                         if (getDistance(lx, ly, halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
+                            com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.RESIZE_LAYER
                             initialScaleX = layer.scaleX
                             initialScaleY = layer.scaleY
@@ -1058,6 +1066,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
                         if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, 0f) <= hitRadius) {
+                            com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_H
                             initialScaleX = layer.scaleX
                             centerX = layer.x
@@ -1066,6 +1075,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
                         if (getDistance(lx, ly, 0f, halfH + HANDLE_OFFSET) <= hitRadius) {
+                            com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_V
                             initialScaleY = layer.scaleY
                             centerX = layer.x
@@ -1074,7 +1084,14 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
                         if (layer is TextLayer && getDistance(lx, ly, halfW + HANDLE_OFFSET, 0f) <= hitRadius) {
+                            com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.BOX_WIDTH
+                            // Reset warp and perspective to prevent stretching
+                            layer.isWarp = false
+                            layer.isPerspective = false
+                            layer.warpMesh = null
+                            layer.perspectivePoints = null
+
                             initialBoxWidth = layer.getWidth()
                             centerX = layer.x
                             centerY = layer.y
@@ -1089,10 +1106,15 @@ class AstralCanvasView @JvmOverloads constructor(
                 if (hitLayer != null) {
                     wasSelectedInitially = (selectedLayer == hitLayer)
                     selectLayer(hitLayer)
-                    currentMode = Mode.DRAG_LAYER
-                    lastTouchX = cx
-                    lastTouchY = cy
-                    invalidate()
+                    if (currentMode != Mode.NONE) {
+                        // Already in a mode (e.g. handles), do nothing
+                    } else {
+                        com.astral.typer.utils.UndoManager.saveState(layers)
+                        currentMode = Mode.DRAG_LAYER
+                        lastTouchX = cx
+                        lastTouchY = cy
+                        invalidate()
+                    }
                 } else {
                     currentMode = Mode.NONE
                     invalidate()
