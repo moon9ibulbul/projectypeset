@@ -16,6 +16,7 @@ import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.StaticLayout
 import android.text.TextPaint
+import java.util.Random
 import kotlin.math.ceil
 
 class TextLayer(
@@ -81,6 +82,9 @@ class TextLayer(
     // Effect
     var currentEffect: TextEffectType = TextEffectType.NONE
 
+    // Random Seed for Glitch effect
+    var effectSeed: Long = System.currentTimeMillis()
+
     // Caching for Pixelation
     @Transient
     private var cachedPixelBitmap: Bitmap? = null
@@ -143,7 +147,7 @@ class TextLayer(
         newLayer.warpCols = this.warpCols
         newLayer.warpMesh = this.warpMesh?.clone()
 
-        newLayer.textureBitmap = this.textureBitmap // Bitmap references are shared usually
+        newLayer.textureBitmap = this.textureBitmap
         newLayer.textureOffsetX = this.textureOffsetX
         newLayer.textureOffsetY = this.textureOffsetY
 
@@ -152,6 +156,7 @@ class TextLayer(
         }
 
         newLayer.currentEffect = this.currentEffect
+        newLayer.effectSeed = this.effectSeed
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -446,21 +451,12 @@ class TextLayer(
             paint.shader = gradientShader
             paint.color = Color.WHITE
         } else if (textureBitmap != null) {
-            // Texture is already set in ensureLayout (textPaint), but we need to ensure layout paint has it
-            // StaticLayout copies paint.
-            // But we might need to refresh it if it was lost?
-            // ensureLayout sets textPaint.shader. Layout uses it.
-            // But here we are setting paint.shader manually for gradient, overriding layout paint?
-            // Yes, layout.draw(canvas) uses the paint from the layout object.
-            // But we are modifying 'paint' which comes from 'layout.paint'.
-            // So if we set paint.shader = null, we remove the texture.
-            // We should check textureBitmap.
              val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
              val matrix = Matrix()
              matrix.postTranslate(textureOffsetX, textureOffsetY)
              shader.setLocalMatrix(matrix)
              paint.shader = shader
-             paint.color = Color.WHITE // Texture needs white base usually
+             paint.color = Color.WHITE
         } else {
             paint.shader = null
             paint.color = color
@@ -508,21 +504,14 @@ class TextLayer(
              val scaledW = (w * scaleFactor).toInt().coerceAtLeast(1)
              val scaledH = (h * scaleFactor).toInt().coerceAtLeast(1)
 
-             // Check if cache is valid
              val currentHash = text.hashCode() + w.toInt() + h.toInt() + color + fontSize.toInt()
 
              if (cachedPixelBitmap == null || cachedPixelBitmap!!.width != scaledW || cachedPixelBitmap!!.height != scaledH || cachedPixelHash != currentHash) {
-                 // Recycle old if exists (and different size/content)
                  cachedPixelBitmap?.recycle()
 
-                 // Create temp bitmap for low-res
                  val tempBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
                  val tempCanvas = Canvas(tempBitmap)
-
-                 // Scale canvas to fit drawing into small bitmap
                  tempCanvas.scale(scaleFactor, scaleFactor)
-
-                 // Draw text to small bitmap
                  layout.draw(tempCanvas)
 
                  cachedPixelBitmap = tempBitmap
@@ -530,44 +519,65 @@ class TextLayer(
              }
 
              if (cachedPixelBitmap != null && !cachedPixelBitmap!!.isRecycled) {
-                 // Draw scaled up
                  val pixelPaint = Paint()
-                 pixelPaint.isFilterBitmap = false // Nearest Neighbor
-
-                 // Draw back to main canvas, scaling up to original size
+                 pixelPaint.isFilterBitmap = false
                  val destRect = RectF(0f, 0f, w, h)
                  canvas.drawBitmap(cachedPixelBitmap!!, null, destRect, pixelPaint)
              }
 
         } else if (currentEffect == TextEffectType.GLITCH) {
-             val w = getWidth()
-             val h = getHeight()
-             // Slice 1: Top 30%, Shift Left -10
-             canvas.save()
-             canvas.clipRect(0f, 0f, w, h * 0.3f)
-             canvas.translate(-10f, 0f)
-             layout.draw(canvas)
-             canvas.restore()
+            val random = Random(effectSeed)
+            val w = getWidth()
+            val h = getHeight()
 
-             // Slice 2: Middle 40%, Shift Right 15
-             canvas.save()
-             canvas.clipRect(0f, h * 0.3f, w, h * 0.7f)
-             canvas.translate(15f, 0f)
-             // Optional: Change color for middle slice? "Color: Cyan or Original"
-             // Let's use Original for basic implementation as per instruction "Draw Text (Color: Cyan or Original)"
-             // If we want Cyan, we'd need to change paint color. Let's stick to original for now unless stronger effect desired.
-             // But let's follow the "Cyan or Original" hint to make it look glitchier.
-             // However, modifying layout paint here might be complex if we want to restore it perfectly without impacting other draws if they were recursive.
-             // For safety and simplicity of "slice", original color is fine.
-             layout.draw(canvas)
-             canvas.restore()
+            // 1. Draw Base Layer (Anchor)
+            val originalAlpha = paint.alpha
+            paint.alpha = 200 // Slight opacity as suggested
+            layout.draw(canvas)
+            paint.alpha = originalAlpha // Restore
 
-             // Slice 3: Bottom 30%, Shift Left -5
-             canvas.save()
-             canvas.clipRect(0f, h * 0.7f, w, h)
-             canvas.translate(-5f, 0f)
-             layout.draw(canvas)
-             canvas.restore()
+            // 2. Generate Chaos Layers
+            val numSlices = random.nextInt(11) + 10 // 10 to 20 slices
+
+            // Save original state for restoration inside loop
+            val savedColor = paint.color
+            val savedXfermode = paint.xfermode
+            val savedShader = paint.shader
+
+            for (i in 0 until numSlices) {
+                // Calculate Random Slice Zone
+                val sliceHeight = h * (0.02f + random.nextFloat() * 0.08f) // 2% to 10%
+                val sliceTop = random.nextFloat() * (h - sliceHeight)
+                val sliceBottom = sliceTop + sliceHeight
+
+                // Calculate Aggressive Offset
+                val xOffset = (random.nextFloat() - 0.5f) * 60f // -30px to +30px
+
+                // Select Channel Color
+                val channel = i % 3
+                val channelColor = when(channel) {
+                    0 -> 0xFFFF0000.toInt() // Red
+                    1 -> 0xFF00FFFF.toInt() // Cyan/Blue
+                    else -> 0xFF00FF00.toInt() // Green/Original
+                }
+
+                // Draw the Slice
+                canvas.save()
+                canvas.clipRect(0f, sliceTop, w, sliceBottom)
+                canvas.translate(xOffset, 0f)
+
+                paint.color = channelColor
+                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+                paint.shader = null // Remove gradient/texture for pure RGB split
+
+                layout.draw(canvas)
+                canvas.restore()
+            }
+
+            // Restore paint state
+            paint.color = savedColor
+            paint.xfermode = savedXfermode
+            paint.shader = savedShader
 
         } else if (currentEffect == TextEffectType.NEON) {
              val originalColor = paint.color
@@ -576,7 +586,7 @@ class TextLayer(
 
              // Step 1: Draw Glow
              paint.style = Paint.Style.FILL
-             paint.color = color // Text Color
+             paint.color = color
              paint.maskFilter = BlurMaskFilter(30f, BlurMaskFilter.Blur.NORMAL)
 
              layout.draw(canvas)
@@ -618,11 +628,6 @@ class TextLayer(
         if (eraseMask != null) {
             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            // Mask is drawn at 0,0 relative to content
-            // Need to scale mask to fit content? Or assume mask matches content size?
-            // We'll assume mask matches box dimensions.
-            // If text grew, mask might be smaller.
-            // We should draw it.
             canvas.drawBitmap(eraseMask!!, 0f, 0f, maskPaint)
         }
     }

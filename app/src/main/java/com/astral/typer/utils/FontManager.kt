@@ -14,7 +14,7 @@ object FontManager {
 
     data class FontItem(
         val name: String,
-        val path: String?, // Null for system/assets
+        val path: String?, // Null for system, "fonts/xxx" for assets, absolute path for custom
         val typeface: Typeface,
         var isFavorite: Boolean = false,
         val isCustom: Boolean = false
@@ -27,6 +27,24 @@ object FontManager {
         list.add(FontItem("Serif", null, Typeface.SERIF))
         list.add(FontItem("Sans Serif", null, Typeface.SANS_SERIF))
         list.add(FontItem("Monospace", null, Typeface.MONOSPACE))
+
+        // Asset Fonts
+        try {
+            val assetFonts = context.assets.list("fonts")
+            assetFonts?.forEach { filename ->
+                if (filename.endsWith(".ttf", true) || filename.endsWith(".otf", true)) {
+                    try {
+                        val tf = Typeface.createFromAsset(context.assets, "fonts/$filename")
+                        val name = filename.substringBeforeLast(".")
+                        list.add(FontItem(name, "fonts/$filename", tf))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         // Check favorites
         val favorites = getFavorites(context)
