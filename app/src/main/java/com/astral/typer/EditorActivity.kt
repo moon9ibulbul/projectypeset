@@ -190,7 +190,11 @@ class EditorActivity : AppCompatActivity() {
          canvasView.initCanvas(proj.canvasWidth, proj.canvasHeight, proj.canvasColor)
 
          // Restore background
-         if (images.containsKey("background")) {
+         if (images.containsKey("images/background.png")) {
+             canvasView.setBackgroundImage(images["images/background.png"]!!)
+         } else if (images.containsKey("background.png")) {
+             canvasView.setBackgroundImage(images["background.png"]!!)
+         } else if (images.containsKey("background")) {
              canvasView.setBackgroundImage(images["background"]!!)
          }
 
@@ -2316,8 +2320,20 @@ class EditorActivity : AppCompatActivity() {
             styleButtons.forEach { btn ->
                 val type = btn.tag as String
                 val isActive = when(type) {
-                    "B" -> layer.typeface.isBold
-                    "I" -> layer.typeface.isItalic
+                    "B" -> {
+                        val et = activeEditText
+                        if (et != null && et.text.isNotEmpty()) {
+                            val spans = et.text.getSpans(0, et.text.length, StyleSpan::class.java)
+                            spans.any { it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC }
+                        } else layer.typeface.isBold
+                    }
+                    "I" -> {
+                        val et = activeEditText
+                        if (et != null && et.text.isNotEmpty()) {
+                            val spans = et.text.getSpans(0, et.text.length, StyleSpan::class.java)
+                            spans.any { it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC }
+                        } else layer.typeface.isItalic
+                    }
                     "U" -> {
                         val et = activeEditText
                         if (et != null && et.text.isNotEmpty()) {
