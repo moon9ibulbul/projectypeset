@@ -62,6 +62,18 @@ class AstralCanvasView @JvmOverloads constructor(
     private var isInpaintMode = false
     private var isWarpToolActive = false
 
+    // Grid Snap
+    private var showVerticalCenterLine = false
+    private var showHorizontalCenterLine = false
+    private val snapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+    }
+
+    // Cut Mode
+    private var cutPoints: FloatArray? = null
+
     // Layer Erase Settings
     var layerEraseSize = 50f
     var layerEraseOpacity = 255
@@ -204,6 +216,105 @@ class AstralCanvasView @JvmOverloads constructor(
             currentMode = Mode.NONE
         }
         invalidate()
+    }
+
+    fun enterCutMode() {
+        if (selectedLayer is ImageLayer) {
+            val layer = selectedLayer as ImageLayer
+            val w = layer.getWidth()
+            val h = layer.getHeight()
+            // Init points relative to layer center (Local Space)
+            cutPoints = floatArrayOf(
+                -w/2f, -h/2f, // TL
+                w/2f, -h/2f,  // TR
+                w/2f, h/2f,   // BR
+                -w/2f, h/2f   // BL
+            )
+            invalidate()
+        }
+    }
+
+    fun exitCutMode() {
+        cutPoints = null
+        currentMode = Mode.NONE
+        invalidate()
+    }
+
+    fun applyCut() {
+        val layer = selectedLayer as? ImageLayer ?: return
+        val pts = cutPoints ?: return
+
+        // pts are in local layer space relative to (0,0) center.
+        // We need to map them to Bitmap coordinates.
+        // Bitmap (0,0) corresponds to local (-w/2, -h/2).
+        val w = layer.getWidth()
+        val h = layer.getHeight()
+        val offsetX = w / 2f
+        val offsetY = h / 2f
+
+        val path = Path()
+        path.moveTo(pts[0] + offsetX, pts[1] + offsetY)
+        path.lineTo(pts[2] + offsetX, pts[3] + offsetY)
+        path.lineTo(pts[4] + offsetX, pts[5] + offsetY)
+        path.lineTo(pts[6] + offsetX, pts[7] + offsetY)
+        path.close()
+
+        // Calculate bounding box of the cut path
+        val bounds = RectF()
+        path.computeBounds(bounds, true)
+
+        if (bounds.width() <= 0 || bounds.height() <= 0) return
+
+        // Create new bitmap
+        try {
+            val newBitmap = android.graphics.Bitmap.createBitmap(
+                bounds.width().toInt(),
+                bounds.height().toInt(),
+                android.graphics.Bitmap.Config.ARGB_8888
+            )
+            val canvas = Canvas(newBitmap)
+
+            // Translate so that the top-left of the bounds is at (0,0)
+            canvas.translate(-bounds.left, -bounds.top)
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+            // Draw path as mask
+            canvas.drawPath(path, paint)
+
+            // Draw original bitmap with SRC_IN to keep only intersection
+            paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+            canvas.drawBitmap(layer.bitmap, 0f, 0f, paint)
+
+            // Update Layer
+            com.astral.typer.utils.UndoManager.saveState(layers) // Save before modifying
+            layer.bitmap = newBitmap
+
+            // We need to adjust layer position because the center has changed!
+            // The new center relative to the old top-left is bounds.center()
+            // Old center was (w/2, h/2).
+            // The cut center in old local coords is bounds.centerX() - offsetX, bounds.centerY() - offsetY.
+
+            val localCenterShiftX = bounds.centerX() - offsetX
+            val localCenterShiftY = bounds.centerY() - offsetY
+
+            // Transform shift to global
+            val rad = Math.toRadians(layer.rotation.toDouble())
+            val cos = Math.cos(rad)
+            val sin = Math.sin(rad)
+
+            val globalShiftX = (localCenterShiftX * layer.scaleX * cos - localCenterShiftY * layer.scaleY * sin).toFloat()
+            val globalShiftY = (localCenterShiftX * layer.scaleX * sin + localCenterShiftY * layer.scaleY * cos).toFloat()
+
+            layer.x += globalShiftX
+            layer.y += globalShiftY
+
+            // Reset state
+            exitCutMode()
+
+        } catch (e: Exception) {
+            android.util.Log.e("AstralCanvasView", "Cut Failed", e)
+        }
     }
 
     fun getViewportCenter(): FloatArray {
@@ -418,7 +529,11 @@ class AstralCanvasView @JvmOverloads constructor(
         PERSPECTIVE_DRAG_BL,
         INPAINT,
         WARP_DRAG,
-        ERASE_LAYER
+        ERASE_LAYER,
+        CUT_DRAG_TL,
+        CUT_DRAG_TR,
+        CUT_DRAG_BR,
+        CUT_DRAG_BL
     }
 
     private var currentMode = Mode.NONE
@@ -529,6 +644,7 @@ class AstralCanvasView @JvmOverloads constructor(
             onLayerSelectedListener?.onLayerSelected(layer)
             // Reset mode on selection change
             isPerspectiveMode = false
+            exitCutMode()
             (layer as? TextLayer)?.isPerspective = false
             invalidate()
         } else {
@@ -670,6 +786,18 @@ class AstralCanvasView @JvmOverloads constructor(
 
         canvas.restore()
 
+        // Draw Grid Lines (Snap) - In Screen Space for constant thickness
+        if (showVerticalCenterLine) {
+            val pts = floatArrayOf(canvasWidth / 2f, 0f, canvasWidth / 2f, canvasHeight.toFloat())
+            viewMatrix.mapPoints(pts)
+            canvas.drawLine(pts[0], pts[1], pts[2], pts[3], snapPaint)
+        }
+        if (showHorizontalCenterLine) {
+            val pts = floatArrayOf(0f, canvasHeight / 2f, canvasWidth.toFloat(), canvasHeight / 2f)
+            viewMatrix.mapPoints(pts)
+            canvas.drawLine(pts[0], pts[1], pts[2], pts[3], snapPaint)
+        }
+
         // Draw Eyedropper UI (Overlay on top of everything)
         if (currentMode == Mode.EYEDROPPER) {
              // 1. Crosshair (In Screen Space)
@@ -746,6 +874,34 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.translate(layer.x, layer.y)
         canvas.rotate(layer.rotation)
         canvas.scale(layer.scaleX, layer.scaleY)
+
+        // If Cut Mode
+        if (cutPoints != null && layer is ImageLayer) {
+             val pts = cutPoints!!
+             // Draw connecting lines (Mask boundary)
+             paint.style = Paint.Style.STROKE
+             paint.color = Color.MAGENTA
+             paint.strokeWidth = 2f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f) // Scale stroke
+             val path = Path()
+             path.moveTo(pts[0], pts[1])
+             path.lineTo(pts[2], pts[3])
+             path.lineTo(pts[4], pts[5])
+             path.lineTo(pts[6], pts[7])
+             path.close()
+             canvas.drawPath(path, paint)
+
+             // Draw 4 handles
+             val handleRadius = 20f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
+             handlePaint.color = Color.MAGENTA
+
+             canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint) // TL
+             canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint) // TR
+             canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint) // BR
+             canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint) // BL
+
+             canvas.restore()
+             return
+        }
 
         // If Warp Mode
         if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
@@ -1123,6 +1279,18 @@ class AstralCanvasView @JvmOverloads constructor(
                     val lx = localPoint[0]
                     val ly = localPoint[1]
 
+                    // Cut Mode Handling
+                    if (cutPoints != null && layer is ImageLayer) {
+                        val pts = cutPoints!!
+                        val hitRadius = 40f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
+                        if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.CUT_DRAG_TL; return true }
+                        if (getDistance(lx, ly, pts[2], pts[3]) < hitRadius) { currentMode = Mode.CUT_DRAG_TR; return true }
+                        if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.CUT_DRAG_BR; return true }
+                        if (getDistance(lx, ly, pts[6], pts[7]) < hitRadius) { currentMode = Mode.CUT_DRAG_BL; return true }
+                        // Consume touch in Cut Mode even if not hitting handle (to prevent bg selection)
+                        return true
+                    }
+
                     // Warp Mode Handling
                     if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
                          val mesh = layer.warpMesh
@@ -1312,6 +1480,30 @@ class AstralCanvasView @JvmOverloads constructor(
                     }
 
                     // Perspective Drag Logic
+                    // Cut Mode Drag
+                    if (cutPoints != null && layer is ImageLayer) {
+                         val localPoint = floatArrayOf(cx, cy)
+                         val globalToLocal = Matrix()
+                         globalToLocal.postTranslate(-layer.x, -layer.y)
+                         globalToLocal.postRotate(-layer.rotation)
+                         globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
+                         globalToLocal.mapPoints(localPoint)
+
+                         val lx = localPoint[0]
+                         val ly = localPoint[1]
+                         val pts = cutPoints!!
+
+                         when(currentMode) {
+                             Mode.CUT_DRAG_TL -> { pts[0] = lx; pts[1] = ly }
+                             Mode.CUT_DRAG_TR -> { pts[2] = lx; pts[3] = ly }
+                             Mode.CUT_DRAG_BR -> { pts[4] = lx; pts[5] = ly }
+                             Mode.CUT_DRAG_BL -> { pts[6] = lx; pts[7] = ly }
+                             else -> {}
+                         }
+                         invalidate()
+                         return true
+                    }
+
                     if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
                          // We need to map global touch back to local space to update the points
                          val localPoint = floatArrayOf(cx, cy)
@@ -1348,10 +1540,39 @@ class AstralCanvasView @JvmOverloads constructor(
 
                     when (currentMode) {
                         Mode.DRAG_LAYER -> {
-                            val dx = cx - lastTouchX
-                            val dy = cy - lastTouchY
+                            var dx = cx - lastTouchX
+                            var dy = cy - lastTouchY
+
+                            val nextX = layer.x + dx
+                            val nextY = layer.y + dy
+
+                            // Snap Logic
+                            val snapThreshold = 20f
+                            var snappedX = false
+                            var snappedY = false
+
+                            if (abs(nextX - canvasWidth / 2f) < snapThreshold) {
+                                dx = (canvasWidth / 2f) - layer.x
+                                showVerticalCenterLine = true
+                                snappedX = true
+                            } else {
+                                showVerticalCenterLine = false
+                            }
+
+                            if (abs(nextY - canvasHeight / 2f) < snapThreshold) {
+                                dy = (canvasHeight / 2f) - layer.y
+                                showHorizontalCenterLine = true
+                                snappedY = true
+                            } else {
+                                showHorizontalCenterLine = false
+                            }
+
                             layer.x += dx
                             layer.y += dy
+                            // Update lastTouch to avoid jumps if not snapping,
+                            // but if snapping, we visually hold the object.
+                            // However, touch continues to move.
+                            // Standard behavior: lastTouch always follows finger.
                             lastTouchX = cx
                             lastTouchY = cy
                             invalidate()
@@ -1427,6 +1648,11 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_UP -> {
+                if (currentMode == Mode.DRAG_LAYER) {
+                    showVerticalCenterLine = false
+                    showHorizontalCenterLine = false
+                    invalidate()
+                }
                 if (currentMode == Mode.DRAG_LAYER && !hasMoved && wasSelectedInitially && selectedLayer != null) {
                     onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
                 }

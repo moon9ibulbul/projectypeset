@@ -64,6 +64,15 @@
             android:layout_marginEnd="24dp"/>
 
         <ImageView
+            android:id="@+id/btnCut"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_crop"
+            app:tint="@color/white"
+            android:layout_marginEnd="24dp"
+            android:visibility="gone"/>
+
+        <ImageView
             android:id="@+id/btnLayers"
             android:layout_width="24dp"
             android:layout_height="24dp"

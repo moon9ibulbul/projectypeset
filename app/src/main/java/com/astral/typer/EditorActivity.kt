@@ -61,6 +61,7 @@ class EditorActivity : AppCompatActivity() {
 
     private var isInpaintMode = false
     private var btnApplyInpaint: android.widget.Button? = null
+    private var btnApplyCut: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -255,6 +256,13 @@ class EditorActivity : AppCompatActivity() {
     private fun setupCanvasListeners() {
         canvasView.onLayerSelectedListener = object : AstralCanvasView.OnLayerSelectedListener {
             override fun onLayerSelected(layer: Layer?) {
+                // Show/Hide Cut Button
+                if (layer is ImageLayer) {
+                    binding.btnCut.visibility = View.VISIBLE
+                } else {
+                    binding.btnCut.visibility = View.GONE
+                }
+
                 if (layer != null) {
                     if (currentMenuType == "QUICK_EDIT") {
                         hidePropertyDetail()
@@ -430,6 +438,10 @@ class EditorActivity : AppCompatActivity() {
         // Top Bar
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSave.setOnClickListener { showSaveSidebar() }
+
+        binding.btnCut.setOnClickListener {
+            enterCutMode()
+        }
 
         binding.btnEraser.setOnClickListener {
             toggleInpaintMode()
@@ -711,6 +723,56 @@ class EditorActivity : AppCompatActivity() {
         }
 
         container.addView(layout)
+    }
+
+    private fun enterCutMode() {
+        canvasView.enterCutMode()
+
+        // Hide standard menus
+        binding.bottomMenuContainer.visibility = View.GONE
+        hidePropertyDetail()
+
+        // Show Apply/Cancel
+        val btn = android.widget.Button(this).apply {
+            text = "APPLY CUT"
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setTypeface(null, Typeface.BOLD)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#444444"))
+                cornerRadius = dpToPx(20).toFloat()
+                setStroke(dpToPx(2), Color.WHITE)
+            }
+            layoutParams = FrameLayout.LayoutParams(
+                dpToPx(140),
+                dpToPx(48)
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, dpToPx(32))
+            }
+            setOnClickListener {
+                canvasView.applyCut()
+                exitCutModeUI()
+            }
+        }
+        binding.canvasContainer.addView(btn)
+        btnApplyCut = btn
+
+        // Add Cancel button top-right? Or reuse back button logic?
+        // Let's add a simple X button on screen or rely on top bar?
+        // Top bar is still visible. But we might want to prevent other actions.
+        // Let's assume user presses Apply or Back.
+        // We should handle Back press to cancel cut mode if active.
+    }
+
+    private fun exitCutModeUI() {
+        btnApplyCut?.let {
+            binding.canvasContainer.removeView(it)
+            btnApplyCut = null
+        }
+        canvasView.exitCutMode()
+        binding.bottomMenuContainer.visibility = View.VISIBLE
+        showPropertiesMenu()
     }
 
     private val importTextureLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
