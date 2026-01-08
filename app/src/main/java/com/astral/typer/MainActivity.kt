@@ -139,28 +139,39 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-                            val file = projects[position]
                             val layout = holder.itemView as LinearLayout
                             val img = layout.getChildAt(0) as ImageView
                             val text = layout.getChildAt(1) as TextView
 
-                            text.text = file.nameWithoutExtension
-                            if (file.nameWithoutExtension == "autosave") {
-                                text.text = "Auto Save"
-                                text.setTextColor(Color.YELLOW)
+                            if (position == projects.size) {
+                                // View All Card
+                                text.text = "View All"
+                                text.setTextColor(Color.CYAN)
+                                img.setImageResource(android.R.drawable.ic_menu_view)
+                                img.setColorFilter(Color.CYAN)
+                                holder.itemView.setOnClickListener {
+                                    startActivity(Intent(this@MainActivity, RecentActivity::class.java))
+                                }
                             } else {
-                                text.setTextColor(Color.WHITE)
-                            }
+                                val file = projects[position]
+                                text.text = file.nameWithoutExtension
+                                if (file.nameWithoutExtension == "autosave") {
+                                    text.text = "Auto Save"
+                                    text.setTextColor(Color.YELLOW)
+                                } else {
+                                    text.setTextColor(Color.WHITE)
+                                }
 
-                            img.setImageResource(android.R.drawable.ic_menu_gallery)
-                            img.setColorFilter(Color.GRAY)
+                                img.setImageResource(android.R.drawable.ic_menu_gallery)
+                                img.setColorFilter(Color.GRAY)
 
-                            holder.itemView.setOnClickListener {
-                                openProject(file)
+                                holder.itemView.setOnClickListener {
+                                    openProject(file)
+                                }
                             }
                         }
 
-                        override fun getItemCount() = projects.size
+                        override fun getItemCount() = projects.size + 1
                     }
                 } else {
                     binding.tvRecentLabel.visibility = View.GONE

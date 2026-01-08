@@ -195,43 +195,20 @@ class EditorActivity : AppCompatActivity() {
          val availableFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
 
          for (model in proj.layers) {
-             if (model.type == "TEXT") {
-                 val l = TextLayer(model.text ?: "").apply {
-                     x = model.x; y = model.y; rotation = model.rotation
-                     scaleX = model.scaleX; scaleY = model.scaleY
-                     color = model.color ?: Color.BLACK
-                     fontSize = model.fontSize ?: 24f
-                     boxWidth = model.boxWidth
-                     shadowColor = model.shadowColor ?: 0
-                     shadowRadius = model.shadowRadius ?: 0f
-                     shadowDx = model.shadowDx ?: 0f
-                     shadowDy = model.shadowDy ?: 0f
-
-                     // Restore Font
-                     if (model.fontName != null) {
-                         this.fontPath = model.fontName
-                         // Find Typeface
-                         val found = availableFonts.find {
-                             (it.isCustom && it.path == model.fontName) || (!it.isCustom && it.name == model.fontName)
-                         }
-                         if (found != null) {
-                             this.typeface = found.typeface
-                         } else {
-                             // Fallback
-                             this.typeface = Typeface.DEFAULT
-                         }
+             val layer = ProjectManager.createLayerFromModel(model, images)
+             if (layer != null) {
+                 // Restore Font Typeface if TextLayer
+                 if (layer is TextLayer && !model.fontPath.isNullOrEmpty()) {
+                     val found = availableFonts.find {
+                         (it.isCustom && it.path == model.fontPath) || (!it.isCustom && it.name == model.fontPath)
+                     }
+                     if (found != null) {
+                         layer.typeface = found.typeface
+                     } else {
+                         layer.typeface = Typeface.DEFAULT
                      }
                  }
-                 restoredLayers.add(l)
-             } else if (model.type == "IMAGE") {
-                 val bmp = images[model.imagePath]
-                 if (bmp != null) {
-                     val l = ImageLayer(bmp, model.imagePath).apply {
-                         x = model.x; y = model.y; rotation = model.rotation
-                         scaleX = model.scaleX; scaleY = model.scaleY
-                     }
-                     restoredLayers.add(l)
-                 }
+                 restoredLayers.add(layer)
              }
          }
          canvasView.setLayers(restoredLayers)
