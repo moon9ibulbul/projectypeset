@@ -285,7 +285,9 @@ class EditorActivity : AppCompatActivity() {
                          }
                     }
                 } else {
-                    showInsertMenu()
+                    if (!isInpaintMode) {
+                        showInsertMenu()
+                    }
                     hidePropertyDetail()
                 }
             }
@@ -524,11 +526,11 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Helper to create Effect Cards
-        fun createCard(title: String, isSelected: Boolean, onClick: () -> Unit): View {
+        fun createCard(title: String, effectType: TextEffectType, isSelected: Boolean, onClick: () -> Unit): View {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dpToPx(120), dpToPx(100)).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(120), dpToPx(140)).apply {
                     setMargins(8, 8, 8, 8)
                 }
                 background = GradientDrawable().apply {
@@ -539,10 +541,35 @@ class EditorActivity : AppCompatActivity() {
                 setOnClickListener { onClick() }
             }
 
+            // Generate Preview
+            val previewBitmap = android.graphics.Bitmap.createBitmap(dpToPx(100), dpToPx(60), android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(previewBitmap)
+            val dummyLayer = TextLayer("Abc").apply {
+                fontSize = dpToPx(30).toFloat()
+                color = Color.WHITE
+                currentEffect = effectType
+                if (effectType == TextEffectType.LONG_SHADOW) {
+                     shadowColor = Color.DKGRAY // Needs shadow color for long shadow
+                }
+            }
+            // Center the dummy layer on the preview canvas
+            dummyLayer.x = dpToPx(50).toFloat()
+            dummyLayer.y = dpToPx(30).toFloat()
+            dummyLayer.draw(canvas)
+
+            val imgPreview = android.widget.ImageView(this).apply {
+                setImageBitmap(previewBitmap)
+                layoutParams = LinearLayout.LayoutParams(dpToPx(100), dpToPx(60)).apply {
+                    setMargins(0, 16, 0, 0)
+                }
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            }
+            card.addView(imgPreview)
+
             val tv = TextView(this).apply {
                 text = title
                 setTextColor(Color.WHITE)
-                textSize = 14f
+                textSize = 12f
                 gravity = Gravity.CENTER
                 setPadding(8, 8, 8, 8)
             }
@@ -551,42 +578,42 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // None
-        layout.addView(createCard("None", layer.currentEffect == TextEffectType.NONE) {
+        layout.addView(createCard("None", TextEffectType.NONE, layer.currentEffect == TextEffectType.NONE) {
             layer.currentEffect = TextEffectType.NONE
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Chromatic Aberration
-        layout.addView(createCard("Chromatic Aberration", layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
+        layout.addView(createCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION, layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
             layer.currentEffect = TextEffectType.CHROMATIC_ABERRATION
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Glitch
-        layout.addView(createCard("Glitch", layer.currentEffect == TextEffectType.GLITCH) {
+        layout.addView(createCard("Glitch", TextEffectType.GLITCH, layer.currentEffect == TextEffectType.GLITCH) {
             layer.currentEffect = TextEffectType.GLITCH
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Pixelation
-        layout.addView(createCard("Pixelation", layer.currentEffect == TextEffectType.PIXELATION) {
+        layout.addView(createCard("Pixelation", TextEffectType.PIXELATION, layer.currentEffect == TextEffectType.PIXELATION) {
             layer.currentEffect = TextEffectType.PIXELATION
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Neon
-        layout.addView(createCard("Neon", layer.currentEffect == TextEffectType.NEON) {
+        layout.addView(createCard("Neon", TextEffectType.NEON, layer.currentEffect == TextEffectType.NEON) {
             layer.currentEffect = TextEffectType.NEON
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Long Shadow
-        layout.addView(createCard("Long Shadow", layer.currentEffect == TextEffectType.LONG_SHADOW) {
+        layout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
             layer.currentEffect = TextEffectType.LONG_SHADOW
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
@@ -634,15 +661,15 @@ class EditorActivity : AppCompatActivity() {
             fun createArrow(text: String, dx: Float, dy: Float): View {
                 return android.widget.Button(this).apply {
                     this.text = text
-                    textSize = 16f
+                    textSize = 12f
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply {
                          setColor(Color.parseColor("#444444"))
                          cornerRadius = dpToPx(8).toFloat()
                     }
                     layoutParams = GridLayout.LayoutParams().apply {
-                        width = dpToPx(30)
-                        height = dpToPx(30)
+                        width = dpToPx(40)
+                        height = dpToPx(40)
                         setMargins(2,2,2,2)
                     }
                     setOnClickListener {
@@ -2183,7 +2210,30 @@ class EditorActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 16)
         }
 
-        fun addStyleBtn(label: String, spanProvider: () -> Any) {
+        fun addStyleBtn(label: String, type: String, spanProvider: () -> Any) {
+            val isActive = when(type) {
+                "B" -> layer.typeface.isBold
+                "I" -> layer.typeface.isItalic
+                // For U and S, we can't easily check layer-wide state without inspecting spans or a property.
+                // Assuming TextLayer doesn't track these globally, checking spans on the first char or similar could be a proxy,
+                // but usually these are per-selection. We will check activeEditText if available.
+                "U" -> {
+                    val et = activeEditText
+                    if (et != null && et.text.isNotEmpty()) {
+                        val spans = et.text.getSpans(0, et.text.length, UnderlineSpan::class.java)
+                        spans.isNotEmpty()
+                    } else false
+                }
+                "S" -> {
+                     val et = activeEditText
+                    if (et != null && et.text.isNotEmpty()) {
+                        val spans = et.text.getSpans(0, et.text.length, StrikethroughSpan::class.java)
+                        spans.isNotEmpty()
+                    } else false
+                }
+                else -> false
+            }
+
             val btn = TextView(this).apply {
                 text = label
                 textSize = 16f
@@ -2195,16 +2245,22 @@ class EditorActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1f
                 )
+                if (isActive) {
+                    background = GradientDrawable().apply {
+                        setStroke(dpToPx(1), Color.WHITE)
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                }
 
                 setOnClickListener { applySpanToSelection(spanProvider()) }
             }
             stylesRow.addView(btn)
         }
 
-        addStyleBtn("B") { StyleSpan(Typeface.BOLD) }
-        addStyleBtn("I") { StyleSpan(Typeface.ITALIC) }
-        addStyleBtn("U") { UnderlineSpan() }
-        addStyleBtn("S") { StrikethroughSpan() }
+        addStyleBtn("B", "B") { StyleSpan(Typeface.BOLD) }
+        addStyleBtn("I", "I") { StyleSpan(Typeface.ITALIC) }
+        addStyleBtn("U", "U") { UnderlineSpan() }
+        addStyleBtn("S", "S") { StrikethroughSpan() }
 
         layout.addView(stylesRow)
 
@@ -2220,6 +2276,8 @@ class EditorActivity : AppCompatActivity() {
         }
 
         fun addAlignBtn(iconRes: Int, align: Layout.Alignment) {
+            val isActive = (layer.textAlign == align && !layer.isJustified)
+
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
                 setColorFilter(Color.WHITE)
@@ -2229,6 +2287,12 @@ class EditorActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1f
                 )
+                if (isActive) {
+                    background = GradientDrawable().apply {
+                        setStroke(dpToPx(1), Color.WHITE)
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                }
 
                 setOnClickListener {
                     layer.textAlign = align
@@ -2253,6 +2317,12 @@ class EditorActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
             )
+            if (layer.isJustified) {
+                background = GradientDrawable().apply {
+                    setStroke(dpToPx(1), Color.WHITE)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+            }
 
             setOnClickListener {
                 layer.textAlign = Layout.Alignment.ALIGN_NORMAL
@@ -2543,7 +2613,7 @@ class EditorActivity : AppCompatActivity() {
                     }
                     canvasView.invalidate()
                 },
-                { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; if(layer.shadowRadius==0f) layer.shadowRadius=10f; canvasView.invalidate() } }
+                { showColorWheelDialogForProperty(layer.shadowColor) { c -> layer.shadowColor = c; if(layer.shadowRadius==0f) layer.shadowRadius=10f; canvasView.invalidate() } }
             ))
 
             layout.addView(createSlider("Blur Radius", layer.shadowRadius.toInt(), 50) {
@@ -2577,7 +2647,7 @@ class EditorActivity : AppCompatActivity() {
                     }
                     canvasView.invalidate()
                 },
-                { showColorWheelDialogForProperty(layer) { c -> layer.shadowColor = c; if(layer.motionShadowDistance==0f) layer.motionShadowDistance=20f; canvasView.invalidate() } }
+                { showColorWheelDialogForProperty(layer.shadowColor) { c -> layer.shadowColor = c; if(layer.motionShadowDistance==0f) layer.motionShadowDistance=20f; canvasView.invalidate() } }
             ))
 
             // Angle
@@ -2709,7 +2779,7 @@ class EditorActivity : AppCompatActivity() {
                  if (!layer.isGradient) layer.isGradient = true
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer) { c -> layer.gradientStartColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer.gradientStartColor) { c -> layer.gradientStartColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
         ))
 
         // End Color
@@ -2720,7 +2790,7 @@ class EditorActivity : AppCompatActivity() {
                  if (!layer.isGradient) layer.isGradient = true
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer) { c -> layer.gradientEndColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer.gradientEndColor) { c -> layer.gradientEndColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
         ))
 
         // Angle
@@ -2753,7 +2823,7 @@ class EditorActivity : AppCompatActivity() {
                  }
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer) { c -> layer.strokeColor = c; if(layer.strokeWidth==0f) layer.strokeWidth=5f; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer.strokeColor) { c -> layer.strokeColor = c; if(layer.strokeWidth==0f) layer.strokeWidth=5f; canvasView.invalidate() } }
         )
         mainLayout.addView(colorList)
 
@@ -2844,7 +2914,7 @@ class EditorActivity : AppCompatActivity() {
                  }
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer) { c -> layer.doubleStrokeColor = c; if(layer.doubleStrokeWidth==0f) layer.doubleStrokeWidth=5f; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer.doubleStrokeColor) { c -> layer.doubleStrokeColor = c; if(layer.doubleStrokeWidth==0f) layer.doubleStrokeWidth=5f; canvasView.invalidate() } }
         )
         mainLayout.addView(colorList)
 
@@ -2913,7 +2983,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showColorWheelDialog(layer: TextLayer) {
-        showColorWheelDialogForProperty(layer) { color ->
+        showColorWheelDialogForProperty(layer.color) { color ->
              val et = activeEditText
              if (et != null && et.selectionStart != et.selectionEnd) {
                 applySpanToSelection(ForegroundColorSpan(color))
@@ -2925,10 +2995,10 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun showColorWheelDialogForProperty(layer: TextLayer, applyColor: (Int) -> Unit) {
+    private fun showColorWheelDialogForProperty(initialColor: Int, applyColor: (Int) -> Unit) {
         ColorPickerHelper.showColorPickerDialog(
             this,
-            Color.WHITE,
+            initialColor,
             applyColor
         )
     }

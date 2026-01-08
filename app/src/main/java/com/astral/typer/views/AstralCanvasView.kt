@@ -309,9 +309,9 @@ class AstralCanvasView @JvmOverloads constructor(
     private data class HandleGeometry(val radius: Float, val offset: Float, val scale: Float)
 
     private fun getHandleGeometry(layer: Layer): HandleGeometry {
-        val avgScale = (layer.scaleX + layer.scaleY) / 2f
-        val screenW = layer.getWidth() * layer.scaleX
-        val screenH = layer.getHeight() * layer.scaleY
+        val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
+        val screenW = layer.getWidth() * abs(layer.scaleX)
+        val screenH = layer.getHeight() * abs(layer.scaleY)
         val minScreenDim = kotlin.math.min(screenW, screenH)
 
         // Target visual radius in screen pixels
