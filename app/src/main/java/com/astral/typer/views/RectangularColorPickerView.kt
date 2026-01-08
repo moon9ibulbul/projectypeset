@@ -41,10 +41,10 @@ class RectangularColorPickerView @JvmOverloads constructor(
     }
 
     // Hue Slider colors (Top to Bottom)
-    // Red -> Magenta -> Blue -> Cyan -> Green -> Yellow -> Red
-    // Standard HSV progression
+    // Standard HSV progression (0 to 360) mapped to top-bottom
+    // 0=Red, 60=Yellow, 120=Green, 180=Cyan, 240=Blue, 300=Magenta, 360=Red
     private val hueColors = intArrayOf(
-        Color.RED, Color.MAGENTA, Color.BLUE, Color.CYAN, Color.GREEN, Color.YELLOW, Color.RED
+        Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED
     )
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
