@@ -175,7 +175,7 @@ class RecentActivity : AppCompatActivity() {
     }
 
     // Inner Adapter Class
-    class RecentGridAdapter(
+    inner class RecentGridAdapter(
         private val onItemClick: (File) -> Unit,
         private val onItemLongClick: (File) -> Unit
     ) : RecyclerView.Adapter<RecentGridAdapter.ViewHolder>() {
@@ -226,9 +226,20 @@ class RecentActivity : AppCompatActivity() {
                 selectionOverlay.visibility = if (isSelected) View.VISIBLE else View.GONE
                 checkIcon.visibility = if (isSelected) View.VISIBLE else View.GONE
 
-                // Placeholder preview
+                // Placeholder preview default
                 previewImage.setImageResource(android.R.drawable.ic_menu_gallery)
                 previewImage.setColorFilter(Color.DKGRAY)
+
+                // Async Load Thumbnail
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val bmp = ProjectManager.loadThumbnail(this@RecentActivity, file)
+                    withContext(Dispatchers.Main) {
+                         if (bmp != null) {
+                             previewImage.setImageBitmap(bmp)
+                             previewImage.clearColorFilter()
+                         }
+                    }
+                }
 
                 itemView.setOnClickListener { onItemClick(file) }
                 itemView.setOnLongClickListener {

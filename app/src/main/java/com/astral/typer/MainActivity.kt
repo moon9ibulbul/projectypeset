@@ -105,7 +105,7 @@ class MainActivity : AppCompatActivity() {
                             val layout = LinearLayout(parent.context).apply {
                                 orientation = LinearLayout.VERTICAL
                                 layoutParams = RecyclerView.LayoutParams(
-                                    (100 * resources.displayMetrics.density).toInt(),
+                                    (120 * resources.displayMetrics.density).toInt(),
                                     ViewGroup.LayoutParams.MATCH_PARENT
                                 ).apply { setMargins(8,0,8,0) }
                                 background = GradientDrawable().apply {
@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity() {
                             val img = ImageView(parent.context).apply {
                                 id = View.generateViewId()
                                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-                                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                                scaleType = ImageView.ScaleType.CENTER_INSIDE // Default for view all
                             }
 
                             val text = TextView(parent.context).apply {
@@ -149,6 +149,7 @@ class MainActivity : AppCompatActivity() {
                                 text.setTextColor(Color.CYAN)
                                 img.setImageResource(android.R.drawable.ic_menu_view)
                                 img.setColorFilter(Color.CYAN)
+                                img.scaleType = ImageView.ScaleType.CENTER_INSIDE
                                 holder.itemView.setOnClickListener {
                                     startActivity(Intent(this@MainActivity, RecentActivity::class.java))
                                 }
@@ -164,6 +165,18 @@ class MainActivity : AppCompatActivity() {
 
                                 img.setImageResource(android.R.drawable.ic_menu_gallery)
                                 img.setColorFilter(Color.GRAY)
+
+                                // Async Load Thumbnail
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    val bmp = ProjectManager.loadThumbnail(this@MainActivity, file)
+                                    withContext(Dispatchers.Main) {
+                                        if (bmp != null) {
+                                            img.setImageBitmap(bmp)
+                                            img.clearColorFilter()
+                                            img.scaleType = ImageView.ScaleType.CENTER_CROP
+                                        }
+                                    }
+                                }
 
                                 holder.itemView.setOnClickListener {
                                     openProject(file)
