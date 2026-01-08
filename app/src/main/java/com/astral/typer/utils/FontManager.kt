@@ -9,12 +9,14 @@ import java.util.zip.ZipInputStream
 object FontManager {
 
     private const val FONTS_DIR = "fonts"
+    private const val STD_FONTS_CACHE_DIR = "std_fonts_cache"
     private const val PREFS_NAME = "font_prefs"
     private const val KEY_FAVORITES = "favorite_fonts"
+    private const val BUNDLED_FONTS_ZIP = "fontpack.zip"
 
     data class FontItem(
         val name: String,
-        val path: String?, // Null for system, "fonts/xxx" for assets, absolute path for custom
+        val path: String?, // Null for system, "std_cache:xxx" for bundled, absolute path for custom
         val typeface: Typeface,
         var isFavorite: Boolean = false,
         val isCustom: Boolean = false
@@ -28,29 +30,69 @@ object FontManager {
         list.add(FontItem("Sans Serif", null, Typeface.SANS_SERIF))
         list.add(FontItem("Monospace", null, Typeface.MONOSPACE))
 
-        // Asset Fonts
-        try {
-            val assetFonts = context.assets.list("fonts")
-            assetFonts?.forEach { filename ->
-                if (filename.endsWith(".ttf", true) || filename.endsWith(".otf", true)) {
-                    try {
-                        val tf = Typeface.createFromAsset(context.assets, "fonts/$filename")
-                        val name = filename.substringBeforeLast(".")
-                        list.add(FontItem(name, "fonts/$filename", tf))
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        // Ensure bundled fonts are extracted
+        ensureBundledFontsExtracted(context)
+
+        // Load Bundled Standard Fonts from Cache
+        val cacheDir = File(context.filesDir, STD_FONTS_CACHE_DIR)
+        if (cacheDir.exists()) {
+             cacheDir.listFiles()?.forEach { file ->
+                 if (file.extension.lowercase() in listOf("ttf", "otf")) {
+                     try {
+                         val tf = Typeface.createFromFile(file)
+                         val name = file.nameWithoutExtension
+                         list.add(FontItem(
+                             name = name,
+                             path = "std_cache:${file.name}", // Special prefix to identify it as standard but file-based
+                             typeface = tf,
+                             isCustom = false // Treat as standard
+                         ))
+                     } catch (e: Exception) {
+                         e.printStackTrace()
+                     }
+                 }
+             }
         }
 
         // Check favorites
         val favorites = getFavorites(context)
-        list.forEach { it.isFavorite = favorites.contains(it.name) }
+        list.forEach { it.isFavorite = favorites.contains(it.name) } // Use Name for standard fonts favorites
 
         return list
+    }
+
+    private fun ensureBundledFontsExtracted(context: Context) {
+        val cacheDir = File(context.filesDir, STD_FONTS_CACHE_DIR)
+
+        // Simple check: if directory doesn't exist or is empty, extract.
+        // For production, might want a version check to support updates.
+        if (!cacheDir.exists() || (cacheDir.listFiles()?.isEmpty() == true)) {
+            cacheDir.mkdirs()
+            try {
+                // Check if zip exists in assets
+                val assets = context.assets.list("")
+                if (assets?.contains(BUNDLED_FONTS_ZIP) == true) {
+                     context.assets.open(BUNDLED_FONTS_ZIP).use { input ->
+                         val zipInput = ZipInputStream(input)
+                         var entry = zipInput.nextEntry
+                         while (entry != null) {
+                             if (!entry.isDirectory && (entry.name.endsWith(".ttf", true) || entry.name.endsWith(".otf", true))) {
+                                 // Flatten structure: extract only filename
+                                 val filename = File(entry.name).name
+                                 val outFile = File(cacheDir, filename)
+                                 FileOutputStream(outFile).use { output ->
+                                     zipInput.copyTo(output)
+                                 }
+                             }
+                             zipInput.closeEntry()
+                             entry = zipInput.nextEntry
+                         }
+                     }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun getCustomFonts(context: Context): List<FontItem> {
