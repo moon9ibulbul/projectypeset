@@ -228,6 +228,13 @@ object ProjectManager {
     private fun finalizeSave(context: Context, tempDir: File, projectName: String): Boolean {
         val cleanName = projectName.trim()
 
+        // Invalidate Thumbnail Cache for this project
+        try {
+            val cacheDir = File(context.cacheDir, "thumbnails")
+            val cacheFile = File(cacheDir, "$cleanName.atd.png")
+            if (cacheFile.exists()) cacheFile.delete()
+        } catch (e: Exception) { e.printStackTrace() }
+
         // MediaStore (Android 10+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             try {

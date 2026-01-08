@@ -611,27 +611,28 @@ class TextLayer(
             val w = getWidth()
             val h = getHeight()
 
-            // 1. Draw Base Layer (Modified Algorithm: Sliced Base)
-            val numSlices = random.nextInt(11) + 10 // 10 to 20 slices
+            // 1. Draw Base Layer (Modified Algorithm: Aggressive Slicing)
+            // Divide height into many small strips for more uniform distribution
+            val numStrips = 50
+            val stripHeight = h / numStrips.toFloat()
 
-            // Pre-calculate slices
-            data class Slice(val top: Float, val bottom: Float, val xOffset: Float)
+            data class Slice(val top: Float, val bottom: Float, val xOffset: Float, val rgbOffset: Float)
             val slices = mutableListOf<Slice>()
 
-            // Generate non-overlapping slices? Or random scattered?
-            // "teks dasarnya di potong-potong juga... tetep terbaca"
-            // Let's divide height into strips and randomly offset some
-            val stripHeight = h / 20f
-            for (i in 0 until 20) {
+            for (i in 0 until numStrips) {
                 val top = i * stripHeight
                 val bottom = top + stripHeight
 
-                // 30% chance to glitch a strip
-                if (random.nextFloat() < 0.3f) {
-                     val offset = (random.nextFloat() - 0.5f) * 40f // -20 to 20px
-                     slices.add(Slice(top, bottom, offset))
+                // 50% chance to glitch a strip (more aggressive)
+                if (random.nextFloat() < 0.5f) {
+                     val offset = (random.nextFloat() - 0.5f) * 100f // -50 to 50px (More aggressive)
+
+                     // RGB Split offset - randomized per slice
+                     val rgbOff = if (random.nextBoolean()) (random.nextFloat() * 20f + 5f) else -(random.nextFloat() * 20f + 5f)
+
+                     slices.add(Slice(top, bottom, offset, rgbOff))
                 } else {
-                     slices.add(Slice(top, bottom, 0f))
+                     slices.add(Slice(top, bottom, 0f, 0f))
                 }
             }
 
@@ -647,32 +648,28 @@ class TextLayer(
                 // Draw Base
                 layout.draw(canvas)
 
-                // Draw RGB Split if offset is significant
-                if (kotlin.math.abs(slice.xOffset) > 2f) {
+                // Draw RGB Split if it's a glitch slice
+                if (kotlin.math.abs(slice.xOffset) > 0.1f) {
                     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
                     paint.shader = null
 
                     // Red Channel
-                    paint.color = 0x80FF0000.toInt() // 50% Alpha
+                    paint.color = 0xCCFF0000.toInt() // 80% Alpha
                     canvas.save()
-                    canvas.translate(-5f, 0f)
+                    canvas.translate(-slice.rgbOffset, 0f)
                     layout.draw(canvas)
                     canvas.restore()
 
                     // Cyan Channel
-                    paint.color = 0x8000FFFF.toInt()
+                    paint.color = 0xCC00FFFF.toInt()
                     canvas.save()
-                    canvas.translate(5f, 0f)
+                    canvas.translate(slice.rgbOffset, 0f)
                     layout.draw(canvas)
                     canvas.restore()
 
                     // Restore paint for next loop
                     paint.color = savedColor
                     paint.xfermode = savedXfermode
-                    if (isGradient || textureBitmap != null) {
-                        // Re-apply shader if needed?
-                        // Cached layout paint has shader. We just need to reset color/xfermode.
-                    }
                 }
 
                 canvas.restore()
