@@ -29,8 +29,7 @@
         </activity>
         <activity android:name=".EditorActivity" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".SettingsActivity" />
-        <activity android:name=".RecentActivity"
-            android:theme="@style/Theme.AstralTyper.NoActionBar" />
+        <activity android:name=".RecentActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
