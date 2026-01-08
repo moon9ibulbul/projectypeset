@@ -504,11 +504,17 @@ class EditorActivity : AppCompatActivity() {
 
         StyleManager.saveStyle(this, layer)
         Toast.makeText(this, "Style Saved", Toast.LENGTH_SHORT).show()
-        hidePropertyDetail()
-        showStyleMenu() // Refresh
+        // Do not hide, just refresh directly
+        showStyleMenu()
     }
 
     private fun showEffectMenu() {
+        // Save scroll position
+        val savedScrollX = if (binding.propertyDetailContainer.childCount > 0) {
+            val child = binding.propertyDetailContainer.getChildAt(0)
+            if (child is HorizontalScrollView) child.scrollX else 0
+        } else 0
+
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
 
@@ -621,6 +627,11 @@ class EditorActivity : AppCompatActivity() {
 
         scroll.addView(layout)
         container.addView(scroll)
+
+        // Restore scroll position
+        if (savedScrollX > 0) {
+            scroll.post { scroll.scrollTo(savedScrollX, 0) }
+        }
     }
 
     private fun showTextureMenu() {
@@ -2236,50 +2247,61 @@ class EditorActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 16)
         }
 
-        fun addStyleBtn(label: String, type: String, spanProvider: () -> Any) {
-            val isActive = when(type) {
-                "B" -> layer.typeface.isBold
-                "I" -> layer.typeface.isItalic
-                // For U and S, we can't easily check layer-wide state without inspecting spans or a property.
-                // Assuming TextLayer doesn't track these globally, checking spans on the first char or similar could be a proxy,
-                // but usually these are per-selection. We will check activeEditText if available.
-                "U" -> {
-                    val et = activeEditText
-                    if (et != null && et.text.isNotEmpty()) {
-                        val spans = et.text.getSpans(0, et.text.length, UnderlineSpan::class.java)
-                        spans.isNotEmpty()
-                    } else false
-                }
-                "S" -> {
-                     val et = activeEditText
-                    if (et != null && et.text.isNotEmpty()) {
-                        val spans = et.text.getSpans(0, et.text.length, StrikethroughSpan::class.java)
-                        spans.isNotEmpty()
-                    } else false
-                }
-                else -> false
-            }
+        val styleButtons = mutableListOf<TextView>()
 
+        // Helper to update visual state of style buttons
+        fun updateStyleButtons() {
+            styleButtons.forEach { btn ->
+                val type = btn.tag as String
+                val isActive = when(type) {
+                    "B" -> layer.typeface.isBold
+                    "I" -> layer.typeface.isItalic
+                    "U" -> {
+                        val et = activeEditText
+                        if (et != null && et.text.isNotEmpty()) {
+                            val spans = et.text.getSpans(0, et.text.length, UnderlineSpan::class.java)
+                            spans.isNotEmpty()
+                        } else false
+                    }
+                    "S" -> {
+                        val et = activeEditText
+                        if (et != null && et.text.isNotEmpty()) {
+                            val spans = et.text.getSpans(0, et.text.length, StrikethroughSpan::class.java)
+                            spans.isNotEmpty()
+                        } else false
+                    }
+                    else -> false
+                }
+                if (isActive) {
+                    btn.background = GradientDrawable().apply {
+                        setStroke(dpToPx(1), Color.WHITE)
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                } else {
+                    btn.background = null
+                }
+            }
+        }
+
+        fun addStyleBtn(label: String, type: String, spanProvider: () -> Any) {
             val btn = TextView(this).apply {
                 text = label
                 textSize = 16f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 setPadding(0, 16, 0, 16)
+                this.tag = type
                 layoutParams = LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1f
                 )
-                if (isActive) {
-                    background = GradientDrawable().apply {
-                        setStroke(dpToPx(1), Color.WHITE)
-                        cornerRadius = dpToPx(4).toFloat()
-                    }
+                setOnClickListener {
+                    applySpanToSelection(spanProvider())
+                    updateStyleButtons()
                 }
-
-                setOnClickListener { applySpanToSelection(spanProvider()) }
             }
+            styleButtons.add(btn)
             stylesRow.addView(btn)
         }
 
@@ -2288,6 +2310,7 @@ class EditorActivity : AppCompatActivity() {
         addStyleBtn("U", "U") { UnderlineSpan() }
         addStyleBtn("S", "S") { StrikethroughSpan() }
 
+        updateStyleButtons()
         layout.addView(stylesRow)
 
         // Alignment Row
@@ -2301,62 +2324,76 @@ class EditorActivity : AppCompatActivity() {
             )
         }
 
-        fun addAlignBtn(iconRes: Int, align: Layout.Alignment) {
-            val isActive = (layer.textAlign == align && !layer.isJustified)
+        val alignButtons = mutableListOf<View>()
 
+        fun updateAlignButtons() {
+            alignButtons.forEach { btn ->
+                val type = btn.tag.toString()
+                var isActive = false
+                if (type == "JUSTIFY") {
+                    isActive = layer.isJustified
+                } else {
+                    val align = when(type) {
+                        "LEFT" -> Layout.Alignment.ALIGN_NORMAL
+                        "CENTER" -> Layout.Alignment.ALIGN_CENTER
+                        "RIGHT" -> Layout.Alignment.ALIGN_OPPOSITE
+                        else -> Layout.Alignment.ALIGN_NORMAL
+                    }
+                    isActive = (layer.textAlign == align && !layer.isJustified)
+                }
+
+                if (isActive) {
+                    btn.background = GradientDrawable().apply {
+                        setStroke(dpToPx(1), Color.WHITE)
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                } else {
+                    btn.background = null
+                }
+            }
+        }
+
+        fun addAlignBtn(iconRes: Int, tag: String, onClick: () -> Unit) {
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
                 setColorFilter(Color.WHITE)
                 setPadding(0, 16, 0, 16)
+                this.tag = tag
                 layoutParams = LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1f
                 )
-                if (isActive) {
-                    background = GradientDrawable().apply {
-                        setStroke(dpToPx(1), Color.WHITE)
-                        cornerRadius = dpToPx(4).toFloat()
-                    }
-                }
-
                 setOnClickListener {
-                    layer.textAlign = align
-                    layer.isJustified = false // Reset justification
-                    canvasView.invalidate()
+                    onClick()
+                    updateAlignButtons()
                 }
             }
+            alignButtons.add(btn)
             alignRow.addView(btn)
         }
 
-        addAlignBtn(R.drawable.ic_format_align_left, Layout.Alignment.ALIGN_NORMAL)
-        addAlignBtn(R.drawable.ic_format_align_center, Layout.Alignment.ALIGN_CENTER)
-        addAlignBtn(R.drawable.ic_format_align_right, Layout.Alignment.ALIGN_OPPOSITE)
-
-        // Justify Button
-        val btnJustify = android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_format_align_justify)
-            setColorFilter(Color.WHITE)
-            setPadding(0, 16, 0, 16)
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-            if (layer.isJustified) {
-                background = GradientDrawable().apply {
-                    setStroke(dpToPx(1), Color.WHITE)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-            }
-
-            setOnClickListener {
-                layer.textAlign = Layout.Alignment.ALIGN_NORMAL
-                layer.isJustified = true
-                canvasView.invalidate()
-            }
+        addAlignBtn(R.drawable.ic_format_align_left, "LEFT") {
+            layer.textAlign = Layout.Alignment.ALIGN_NORMAL
+            layer.isJustified = false
+            canvasView.invalidate()
         }
-        alignRow.addView(btnJustify)
+        addAlignBtn(R.drawable.ic_format_align_center, "CENTER") {
+            layer.textAlign = Layout.Alignment.ALIGN_CENTER
+            layer.isJustified = false
+            canvasView.invalidate()
+        }
+        addAlignBtn(R.drawable.ic_format_align_right, "RIGHT") {
+            layer.textAlign = Layout.Alignment.ALIGN_OPPOSITE
+            layer.isJustified = false
+            canvasView.invalidate()
+        }
+        addAlignBtn(R.drawable.ic_format_align_justify, "JUSTIFY") {
+            layer.textAlign = Layout.Alignment.ALIGN_NORMAL
+            layer.isJustified = true
+            canvasView.invalidate()
+        }
+        updateAlignButtons()
 
         // Transform Row (Mirror)
         val transformRow = LinearLayout(this).apply {
