@@ -825,6 +825,9 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
+            // Show Loading
+            binding.loadingOverlay.visibility = View.VISIBLE
+
             // Capture Data on Main Thread
             val layers = canvasView.getLayers().toList()
             val bgBitmap = canvasView.getBackgroundImage()
@@ -839,17 +842,24 @@ class EditorActivity : AppCompatActivity() {
 
             // Save logic
              lifecycleScope.launch(Dispatchers.IO) {
-                val success = ProjectManager.saveProject(
-                    this@EditorActivity,
-                    layers,
-                    w,
-                    h,
-                    Color.WHITE,
-                    bgBitmap,
-                    name,
-                    thumbnail
-                )
+                var success = false
+                try {
+                    success = ProjectManager.saveProject(
+                        this@EditorActivity,
+                        layers,
+                        w,
+                        h,
+                        Color.WHITE,
+                        bgBitmap,
+                        name,
+                        thumbnail
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 withContext(Dispatchers.Main) {
+                    binding.loadingOverlay.visibility = View.GONE
                     if (success) {
                         Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
                         binding.saveSidebar.root.visibility = View.GONE
@@ -869,8 +879,12 @@ class EditorActivity : AppCompatActivity() {
             val formatStr = sidebarBinding.spinnerFormat.selectedItem.toString()
             val quality = sidebarBinding.seekBarQuality.progress
 
+            // Show Loading
+            binding.loadingOverlay.visibility = View.VISIBLE
+
             // Export
-            val bitmap = canvasView.renderToBitmap() // Full resolution
+            val bitmap = canvasView.renderToBitmap() // Full resolution - Main Thread
+
             val compressFormat = when(formatStr) {
                 "JPG" -> android.graphics.Bitmap.CompressFormat.JPEG
                 "WEBP" -> if (android.os.Build.VERSION.SDK_INT >= 30) android.graphics.Bitmap.CompressFormat.WEBP_LOSSLESS else android.graphics.Bitmap.CompressFormat.WEBP
@@ -885,21 +899,33 @@ class EditorActivity : AppCompatActivity() {
                 put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
             }
 
-            val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-            if (uri != null) {
+            lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    contentResolver.openOutputStream(uri).use { stream ->
-                        if (stream != null) {
-                            bitmap.compress(compressFormat, quality, stream)
+                    val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                    if (uri != null) {
+                        contentResolver.openOutputStream(uri).use { stream ->
+                            if (stream != null) {
+                                bitmap.compress(compressFormat, quality, stream)
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@EditorActivity, "File Exported!", Toast.LENGTH_SHORT).show()
+                            binding.saveSidebar.root.visibility = View.GONE
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@EditorActivity, "Failed to create file", Toast.LENGTH_SHORT).show()
                         }
                     }
-                    Toast.makeText(this, "File Exported!", Toast.LENGTH_SHORT).show()
-                    binding.saveSidebar.root.visibility = View.GONE
                 } catch (e: Exception) {
-                     Toast.makeText(this, "Export Failed", Toast.LENGTH_SHORT).show()
+                     withContext(Dispatchers.Main) {
+                         Toast.makeText(this@EditorActivity, "Export Failed", Toast.LENGTH_SHORT).show()
+                     }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingOverlay.visibility = View.GONE
+                    }
                 }
-            } else {
-                Toast.makeText(this, "Failed to create file", Toast.LENGTH_SHORT).show()
             }
         }
     }
