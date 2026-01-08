@@ -261,6 +261,29 @@ class EditorActivity : AppCompatActivity() {
                     }
                     // Ensure properties are updated/shown even if already selected
                     showPropertiesMenu()
+
+                    // Refresh active menu if one is open to sync with new layer
+                    currentMenuType?.let { type ->
+                         if (binding.propertyDetailContainer.visibility == View.VISIBLE) {
+                             when (type) {
+                                 "FONT" -> showFontPicker()
+                                 "COLOR" -> showColorPicker()
+                                 "FORMAT" -> showFormatMenu()
+                                 "EFFECT" -> showEffectMenu()
+                                 "SPACING" -> showSpacingMenu()
+                                 "STROKE" -> showStrokeMenu()
+                                 "DOUBLE_STROKE" -> showDoubleStrokeMenu()
+                                 "SHADOW" -> showShadowControls()
+                                 "GRADATION" -> showGradationControls()
+                                 "TEXTURE" -> showTextureMenu()
+                                 "ERASE" -> showEraseMenu()
+                                 "WARP" -> showWarpMenu()
+                                 "OPACITY" -> showOpacityMenu()
+                                 "STYLE" -> showStyleMenu()
+                                 "PERSPECTIVE" -> showPerspectiveMenu()
+                             }
+                         }
+                    }
                 } else {
                     showInsertMenu()
                     hidePropertyDetail()
@@ -397,50 +420,7 @@ class EditorActivity : AppCompatActivity() {
                 hidePropertyDetail()
             } else {
                 toggleMenu("PERSPECTIVE") {
-                    togglePerspectiveMode(true)
-                    val container = prepareContainer()
-
-                    val layout = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                    }
-
-                    val btnReset = android.widget.Button(this).apply {
-                        text = "Reset"
-                        setTextColor(Color.WHITE)
-                        background = GradientDrawable().apply {
-                            setColor(Color.DKGRAY)
-                            cornerRadius = dpToPx(8).toFloat()
-                        }
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                        setOnClickListener {
-                            val layer = canvasView.getSelectedLayer() as? TextLayer
-                            if (layer != null) {
-                                layer.perspectivePoints = null
-                                // Re-init points to reset visual
-                                val w = layer.getWidth()
-                                val h = layer.getHeight()
-                                layer.perspectivePoints = floatArrayOf(
-                                    -w/2f, -h/2f, // TL
-                                    w/2f, -h/2f,  // TR
-                                    w/2f, h/2f,   // BR
-                                    -w/2f, h/2f   // BL
-                                )
-                                canvasView.invalidate()
-                                Toast.makeText(this@EditorActivity, "Perspective Reset", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-
-                    layout.addView(btnReset)
-                    container.addView(layout)
+                    showPerspectiveMenu()
                 }
             }
         }
@@ -974,15 +954,13 @@ class EditorActivity : AppCompatActivity() {
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL // Changed to Vertical to stack slider and buttons
             gravity = Gravity.CENTER
-            // Remove background as requested
-            // setBackgroundColor(Color.parseColor("#88000000"))
-            setPadding(16, 16, 16, 16)
-            /*
+            // Add background as requested
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#CC000000"))
+                setColor(Color.parseColor("#80000000")) // 50% opacity black
                 cornerRadius = dpToPx(16).toFloat()
             }
-            */
+            setPadding(16, 16, 16, 16)
+
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1293,6 +1271,40 @@ class EditorActivity : AppCompatActivity() {
                         Toast.makeText(context, "Style Applied", Toast.LENGTH_SHORT).show()
                     }
                 }
+                setOnLongClickListener {
+                    val popup = android.widget.PopupMenu(this@EditorActivity, it)
+                    popup.menu.add("Rename")
+                    popup.menu.add("Delete")
+                    popup.setOnMenuItemClickListener { item ->
+                        when(item.title) {
+                            "Rename" -> {
+                                val input = EditText(this@EditorActivity)
+                                input.setText(style.name)
+                                android.app.AlertDialog.Builder(this@EditorActivity)
+                                    .setTitle("Rename Style")
+                                    .setView(input)
+                                    .setPositiveButton("OK") { _, _ ->
+                                        val newName = input.text.toString()
+                                        if (newName.isNotBlank()) {
+                                            StyleManager.renameStyle(this@EditorActivity, index, newName)
+                                            showStyleMenu() // Refresh
+                                        }
+                                    }
+                                    .setNegativeButton("Cancel", null)
+                                    .show()
+                                true
+                            }
+                            "Delete" -> {
+                                StyleManager.deleteStyle(this@EditorActivity, index)
+                                showStyleMenu() // Refresh
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                    popup.show()
+                    true
+                }
             }
 
             // Preview Image
@@ -1308,7 +1320,7 @@ class EditorActivity : AppCompatActivity() {
 
             // Label
             val tv = TextView(this).apply {
-                text = "Style ${index+1}"
+                text = style.name.ifEmpty { "Style ${index+1}" }
                 setTextColor(Color.WHITE)
                 textSize = 12f
                 gravity = Gravity.CENTER
@@ -3033,6 +3045,53 @@ class EditorActivity : AppCompatActivity() {
          layer.warpMesh = mesh
          layer.warpRows = rows
          layer.warpCols = cols
+    }
+
+    private fun showPerspectiveMenu() {
+        togglePerspectiveMode(true)
+        val container = prepareContainer()
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        val btnReset = android.widget.Button(this).apply {
+            text = "Reset"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                val layer = canvasView.getSelectedLayer() as? TextLayer
+                if (layer != null) {
+                    layer.perspectivePoints = null
+                    // Re-init points to reset visual
+                    val w = layer.getWidth()
+                    val h = layer.getHeight()
+                    layer.perspectivePoints = floatArrayOf(
+                        -w/2f, -h/2f, // TL
+                        w/2f, -h/2f,  // TR
+                        w/2f, h/2f,   // BR
+                        -w/2f, h/2f   // BL
+                    )
+                    canvasView.invalidate()
+                    Toast.makeText(this@EditorActivity, "Perspective Reset", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        layout.addView(btnReset)
+        container.addView(layout)
     }
 
     private fun showOpacityMenu() {

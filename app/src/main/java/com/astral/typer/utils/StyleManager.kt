@@ -37,12 +37,30 @@ object StyleManager {
         // Reset position properties to make it generic
         newStyle.text = SpannableStringBuilder("Abc")
         newStyle.boxWidth = null
+        // Ensure name is set if missing (default to generic name logic later or current layer name)
+        // If layer name is default "Layer", maybe we want "Style X"?
+        // For now, keep layer name.
         savedStyles.add(newStyle)
         persistStyles(context)
     }
 
     fun getSavedStyles(): List<TextLayer> {
         return savedStyles
+    }
+
+    fun deleteStyle(context: Context, index: Int) {
+        if (index in 0 until savedStyles.size) {
+            val removed = savedStyles.removeAt(index)
+            stylePreviews.remove(removed)
+            persistStyles(context)
+        }
+    }
+
+    fun renameStyle(context: Context, index: Int, newName: String) {
+        if (index in 0 until savedStyles.size) {
+            savedStyles[index].name = newName
+            persistStyles(context)
+        }
     }
 
     private fun persistStyles(context: Context) {
@@ -67,12 +85,8 @@ object StyleManager {
         }
     }
 
-    // WAIT. ProjectManager.LayerModel is "Simplified". It likely misses Stroke, Gradient, etc.
-    // I need to update LayerModel OR create a StyleModel here.
-    // Since I cannot change ProjectManager easily without affecting Save/Load,
-    // I should probably define a StyleModel locally that covers EVERYTHING.
-
     data class StyleModel(
+        val name: String = "Style",
         val color: Int,
         val fontSize: Float,
         val fontPath: String?,
@@ -108,6 +122,7 @@ object StyleManager {
 
     private fun toModel(l: TextLayer): StyleModel {
         return StyleModel(
+            l.name,
             l.color, l.fontSize, l.fontPath, l.opacity,
             l.shadowColor, l.shadowRadius, l.shadowDx, l.shadowDy,
             l.strokeColor, l.strokeWidth, l.doubleStrokeColor, l.doubleStrokeWidth,
@@ -121,6 +136,7 @@ object StyleManager {
 
     private fun fromModel(m: StyleModel): TextLayer {
         val l = TextLayer("Abc")
+        l.name = m.name
         l.color = m.color
         l.fontSize = m.fontSize
         l.fontPath = m.fontPath
