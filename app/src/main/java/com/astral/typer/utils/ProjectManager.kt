@@ -21,6 +21,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
@@ -104,7 +105,8 @@ object ProjectManager {
         height: Int,
         canvasColor: Int,
         bgBitmap: Bitmap?,
-        projectName: String
+        projectName: String,
+        thumbnail: Bitmap? = null
     ): Boolean {
         try {
             val tempDir = File(context.cacheDir, "temp_save")
@@ -116,6 +118,10 @@ object ProjectManager {
 
             if (bgBitmap != null) {
                 saveBitmap(bgBitmap, File(imagesDir, "background.png"))
+            }
+
+            if (thumbnail != null) {
+                saveBitmap(thumbnail, File(tempDir, "thumbnail.png"))
             }
 
             val layerModels = mutableListOf<LayerModel>()
@@ -284,6 +290,37 @@ object ProjectManager {
         })
 
         return LoadResult.Success(finalData, imageMap)
+    }
+
+    fun loadThumbnail(context: Context, file: File): Bitmap? {
+        // First check cache
+        val cacheDir = File(context.cacheDir, "thumbnails")
+        if (!cacheDir.exists()) cacheDir.mkdirs()
+        val cacheFile = File(cacheDir, "${file.name}.png")
+
+        if (cacheFile.exists()) {
+             return BitmapFactory.decodeFile(cacheFile.absolutePath)
+        }
+
+        // Extract from Zip
+        try {
+            ZipFile(file).use { zip ->
+                val entry = zip.getEntry("thumbnail.png") ?: zip.entries().asSequence().firstOrNull { it.name.endsWith("thumbnail.png") }
+                if (entry != null) {
+                    zip.getInputStream(entry).use { input ->
+                        val bmp = BitmapFactory.decodeStream(input)
+                        if (bmp != null) {
+                            // Save to cache
+                            saveBitmap(bmp, cacheFile)
+                            return bmp
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
     }
 
     // Helper to Convert Model to Layer

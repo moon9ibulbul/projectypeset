@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
@@ -78,6 +79,10 @@ class TextLayer(
 
     // Erase
     var eraseMask: Bitmap? = null
+
+    // Erase Paths for Granular Undo (Runtime only, lost on save/load if not serialized, but acceptable for session undo)
+    data class ErasePathData(val path: Path, val size: Float, val opacity: Int, val hardness: Float)
+    val erasePaths = mutableListOf<ErasePathData>()
 
     // Effect
     var currentEffect: TextEffectType = TextEffectType.NONE
@@ -155,6 +160,11 @@ class TextLayer(
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
         }
 
+        // Clone paths (Paths are mutable, need deep copy)
+        for (p in this.erasePaths) {
+            newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
+        }
+
         newLayer.currentEffect = this.currentEffect
         newLayer.effectSeed = this.effectSeed
 
@@ -168,6 +178,77 @@ class TextLayer(
         newLayer.name = this.name
 
         return newLayer
+    }
+
+    fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
+        erasePaths.add(ErasePathData(Path(path), size, opacity, hardness))
+        // We also need to update the bitmap to reflect this change
+        if (eraseMask == null) {
+            // Need dimensions. Usually passed or existing.
+            // If dimensions unknown, we can't draw. But usually eraseMask is initialized in onTouch
+        } else {
+             val c = Canvas(eraseMask!!)
+             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                 color = Color.BLACK
+                 style = Paint.Style.STROKE
+                 strokeWidth = size
+                 this.alpha = opacity
+                 strokeCap = Paint.Cap.ROUND
+                 strokeJoin = Paint.Join.ROUND
+                 if (hardness < 100) {
+                     val radius = size / 2f
+                     val blur = radius * (1f - (hardness / 100f))
+                     if (blur > 0.5f) {
+                        maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                     }
+                 }
+             }
+             c.drawPath(path, p)
+        }
+    }
+
+    fun undoLastErasePath(baseMask: Bitmap?) {
+        if (erasePaths.isNotEmpty()) {
+            erasePaths.removeAt(erasePaths.size - 1)
+            rebuildEraseMask(baseMask)
+        }
+    }
+
+    fun rebuildEraseMask(baseMask: Bitmap?) {
+        // If we have eraseMask dimensions, reuse or recreate
+        val w = eraseMask?.width ?: baseMask?.width ?: 1
+        val h = eraseMask?.height ?: baseMask?.height ?: 1
+
+        // New clean bitmap
+        val newMask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(newMask)
+        c.drawColor(Color.TRANSPARENT)
+
+        // Draw base mask if exists (loaded from file)
+        if (baseMask != null) {
+             c.drawBitmap(baseMask, 0f, 0f, null)
+        }
+
+        // Draw all paths
+        for (data in erasePaths) {
+             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                 color = Color.BLACK
+                 style = Paint.Style.STROKE
+                 strokeWidth = data.size
+                 this.alpha = data.opacity
+                 strokeCap = Paint.Cap.ROUND
+                 strokeJoin = Paint.Join.ROUND
+                 if (data.hardness < 100) {
+                     val radius = data.size / 2f
+                     val blur = radius * (1f - (data.hardness / 100f))
+                     if (blur > 0.5f) {
+                        maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                     }
+                 }
+             }
+             c.drawPath(data.path, p)
+        }
+        eraseMask = newMask
     }
 
     override fun getWidth(): Float {
@@ -530,54 +611,72 @@ class TextLayer(
             val w = getWidth()
             val h = getHeight()
 
-            // 1. Draw Base Layer (Anchor)
-            val originalAlpha = paint.alpha
-            paint.alpha = 200 // Slight opacity as suggested
-            layout.draw(canvas)
-            paint.alpha = originalAlpha // Restore
-
-            // 2. Generate Chaos Layers
+            // 1. Draw Base Layer (Modified Algorithm: Sliced Base)
             val numSlices = random.nextInt(11) + 10 // 10 to 20 slices
 
-            // Save original state for restoration inside loop
-            val savedColor = paint.color
-            val savedXfermode = paint.xfermode
-            val savedShader = paint.shader
+            // Pre-calculate slices
+            data class Slice(val top: Float, val bottom: Float, val xOffset: Float)
+            val slices = mutableListOf<Slice>()
 
-            for (i in 0 until numSlices) {
-                // Calculate Random Slice Zone
-                val sliceHeight = h * (0.02f + random.nextFloat() * 0.08f) // 2% to 10%
-                val sliceTop = random.nextFloat() * (h - sliceHeight)
-                val sliceBottom = sliceTop + sliceHeight
+            // Generate non-overlapping slices? Or random scattered?
+            // "teks dasarnya di potong-potong juga... tetep terbaca"
+            // Let's divide height into strips and randomly offset some
+            val stripHeight = h / 20f
+            for (i in 0 until 20) {
+                val top = i * stripHeight
+                val bottom = top + stripHeight
 
-                // Calculate Aggressive Offset
-                val xOffset = (random.nextFloat() - 0.5f) * 60f // -30px to +30px
-
-                // Select Channel Color
-                val channel = i % 3
-                val channelColor = when(channel) {
-                    0 -> 0xFFFF0000.toInt() // Red
-                    1 -> 0xFF00FFFF.toInt() // Cyan/Blue
-                    else -> 0xFF00FF00.toInt() // Green/Original
+                // 30% chance to glitch a strip
+                if (random.nextFloat() < 0.3f) {
+                     val offset = (random.nextFloat() - 0.5f) * 40f // -20 to 20px
+                     slices.add(Slice(top, bottom, offset))
+                } else {
+                     slices.add(Slice(top, bottom, 0f))
                 }
-
-                // Draw the Slice
-                canvas.save()
-                canvas.clipRect(0f, sliceTop, w, sliceBottom)
-                canvas.translate(xOffset, 0f)
-
-                paint.color = channelColor
-                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
-                paint.shader = null // Remove gradient/texture for pure RGB split
-
-                layout.draw(canvas)
-                canvas.restore()
             }
 
-            // Restore paint state
-            paint.color = savedColor
-            paint.xfermode = savedXfermode
-            paint.shader = savedShader
+            // Draw Slices
+            val savedColor = paint.color
+            val savedXfermode = paint.xfermode
+
+            for (slice in slices) {
+                canvas.save()
+                canvas.clipRect(0f, slice.top, w, slice.bottom)
+                canvas.translate(slice.xOffset, 0f)
+
+                // Draw Base
+                layout.draw(canvas)
+
+                // Draw RGB Split if offset is significant
+                if (kotlin.math.abs(slice.xOffset) > 2f) {
+                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+                    paint.shader = null
+
+                    // Red Channel
+                    paint.color = 0x80FF0000.toInt() // 50% Alpha
+                    canvas.save()
+                    canvas.translate(-5f, 0f)
+                    layout.draw(canvas)
+                    canvas.restore()
+
+                    // Cyan Channel
+                    paint.color = 0x8000FFFF.toInt()
+                    canvas.save()
+                    canvas.translate(5f, 0f)
+                    layout.draw(canvas)
+                    canvas.restore()
+
+                    // Restore paint for next loop
+                    paint.color = savedColor
+                    paint.xfermode = savedXfermode
+                    if (isGradient || textureBitmap != null) {
+                        // Re-apply shader if needed?
+                        // Cached layout paint has shader. We just need to reset color/xfermode.
+                    }
+                }
+
+                canvas.restore()
+            }
 
         } else if (currentEffect == TextEffectType.NEON) {
              val originalColor = paint.color

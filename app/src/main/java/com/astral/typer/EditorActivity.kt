@@ -224,6 +224,11 @@ class EditorActivity : AppCompatActivity() {
         val w = bmp.width
         val h = bmp.height
 
+        // Generate Thumbnail (small)
+        val thumbW = 300
+        val thumbH = (h * (thumbW.toFloat() / w)).toInt()
+        val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+
         lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
             ProjectManager.saveProject(
                 this@EditorActivity,
@@ -232,7 +237,8 @@ class EditorActivity : AppCompatActivity() {
                 h,
                 Color.WHITE,
                 bgBitmap,
-                "autosave"
+                "autosave",
+                thumbnail
             )
         }
     }
@@ -250,6 +256,7 @@ class EditorActivity : AppCompatActivity() {
                     if (currentMenuType == "QUICK_EDIT") {
                         hidePropertyDetail()
                     }
+                    // Ensure properties are updated/shown even if already selected
                     showPropertiesMenu()
                 } else {
                     showInsertMenu()
@@ -458,6 +465,10 @@ class EditorActivity : AppCompatActivity() {
                          Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
                      }
                  }
+            } else if (currentMenuType == "ERASE") {
+                // Layer Erase Undo
+                canvasView.undoLayerErase()
+                Toast.makeText(this, "Undid Erasure", Toast.LENGTH_SHORT).show()
             } else {
                 val restored = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
                 if (restored != null) {
@@ -807,6 +818,11 @@ class EditorActivity : AppCompatActivity() {
             val w = bmp.width
             val h = bmp.height
 
+            // Generate Thumbnail
+            val thumbW = 300
+            val thumbH = (h * (thumbW.toFloat() / w)).toInt()
+            val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+
             // Save logic
              lifecycleScope.launch(Dispatchers.IO) {
                 val success = ProjectManager.saveProject(
@@ -816,7 +832,8 @@ class EditorActivity : AppCompatActivity() {
                     h,
                     Color.WHITE,
                     bgBitmap,
-                    name
+                    name,
+                    thumbnail
                 )
                 withContext(Dispatchers.Main) {
                     if (success) {
@@ -1011,13 +1028,6 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // --- Pair 1: Brush <-> Eraser ---
-        // Defaults to Brush (so icon shows Eraser to switch to it?)
-        // User request: "Jika brush aktif, maka gantikan ikon brush dengan ikon eraser"
-        // Meaning: The button represents the *Action to switch*, or the *Current State*?
-        // Usually, a button shows the tool it *activates*.
-        // If I am in Brush mode, I want to see an Eraser button to switch to Eraser.
-        // If I am in Eraser mode, I want to see a Brush button to switch to Brush.
-
         val btnBrushEraser = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -1050,10 +1060,6 @@ class EditorActivity : AppCompatActivity() {
         updateBrushEraserState() // Init
 
         // --- Pair 2: Lasso <-> Touch ---
-        // "Touch" is likely Pan/Zoom mode (No drawing).
-        // If Lasso Active -> Show Touch Icon
-        // If Touch Active -> Show Lasso Icon
-
         val btnLassoTouch = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -1063,72 +1069,18 @@ class EditorActivity : AppCompatActivity() {
         val tvLT = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f }
         btnLassoTouch.addView(ivLT); btnLassoTouch.addView(tvLT)
 
-        // We need a way to represent "Touch" mode in Canvas.
-        // If we set tool to something that doesn't draw...
-        // We can define "Touch" as just setting mode to PAN_ZOOM immediately or a dummy tool?
-        // But AstralCanvasView checks 'currentInpaintTool' when drawing.
-        // Let's assume "Touch" means we just want to navigate without drawing marks.
-        // The user said: "Lasso berpasangan dengan touch".
-        // Let's rely on InpaintTool.LASSO.
-        // For "Touch", we can maybe treat it as BRUSH but without drawing?
-        // Or simply add a state.
-        // Since I cannot easily change the Enum in AstralCanvasView without potentially breaking logic (though I did read it and it seems safe),
-        // I will assume "Touch" just means "Don't Draw".
-        // But wait, `AstralCanvasView` code:
-        // `if (isInpaintMode) ... when(action) ... currentInpaintPath.lineTo...`
-        // If I want "Touch", I should prevent drawing.
-        // I'll stick to switching between LASSO and BRUSH for now, but label one "Touch"?
-        // No, Touch implies Pan/Zoom.
-        // Actually, if I select "Touch", I probably want `currentInpaintTool` to be something that ignores touches.
-        // Let's use `AstralCanvasView.InpaintTool.BRUSH` as default "Touch"? No that draws.
-        // Hack: Set stroke width to 0? No.
-        // Correct approach: Switching to Lasso sets tool LASSO. Switching to Touch sets tool to... nothing?
-        // Let's assume the user means "Lasso Tool" vs "Brush Tool" mainly, but wanted specific icons.
-        // Re-reading: "Jika lasso sedang aktif... ganti ikon lasso dengan ikon touch... brush berpasangan dengan eraser".
-        // It implies there are 2 main states being toggled.
-        // Pair 1: Brush / Eraser.
-        // Pair 2: Lasso / Touch.
-        // If I click Lasso (activates Lasso), button shows Touch.
-        // If I click Touch (activates Touch), button shows Lasso.
-        // "Touch" needs to be a valid state.
-        // I will use `AstralCanvasView.InpaintTool.BRUSH` with 0 alpha? No.
-        // I will assume "Touch" is just navigating.
-        // I'll implementation logic:
-        // If tool is LASSO -> Button shows Touch. Click -> Switch to BRUSH (as Touch substitute? or just disable inpaint drawing?)
-        // Let's assume Touch = Brush for now but user calls it Touch?
-        // Or maybe I should treat BRUSH as the "Touch" mode if size is 0?
-        // Let's use `AstralCanvasView.InpaintTool.LASSO` and `AstralCanvasView.InpaintTool.BRUSH` (but labeled Touch?).
-        // No, Brush is already used in Pair 1.
-        // So "Touch" must be a distinct state.
-        // Since I cannot compile a new Enum value easily without modifying View logic significantly (switch cases),
-        // I will assume the user considers "Touch" as simply "Not Lasso".
-        // But Pair 1 is Brush/Eraser.
-        // If I select "Touch" in Pair 2, what happens to Pair 1?
-        // Usually these are radio groups.
-        // Let's implement this:
-        // Variable `isLassoActive`.
-        // If `isLassoActive` -> Tool = LASSO. Button shows Touch.
-        // If `!isLassoActive` -> Tool = BRUSH/ERASER (depending on Pair 1). Button shows Lasso.
-
         var isLassoActive = false
 
         fun updateLassoTouchState() {
              if (isLassoActive) {
                  // Active is Lasso -> Show Touch icon
-                 updateButtonVisual(btnLassoTouch, R.drawable.ic_menu_palette, "Touch") // Use palette as generic 'hand' or touch? Or maybe reuse another icon?
-                 // User asked to "Perbagus tampilan ikon". I'll use existing ones.
+                 updateButtonVisual(btnLassoTouch, R.drawable.ic_menu_palette, "Touch")
                  canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
-                 // Pair 1 is effectively disabled or secondary.
              } else {
                  // Active is Touch (Standard Brush/Eraser mode) -> Show Lasso icon
-                 updateButtonVisual(btnLassoTouch, R.drawable.ic_pencil, "Lasso") // Reuse pencil or find better
+                 updateButtonVisual(btnLassoTouch, R.drawable.ic_pencil, "Lasso")
                  // Restore Brush/Eraser selection
-                 // Trigger the logic from Pair 1 to set tool
-                 if (btnBrushEraser.tag == "ERASER") { // We can store state in tag or check tool
-                      // Re-evaluate Pair 1
-                      // But wait, Pair 1 updates tool directly.
-                      // Let's just reset to Brush or Eraser based on Pair 1's visual?
-                      // Actually, let's just default to Brush.
+                 if (btnBrushEraser.tag == "ERASER") {
                       canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
                       updateBrushEraserState()
                  } else {
@@ -1189,7 +1141,7 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Notify Canvas about the Interaction Mode
+            // Notify Canvas to show/hide tool handles
             canvasView.setPerspectiveMode(enabled)
             canvasView.invalidate()
         }
@@ -2004,7 +1956,6 @@ class EditorActivity : AppCompatActivity() {
         list.addView(btnPalette)
 
         // Add saved colors view using helper
-        // We use the helper directly, passing the current color for selection highlight
         val paletteView = ColorPickerHelper.createPaletteView(
             this,
             { color ->
@@ -2012,17 +1963,8 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     applySpanToSelection(ForegroundColorSpan(color))
                 } else {
-                    // Toggle Off Logic: "Jika warna yang sedang aktif ditekan kembali, maka akan membatalkan efek text terkait"
-                    // For Main Text Color, it doesn't make sense to "cancel" it (invisible text?).
-                    // But if Gradient is active, maybe revert to solid?
-                    // Let's assume for Main Color, it just sets it.
-                    // But we MUST Disable Gradient if solid color is picked.
-
-                    // Actually, prompt says: "jika dia menambahkan text color ... akan membatalkan gradation"
-
                     if (layer.color == color && !layer.isGradient) {
                         // Already active and solid. Do nothing or toggle?
-                        // For main text, invisible is bad. So do nothing.
                     } else {
                         layer.color = color
                         layer.isGradient = false
@@ -2033,16 +1975,7 @@ class EditorActivity : AppCompatActivity() {
             null, // No add button here? Or keep it? The helper has logic for saved colors internally.
             layer.color // Selected color
         )
-        // Extract the list from ScrollView returned by helper because we are already inside a scroll/linear layout structure?
-        // No, current structure adds buttons then list.
-        // Helper returns a ScrollView. We can add that ScrollView to our container, but we are inside a horizontal linear layout 'list'.
-        // Better to just add the items.
-        // But Helper encapsulates creation.
-        // Let's just use the Helper's view instead of iterating manually.
-
         list.addView(paletteView)
-
-        // Remove the old loop for saved colors
 
         scroll.addView(list)
         container.addView(scroll)
@@ -2501,21 +2434,13 @@ class EditorActivity : AppCompatActivity() {
         return ColorPickerHelper.createPaletteView(
             this,
             { color ->
-                // Toggle off logic for list items in submenu?
-                // "Jika warna yang sedang aktif itu di tekan kembali, maka akan membatalkan efek text terkait"
-                // Checking previous value:
                 if (currentColor == color) {
-                     // Trigger "Disable" logic. How?
-                     // We need to pass a "disabled" state or -1?
-                     // Or handled by caller.
-                     // Since onColorPicked expects Int, let's just callback.
-                     // The caller (e.g. showShadowControls) needs to handle toggle.
                      onColorPicked(color)
                 } else {
                      onColorPicked(color)
                 }
             },
-            { onPaletteClick(); 0 }, // Fake add button to trigger palette dialog? No, design calls for Palette Button separately.
+            { onPaletteClick(); 0 },
             currentColor
         )
     }
