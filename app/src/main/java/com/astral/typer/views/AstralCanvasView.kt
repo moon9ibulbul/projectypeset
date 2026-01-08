@@ -285,7 +285,101 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Handles Constants
     private val HANDLE_RADIUS = 30f
-    private val HANDLE_OFFSET = 40f
+
+    // Geometry Helper
+    private data class HandleGeometry(val radius: Float, val offset: Float, val scale: Float)
+
+    private fun getHandleGeometry(layer: Layer): HandleGeometry {
+        val avgScale = (layer.scaleX + layer.scaleY) / 2f
+        val screenW = layer.getWidth() * layer.scaleX
+        val screenH = layer.getHeight() * layer.scaleY
+        val minScreenDim = kotlin.math.min(screenW, screenH)
+
+        // Target visual radius in screen pixels
+        val targetVisualRadius = if (minScreenDim < 150f) {
+            kotlin.math.max(10f, minScreenDim / 5f)
+        } else {
+            HANDLE_RADIUS
+        }
+
+        // Convert to Local Space
+        val localRadius = targetVisualRadius / avgScale
+        // Scale for the path (based on ~15px base size)
+        val localIconScale = localRadius / 15f
+        val handleOffset = localRadius * 1.5f
+
+        return HandleGeometry(localRadius, handleOffset, localIconScale)
+    }
+
+    // Paths for Icons
+    private val pathRotate = Path()
+    private val pathResize = Path()
+    private val pathStretchH = Path()
+    private val pathStretchV = Path()
+    private val pathBoxWidth = Path()
+    private val pathDelete = Path()
+    private val pathDuplicate = Path()
+    private val pathCopyStyle = Path()
+
+    init {
+        // Rotate: Curved Arrow
+        pathRotate.moveTo(10f, 0f)
+        pathRotate.arcTo(RectF(-10f, -10f, 10f, 10f), 0f, 270f, false)
+        pathRotate.lineTo(0f, -15f)
+        pathRotate.moveTo(0f, -10f)
+        pathRotate.lineTo(0f, -5f)
+
+        // Delete: X
+        pathDelete.moveTo(-8f, -8f)
+        pathDelete.lineTo(8f, 8f)
+        pathDelete.moveTo(8f, -8f)
+        pathDelete.lineTo(-8f, 8f)
+
+        // Resize: Diagonal Arrows
+        pathResize.moveTo(-8f, -8f)
+        pathResize.lineTo(8f, 8f)
+        pathResize.moveTo(8f, 8f)
+        pathResize.lineTo(8f, 2f)
+        pathResize.moveTo(8f, 8f)
+        pathResize.lineTo(2f, 8f)
+        pathResize.moveTo(-8f, -8f)
+        pathResize.lineTo(-8f, -2f)
+        pathResize.moveTo(-8f, -8f)
+        pathResize.lineTo(-2f, -8f)
+
+        // Stretch H
+        pathStretchH.moveTo(-10f, 0f)
+        pathStretchH.lineTo(10f, 0f)
+        pathStretchH.moveTo(-10f, 0f)
+        pathStretchH.lineTo(-5f, -5f)
+        pathStretchH.moveTo(-10f, 0f)
+        pathStretchH.lineTo(-5f, 5f)
+        pathStretchH.moveTo(10f, 0f)
+        pathStretchH.lineTo(5f, -5f)
+        pathStretchH.moveTo(10f, 0f)
+        pathStretchH.lineTo(5f, 5f)
+
+        // Stretch V
+        pathStretchV.moveTo(0f, -10f)
+        pathStretchV.lineTo(0f, 10f)
+        pathStretchV.moveTo(0f, -10f)
+        pathStretchV.lineTo(-5f, -5f)
+        pathStretchV.moveTo(0f, -10f)
+        pathStretchV.lineTo(5f, -5f)
+        pathStretchV.moveTo(0f, 10f)
+        pathStretchV.lineTo(-5f, 5f)
+        pathStretchV.moveTo(0f, 10f)
+        pathStretchV.lineTo(5f, 5f)
+
+        // Box Width: |<->|
+        pathBoxWidth.moveTo(-8f, -8f); pathBoxWidth.lineTo(-8f, 8f) // Left bar
+        pathBoxWidth.moveTo(8f, -8f); pathBoxWidth.lineTo(8f, 8f)   // Right bar
+        pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(8f, 0f)   // Center line
+        pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(-4f, -4f)
+        pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(-4f, 4f)
+        pathBoxWidth.moveTo(8f, 0f); pathBoxWidth.lineTo(4f, -4f)
+        pathBoxWidth.moveTo(8f, 0f); pathBoxWidth.lineTo(4f, 4f)
+    }
 
     // Interaction Modes
     private enum class Mode {
@@ -700,10 +794,16 @@ class AstralCanvasView @JvmOverloads constructor(
         val halfW = layer.getWidth() / 2f
         val halfH = layer.getHeight() / 2f
 
+        val geometry = getHandleGeometry(layer)
+        val localRadius = geometry.radius
+        val handleOffset = geometry.offset
+        val localIconScale = geometry.scale
+        val avgScale = (layer.scaleX + layer.scaleY) / 2f
+
         // Box
         paint.style = Paint.Style.STROKE
         paint.color = Color.BLUE
-        paint.strokeWidth = 3f / ((layer.scaleX + layer.scaleY)/2f) // Keep stroke constant width visually
+        paint.strokeWidth = 3f / avgScale // Keep stroke constant width visually
         val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
         canvas.drawRect(box, paint)
 
@@ -713,69 +813,89 @@ class AstralCanvasView @JvmOverloads constructor(
             return
         }
 
-        // --- Draw Handles ---
-        fun drawHandle(x: Float, y: Float, color: Int) {
-            handlePaint.color = color
-            val size = HANDLE_RADIUS / ((layer.scaleX + layer.scaleY)/2f)
-            canvas.drawCircle(x, y, size, handlePaint)
-            canvas.drawCircle(x, y, size, strokePaint)
+        // --- Draw Handles Helper ---
+        fun drawIconHandle(x: Float, y: Float, path: Path, iconColor: Int, useStroke: Boolean = true) {
+            canvas.save()
+            canvas.translate(x, y)
+            canvas.scale(localIconScale, localIconScale)
+
+            // Draw Icon
+            iconPaint.color = iconColor
+            iconPaint.strokeWidth = 3f // Thicker for visibility
+            iconPaint.style = Paint.Style.STROKE
+
+            // Background shadow/outline for visibility
+            val shadowPaint = Paint(iconPaint).apply {
+                this.color = Color.BLACK
+                this.strokeWidth = 5f
+            }
+            if (useStroke) canvas.drawPath(path, shadowPaint)
+            canvas.drawPath(path, iconPaint)
+
+            canvas.restore()
         }
 
         // 1. Delete Handle (Top-Left) -> X
-        drawHandle(-halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET, Color.RED)
-        val xSize = 15f / ((layer.scaleX + layer.scaleY)/2f)
-        val cx = -halfW - HANDLE_OFFSET
-        val cy = -halfH - HANDLE_OFFSET
-        canvas.drawLine(cx - xSize, cy - xSize, cx + xSize, cy + xSize, iconPaint)
-        canvas.drawLine(cx + xSize, cy - xSize, cx - xSize, cy + xSize, iconPaint)
+        drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
 
         // 2. Rotate Handle (Top-Right) -> Circle Arrow
-        drawHandle(halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET, Color.GREEN)
-        canvas.drawCircle(halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET, 10f / ((layer.scaleX + layer.scaleY)/2f), iconPaint)
+        drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
 
         // 3. Resize Handle (Bottom-Right) -> Diagonal Arrow
-        drawHandle(halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET, Color.BLUE)
+        drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
 
         // 4. Stretch Horizontal (Left-Middle) -> Horizontal Arrow
-        drawHandle(-halfW - HANDLE_OFFSET, 0f, Color.DKGRAY)
-        val sx = -halfW - HANDLE_OFFSET
-        val sSize = 15f / ((layer.scaleX + layer.scaleY)/2f)
-        canvas.drawLine(sx - sSize, 0f, sx + sSize, 0f, iconPaint)
+        drawIconHandle(-halfW - handleOffset, 0f, pathStretchH, Color.DKGRAY)
 
         // 5. Stretch Vertical (Bottom-Middle) -> Vertical Arrow
-        drawHandle(0f, halfH + HANDLE_OFFSET, Color.DKGRAY)
-        val sy = halfH + HANDLE_OFFSET
-        canvas.drawLine(0f, sy - sSize, 0f, sy + sSize, iconPaint)
+        drawIconHandle(0f, halfH + handleOffset, pathStretchV, Color.DKGRAY)
 
         // 6. Box Width (Right-Middle) -> Rect icon (Resize box)
         if (layer is TextLayer) {
-             drawHandle(halfW + HANDLE_OFFSET, 0f, Color.MAGENTA)
-             val bx = halfW + HANDLE_OFFSET
-             canvas.drawRect(bx - 10, -10f, bx + 10, 10f, iconPaint)
+             drawIconHandle(halfW + handleOffset, 0f, pathBoxWidth, Color.MAGENTA)
         }
 
         // --- Top Action Icons (Duplicate & Copy Style) ---
-        val topY = -halfH - HANDLE_OFFSET * 2.5f
-        val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
+        // Adjust position based on dynamic handle size
+        val topY = -halfH - handleOffset * 2.5f
+        val iconSpacing = localRadius * 2.5f
 
         // Duplicate Icon
-        val dupX = -20f
-        handlePaint.color = Color.DKGRAY
-        canvas.drawCircle(dupX - iconSize, topY, iconSize, handlePaint)
-        canvas.drawCircle(dupX - iconSize, topY, iconSize, strokePaint)
-        val dSize = iconSize * 0.5f
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f
-        canvas.drawRect(dupX - iconSize - dSize/2, topY - dSize/2, dupX - iconSize + dSize/2, topY + dSize/2, paint)
-        canvas.drawRect(dupX - iconSize - dSize/2 + 5, topY - dSize/2 - 5, dupX - iconSize + dSize/2 + 5, topY + dSize/2 - 5, paint)
+        val dupX = -iconSpacing / 1.5f
+
+        // Draw Duplicate Icon Manually or use path? Let's use simple rects
+        canvas.save()
+        canvas.translate(dupX, topY)
+        canvas.scale(localIconScale, localIconScale)
+
+        val dupP = Paint(iconPaint).apply { color = Color.LTGRAY; style = Paint.Style.STROKE }
+        val dupShadow = Paint(dupP).apply { color = Color.BLACK; strokeWidth = 5f }
+
+        val r1 = RectF(-8f, -8f, 2f, 2f)
+        val r2 = RectF(-2f, -2f, 8f, 8f)
+
+        canvas.drawRect(r1, dupShadow); canvas.drawRect(r2, dupShadow)
+        canvas.drawRect(r1, dupP); canvas.drawRect(r2, dupP)
+
+        canvas.restore()
 
         // Copy Style Icon
-        val copyX = 20f
-        canvas.drawCircle(copyX + iconSize, topY, iconSize, handlePaint)
-        canvas.drawCircle(copyX + iconSize, topY, iconSize, strokePaint)
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(copyX + iconSize, topY, dSize, paint)
+        val copyX = iconSpacing / 1.5f
+        canvas.save()
+        canvas.translate(copyX, topY)
+        canvas.scale(localIconScale, localIconScale)
+
+        val copyP = Paint(iconPaint).apply { color = Color.YELLOW; style = Paint.Style.STROKE }
+        val copyShadow = Paint(copyP).apply { color = Color.BLACK; strokeWidth = 5f }
+
+        // Circle + Fill
+        canvas.drawCircle(0f, 0f, 8f, copyShadow)
+        canvas.drawCircle(0f, 0f, 8f, copyP)
+
+        val fillP = Paint(copyP).apply { style = Paint.Style.FILL; alpha = 150 }
+        canvas.drawCircle(0f, 0f, 5f, fillP)
+
+        canvas.restore()
 
         canvas.restore()
     }
@@ -1011,13 +1131,16 @@ class AstralCanvasView @JvmOverloads constructor(
                     if (!isPerspectiveMode) {
                         val halfW = layer.getWidth() / 2f
                         val halfH = layer.getHeight() / 2f
-                        val hitRadius = HANDLE_RADIUS * 1.5f
+
+                        val geometry = getHandleGeometry(layer)
+                        val handleOffset = geometry.offset
+                        val hitRadius = geometry.radius * 2.0f // Slightly larger for easier touch
 
                         // Top Actions
-                        val topY = -halfH - HANDLE_OFFSET * 2.5f
-                        val iconSize = 30f / ((layer.scaleX + layer.scaleY)/2f)
-                        val dupX = -20f - iconSize
-                        val copyX = 20f + iconSize
+                        val topY = -halfH - handleOffset * 2.5f
+                        val iconSpacing = geometry.radius * 2.5f
+                        val dupX = -iconSpacing / 1.5f
+                        val copyX = iconSpacing / 1.5f
 
                         if (getDistance(lx, ly, dupX, topY) <= hitRadius) {
                             // DUPLICATE
@@ -1041,12 +1164,12 @@ class AstralCanvasView @JvmOverloads constructor(
                         }
 
                         // Standard Handles
-                        if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                        if (getDistance(lx, ly, -halfW - handleOffset, -halfH - handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             deleteSelectedLayer()
                             return true
                         }
-                        if (getDistance(lx, ly, halfW + HANDLE_OFFSET, -halfH - HANDLE_OFFSET) <= hitRadius) {
+                        if (getDistance(lx, ly, halfW + handleOffset, -halfH - handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.ROTATE_LAYER
                             initialRotation = layer.rotation
@@ -1055,7 +1178,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             startAngle = getAngle(centerX, centerY, cx, cy)
                             return true
                         }
-                        if (getDistance(lx, ly, halfW + HANDLE_OFFSET, halfH + HANDLE_OFFSET) <= hitRadius) {
+                        if (getDistance(lx, ly, halfW + handleOffset, halfH + handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.RESIZE_LAYER
                             initialScaleX = layer.scaleX
@@ -1065,7 +1188,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             startDist = getDistance(centerX, centerY, cx, cy)
                             return true
                         }
-                        if (getDistance(lx, ly, -halfW - HANDLE_OFFSET, 0f) <= hitRadius) {
+                        if (getDistance(lx, ly, -halfW - handleOffset, 0f) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_H
                             initialScaleX = layer.scaleX
@@ -1074,7 +1197,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             startX = lx
                             return true
                         }
-                        if (getDistance(lx, ly, 0f, halfH + HANDLE_OFFSET) <= hitRadius) {
+                        if (getDistance(lx, ly, 0f, halfH + handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_V
                             initialScaleY = layer.scaleY
@@ -1083,7 +1206,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             startY = ly
                             return true
                         }
-                        if (layer is TextLayer && getDistance(lx, ly, halfW + HANDLE_OFFSET, 0f) <= hitRadius) {
+                        if (layer is TextLayer && getDistance(lx, ly, halfW + handleOffset, 0f) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.BOX_WIDTH
                             // Reset warp and perspective to prevent stretching

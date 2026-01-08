@@ -608,16 +608,16 @@ class EditorActivity : AppCompatActivity() {
             fun createArrow(text: String, dx: Float, dy: Float): View {
                 return android.widget.Button(this).apply {
                     this.text = text
-                    textSize = 20f
+                    textSize = 16f
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply {
                          setColor(Color.parseColor("#444444"))
                          cornerRadius = dpToPx(8).toFloat()
                     }
                     layoutParams = GridLayout.LayoutParams().apply {
-                        width = dpToPx(40)
-                        height = dpToPx(40)
-                        setMargins(4,4,4,4)
+                        width = dpToPx(30)
+                        height = dpToPx(30)
+                        setMargins(2,2,2,2)
                     }
                     setOnClickListener {
                         layer.textureOffsetX += dx
@@ -629,19 +629,19 @@ class EditorActivity : AppCompatActivity() {
 
             // Grid Layout for Arrows
             // Row 0
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty TL
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty TL
             controls.addView(createArrow("▲", 0f, -10f)) // Up
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty TR
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty TR
 
             // Row 1
             controls.addView(createArrow("◄", -10f, 0f)) // Left
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Center (Maybe Reset?)
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Center (Maybe Reset?)
             controls.addView(createArrow("►", 10f, 0f)) // Right
 
             // Row 2
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty BL
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty BL
             controls.addView(createArrow("▼", 0f, 10f)) // Down
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40) }) // Empty BR
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty BR
 
             layout.addView(controls)
         }
