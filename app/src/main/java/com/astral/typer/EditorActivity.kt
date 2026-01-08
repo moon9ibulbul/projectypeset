@@ -42,6 +42,7 @@ import com.astral.typer.utils.StyleManager
 import com.astral.typer.utils.InpaintManager
 import com.astral.typer.utils.ProjectManager
 import com.astral.typer.models.ImageLayer
+import com.astral.typer.utils.StyleManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

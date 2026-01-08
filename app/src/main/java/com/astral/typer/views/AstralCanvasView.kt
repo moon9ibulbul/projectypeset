@@ -1157,7 +1157,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             // COPY STYLE
                             if (layer is TextLayer) {
                                 com.astral.typer.utils.StyleManager.copyStyle(layer)
-                                com.astral.typer.utils.StyleManager.saveStyle(layer)
+                                com.astral.typer.utils.StyleManager.saveStyle(this.context, layer)
                                 android.widget.Toast.makeText(context, "Style Copied to Menu", android.widget.Toast.LENGTH_SHORT).show()
                             }
                             return true

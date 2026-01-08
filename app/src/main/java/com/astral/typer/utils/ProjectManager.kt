@@ -140,11 +140,11 @@ object ProjectManager {
 
                     if (uri != null) {
                         resolver.openOutputStream(uri)?.use { out ->
-                            // Zip directly to the output stream?
-                            // We have a tempDir. We can zip tempDir to a temp file then copy?
-                            // Or zip directly to 'out'.
+                            // Zip children of tempDir directly to root of zip
                             ZipOutputStream(out).use { zipOut ->
-                                zipFile(tempDir, tempDir.name, zipOut)
+                                tempDir.listFiles()?.forEach { child ->
+                                    zipFile(child, child.name, zipOut)
+                                }
                             }
                         }
                         success = true
