@@ -823,7 +823,7 @@ class AstralCanvasView @JvmOverloads constructor(
         val localRadius = geometry.radius
         val handleOffset = geometry.offset
         val localIconScale = geometry.scale
-        val avgScale = (layer.scaleX + layer.scaleY) / 2f
+        val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
 
         // Box
         paint.style = Paint.Style.STROKE
@@ -1381,10 +1381,13 @@ class AstralCanvasView @JvmOverloads constructor(
                             val dx = cx - centerX
                             val dy = cy - centerY
                             val proj = -(dx * cos + dy * sin)
-                            if (proj > 10) {
-                                 layer.scaleX = (proj / (layer.getWidth() / 2f)).toFloat().coerceAtLeast(0.1f)
-                                 invalidate()
-                                 onLayerUpdateListener?.onLayerUpdate(layer)
+                            if (abs(proj) > 10) {
+                                 val s = (proj / (layer.getWidth() / 2f)).toFloat()
+                                 if (abs(s) >= 0.1f) {
+                                     layer.scaleX = s
+                                     invalidate()
+                                     onLayerUpdateListener?.onLayerUpdate(layer)
+                                 }
                             }
                         }
                         Mode.STRETCH_V -> {
@@ -1394,10 +1397,13 @@ class AstralCanvasView @JvmOverloads constructor(
                              val dx = cx - centerX
                              val dy = cy - centerY
                              val proj = -dx * sin + dy * cos
-                             if (proj > 10) {
-                                 layer.scaleY = (proj / (layer.getHeight() / 2f)).toFloat().coerceAtLeast(0.1f)
-                                 invalidate()
-                                 onLayerUpdateListener?.onLayerUpdate(layer)
+                             if (abs(proj) > 10) {
+                                 val s = (proj / (layer.getHeight() / 2f)).toFloat()
+                                 if (abs(s) >= 0.1f) {
+                                     layer.scaleY = s
+                                     invalidate()
+                                     onLayerUpdateListener?.onLayerUpdate(layer)
+                                 }
                              }
                         }
                         Mode.BOX_WIDTH -> {
@@ -1408,8 +1414,9 @@ class AstralCanvasView @JvmOverloads constructor(
                                 val dx = cx - centerX
                                 val dy = cy - centerY
                                 val proj = dx * cos + dy * sin
-                                if (proj > 20) {
-                                    layer.boxWidth = ((proj / layer.scaleX) * 2f).toFloat()
+                                val calculatedWidth = ((proj / layer.scaleX) * 2f).toFloat()
+                                if (calculatedWidth > 20) {
+                                    layer.boxWidth = calculatedWidth
                                     invalidate()
                                     onLayerUpdateListener?.onLayerUpdate(layer)
                                 }
