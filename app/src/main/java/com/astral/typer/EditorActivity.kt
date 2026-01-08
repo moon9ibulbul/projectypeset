@@ -112,48 +112,33 @@ class EditorActivity : AppCompatActivity() {
              val file = java.io.File(projectPath)
              // Load Async
              lifecycleScope.launch(Dispatchers.IO) {
-                 val data = ProjectManager.loadProject(this@EditorActivity, file)
+                 val result = ProjectManager.loadProject(this@EditorActivity, file)
                  withContext(Dispatchers.Main) {
-                     if (data != null) {
-                         val (proj, images) = data
-                         canvasView.initCanvas(proj.canvasWidth, proj.canvasHeight, proj.canvasColor)
-
-                         // Restore background
-                         if (images.containsKey("background")) {
-                             canvasView.setBackgroundImage(images["background"]!!)
+                     when (result) {
+                         is ProjectManager.LoadResult.Success -> {
+                             loadProjectData(result.projectData, result.images)
                          }
-
-                         // Restore layers
-                         val restoredLayers = mutableListOf<Layer>()
-                         for (model in proj.layers) {
-                             if (model.type == "TEXT") {
-                                 val l = TextLayer(model.text ?: "").apply {
-                                     x = model.x; y = model.y; rotation = model.rotation
-                                     scaleX = model.scaleX; scaleY = model.scaleY
-                                     color = model.color ?: Color.BLACK
-                                     fontSize = model.fontSize ?: 24f
-                                     boxWidth = model.boxWidth
-                                     shadowColor = model.shadowColor ?: 0
-                                     shadowRadius = model.shadowRadius ?: 0f
-                                     shadowDx = model.shadowDx ?: 0f
-                                     shadowDy = model.shadowDy ?: 0f
+                         is ProjectManager.LoadResult.MissingAssets -> {
+                             // Show warning
+                             val missingFonts = result.missingFonts.joinToString("\n")
+                             android.app.AlertDialog.Builder(this@EditorActivity)
+                                 .setTitle("Missing Fonts")
+                                 .setMessage("The following fonts are not available on this device:\n$missingFonts\n\nDo you want to replace them with the default font?")
+                                 .setPositiveButton("Replace") { _, _ ->
+                                     // Proceed loading, but the layers will use default font since we can't load the custom one
+                                     // In loadProjectData, we can handle logic to set default if font fails to load (which it already does essentially, but we want to be explicit)
+                                     loadProjectData(result.projectData, result.images)
                                  }
-                                 restoredLayers.add(l)
-                             } else if (model.type == "IMAGE") {
-                                 val bmp = images[model.imagePath]
-                                 if (bmp != null) {
-                                     val l = ImageLayer(bmp, model.imagePath).apply {
-                                         x = model.x; y = model.y; rotation = model.rotation
-                                         scaleX = model.scaleX; scaleY = model.scaleY
-                                     }
-                                     restoredLayers.add(l)
+                                 .setNegativeButton("Cancel") { _, _ ->
+                                     finish()
                                  }
-                             }
+                                 .setCancelable(false)
+                                 .show()
                          }
-                         canvasView.setLayers(restoredLayers)
-                     } else {
-                         Toast.makeText(this@EditorActivity, "Failed to load project", Toast.LENGTH_SHORT).show()
-                         finish()
+                         is ProjectManager.LoadResult.Error -> {
+                             Toast.makeText(this@EditorActivity, "Failed to load project: ${result.message}", Toast.LENGTH_SHORT).show()
+                             finish()
+                         }
                      }
                  }
              }
@@ -189,9 +174,67 @@ class EditorActivity : AppCompatActivity() {
         // Initialize InpaintManager
         inpaintManager = InpaintManager(this)
 
+        // Initialize StyleManager to load saved styles
+        StyleManager.init(this)
+
         // Listeners
         setupCanvasListeners()
         setupBottomMenu()
+    }
+
+    private fun loadProjectData(proj: ProjectManager.ProjectData, images: Map<String, android.graphics.Bitmap>) {
+         canvasView.initCanvas(proj.canvasWidth, proj.canvasHeight, proj.canvasColor)
+
+         // Restore background
+         if (images.containsKey("background")) {
+             canvasView.setBackgroundImage(images["background"]!!)
+         }
+
+         // Restore layers
+         val restoredLayers = mutableListOf<Layer>()
+         val availableFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
+
+         for (model in proj.layers) {
+             if (model.type == "TEXT") {
+                 val l = TextLayer(model.text ?: "").apply {
+                     x = model.x; y = model.y; rotation = model.rotation
+                     scaleX = model.scaleX; scaleY = model.scaleY
+                     color = model.color ?: Color.BLACK
+                     fontSize = model.fontSize ?: 24f
+                     boxWidth = model.boxWidth
+                     shadowColor = model.shadowColor ?: 0
+                     shadowRadius = model.shadowRadius ?: 0f
+                     shadowDx = model.shadowDx ?: 0f
+                     shadowDy = model.shadowDy ?: 0f
+
+                     // Restore Font
+                     if (model.fontName != null) {
+                         this.fontPath = model.fontName
+                         // Find Typeface
+                         val found = availableFonts.find {
+                             (it.isCustom && it.path == model.fontName) || (!it.isCustom && it.name == model.fontName)
+                         }
+                         if (found != null) {
+                             this.typeface = found.typeface
+                         } else {
+                             // Fallback
+                             this.typeface = Typeface.DEFAULT
+                         }
+                     }
+                 }
+                 restoredLayers.add(l)
+             } else if (model.type == "IMAGE") {
+                 val bmp = images[model.imagePath]
+                 if (bmp != null) {
+                     val l = ImageLayer(bmp, model.imagePath).apply {
+                         x = model.x; y = model.y; rotation = model.rotation
+                         scaleX = model.scaleX; scaleY = model.scaleY
+                     }
+                     restoredLayers.add(l)
+                 }
+             }
+         }
+         canvasView.setLayers(restoredLayers)
     }
 
     override fun onPause() {
@@ -478,6 +521,20 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
     }
 
+    private fun saveCurrentStyle(layer: TextLayer) {
+        val input = EditText(this)
+        input.hint = "Enter Style Name"
+
+        // Actually StyleManager doesn't support naming yet, just list.
+        // And user didn't ask for it.
+        // But we need to call StyleManager.saveStyle(context, layer).
+
+        StyleManager.saveStyle(this, layer)
+        Toast.makeText(this, "Style Saved", Toast.LENGTH_SHORT).show()
+        hidePropertyDetail()
+        showStyleMenu() // Refresh
+    }
+
     private fun showEffectMenu() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
@@ -756,6 +813,14 @@ class EditorActivity : AppCompatActivity() {
             if (name.isBlank()) {
                 Toast.makeText(this, "Enter project name", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
+            }
+
+            // Check permissions for better chance at Public storage
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 1001)
+                    return@setOnClickListener
+                }
             }
 
             // Capture Data on Main Thread
@@ -1203,6 +1268,25 @@ class EditorActivity : AppCompatActivity() {
         // Saved Styles
         val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
 
+        // Add "Save Current Style" button
+        if (layer != null) {
+            val btnSaveStyle = android.widget.Button(this).apply {
+                text = "Save Current Style"
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(16,0,16,16)
+                }
+                setOnClickListener {
+                    saveCurrentStyle(layer)
+                }
+            }
+            container.addView(btnSaveStyle)
+        }
+
         if (saved.isEmpty()) {
             grid.addView(TextView(this).apply { text = "No Saved Styles"; setTextColor(Color.GRAY) })
         }
@@ -1229,6 +1313,17 @@ class EditorActivity : AppCompatActivity() {
 
                         layer.color = style.color
                         layer.fontSize = style.fontSize
+                        layer.fontPath = style.fontPath
+                        // Resolve typeface if fontPath exists?
+                        // StyleManager just holds data. Editor needs to load font.
+                        if (style.fontPath != null) {
+                             val found = FontManager.getStandardFonts(this@EditorActivity).find { it.name == style.fontPath }
+                                 ?: FontManager.getCustomFonts(this@EditorActivity).find { it.path == style.fontPath }
+
+                             if (found != null) {
+                                 layer.typeface = found.typeface
+                             }
+                        }
                         layer.typeface = style.typeface
                         layer.opacity = style.opacity
                         layer.shadowColor = style.shadowColor
@@ -1720,6 +1815,7 @@ class EditorActivity : AppCompatActivity() {
                                         applySpanToSelection(CustomTypefaceSpan(font.typeface))
                                     } else {
                                         layer.typeface = font.typeface
+                                        layer.fontPath = if (font.isCustom) font.path else font.name // Save Identifier
                                         canvasView.invalidate()
                                     }
                                 }

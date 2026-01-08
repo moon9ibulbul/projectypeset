@@ -80,6 +80,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnImportImage.setOnClickListener {
             getContent.launch("image/*")
         }
+
+        binding.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
     }
 
     override fun onResume() {
@@ -89,7 +93,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecentProjects() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val projects = ProjectManager.getRecentProjects()
+            val projects = ProjectManager.getRecentProjects(this@MainActivity)
             withContext(Dispatchers.Main) {
                 if (projects.isNotEmpty()) {
                     binding.tvRecentLabel.visibility = View.VISIBLE

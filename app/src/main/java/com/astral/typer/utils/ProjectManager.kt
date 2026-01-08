@@ -51,6 +51,12 @@ object ProjectManager {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
+    sealed class LoadResult {
+        data class Success(val projectData: ProjectData, val images: Map<String, Bitmap>) : LoadResult()
+        data class MissingAssets(val projectData: ProjectData, val images: Map<String, Bitmap>, val missingFonts: List<String>) : LoadResult()
+        data class Error(val message: String) : LoadResult()
+    }
+
     fun saveProject(
         context: Context,
         layers: List<Layer>,
@@ -65,7 +71,8 @@ object ProjectManager {
             val tempDir = File(context.cacheDir, "temp_save")
             if (tempDir.exists()) tempDir.deleteRecursively()
             if (!tempDir.mkdirs()) {
-                if (!tempDir.exists()) return false // Failed to create temp dir
+                // Try again if deleteRecursively didn't finish immediately or failed partially
+                if (!tempDir.exists() && !tempDir.mkdirs()) return false
             }
 
             val imagesDir = File(tempDir, "images")
@@ -91,6 +98,7 @@ object ProjectManager {
                         text = layer.text.toString(),
                         color = layer.color,
                         fontSize = layer.fontSize,
+                        fontName = layer.fontPath, // Save Font Path
                         boxWidth = layer.boxWidth,
                         // Basic Shadow
                         shadowColor = layer.shadowColor,
@@ -115,47 +123,110 @@ object ProjectManager {
             val json = gson.toJson(projectData)
             File(tempDir, "project.json").writeText(json)
 
-            // 4. Zip to Target
+            // 4. Zip to Target (Try MediaStore for Public Access on Q+, else legacy File)
             val cleanName = projectName.trim()
-            val targetFile = getProjectFile(cleanName)
+            var success = false
 
-            // Ensure parent directory exists
-            targetFile.parentFile?.let {
-                if (!it.exists()) it.mkdirs()
+            // Attempt MediaStore save (Primary for Android 10+)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$cleanName.atd")
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/zip") // or application/octet-stream
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/AstralTyper/Project")
+                    }
+                    val resolver = context.contentResolver
+                    val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { out ->
+                            // Zip directly to the output stream?
+                            // We have a tempDir. We can zip tempDir to a temp file then copy?
+                            // Or zip directly to 'out'.
+                            ZipOutputStream(out).use { zipOut ->
+                                zipFile(tempDir, tempDir.name, zipOut)
+                            }
+                        }
+                        success = true
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    success = false
+                }
+            } else {
+                // Legacy Android < 10: Use direct File
+                try {
+                    val primaryFile = getPublicProjectFile(cleanName)
+                    primaryFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+                    success = zipFolder(tempDir, primaryFile)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    success = false
+                }
             }
 
-            return zipFolder(tempDir, targetFile)
+            // 5. Fallback to App-Specific Storage if Primary failed (Scoped Storage or Permission denied)
+            if (!success) {
+                val fallbackFile = getPrivateProjectFile(context, cleanName)
+                fallbackFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+                success = zipFolder(tempDir, fallbackFile)
+            }
+
+            return success
         } catch (e: Exception) {
             e.printStackTrace()
             return false
         }
     }
 
-    private fun getProjectFile(name: String): File {
-        val root = File(Environment.getExternalStorageDirectory(), "Pictures/AstralTyper/Project")
+    private fun getPublicProjectFile(name: String): File {
+        val root = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        // Try to create if not exists
+        try {
+            if (!root.exists()) root.mkdirs()
+        } catch (e: Exception) { e.printStackTrace() }
+        return File(root, "$name.atd")
+    }
+
+    private fun getPrivateProjectFile(context: Context, name: String): File {
+        val root = context.getExternalFilesDir("Projects") ?: File(context.filesDir, "Projects")
         if (!root.exists()) root.mkdirs()
         return File(root, "$name.atd")
     }
 
-    fun getRecentProjects(): List<File> {
-        val root = File(Environment.getExternalStorageDirectory(), "Pictures/AstralTyper/Project")
-        if (!root.exists()) return emptyList()
-        return root.listFiles { file -> file.extension == "atd" }
-            ?.sortedByDescending { it.lastModified() }
-            ?.take(10) ?: emptyList()
+    fun getRecentProjects(context: Context? = null): List<File> {
+        val projects = mutableListOf<File>()
+
+        // 1. Scan Public Dir
+        val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        if (publicRoot.exists()) {
+             publicRoot.listFiles { file -> file.extension == "atd" }?.let { projects.addAll(it) }
+        }
+
+        // 2. Scan Private Dir (Fallback)
+        if (context != null) {
+             val privateRoot = context.getExternalFilesDir("Projects")
+             if (privateRoot != null && privateRoot.exists()) {
+                  privateRoot.listFiles { file -> file.extension == "atd" }?.let { projects.addAll(it) }
+             }
+        }
+
+        return projects.sortedByDescending { it.lastModified() }
+            .distinctBy { it.name } // Avoid duplicates if same name exists? Unlikely with paths, but safe.
+            .take(10)
     }
 
-    fun loadProject(context: Context, file: File): Pair<ProjectData, Map<String, Bitmap>>? {
+    fun loadProject(context: Context, file: File): LoadResult {
          // 1. Unzip to temp
         val tempDir = File(context.cacheDir, "temp_load")
         if (tempDir.exists()) tempDir.deleteRecursively()
         tempDir.mkdirs()
 
-        if (!unzip(file, tempDir)) return null
+        if (!unzip(file, tempDir)) return LoadResult.Error("Failed to unzip project file")
 
         // 2. Read JSON
         val jsonFile = File(tempDir, "project.json")
-        if (!jsonFile.exists()) return null
+        if (!jsonFile.exists()) return LoadResult.Error("Invalid project structure: project.json missing")
 
         val projectData = gson.fromJson(jsonFile.readText(), ProjectData::class.java)
 
@@ -175,7 +246,51 @@ object ProjectManager {
             }
         }
 
-        return Pair(projectData, imageMap)
+        // 4. Verify Fonts
+        val missingFonts = mutableSetOf<String>()
+        val availableFonts = FontManager.getStandardFonts(context) + FontManager.getCustomFonts(context)
+        val availableFontNames = availableFonts.map { if(it.isCustom) it.path else it.name } // Identifier logic
+
+        for (layer in projectData.layers) {
+            if (layer.type == "TEXT" && !layer.fontName.isNullOrEmpty()) {
+                val fontIdentifier = layer.fontName
+                // Check if this identifier exists in current available fonts
+                // Logic:
+                // Standard fonts: stored as "Name" (e.g. "Serif")
+                // Custom fonts: stored as path? If path is absolute "/sdcard/...", it might fail on other device.
+                // If it fails, we treat it as missing.
+
+                // Better check:
+                // If standard name matches any standard name -> OK
+                // If path, check file existence.
+
+                val exists = availableFonts.any {
+                    if (it.isCustom) it.path == fontIdentifier // Path match
+                    else it.name == fontIdentifier // Name match
+                }
+
+                if (!exists) {
+                    // Try by name for custom fonts as fallback?
+                    // If stored path is "/old/path/font.ttf" and we have "/new/path/font.ttf" with same name?
+                    // Not guaranteed.
+
+                    // Simple check: File existence if it looks like a path
+                    val asFile = File(fontIdentifier)
+                    if (asFile.isAbsolute) {
+                        if (!asFile.exists()) missingFonts.add(fontIdentifier)
+                    } else {
+                        // It's a name, and not found in standard list
+                         missingFonts.add(fontIdentifier)
+                    }
+                }
+            }
+        }
+
+        if (missingFonts.isNotEmpty()) {
+            return LoadResult.MissingAssets(projectData, imageMap, missingFonts.toList())
+        }
+
+        return LoadResult.Success(projectData, imageMap)
     }
 
     private fun saveBitmap(bitmap: Bitmap, file: File) {

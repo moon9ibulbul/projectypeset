@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#222222"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Settings"
+        android:textColor="@android:color/white"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- Data Management -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Data Management"
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"/>
+
+    <CheckBox
+        android:id="@+id/cbStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Style List"
+        android:textColor="@android:color/white"
+        android:checked="true"/>
+
+    <CheckBox
+        android:id="@+id/cbFavorite"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Favorite Fonts"
+        android:textColor="@android:color/white"
+        android:checked="true"/>
+
+    <CheckBox
+        android:id="@+id/cbMyFont"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="My Fonts (Files)"
+        android:textColor="@android:color/white"
+        android:checked="true"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="24dp">
+
+        <Button
+            android:id="@+id/btnExport"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Export Data"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btnImport"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Import Data"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <!-- Cache -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cache"
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="24dp">
+
+        <TextView
+            android:id="@+id/tvCacheSize"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Cache Size: Calculating..."
+            android:textColor="@android:color/white"/>
+
+        <Button
+            android:id="@+id/btnClearCache"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Clear Cache"/>
+    </LinearLayout>
+
+    <!-- About / Donate -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <Button
+        android:id="@+id/btnDonate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Donate Me"
+        android:backgroundTint="#FF9800"
+        android:textColor="@android:color/white"
+        android:textStyle="bold"/>
+
+</LinearLayout>
