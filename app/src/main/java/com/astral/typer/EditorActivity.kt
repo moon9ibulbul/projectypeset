@@ -57,6 +57,8 @@ class EditorActivity : AppCompatActivity() {
     private val MENU_HEIGHT_DP = 180
     private var currentMenuType: String? = null
 
+    private var currentProjectName: String? = null
+
     private var isInpaintMode = false
     private var btnApplyInpaint: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
@@ -110,6 +112,7 @@ class EditorActivity : AppCompatActivity() {
 
         if (projectPath != null) {
              val file = java.io.File(projectPath)
+             currentProjectName = file.nameWithoutExtension
              // Load Async
              lifecycleScope.launch(Dispatchers.IO) {
                  val result = ProjectManager.loadProject(this@EditorActivity, file)
@@ -756,6 +759,10 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.btnSaveProjectOption.setOnClickListener {
             sidebarBinding.layoutSaveOptions.visibility = View.GONE
             sidebarBinding.layoutSaveProjectForm.visibility = View.VISIBLE
+
+            if (!currentProjectName.isNullOrEmpty()) {
+                sidebarBinding.etProjectName.setText(currentProjectName)
+            }
         }
 
         sidebarBinding.btnSaveFileOption.setOnClickListener {
@@ -967,12 +974,15 @@ class EditorActivity : AppCompatActivity() {
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL // Changed to Vertical to stack slider and buttons
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#88000000"))
+            // Remove background as requested
+            // setBackgroundColor(Color.parseColor("#88000000"))
             setPadding(16, 16, 16, 16)
+            /*
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#CC000000"))
                 cornerRadius = dpToPx(16).toFloat()
             }
+            */
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1032,9 +1042,10 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(16, 8, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(60), ViewGroup.LayoutParams.WRAP_CONTENT) // Fixed width to prevent truncation
         }
         val ivBE = android.widget.ImageView(this).apply { setColorFilter(Color.WHITE); layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24)) }
-        val tvBE = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f }
+        val tvBE = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f; gravity = Gravity.CENTER }
         btnBrushEraser.addView(ivBE); btnBrushEraser.addView(tvBE)
 
         fun updateBrushEraserState() {
@@ -1064,9 +1075,10 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(16, 8, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(60), ViewGroup.LayoutParams.WRAP_CONTENT) // Fixed width to prevent truncation
         }
         val ivLT = android.widget.ImageView(this).apply { setColorFilter(Color.WHITE); layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24)) }
-        val tvLT = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f }
+        val tvLT = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f; gravity = Gravity.CENTER }
         btnLassoTouch.addView(ivLT); btnLassoTouch.addView(tvLT)
 
         var isLassoActive = false

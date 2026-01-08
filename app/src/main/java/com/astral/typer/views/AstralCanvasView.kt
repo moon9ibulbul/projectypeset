@@ -1262,6 +1262,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 if (hitLayer != null) {
                     wasSelectedInitially = (selectedLayer == hitLayer)
                     selectLayer(hitLayer)
+
+                    // Force invalidate to ensure handles appear on first click
+                    invalidate()
+
                     if (currentMode != Mode.NONE) {
                         // Already in a mode (e.g. handles), do nothing
                     } else {
