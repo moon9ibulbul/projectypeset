@@ -15,15 +15,14 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.FloatBuffer
+import java.nio.LongBuffer
 import kotlin.math.max
 import kotlin.math.min
 
 class BubbleDetectorProcessor(private val context: Context) {
 
     companion object {
-        // Defined Constants
         private const val INPUT_SIZE = 640
-        private const val STRIDE = 512
         private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
 
@@ -156,86 +155,69 @@ class BubbleDetectorProcessor(private val context: Context) {
     suspend fun process(bitmap: Bitmap): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
-        val allBoxes = mutableListOf<Detection>()
         val width = bitmap.width
         val height = bitmap.height
 
         val session = getSession()
         val env = OrtEnvironment.getEnvironment()
 
-        // Dynamic Input Name Resolution
-        val inputName = if (session.inputNames.isNotEmpty()) session.inputNames.iterator().next() else "images"
+        // Determine input names
+        // The model likely requires "images" and "orig_target_sizes"
+        val inputNames = session.inputNames
+        val imageInputName = inputNames.find { it.contains("image", ignoreCase = true) } ?: "images"
+        val sizeInputName = inputNames.find { it.contains("size", ignoreCase = true) || it.contains("orig", ignoreCase = true) } ?: "orig_target_sizes"
 
-        val xSteps = if (width <= INPUT_SIZE) listOf(0) else (0 until width step STRIDE).toList()
-        val ySteps = (0 until height step STRIDE).toList()
+        // Resize to 640x640 for the model input
+        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
 
-        for (y in ySteps) {
-            for (x in xSteps) {
-                var tileX = x
-                var tileY = y
+        try {
+            // Prepare Image Tensor: (1, 3, 640, 640)
+            val floatBuffer = preProcess(resizedBitmap)
+            val imageTensor = OnnxTensor.createTensor(
+                env,
+                floatBuffer,
+                longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
+            )
 
-                if (tileX + INPUT_SIZE > width && width >= INPUT_SIZE) tileX = width - INPUT_SIZE
-                if (tileY + INPUT_SIZE > height && height >= INPUT_SIZE) tileY = height - INPUT_SIZE
+            // Prepare Size Tensor: (1, 2) with [width, height]
+            // Python: orig_size = np.array([[w, h]], dtype=np.int64)
+            val sizeBuffer = LongBuffer.allocate(2)
+            sizeBuffer.put(width.toLong())
+            sizeBuffer.put(height.toLong())
+            sizeBuffer.flip()
+            val sizeTensor = OnnxTensor.createTensor(env, sizeBuffer, longArrayOf(1, 2))
 
-                val tileBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(tileBitmap)
+            // Run Inference
+            val inputs = mapOf(
+                imageInputName to imageTensor,
+                sizeInputName to sizeTensor
+            )
 
-                val srcRect = android.graphics.Rect(
-                    tileX,
-                    tileY,
-                    min(tileX + INPUT_SIZE, width),
-                    min(tileY + INPUT_SIZE, height)
-                )
-                val dstRect = android.graphics.Rect(
-                    0,
-                    0,
-                    srcRect.width(),
-                    srcRect.height()
-                )
-                canvas.drawBitmap(bitmap, srcRect, dstRect, null)
+            val result = session.run(inputs)
 
-                try {
-                    val floatBuffer = preProcess(tileBitmap)
+            // Extract outputs
+            // Expected 3 outputs: labels, boxes, scores
+            val outputs = mutableListOf<Any>()
+            for (entry in result) {
+                outputs.add(entry.value.value)
+            }
 
-                    val tensor = OnnxTensor.createTensor(
-                        env,
-                        floatBuffer,
-                        longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
-                    )
+            val detections = parsePredictions(outputs)
 
-                    val inputs = mapOf(inputName to tensor)
-                    val result = session.run(inputs)
+            result.close()
+            imageTensor.close()
+            sizeTensor.close()
 
-                    val outputs = mutableListOf<Any>()
-                    for (entry in result) {
-                        outputs.add(entry.value.value)
-                    }
+            return@withContext detections
 
-                    val tileDetections = parsePredictions(outputs)
-
-                    for (det in tileDetections) {
-                        det.rect.offset(tileX.toFloat(), tileY.toFloat())
-
-                        det.rect.left = max(0f, det.rect.left)
-                        det.rect.top = max(0f, det.rect.top)
-                        det.rect.right = min(width.toFloat(), det.rect.right)
-                        det.rect.bottom = min(height.toFloat(), det.rect.bottom)
-
-                        allBoxes.add(det)
-                    }
-
-                    result.close()
-                    tensor.close()
-                } catch (e: Exception) {
-                    Log.e("BubbleDetector", "Tile inference failed: ${e.message}", e)
-                } finally {
-                    tileBitmap.recycle()
-                }
+        } catch (e: Exception) {
+            Log.e("BubbleDetector", "Inference failed: ${e.message}", e)
+            return@withContext emptyList()
+        } finally {
+            if (resizedBitmap != bitmap) {
+                resizedBitmap.recycle()
             }
         }
-
-        val finalBoxes = nonMaximumSuppression(allBoxes)
-        return@withContext finalBoxes
     }
 
     private fun preProcess(bitmap: Bitmap): FloatBuffer {
@@ -260,115 +242,87 @@ class BubbleDetectorProcessor(private val context: Context) {
         return floatBuffer
     }
 
-    data class Detection(val rect: RectF, val score: Float)
+    data class Detection(val rect: RectF, val score: Float, val label: Long)
 
-    private fun parsePredictions(outputs: List<Any>): List<Detection> {
-        val detections = mutableListOf<Detection>()
+    private fun parsePredictions(outputs: List<Any>): List<RectF> {
+        // We expect 3 tensors from RT-DETR export.
+        // Boxes: [1, N, 4] Float
+        // Scores: [1, N] Float
+        // Labels: [1, N] Long (or Int)
 
         var boxes: Array<FloatArray>? = null // [N][4]
-        var scores: Array<FloatArray>? = null // [N][C]
+        var scores: FloatArray? = null // [N]
+        var labels: LongArray? = null // [N]
 
-        // Helper to unwrap batch dimension and normalize to [N][Features]
-        fun normalize(tensor: Any): Array<FloatArray>? {
-            if (tensor is Array<*>) {
-                val batch = tensor[0] // Assume batch size 1
-                if (batch is Array<*>) {
-                    if (batch.isNotEmpty() && batch[0] is FloatArray) {
-                        @Suppress("UNCHECKED_CAST")
-                        val data = batch as Array<FloatArray>
-
-                        val rows = data.size
-                        val cols = if (rows > 0) data[0].size else 0
-
-                        // Heuristic for Transpose: RT-DETR queries usually 300 or 1000. Features 4 or 80.
-                        // If we see [4, 300] -> transpose to [300, 4]
-                        // If we see [80, 300] -> transpose to [300, 80]
-                        if (rows < cols && rows < 100) {
-                             val transposed = Array(cols) { FloatArray(rows) }
-                             for (i in 0 until rows) {
-                                 for (j in 0 until cols) {
-                                     transposed[j][i] = data[i][j]
-                                 }
+        for (output in outputs) {
+            if (output is Array<*>) {
+                // Check if it's [1, N, 4] -> Boxes
+                // Output is float[1][N][4] -> Array<Array<FloatArray>>
+                if (output.isNotEmpty()) {
+                     val first = output[0]
+                     if (first is Array<*>) {
+                         // Shape [Batch, N, Features]
+                         // We assume Batch=1, so first is [N, Features] (Array<FloatArray>)
+                         if (first.isNotEmpty() && first[0] is FloatArray) {
+                             @Suppress("UNCHECKED_CAST")
+                             val batchData = first as Array<FloatArray>
+                             val cols = if (batchData.isNotEmpty()) batchData[0].size else 0
+                             if (cols == 4) {
+                                 boxes = batchData
                              }
-                             return transposed
-                        }
-                        return data
-                    }
-                }
-            }
-            return null
-        }
-
-        val parsedTensors = outputs.mapNotNull { normalize(it) }
-
-        if (parsedTensors.isEmpty()) return emptyList()
-
-        if (parsedTensors.size >= 2) {
-            // Split outputs: Boxes and Scores
-            // Find tensor with width 4 for boxes
-            boxes = parsedTensors.find { it.isNotEmpty() && it[0].size == 4 }
-
-            // Find score tensor (not the boxes tensor)
-            scores = parsedTensors.find { it !== boxes && it.isNotEmpty() }
-
-        } else {
-            // Single concatenated output
-            val data = parsedTensors[0]
-            if (data.isNotEmpty()) {
-                val dim = data[0].size
-                if (dim > 4) {
-                    // Split [cx, cy, w, h, score...]
-                    boxes = Array(data.size) { i -> FloatArray(4) { j -> data[i][j] } }
-                    scores = Array(data.size) { i -> FloatArray(dim - 4) { j -> data[i][j + 4] } }
+                         }
+                     } else if (first is FloatArray) {
+                         // Shape [Batch, N] -> Scores (float[1][N])
+                         scores = first
+                     } else if (first is LongArray) {
+                         // Shape [Batch, N] -> Labels (long[1][N])
+                         labels = first
+                     } else if (first is IntArray) {
+                         // Shape [Batch, N] -> Labels (int[1][N]) - just in case
+                         val intArr = first
+                         labels = LongArray(intArr.size) { intArr[it].toLong() }
+                     }
                 }
             }
         }
 
-        if (boxes == null || scores == null) return emptyList()
-        if (boxes!!.size != scores!!.size) return emptyList()
+        if (boxes == null || scores == null) {
+            Log.e("BubbleDetector", "Could not identify boxes or scores in outputs")
+            return emptyList()
+        }
 
-        val numQueries = boxes!!.size
-        val numClasses = scores!![0].size
+        val numBoxes = boxes!!.size
+        val numScores = scores!!.size
 
-        for (i in 0 until numQueries) {
-            val cx = boxes!![i][0]
-            val cy = boxes!![i][1]
-            val w = boxes!![i][2]
-            val h = boxes!![i][3]
+        if (numBoxes != numScores) {
+             Log.e("BubbleDetector", "Mismatch: boxes=$numBoxes, scores=$numScores")
+             return emptyList()
+        }
 
-            var maxScore = 0f
-            // Some models export scores with background class, some without.
-            // Usually we just take max across all classes.
-            for (j in 0 until numClasses) {
-                 if (scores!![i][j] > maxScore) maxScore = scores!![i][j]
-            }
+        val detections = mutableListOf<Detection>()
 
-            if (maxScore > CONFIDENCE_THRESHOLD) {
-                var finalX = cx
-                var finalY = cy
-                var finalW = w
-                var finalH = h
+        for (i in 0 until numBoxes) {
+            val score = scores!![i]
+            if (score > CONFIDENCE_THRESHOLD) {
+                val box = boxes!![i]
 
-                // Normalize if values are relative (<= 1.0)
-                // RT-DETR can output normalized or absolute.
-                // Usually normalized.
-                if (cx <= 1.05f && cy <= 1.05f && w <= 1.05f && h <= 1.05f) {
-                     finalX *= INPUT_SIZE
-                     finalY *= INPUT_SIZE
-                     finalW *= INPUT_SIZE
-                     finalH *= INPUT_SIZE
-                }
+                // Boxes from RT-DETR with orig_target_sizes are already absolute coordinates.
+                // box = [x1, y1, x2, y2]
+                val x1 = box[0]
+                val y1 = box[1]
+                val x2 = box[2]
+                val y2 = box[3]
 
-                val left = finalX - finalW / 2f
-                val top = finalY - finalH / 2f
-                val right = finalX + finalW / 2f
-                val bottom = finalY + finalH / 2f
+                val label = if (labels != null && i < labels!!.size) labels!![i] else -1L
 
-                detections.add(Detection(RectF(left, top, right, bottom), maxScore))
+                // We accept all detected classes (Bubble, Text Bubble, Text Free)
+                // Filter if needed: e.g. if (label == 0L || label == 1L)
+
+                detections.add(Detection(RectF(x1, y1, x2, y2), score, label))
             }
         }
 
-        return detections
+        return nonMaximumSuppression(detections)
     }
 
     private fun nonMaximumSuppression(detections: List<Detection>): List<RectF> {
