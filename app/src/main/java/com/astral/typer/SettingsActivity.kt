@@ -67,7 +67,7 @@ class SettingsActivity : AppCompatActivity() {
                 btnDownloadModel.isEnabled = true
             } else {
                 tvModelStatus.text = "Status: Not Downloaded"
-                btnDownloadModel.text = "Download Model (50MB)"
+                btnDownloadModel.text = "Download Model (~200MB)"
                 btnDownloadModel.isEnabled = true
             }
         }
