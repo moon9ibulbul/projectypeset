@@ -63,6 +63,25 @@ class EditorActivity : AppCompatActivity() {
     private var btnApplyInpaint: android.widget.Button? = null
     private var btnApplyCut: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
+    private lateinit var bubbleProcessor: com.astral.typer.utils.BubbleDetectorProcessor
+
+    // Typer
+    private var typerAdapter: TyperTextAdapter? = null
+    private var typerPopup: android.widget.PopupWindow? = null
+
+    private val importTxtLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                contentResolver.openInputStream(it)?.use { stream ->
+                    val text = stream.bufferedReader().use { reader -> reader.readText() }
+                    val lines = text.lines().filter { line -> line.isNotBlank() }
+                    updateTyperList(lines)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to load text", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -190,12 +209,26 @@ class EditorActivity : AppCompatActivity() {
         // Initialize InpaintManager
         inpaintManager = InpaintManager(this)
 
+        // Init Bubble Processor
+        bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this)
+
         // Initialize StyleManager to load saved styles
         StyleManager.init(this)
 
         // Listeners
         setupCanvasListeners()
         setupBottomMenu()
+
+        // Check for Typer Model
+        checkTyperAvailability()
+    }
+
+    private fun checkTyperAvailability() {
+        if (!bubbleProcessor.isModelAvailable()) {
+            binding.btnPropTyper.visibility = View.GONE
+        } else {
+            binding.btnPropTyper.visibility = View.VISIBLE
+        }
     }
 
     private fun loadProjectData(proj: ProjectManager.ProjectData, images: Map<String, android.graphics.Bitmap>) {
@@ -317,6 +350,83 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
+        canvasView.onBubbleClickListener = { rect ->
+            // User clicked a detected bubble
+            if (typerAdapter != null) {
+                val text = typerAdapter?.getSelectedText() ?: "Text"
+                val style = typerAdapter?.getSelectedStyle()
+
+                // Create Text Layer
+                val layer = TextLayer(text)
+
+                // Position centered on rect
+                val center = canvasView.getViewportCenter() // Default to viewport center if needed, but we use rect
+                // We need to map RectF (Global Coords) to initial position?
+                // The rect is in Global Coords. layer.x/y is global.
+                layer.x = rect.centerX()
+                layer.y = rect.centerY()
+
+                // Apply Style
+                if (style != null) {
+                    layer.color = style.color
+                    layer.fontSize = style.fontSize
+                    // Load Font if needed
+                    if (style.fontPath != null) {
+                         val found = FontManager.getStandardFonts(this@EditorActivity).find { it.name == style.fontPath }
+                             ?: FontManager.getCustomFonts(this@EditorActivity).find { it.path == style.fontPath }
+
+                         if (found != null) {
+                             layer.typeface = found.typeface
+                             layer.fontPath = if (found.isCustom) found.path else found.name
+                         }
+                    } else {
+                        layer.typeface = style.typeface
+                    }
+
+                    layer.opacity = style.opacity
+                    layer.shadowColor = style.shadowColor
+                    layer.shadowRadius = style.shadowRadius
+                    layer.shadowDx = style.shadowDx
+                    layer.shadowDy = style.shadowDy
+                    layer.isMotionShadow = style.isMotionShadow
+                    layer.motionShadowAngle = style.motionShadowAngle
+                    layer.motionShadowDistance = style.motionShadowDistance
+                    layer.isGradient = style.isGradient
+                    layer.gradientStartColor = style.gradientStartColor
+                    layer.gradientEndColor = style.gradientEndColor
+                    layer.gradientAngle = style.gradientAngle
+                    layer.isGradientText = style.isGradientText
+                    layer.isGradientStroke = style.isGradientStroke
+                    layer.isGradientShadow = style.isGradientShadow
+                    layer.strokeColor = style.strokeColor
+                    layer.strokeWidth = style.strokeWidth
+                    layer.doubleStrokeColor = style.doubleStrokeColor
+                    layer.doubleStrokeWidth = style.doubleStrokeWidth
+                    layer.letterSpacing = style.letterSpacing
+                    layer.lineSpacing = style.lineSpacing
+                } else {
+                    layer.color = Color.BLACK
+                }
+
+                // Box Width (Constraint)
+                // If bubble is very tall and narrow, it might be vertical text?
+                // For now, set box width to bubble width minus padding
+                val padding = 20f
+                if (rect.width() > padding * 2) {
+                    layer.boxWidth = rect.width() - padding
+                }
+
+                canvasView.getLayers().add(layer)
+                canvasView.selectLayer(layer)
+
+                // Remove the bubble overlay
+                canvasView.removeDetectedBubble(rect)
+
+                // Advance
+                typerAdapter?.advanceSelection()
+            }
+        }
+
         canvasView.onLayerEditListener = object : AstralCanvasView.OnLayerEditListener {
             override fun onLayerDoubleTap(layer: Layer) {
                 if (layer is TextLayer) {
@@ -412,6 +522,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Property Actions
+        binding.btnPropTyper.setOnClickListener { toggleMenu("TYPER") { showTyperMenu() } }
         binding.btnPropQuickEdit.setOnClickListener { toggleMenu("QUICK_EDIT") { showQuickEditMenu() } }
         binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
         binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
@@ -1582,6 +1693,10 @@ class EditorActivity : AppCompatActivity() {
             canvasView.setEraseLayerMode(false)
         }
 
+        if (currentMenuType == "TYPER") {
+            exitTyperMode()
+        }
+
         currentMenuType = null
     }
 
@@ -1601,6 +1716,98 @@ class EditorActivity : AppCompatActivity() {
             }
             showAction()
             currentMenuType = type
+        }
+    }
+
+    // --- TYPER MENU ---
+    private fun showTyperMenu() {
+        // Since Typer uses a PopupWindow for interaction instead of the bottom container
+        // We will show a dummy container or nothing in the bottom,
+        // but we need to set the MODE on canvas.
+
+        // Actually, let's show the popup anchored to the button or center.
+        // And set the Canvas Mode.
+
+        canvasView.setTyperMode(true)
+
+        val popupView = layoutInflater.inflate(R.layout.popup_typer, null)
+        typerPopup = android.widget.PopupWindow(popupView, dpToPx(320), ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        typerPopup?.elevation = 20f
+        typerPopup?.isOutsideTouchable = false // Keep it open until mode exit
+
+        // Show Popup
+        typerPopup?.showAtLocation(binding.root, Gravity.BOTTOM or Gravity.START, dpToPx(16), dpToPx(200))
+
+        val btnImport = popupView.findViewById<android.widget.Button>(R.id.btnImportTxt)
+        val btnDetect = popupView.findViewById<android.widget.Button>(R.id.btnDetectBubbles)
+        val recycler = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
+        val tvWarning = popupView.findViewById<TextView>(R.id.tvWarning)
+
+        recycler.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+
+        // Load Styles Check
+        val styles = StyleManager.getSavedStyles()
+        if (styles.isEmpty()) {
+            tvWarning.visibility = View.VISIBLE
+        } else {
+            tvWarning.visibility = View.GONE
+        }
+
+        // Init Adapter (Empty initially)
+        typerAdapter = TyperTextAdapter(this, emptyList(), styles) { pos, style ->
+            // Selection updated
+        }
+        recycler.adapter = typerAdapter
+
+        btnImport.setOnClickListener {
+            importTxtLauncher.launch("text/plain")
+        }
+
+        btnDetect.setOnClickListener {
+             detectBubbles()
+        }
+
+        // Keep Property Container Visible but Empty? Or store "TYPER" state
+        // We don't necessarily need the propertyDetailContainer.
+        binding.propertyDetailContainer.visibility = View.GONE
+    }
+
+    private fun exitTyperMode() {
+        typerPopup?.dismiss()
+        typerPopup = null
+        canvasView.setTyperMode(false)
+        canvasView.setDetectedBubbles(emptyList()) // Clear overlays
+    }
+
+    private fun updateTyperList(lines: List<String>) {
+        val styles = StyleManager.getSavedStyles()
+        typerAdapter = TyperTextAdapter(this, lines, styles) { pos, style -> }
+
+        if (typerPopup != null && typerPopup!!.isShowing) {
+             val recycler = typerPopup!!.contentView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
+             recycler.adapter = typerAdapter
+        }
+    }
+
+    private fun detectBubbles() {
+        val bg = canvasView.getBackgroundImage()
+        if (bg == null) {
+            Toast.makeText(this, "No image to detect", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        binding.loadingOverlay.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            val rects = bubbleProcessor.detect(bg)
+            withContext(Dispatchers.Main) {
+                binding.loadingOverlay.visibility = View.GONE
+                if (rects.isNotEmpty()) {
+                    canvasView.setDetectedBubbles(rects)
+                    Toast.makeText(this@EditorActivity, "Detected ${rects.size} bubbles", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@EditorActivity, "No bubbles detected", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
