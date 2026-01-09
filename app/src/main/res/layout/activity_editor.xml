@@ -151,6 +151,15 @@
                 android:padding="16dp">
 
                 <Button
+                    android:id="@+id/btnPropTyper"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Typer"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"
+                    android:visibility="gone"/>
+
+                <Button
                     android:id="@+id/btnPropQuickEdit"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

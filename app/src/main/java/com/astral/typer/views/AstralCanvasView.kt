@@ -682,6 +682,7 @@ class AstralCanvasView @JvmOverloads constructor(
     var onLayerSelectedListener: OnLayerSelectedListener? = null
     var onLayerEditListener: OnLayerEditListener? = null
     var onLayerUpdateListener: OnLayerUpdateListener? = null
+    var onBubbleClickListener: ((RectF) -> Unit)? = null
 
     fun addTextLayer(text: String) {
         val center = getViewportCenter()

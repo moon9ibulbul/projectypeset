@@ -1754,7 +1754,8 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Init Adapter (Empty initially)
-        typerAdapter = TyperTextAdapter(this, emptyList(), styles) { pos, style ->
+        val styleModels = styles.map { StyleManager.toModel(it) }
+        typerAdapter = TyperTextAdapter(this, emptyList(), styleModels) { _, _ ->
             // Selection updated
         }
         recycler.adapter = typerAdapter
@@ -1780,8 +1781,8 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun updateTyperList(lines: List<String>) {
-        val styles = StyleManager.getSavedStyles()
-        typerAdapter = TyperTextAdapter(this, lines, styles) { pos, style -> }
+        val styles = StyleManager.getSavedStyles().map { StyleManager.toModel(it) }
+        typerAdapter = TyperTextAdapter(this, lines, styles) { _, _ -> }
 
         if (typerPopup != null && typerPopup!!.isShowing) {
              val recycler = typerPopup!!.contentView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)

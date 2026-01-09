@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.astral.typer.models.StyleModel
+import com.astral.typer.utils.StyleManager.StyleModel
 import com.astral.typer.utils.StyleManager
 
 class TyperTextAdapter(
