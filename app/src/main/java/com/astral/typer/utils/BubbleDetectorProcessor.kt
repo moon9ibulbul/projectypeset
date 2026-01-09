@@ -2,7 +2,6 @@ package com.astral.typer.utils
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.RectF
 import android.util.Log
 import ai.onnxruntime.OnnxTensor
@@ -23,16 +22,17 @@ import kotlin.math.min
 class BubbleDetectorProcessor(private val context: Context) {
 
     companion object {
+        // Defined Constants
         private const val INPUT_SIZE = 640
+        private const val STRIDE = 512
+        private const val CONFIDENCE_THRESHOLD = 0.4f // Updated from 0.25
+        private const val IOU_THRESHOLD = 0.5f
+
         private const val MODEL_URL = "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"
         private const val CONNECT_TIMEOUT = 30000
         private const val READ_TIMEOUT = 30000
         private const val USER_AGENT = "AstralTyper/1.0"
-
-        // NMS Thresholds
-        private const val CONFIDENCE_THRESHOLD = 0.25f
-        private const val IOU_THRESHOLD = 0.5f
 
         private var ortEnvironment: OrtEnvironment? = null
         private var ortSession: OrtSession? = null
@@ -44,6 +44,8 @@ class BubbleDetectorProcessor(private val context: Context) {
     fun isModelAvailable(): Boolean {
         return modelFile.exists() && modelFile.length() > 0
     }
+
+    // --- Model Management (Preserved) ---
 
     suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
@@ -148,114 +150,184 @@ class BubbleDetectorProcessor(private val context: Context) {
         } catch (e: Exception) {}
     }
 
-    /**
-     * Runs object detection on the provided bitmap.
-     * Handles large images by tiling (sliding window).
-     */
-    suspend fun detect(image: Bitmap): List<RectF> = withContext(Dispatchers.Default) {
+    // --- Core Inference Logic (Rewritten) ---
+
+    // Renamed to 'process' as requested in prompt, aliased by 'detect' for compatibility
+    suspend fun detect(image: Bitmap): List<RectF> = process(image)
+
+    suspend fun process(bitmap: Bitmap): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
         val allBoxes = mutableListOf<Detection>()
-        val width = image.width
-        val height = image.height
+        val width = bitmap.width
+        val height = bitmap.height
 
-        // Tiling strategy
-        val tileSize = 1024 // Use 1024 tiles for efficiency, resize to 640 for inference
-        val overlap = (tileSize * 0.2f).toInt()
-        val step = tileSize - overlap
+        val session = getSession()
+        val env = OrtEnvironment.getEnvironment() // Environment is singleton
 
-        try {
-            val session = getSession()
-            val env = OrtEnvironment.getEnvironment()
+        // Sliding Window Loop (2D to cover width > 640)
+        // Prompt requirement: "Create a loop to traverse the image from top to bottom (y from 0 to height step STRIDE)."
+        // Also handling X explicitly for robustness.
 
-            // Loop through tiles
-            for (y in 0 until height step step) {
-                for (x in 0 until width step step) {
-                    // Define tile bounds
-                    val tileW = min(tileSize, width - x)
-                    val tileH = min(tileSize, height - y)
+        val xSteps = if (width <= INPUT_SIZE) listOf(0) else (0 until width step STRIDE).toList()
+        val ySteps = (0 until height step STRIDE).toList()
 
-                    // Skip tiny strips at edges if they are covered by previous overlap (unless it's the only tile)
-                    if (tileW < 100 || tileH < 100) continue
+        for (y in ySteps) {
+            for (x in xSteps) {
+                // Crop Tile
+                // "Handle the bottom edge case where the remaining height < 640 by padding or shifting the crop up"
+                // Shifting up is better to avoid padding artifacts if possible, but let's stick to standard crop.
+                // The prompt says: "Crop: Extract a bitmap tile of size INPUT_SIZE x INPUT_SIZE at the current y."
+                // To guarantee 640x640 input without resizing (scaling), we should create a 640x640 bitmap.
+                // If we are at the edge, we draw the partial image into the 640x640 buffer (effectively padding with 0/black).
 
-                    // Create tile bitmap
-                    val tileBitmap = Bitmap.createBitmap(image, x, y, tileW, tileH)
+                var tileX = x
+                var tileY = y
 
-                    // Preprocess: Resize to 640x640 (Model Input)
-                    // We need to maintain aspect ratio or pad?
-                    // YOLO usually expects letterboxing or direct resize.
-                    // For simplicity, we'll resize directly but we must track the scale factor to map back.
-                    // Actually, YOLOv8/v5 is robust to aspect ratio changes within reason, but letterboxing is better.
-                    // Let's do simple resize for now to match the "Replicate exact download implementation" style simplicity,
-                    // but we must map coordinates correctly.
+                // Alternative: Shift crop to fit if possible (avoid padding)
+                if (tileX + INPUT_SIZE > width && width >= INPUT_SIZE) tileX = width - INPUT_SIZE
+                if (tileY + INPUT_SIZE > height && height >= INPUT_SIZE) tileY = height - INPUT_SIZE
 
-                    val inputBitmap = Bitmap.createScaledBitmap(tileBitmap, INPUT_SIZE, INPUT_SIZE, true)
+                // Create input bitmap
+                val tileBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(tileBitmap)
 
-                    // Prepare Tensor
-                    val tensor = bitmapToOnnxTensor(env, inputBitmap)
+                // Draw portion of original bitmap
+                val srcRect = android.graphics.Rect(
+                    tileX,
+                    tileY,
+                    min(tileX + INPUT_SIZE, width),
+                    min(tileY + INPUT_SIZE, height)
+                )
+                val dstRect = android.graphics.Rect(
+                    0,
+                    0,
+                    srcRect.width(),
+                    srcRect.height()
+                )
+                canvas.drawBitmap(bitmap, srcRect, dstRect, null)
+                // Remaining area is transparent/black (default for new Bitmap)
+
+                try {
+                    // Pre-process
+                    val floatBuffer = preProcess(tileBitmap)
+
+                    // Create Tensor
+                    // Shape: [1, 3, 640, 640]
+                    val tensor = OnnxTensor.createTensor(
+                        env,
+                        floatBuffer,
+                        longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
+                    )
 
                     // Inference
                     val inputs = mapOf("images" to tensor)
                     val result = session.run(inputs)
-                    val output = result[0].value as Array<Array<FloatArray>> // [1, 8400, 85] usually or [1, num_classes+4, num_anchors]
 
-                    // Parse Output
-                    // YOLO output shape varies.
-                    // Typical YOLOv8: [1, 4 + classes, 8400]
-                    // Typical YOLOv5/7: [1, 25200, 85] (xywh, conf, classes...)
+                    // Parse
+                    // Model output depends on architecture.
+                    // Assuming YOLOv8 format [1, 8400, 5+] or [1, 5+, 8400].
+                    // Or "The model returns boxes in the range [0..640]".
+                    val output = result[0].value
 
-                    // Let's inspect shape dynamically if possible, or assume YOLOv8 format which is common for new models.
-                    // The model is "comic-text-and-bubble-detector". It is likely YOLOv8 based on HuggingFace link context often seen.
-                    // Let's handle generic [batch, boxes, coords] or [batch, coords, boxes]
+                    val tileDetections = parsePredictions(output)
 
-                    // The output usually needs transposing if it is [1, xywh+classes, boxes]
+                    // Map Coordinates to Global
+                    for (det in tileDetections) {
+                        // "Must add the current loop offset (currentY) to the box.top and box.bottom"
+                        // Also currentX
+                        det.rect.offset(tileX.toFloat(), tileY.toFloat())
 
-                    val detections = parsePredictions(output, x, y, tileW.toFloat(), tileH.toFloat())
-                    allBoxes.addAll(detections)
+                        // Clip to image bounds
+                        det.rect.left = max(0f, det.rect.left)
+                        det.rect.top = max(0f, det.rect.top)
+                        det.rect.right = min(width.toFloat(), det.rect.right)
+                        det.rect.bottom = min(height.toFloat(), det.rect.bottom)
 
-                    // Clean up
+                        allBoxes.add(det)
+                    }
+
+                    // Cleanup
                     result.close()
                     tensor.close()
-                    inputBitmap.recycle()
+                } catch (e: Exception) {
+                    Log.e("BubbleDetector", "Tile inference failed", e)
+                } finally {
                     tileBitmap.recycle()
                 }
             }
-
-            // Global NMS
-            return@withContext nonMaximumSuppression(allBoxes)
-
-        } catch (e: Exception) {
-            Log.e("BubbleDetector", "Detection failed", e)
-            // If OOM or crash, return what we have so far
-            return@withContext nonMaximumSuppression(allBoxes)
         }
+
+        // Global NMS
+        val finalBoxes = nonMaximumSuppression(allBoxes)
+        return@withContext finalBoxes
     }
 
+    private fun preProcess(bitmap: Bitmap): FloatBuffer {
+        // "Allocate a FloatBuffer of size 1 * 3 * 640 * 640"
+        val count = 1 * 3 * INPUT_SIZE * INPUT_SIZE
+        val floatBuffer = FloatBuffer.allocate(count)
+
+        val pixels = IntArray(INPUT_SIZE * INPUT_SIZE)
+        bitmap.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
+
+        // NCHW Formatting: RRR... GGG... BBB...
+        // Loop through pixels. Extract R, G, B. Normalize / 255.0f.
+
+        // Optimization: Use separate arrays or loop 3 times?
+        // Single loop with offset is cache friendly for reading pixels, but jumping writes.
+        // Or 3 loops over pixels?
+        // Let's do 3 separate passes or fill 3 separate buffers then merge? FloatBuffer is contiguous.
+        // We need to write R section, then G section, then B section.
+
+        val stride = INPUT_SIZE * INPUT_SIZE
+
+        // It's faster to iterate pixels once and write to specific indices if using array, but FloatBuffer is direct put.
+        // Let's use a float array then wrap.
+        val floatArray = FloatArray(count)
+
+        for (i in 0 until stride) {
+            val pixel = pixels[i]
+            // R
+            floatArray[i] = ((pixel shr 16) and 0xFF) / 255.0f
+            // G
+            floatArray[stride + i] = ((pixel shr 8) and 0xFF) / 255.0f
+            // B
+            floatArray[2 * stride + i] = (pixel and 0xFF) / 255.0f
+        }
+
+        floatBuffer.put(floatArray)
+        floatBuffer.flip() // Prepare for reading
+        return floatBuffer
+    }
+
+    // Data class for internal usage
     data class Detection(val rect: RectF, val score: Float)
 
-    private fun parsePredictions(output: Any, tileX: Int, tileY: Int, tileW: Float, tileH: Float): List<Detection> {
+    private fun parsePredictions(output: Any): List<Detection> {
         val detections = mutableListOf<Detection>()
 
-        // Handle various output shapes (support YOLOv8 and YOLOv5/standard)
-        // Case 1: [1, num_features, num_boxes] -> YOLOv8 default
-        // Case 2: [1, num_boxes, num_features] -> YOLOv5/Others
+        // Logic to handle YOLOv8 / YOLOv5 output shapes
+        // Usually [1, features, boxes] (e.g., [1, 5, 8400]) for YOLOv8
+        // Or [1, boxes, features] (e.g., [1, 25200, 85]) for YOLOv5
 
         var data: Array<FloatArray>? = null
-        var isTransposed = false // If true, rows are features, cols are boxes
+        var isTransposed = false // true if [features, boxes]
 
         if (output is Array<*>) {
             val batch = output[0]
             if (batch is Array<*>) {
                 if (batch[0] is FloatArray) {
-                    val rows = batch.size
-                    val cols = (batch[0] as FloatArray).size
+                    val d = batch as Array<FloatArray>
+                    val dim1 = d.size
+                    val dim2 = d[0].size
 
-                    // Heuristic: Boxes are usually the larger dimension (e.g. 8400), features are small (e.g. 5-85)
-                    if (rows < cols) {
+                    // Heuristic: Boxes dim is usually large (e.g. > 1000)
+                    if (dim1 < dim2) {
                         isTransposed = true // [features, boxes]
-                        data = batch as Array<FloatArray>
+                        data = d
                     } else {
-                        data = batch as Array<FloatArray> // [boxes, features]
+                        data = d // [boxes, features]
                     }
                 }
             }
@@ -267,15 +339,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         val cols = data[0].size
         val numBoxes = if (isTransposed) cols else rows
 
-        // Scale factors to map 640x640 back to Tile Size
-        val scaleX = tileW / INPUT_SIZE
-        val scaleY = tileH / INPUT_SIZE
-
         for (i in 0 until numBoxes) {
-            // Extract box info
-            // Standard YOLO: x_center, y_center, w, h, confidence (if exists), class_scores...
-            // YOLOv8: x, y, w, h, class_score1, class_score2... (No objectness score usually, just max class score)
-
             val cx: Float
             val cy: Float
             val w: Float
@@ -288,9 +352,10 @@ class BubbleDetectorProcessor(private val context: Context) {
                 cy = data[1][i]
                 w = data[2][i]
                 h = data[3][i]
-                // Score: Find max of remaining classes.
-                // Assuming class 0 is "text" or "bubble". We want any valid class.
-                // Usually these models have 1 or 2 classes (Text, Bubble).
+
+                // Score: Max of class scores. Assuming index 4+ are classes.
+                // For "comic-text-and-bubble-detector", it might be specific.
+                // Assuming standard YOLOv8 (xywh + classes)
                 var maxScore = 0f
                 for (j in 4 until rows) {
                     if (data[j][i] > maxScore) maxScore = data[j][i]
@@ -303,14 +368,10 @@ class BubbleDetectorProcessor(private val context: Context) {
                 w = data[i][2]
                 h = data[i][3]
 
-                // Check if index 4 is objectness or class.
-                // If cols > 5, usually 4 is obj, 5+ are classes.
-                // If cols == 5 or 6 (e.g. xywh + 1 class), maybe just class score.
-                // Let's assume standard logic:
+                // YOLOv5 style: index 4 is objectness, 5+ are classes
+                val objScore = if (cols > 5) data[i][4] else 1.0f
                 var maxClassScore = 0f
                 val startClass = if (cols > 5) 5 else 4
-                val objScore = if (cols > 5) data[i][4] else 1.0f
-
                 for (j in startClass until cols) {
                     if (data[i][j] > maxClassScore) maxClassScore = data[i][j]
                 }
@@ -318,39 +379,37 @@ class BubbleDetectorProcessor(private val context: Context) {
             }
 
             if (score > CONFIDENCE_THRESHOLD) {
-                // Determine if normalized
-                // If w or h are small float (e.g. < 1.0) consistently, it's normalized.
-                // However, small objects in pixels can be < 1.0? Unlikely for bubbles.
-                // Safest heuristic: check if any value in the batch > 1.0.
-                // But per-box logic: if w <= 1.0 && h <= 1.0 && cx <= 1.0 && cy <= 1.0, treat as normalized.
+                // "The model returns boxes in the range [0..640]"
+                // Some models return normalized [0..1]. We need to check or enforce.
+                // Prompt says: "Map Coordinates: The model returns boxes in the range [0..640]."
+                // So we assume pixel coordinates relative to 640x640.
+
+                // However, if the model output IS normalized (common in YOLO), we must multiply by INPUT_SIZE.
+                // Let's add a safe check. If boxes are all small < 1.0, they are likely normalized.
+                // But prompt is explicit. I will trust prompt BUT add a sanity check just in case.
+                // "Map Coordinates: The model returns boxes in the range [0..640]." -> implies pixel coords.
 
                 var finalX = cx
                 var finalY = cy
                 var finalW = w
                 var finalH = h
 
-                if (cx <= 1.0f && cy <= 1.0f && w <= 1.0f && h <= 1.0f) {
-                    finalX *= INPUT_SIZE
-                    finalY *= INPUT_SIZE
-                    finalW *= INPUT_SIZE
-                    finalH *= INPUT_SIZE
+                // Sanity check: If values are normalized, scale them.
+                if (cx <= 1.0f && cy <= 1.0f && w <= 1.0f && h <= 1.0f && score > 0.5f) {
+                     // Likely normalized
+                     finalX *= INPUT_SIZE
+                     finalY *= INPUT_SIZE
+                     finalW *= INPUT_SIZE
+                     finalH *= INPUT_SIZE
                 }
 
-                // Convert center-wh to top-left-bottom-right (relative to 640x640)
-                val x1 = (finalX - finalW / 2f)
-                val y1 = (finalY - finalH / 2f)
+                // Convert Center-WH to Top-Left-Bottom-Right
+                val left = finalX - finalW / 2f
+                val top = finalY - finalH / 2f
+                val right = finalX + finalW / 2f
+                val bottom = finalY + finalH / 2f
 
-                // Map to Tile Coordinates
-                val tileX1 = x1 * scaleX
-                val tileY1 = y1 * scaleY
-                val tileRectW = finalW * scaleX
-                val tileRectH = finalH * scaleY
-
-                // Map to Global Coordinates
-                val globalX = tileX + tileX1
-                val globalY = tileY + tileY1
-
-                detections.add(Detection(RectF(globalX, globalY, globalX + tileRectW, globalY + tileRectH), score))
+                detections.add(Detection(RectF(left, top, right, bottom), score))
             }
         }
 
@@ -389,34 +448,5 @@ class BubbleDetectorProcessor(private val context: Context) {
         val areaB = b.width() * b.height()
 
         return intersection / (areaA + areaB - intersection)
-    }
-
-    private fun bitmapToOnnxTensor(env: OrtEnvironment, bitmap: Bitmap): OnnxTensor {
-        val w = bitmap.width
-        val h = bitmap.height
-        val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        val size = 3 * w * h
-        val data = FloatArray(size)
-        val channelSize = w * h
-
-        // Normalization (Standard 0-1 or ImageNet stats? YOLO usually just 0-1)
-        for (i in 0 until channelSize) {
-            val p = pixels[i]
-            val r = ((p shr 16) and 0xFF) / 255f
-            val g = ((p shr 8) and 0xFF) / 255f
-            val b = (p and 0xFF) / 255f
-
-            data[i] = r
-            data[channelSize + i] = g
-            data[2 * channelSize + i] = b
-        }
-
-        return OnnxTensor.createTensor(
-            env,
-            FloatBuffer.wrap(data),
-            longArrayOf(1, 3, h.toLong(), w.toLong())
-        )
     }
 }
