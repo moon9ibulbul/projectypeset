@@ -172,48 +172,97 @@ class LaMaProcessor(private val context: Context) {
             val env = OrtEnvironment.getEnvironment() // Use shared env getter if needed, or static
             val session = getSession()
 
-            // 1. Resize Input
-            val inputImage = if (image.width != TRAINED_SIZE || image.height != TRAINED_SIZE) {
-                Bitmap.createScaledBitmap(image, TRAINED_SIZE, TRAINED_SIZE, true)
+            // 0. Calculate Smart Crop
+            val maskRect = getMaskBoundRect(mask) ?: return@withContext image // Return original if empty mask
+
+            // Calculate padded square crop
+            // 3x padding
+            val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
+            val cx = maskRect.centerX()
+            val cy = maskRect.centerY()
+            val halfSize = size / 2
+
+            // Calculate raw bounds
+            var left = cx - halfSize
+            var top = cy - halfSize
+            var right = cx + halfSize
+            var bottom = cy + halfSize
+
+            // Constrain to image bounds (shift if possible, else clamp)
+            // Strategy: Try to shift window to stay within bounds.
+            // If window > image, center it and clip (will be handled by bitmap creation)
+
+            val imgW = image.width
+            val imgH = image.height
+
+            // Adjust horizontal
+            if (right - left > imgW) {
+                // Crop is wider than image, center and clamp
+                left = 0
+                right = imgW
             } else {
-                image
+                if (left < 0) {
+                    val diff = -left
+                    left += diff
+                    right += diff
+                }
+                if (right > imgW) {
+                    val diff = right - imgW
+                    left -= diff
+                    right -= diff
+                }
             }
 
-            val inputMask = if (mask.width != TRAINED_SIZE || mask.height != TRAINED_SIZE) {
-                Bitmap.createScaledBitmap(mask, TRAINED_SIZE, TRAINED_SIZE, false)
+            // Adjust vertical
+            if (bottom - top > imgH) {
+                 top = 0
+                 bottom = imgH
             } else {
-                mask
+                 if (top < 0) {
+                     val diff = -top
+                     top += diff
+                     bottom += diff
+                 }
+                 if (bottom > imgH) {
+                     val diff = bottom - imgH
+                     top -= diff
+                     bottom -= diff
+                 }
             }
 
-            // 2. Prepare Tensors
+            val cropRect = android.graphics.Rect(left, top, right, bottom)
+
+            // 1. Create Crops
+            val cropImage = Bitmap.createBitmap(image, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+            val cropMask = Bitmap.createBitmap(mask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+
+            // 2. Resize Input for Model
+            val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+            val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+
+            // 3. Prepare Tensors
             val tensorImg = bitmapToOnnxTensor(env, inputImage)
             val tensorMask = bitmapToMaskTensor(env, inputMask)
 
             val inputs = mapOf("image" to tensorImg, "mask" to tensorMask)
 
-            // 3. Run Inference
+            // 4. Run Inference
             val resultOrt = session.run(inputs)
             val outputTensor = resultOrt[0] as OnnxTensor
 
-            // 4. Post Process
+            // 5. Post Process
             val outputBitmap = outputTensorToBitmap(outputTensor)
 
             // Cleanup Inputs/Outputs but keep Session
             resultOrt.close()
             tensorImg.close()
             tensorMask.close()
-            // Do not close session here, it is cached
 
-            // 5. Composite Logic
-            // Always blend the result back into the original image using the mask.
-            // This ensures pixel-perfect fidelity for unmasked areas, even if dimensions matched.
+            // 6. Resize Output back to Crop Size
+            val outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
 
-            // Upscale the output to original size (if needed) or just use it
-            val upscaledOutput = if (image.width != TRAINED_SIZE || image.height != TRAINED_SIZE) {
-                Bitmap.createScaledBitmap(outputBitmap, image.width, image.height, true)
-            } else {
-                outputBitmap // Use directly if size matches
-            }
+            // 7. Composite Logic
+            // Blend the outputCrop back into the original image using the cropMask
 
             // Create result bitmap based on original dimensions
             val resultBitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
@@ -223,26 +272,30 @@ class LaMaProcessor(private val context: Context) {
             // Draw Original Image first (Base Layer)
             canvas.drawBitmap(image, 0f, 0f, paint)
 
-            // Draw the Inpainted Result masked by the Original Mask
-            // This replaces the original pixels ONLY where the mask is opaque
-            val sc = canvas.saveLayer(0f, 0f, image.width.toFloat(), image.height.toFloat(), null)
+            // Draw the Inpainted Crop masked by the Original Crop Mask
+            // We only need to affect the area within cropRect.
 
-            // Draw the inferred result
-            canvas.drawBitmap(upscaledOutput, 0f, 0f, paint)
+            // Save Layer restricted to cropRect
+            val sc = canvas.saveLayer(
+                cropRect.left.toFloat(),
+                cropRect.top.toFloat(),
+                cropRect.right.toFloat(),
+                cropRect.bottom.toFloat(),
+                null
+            )
 
-            // DST_IN: Keeps the Destination (Inpainted Result) only where Source (Mask) is opaque.
-            // Areas where Mask is transparent will be removed from this layer, revealing the Original Image below.
+            // Draw the inferred result at the crop position
+            canvas.drawBitmap(outputCrop, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
+
+            // DST_IN: Blend with the mask crop to ensure we only paste over the masked area
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
 
-            // Draw mask
-            canvas.drawBitmap(mask, 0f, 0f, paint)
+            // Draw the mask crop at the correct position
+            canvas.drawBitmap(cropMask, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
 
             // Restore
             paint.xfermode = null
             canvas.restoreToCount(sc)
-
-            // Note: We do not recycle outputBitmap manually here as Kotlin/ART GC handles it,
-            // and if it was not scaled, upscaledOutput IS outputBitmap.
 
             return@withContext resultBitmap
 
@@ -252,6 +305,36 @@ class LaMaProcessor(private val context: Context) {
             closeSession()
             return@withContext null
         }
+    }
+
+    private fun getMaskBoundRect(mask: Bitmap): android.graphics.Rect? {
+        val w = mask.width
+        val h = mask.height
+        val pixels = IntArray(w * h)
+        mask.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        var minX = w
+        var maxX = -1
+        var minY = h
+        var maxY = -1
+
+        var found = false
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val pixel = pixels[y * w + x]
+                // Check Alpha > 0
+                if ((pixel ushr 24) > 0) {
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                    found = true
+                }
+            }
+        }
+
+        return if (found) android.graphics.Rect(minX, minY, maxX + 1, maxY + 1) else null
     }
 
     private fun bitmapToMaskTensor(env: OrtEnvironment, bitmap: Bitmap): OnnxTensor {
