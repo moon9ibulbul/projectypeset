@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Mat
@@ -55,7 +57,7 @@ class InpaintManager(private val context: Context) {
         }
 
         // Try OpenCV
-        return@withContext withContext(Dispatchers.Default) {
+        return withContext(Dispatchers.Default) {
             if (isOpenCvInitialized) {
                 val result = inpaintWithOpenCV(originalBitmap, maskBitmap)
                 if (result != null) {
