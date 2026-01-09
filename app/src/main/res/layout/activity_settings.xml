@@ -141,6 +141,44 @@
             android:text="Download Model"/>
     </LinearLayout>
 
+    <!-- Typer Model -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Typer Model (Bubble Detector)"
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="24dp">
+
+        <TextView
+            android:id="@+id/tvTyperModelStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Status: Checking..."
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="8dp"/>
+
+        <ProgressBar
+            android:id="@+id/pbTyperModelDownload"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnDownloadTyperModel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Download Model"/>
+    </LinearLayout>
+
     <!-- About / Donate -->
     <View
         android:layout_width="match_parent"
