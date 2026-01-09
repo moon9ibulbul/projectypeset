@@ -23,6 +23,8 @@ class LaMaProcessor(private val context: Context) {
         private const val TRAINED_SIZE = 512
         private const val MODEL_URL = "https://github.com/T8RIN/ImageToolboxRemoteResources/raw/refs/heads/main/onnx/inpaint/lama/LaMa_512.onnx"
         private const val MODEL_FILENAME = "LaMa_512.onnx"
+        private const val CONNECT_TIMEOUT = 30000 // 30 seconds
+        private const val READ_TIMEOUT = 30000 // 30 seconds
 
         // Caching environment and session to avoid reloading overhead
         private var ortEnvironment: OrtEnvironment? = null
@@ -42,18 +44,53 @@ class LaMaProcessor(private val context: Context) {
             file.parentFile?.mkdirs()
             val tmpFile = File(file.parentFile, "$MODEL_FILENAME.tmp")
 
-            val url = URL(MODEL_URL)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connect()
+            var urlStr = MODEL_URL
+            var connection: HttpURLConnection
+            var redirects = 0
+            val maxRedirects = 5
 
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                Log.e("LaMaProcessor", "Server returned HTTP ${connection.responseCode} ${connection.responseMessage}")
-                return@withContext false
+            while (true) {
+                val url = URL(urlStr)
+                connection = url.openConnection() as HttpURLConnection
+                connection.instanceFollowRedirects = true // Try auto first, but manual loop handles protocol switches if any (though unlikely here)
+                // Actually, if we handle manually, we should set false, but let's see.
+                // HttpURLConnection follows redirects within same protocol. GitHub often redirects to same protocol (https).
+                // However, let's just use the robust loop which handles 301/302.
+                connection.instanceFollowRedirects = false
+                connection.connectTimeout = CONNECT_TIMEOUT
+                connection.readTimeout = READ_TIMEOUT
+                connection.connect()
+
+                val responseCode = connection.responseCode
+                if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
+                    responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
+                    responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
+
+                    if (redirects >= maxRedirects) {
+                        Log.e("LaMaProcessor", "Too many redirects")
+                        return@withContext false
+                    }
+                    val location = connection.getHeaderField("Location")
+                    if (location != null) {
+                        urlStr = location
+                        redirects++
+                        connection.disconnect()
+                        continue
+                    } else {
+                        Log.e("LaMaProcessor", "Redirect with no Location header")
+                        return@withContext false
+                    }
+                } else if (responseCode == HttpURLConnection.HTTP_OK) {
+                    break
+                } else {
+                     Log.e("LaMaProcessor", "Server returned HTTP $responseCode ${connection.responseMessage}")
+                     return@withContext false
+                }
             }
 
-            val fileLength = connection.contentLength
+            val fileLength = connection.contentLengthLong
 
-            val input = BufferedInputStream(url.openStream())
+            val input = BufferedInputStream(connection.inputStream)
             val output = FileOutputStream(tmpFile)
 
             val data = ByteArray(8192)
@@ -70,6 +107,7 @@ class LaMaProcessor(private val context: Context) {
             output.flush()
             output.close()
             input.close()
+            connection.disconnect()
 
             if (file.exists()) file.delete()
             if (tmpFile.renameTo(file)) {
