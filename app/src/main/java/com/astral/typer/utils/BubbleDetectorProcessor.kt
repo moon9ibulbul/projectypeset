@@ -24,7 +24,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         // Defined Constants
         private const val INPUT_SIZE = 640
         private const val STRIDE = 512
-        private const val CONFIDENCE_THRESHOLD = 0.4f
+        private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
 
         private const val MODEL_URL = "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector.onnx"
@@ -118,7 +118,7 @@ class BubbleDetectorProcessor(private val context: Context) {
             return@withContext true
 
         } catch (e: Exception) {
-            Log.e("BubbleDetector", "Download failed", e)
+            Log.e("BubbleDetector", "Download failed: ${e.message}", e)
             connection?.disconnect()
             return@withContext false
         }
@@ -163,6 +163,9 @@ class BubbleDetectorProcessor(private val context: Context) {
         val session = getSession()
         val env = OrtEnvironment.getEnvironment()
 
+        // Dynamic Input Name Resolution
+        val inputName = if (session.inputNames.isNotEmpty()) session.inputNames.iterator().next() else "images"
+
         val xSteps = if (width <= INPUT_SIZE) listOf(0) else (0 until width step STRIDE).toList()
         val ySteps = (0 until height step STRIDE).toList()
 
@@ -200,7 +203,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                         longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
                     )
 
-                    val inputs = mapOf("images" to tensor)
+                    val inputs = mapOf(inputName to tensor)
                     val result = session.run(inputs)
 
                     val outputs = mutableListOf<Any>()
@@ -224,7 +227,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                     result.close()
                     tensor.close()
                 } catch (e: Exception) {
-                    Log.e("BubbleDetector", "Tile inference failed", e)
+                    Log.e("BubbleDetector", "Tile inference failed: ${e.message}", e)
                 } finally {
                     tileBitmap.recycle()
                 }
