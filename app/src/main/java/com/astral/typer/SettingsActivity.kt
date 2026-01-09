@@ -85,7 +85,7 @@ class SettingsActivity : AppCompatActivity() {
                 btnDownloadTyperModel.isEnabled = true
             } else {
                 tvTyperModelStatus.text = "Status: Not Downloaded"
-                btnDownloadTyperModel.text = "Download Model (~50MB)"
+                btnDownloadTyperModel.text = "Download Model (170 MB)"
                 btnDownloadTyperModel.isEnabled = true
             }
         }

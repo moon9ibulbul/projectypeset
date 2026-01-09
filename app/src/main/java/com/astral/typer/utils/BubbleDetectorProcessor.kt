@@ -31,7 +31,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         private const val USER_AGENT = "AstralTyper/1.0"
 
         // NMS Thresholds
-        private const val CONFIDENCE_THRESHOLD = 0.4f
+        private const val CONFIDENCE_THRESHOLD = 0.25f
         private const val IOU_THRESHOLD = 0.5f
 
         private var ortEnvironment: OrtEnvironment? = null
@@ -318,17 +318,33 @@ class BubbleDetectorProcessor(private val context: Context) {
             }
 
             if (score > CONFIDENCE_THRESHOLD) {
+                // Determine if normalized
+                // If w or h are small float (e.g. < 1.0) consistently, it's normalized.
+                // However, small objects in pixels can be < 1.0? Unlikely for bubbles.
+                // Safest heuristic: check if any value in the batch > 1.0.
+                // But per-box logic: if w <= 1.0 && h <= 1.0 && cx <= 1.0 && cy <= 1.0, treat as normalized.
+
+                var finalX = cx
+                var finalY = cy
+                var finalW = w
+                var finalH = h
+
+                if (cx <= 1.0f && cy <= 1.0f && w <= 1.0f && h <= 1.0f) {
+                    finalX *= INPUT_SIZE
+                    finalY *= INPUT_SIZE
+                    finalW *= INPUT_SIZE
+                    finalH *= INPUT_SIZE
+                }
+
                 // Convert center-wh to top-left-bottom-right (relative to 640x640)
-                val x1 = (cx - w / 2f)
-                val y1 = (cy - h / 2f)
-                // val x2 = (cx + w / 2f)
-                // val y2 = (cy + h / 2f)
+                val x1 = (finalX - finalW / 2f)
+                val y1 = (finalY - finalH / 2f)
 
                 // Map to Tile Coordinates
                 val tileX1 = x1 * scaleX
                 val tileY1 = y1 * scaleY
-                val tileRectW = w * scaleX
-                val tileRectH = h * scaleY
+                val tileRectW = finalW * scaleX
+                val tileRectH = finalH * scaleY
 
                 // Map to Global Coordinates
                 val globalX = tileX + tileX1

@@ -225,9 +225,9 @@ class EditorActivity : AppCompatActivity() {
 
     private fun checkTyperAvailability() {
         if (!bubbleProcessor.isModelAvailable()) {
-            binding.btnPropTyper.visibility = View.GONE
+            binding.btnTopTyper.visibility = View.GONE
         } else {
-            binding.btnPropTyper.visibility = View.VISIBLE
+            binding.btnTopTyper.visibility = View.VISIBLE
         }
     }
 
@@ -360,8 +360,6 @@ class EditorActivity : AppCompatActivity() {
                 val layer = TextLayer(text)
 
                 // Position centered on rect
-                val center = canvasView.getViewportCenter() // Default to viewport center if needed, but we use rect
-                // We need to map RectF (Global Coords) to initial position?
                 // The rect is in Global Coords. layer.x/y is global.
                 layer.x = rect.centerX()
                 layer.y = rect.centerY()
@@ -409,7 +407,6 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Box Width (Constraint)
-                // If bubble is very tall and narrow, it might be vertical text?
                 // For now, set box width to bubble width minus padding
                 val padding = 20f
                 if (rect.width() > padding * 2) {
@@ -522,7 +519,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Property Actions
-        binding.btnPropTyper.setOnClickListener { toggleMenu("TYPER") { showTyperMenu() } }
+        binding.btnTopTyper.setOnClickListener { toggleTyperMode() }
         binding.btnPropQuickEdit.setOnClickListener { toggleMenu("QUICK_EDIT") { showQuickEditMenu() } }
         binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
         binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
@@ -1719,24 +1716,36 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private var isTyperModeActive = false
+
+    private fun toggleTyperMode() {
+        isTyperModeActive = !isTyperModeActive
+
+        if (isTyperModeActive) {
+            // Enter Typer Mode
+            canvasView.setTyperMode(true)
+            binding.bottomMenuContainer.visibility = View.GONE
+            hidePropertyDetail()
+            showTyperMenu()
+            // Highlight icon
+            binding.btnTopTyper.setColorFilter(Color.CYAN)
+        } else {
+            // Exit Typer Mode
+            exitTyperMode()
+            binding.bottomMenuContainer.visibility = View.VISIBLE
+            binding.btnTopTyper.setColorFilter(Color.WHITE)
+        }
+    }
+
     // --- TYPER MENU ---
     private fun showTyperMenu() {
-        // Since Typer uses a PopupWindow for interaction instead of the bottom container
-        // We will show a dummy container or nothing in the bottom,
-        // but we need to set the MODE on canvas.
-
-        // Actually, let's show the popup anchored to the button or center.
-        // And set the Canvas Mode.
-
-        canvasView.setTyperMode(true)
-
         val popupView = layoutInflater.inflate(R.layout.popup_typer, null)
-        typerPopup = android.widget.PopupWindow(popupView, dpToPx(320), ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
         typerPopup?.elevation = 20f
-        typerPopup?.isOutsideTouchable = false // Keep it open until mode exit
+        typerPopup?.isOutsideTouchable = false
 
-        // Show Popup
-        typerPopup?.showAtLocation(binding.root, Gravity.BOTTOM or Gravity.START, dpToPx(16), dpToPx(200))
+        // Show Popup at Bottom
+        typerPopup?.showAtLocation(binding.root, Gravity.BOTTOM, 0, 0)
 
         val btnImport = popupView.findViewById<android.widget.Button>(R.id.btnImportTxt)
         val btnDetect = popupView.findViewById<android.widget.Button>(R.id.btnDetectBubbles)
@@ -1767,17 +1776,17 @@ class EditorActivity : AppCompatActivity() {
         btnDetect.setOnClickListener {
              detectBubbles()
         }
-
-        // Keep Property Container Visible but Empty? Or store "TYPER" state
-        // We don't necessarily need the propertyDetailContainer.
-        binding.propertyDetailContainer.visibility = View.GONE
     }
 
     private fun exitTyperMode() {
         typerPopup?.dismiss()
         typerPopup = null
         canvasView.setTyperMode(false)
-        canvasView.setDetectedBubbles(emptyList()) // Clear overlays
+        isTyperModeActive = false
+        // Keep detected bubbles? The user said "remove that specific box" on click.
+        // Usually exiting mode might clear overlays, but user said "Clear all temporary detected box overlays" only on exit.
+        // Yes, clear them.
+        canvasView.setDetectedBubbles(emptyList())
     }
 
     private fun updateTyperList(lines: List<String>) {

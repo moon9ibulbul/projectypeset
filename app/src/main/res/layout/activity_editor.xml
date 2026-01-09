@@ -50,6 +50,15 @@
             app:tint="@color/white"
             android:layout_marginStart="24dp"/>
 
+        <ImageView
+            android:id="@+id/btnTopTyper"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_typer"
+            app:tint="@color/white"
+            android:layout_marginStart="24dp"
+            android:visibility="gone"/>
+
         <Space
              android:layout_width="0dp"
              android:layout_height="wrap_content"
@@ -149,15 +158,6 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp">
-
-                <Button
-                    android:id="@+id/btnPropTyper"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Typer"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"
-                    android:visibility="gone"/>
 
                 <Button
                     android:id="@+id/btnPropQuickEdit"
