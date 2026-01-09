@@ -22,7 +22,6 @@ import kotlin.math.min
 class BubbleDetectorProcessor(private val context: Context) {
 
     companion object {
-        // Defined Constants
         private const val INPUT_SIZE = 640
         private const val STRIDE = 512
         private const val CONFIDENCE_THRESHOLD = 0.4f
@@ -44,8 +43,6 @@ class BubbleDetectorProcessor(private val context: Context) {
     fun isModelAvailable(): Boolean {
         return modelFile.exists() && modelFile.length() > 0
     }
-
-    // --- Model Management ---
 
     suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
@@ -150,8 +147,6 @@ class BubbleDetectorProcessor(private val context: Context) {
         } catch (e: Exception) {}
     }
 
-    // --- Core Inference Logic ---
-
     suspend fun detect(image: Bitmap): List<RectF> = process(image)
 
     suspend fun process(bitmap: Bitmap): List<RectF> = withContext(Dispatchers.Default) {
@@ -192,20 +187,21 @@ class BubbleDetectorProcessor(private val context: Context) {
                 )
                 canvas.drawBitmap(bitmap, srcRect, dstRect, null)
 
+                var tensor: OnnxTensor? = null
+                var result: OrtSession.Result? = null
                 try {
                     val floatBuffer = preProcess(tileBitmap)
 
-                    val tensor = OnnxTensor.createTensor(
+                    tensor = OnnxTensor.createTensor(
                         env,
                         floatBuffer,
                         longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
                     )
 
                     val inputs = mapOf("images" to tensor)
-                    val result = session.run(inputs)
-                    val output = result[0].value
+                    result = session.run(inputs)
 
-                    val tileDetections = parsePredictions(output)
+                    val tileDetections = parsePredictions(result)
 
                     for (det in tileDetections) {
                         det.rect.offset(tileX.toFloat(), tileY.toFloat())
@@ -218,11 +214,11 @@ class BubbleDetectorProcessor(private val context: Context) {
                         allBoxes.add(det)
                     }
 
-                    result.close()
-                    tensor.close()
                 } catch (e: Exception) {
                     Log.e("BubbleDetector", "Tile inference failed", e)
                 } finally {
+                    result?.close()
+                    tensor?.close()
                     tileBitmap.recycle()
                 }
             }
@@ -256,11 +252,75 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     data class Detection(val rect: RectF, val score: Float)
 
-    private fun parsePredictions(output: Any): List<Detection> {
+    private fun parsePredictions(result: OrtSession.Result): List<Detection> {
         val detections = mutableListOf<Detection>()
 
+        // Handle various output formats for RT-DETR / YOLO
+        // Case 1: Single output (Concatenated)
+        if (result.size() == 1) {
+             val output = result[0].value
+             return parseSingleOutput(output)
+        }
+
+        // Case 2: Split output (Boxes and Scores)
+        // Usually index 0 is scores or boxes depending on export.
+        // We will try to identify by shape.
+        // Boxes: [1, 300, 4]
+        // Scores: [1, 300, 3] (for 3 classes)
+        var boxesData: Array<FloatArray>? = null
+        var scoresData: Array<FloatArray>? = null
+
+        for (item in result) {
+            val value = item.value
+            if (value is Array<*>) {
+                 val batch = value[0]
+                 if (batch is Array<*> && batch[0] is FloatArray) {
+                     val arr = batch as Array<FloatArray>
+                     val cols = arr[0].size
+
+                     if (cols == 4) {
+                         boxesData = arr
+                     } else if (cols >= 1) {
+                         // Likely scores
+                         scoresData = arr
+                     }
+                 }
+            }
+        }
+
+        if (boxesData != null && scoresData != null && boxesData.size == scoresData.size) {
+            val numQueries = boxesData.size
+
+            for (i in 0 until numQueries) {
+                // Parse Box
+                val cx = boxesData[i][0]
+                val cy = boxesData[i][1]
+                val w = boxesData[i][2]
+                val h = boxesData[i][3]
+
+                // Parse Score
+                var maxScore = 0f
+                val scoreRow = scoresData[i]
+                for (s in scoreRow) {
+                    if (s > maxScore) maxScore = s
+                }
+
+                if (maxScore > CONFIDENCE_THRESHOLD) {
+                    addDetection(detections, cx, cy, w, h, maxScore)
+                }
+            }
+        } else if (result.size() > 0) {
+            // Fallback: Try parsing the first output as single output
+             return parseSingleOutput(result[0].value)
+        }
+
+        return detections
+    }
+
+    private fun parseSingleOutput(output: Any): List<Detection> {
+        val detections = mutableListOf<Detection>()
         var data: Array<FloatArray>? = null
-        var isTransposed = false
+        var isTransposed = false // true if [features, boxes]
 
         if (output is Array<*>) {
             val batch = output[0]
@@ -270,13 +330,13 @@ class BubbleDetectorProcessor(private val context: Context) {
                     val dim1 = d.size
                     val dim2 = d[0].size
 
-                    // RT-DETR: [300, 7] (boxes, features) usually.
-                    // If [7, 300], then dim1 < dim2.
+                    // Heuristic: Boxes dimension is usually large (e.g. 300 or 8400)
+                    // Features dimension is small (e.g. 4+classes = 7, or 84)
                     if (dim1 < dim2) {
-                        isTransposed = true
+                        isTransposed = true // [features, boxes] e.g. [7, 300] or [84, 8400]
                         data = d
                     } else {
-                        data = d
+                        data = d // [boxes, features] e.g. [300, 7] or [8400, 84]
                     }
                 }
             }
@@ -287,6 +347,17 @@ class BubbleDetectorProcessor(private val context: Context) {
         val rows = data.size
         val cols = data[0].size
         val numBoxes = if (isTransposed) cols else rows
+
+        // Determine indices based on shape
+        // If transposed: rows is features count.
+        // If not transposed: cols is features count.
+        val featureCount = if (isTransposed) rows else cols
+
+        // RT-DETR vs YOLO
+        // RT-DETR (3 classes): 4 (box) + 3 (classes) = 7 features.
+        // YOLOv8 (80 classes): 4 + 80 = 84 features.
+
+        val classStartIndex = 4 // Standard for [x, y, w, h, c1, c2...]
 
         for (i in 0 until numBoxes) {
             val cx: Float
@@ -303,9 +374,10 @@ class BubbleDetectorProcessor(private val context: Context) {
                 h = data[3][i]
 
                 var maxScore = 0f
-                // Classes start from index 4
-                for (j in 4 until rows) {
-                    if (data[j][i] > maxScore) maxScore = data[j][i]
+                if (featureCount > 4) {
+                    for (j in 4 until featureCount) {
+                        if (data[j][i] > maxScore) maxScore = data[j][i]
+                    }
                 }
                 score = maxScore
             } else {
@@ -316,37 +388,44 @@ class BubbleDetectorProcessor(private val context: Context) {
                 h = data[i][3]
 
                 var maxScore = 0f
-                // Classes start from index 4
-                for (j in 4 until cols) {
-                    if (data[i][j] > maxScore) maxScore = data[i][j]
+                if (featureCount > 4) {
+                    for (j in 4 until featureCount) {
+                         if (data[i][j] > maxScore) maxScore = data[i][j]
+                    }
                 }
                 score = maxScore
             }
 
             if (score > CONFIDENCE_THRESHOLD) {
-                var finalX = cx
-                var finalY = cy
-                var finalW = w
-                var finalH = h
-
-                // Sanity check for normalization
-                if (cx <= 1.0f && cy <= 1.0f && w <= 1.0f && h <= 1.0f && score > 0.0f) {
-                     finalX *= INPUT_SIZE
-                     finalY *= INPUT_SIZE
-                     finalW *= INPUT_SIZE
-                     finalH *= INPUT_SIZE
-                }
-
-                val left = finalX - finalW / 2f
-                val top = finalY - finalH / 2f
-                val right = finalX + finalW / 2f
-                val bottom = finalY + finalH / 2f
-
-                detections.add(Detection(RectF(left, top, right, bottom), score))
+                addDetection(detections, cx, cy, w, h, score)
             }
         }
-
         return detections
+    }
+
+    private fun addDetection(detections: MutableList<Detection>, cx: Float, cy: Float, w: Float, h: Float, score: Float) {
+        var finalX = cx
+        var finalY = cy
+        var finalW = w
+        var finalH = h
+
+        // Sanity check for normalization
+        // RT-DETR usually returns normalized coordinates [0, 1]
+        // If we see small values, we assume normalized.
+        // Unless the image is tiny (1x1), coordinates should be > 1 if pixels.
+        if (cx <= 1.05f && cy <= 1.05f && w <= 1.05f && h <= 1.05f) {
+             finalX *= INPUT_SIZE
+             finalY *= INPUT_SIZE
+             finalW *= INPUT_SIZE
+             finalH *= INPUT_SIZE
+        }
+
+        val left = finalX - finalW / 2f
+        val top = finalY - finalH / 2f
+        val right = finalX + finalW / 2f
+        val bottom = finalY + finalH / 2f
+
+        detections.add(Detection(RectF(left, top, right, bottom), score))
     }
 
     private fun nonMaximumSuppression(detections: List<Detection>): List<RectF> {
