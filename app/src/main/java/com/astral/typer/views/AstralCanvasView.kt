@@ -219,10 +219,10 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setInpaintMode(enabled: Boolean) {
         isInpaintMode = enabled
         if (enabled) {
-            // Fix Crash on Large Images: If > 4096 (safe limit), use software rendering
+            // Fix Crash on Large Images: If > 20000 (safe limit), use software rendering
             // Hardware acceleration crashes if texture size > GL_MAX_TEXTURE_SIZE
             val maxDim = max(canvasWidth, canvasHeight)
-            if (maxDim > 4096) {
+            if (maxDim > 20000) {
                 setLayerType(LAYER_TYPE_SOFTWARE, null)
                 // Also warn? Maybe not needed if it works.
             }
