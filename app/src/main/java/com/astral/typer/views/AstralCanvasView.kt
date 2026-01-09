@@ -138,11 +138,20 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun getCachedInpaintMask(): android.graphics.Bitmap {
         if (cachedMaskBitmap == null || cachedMaskBitmap?.width != canvasWidth || cachedMaskBitmap?.height != canvasHeight) {
-            cachedMaskBitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
-            isMaskDirty = true
+            try {
+                cachedMaskBitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                isMaskDirty = true
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("AstralCanvasView", "Failed to create mask bitmap: OOM")
+                // Fallback: Create a smaller bitmap?
+                // Or let it be null and handle it?
+                // For now, if OOM, we can't draw the mask properly.
+                // Creating a 1x1 dummy to prevent NPE if app continues
+                cachedMaskBitmap = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+            }
         }
 
-        if (isMaskDirty) {
+        if (isMaskDirty && cachedMaskBitmap != null) {
             val canvas = Canvas(cachedMaskBitmap!!)
             canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR) // Clear
 
@@ -210,9 +219,18 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setInpaintMode(enabled: Boolean) {
         isInpaintMode = enabled
         if (enabled) {
+            // Fix Crash on Large Images: If > 4096 (safe limit), use software rendering
+            // Hardware acceleration crashes if texture size > GL_MAX_TEXTURE_SIZE
+            val maxDim = max(canvasWidth, canvasHeight)
+            if (maxDim > 4096) {
+                setLayerType(LAYER_TYPE_SOFTWARE, null)
+                // Also warn? Maybe not needed if it works.
+            }
             selectLayer(null)
             currentMode = Mode.INPAINT
         } else {
+            // Restore Hardware Acceleration
+            setLayerType(LAYER_TYPE_HARDWARE, null)
             currentMode = Mode.NONE
         }
         invalidate()

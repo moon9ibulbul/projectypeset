@@ -202,27 +202,46 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openEditorWithImage(uri: Uri) {
-        // We need to get dimensions first to set canvas size
-        val options = android.graphics.BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        contentResolver.openInputStream(uri)?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, options)
-        }
+        // Show loading immediately
+        binding.loadingOverlay.visibility = View.VISIBLE
 
-        val width = options.outWidth
-        val height = options.outHeight
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // We need to get dimensions first to set canvas size
+                val options = android.graphics.BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                contentResolver.openInputStream(uri)?.use {
+                    android.graphics.BitmapFactory.decodeStream(it, null, options)
+                }
 
-        if (width > 0 && height > 0) {
-            val intent = Intent(this, EditorActivity::class.java).apply {
-                putExtra("CANVAS_WIDTH", width)
-                putExtra("CANVAS_HEIGHT", height)
-                putExtra("CANVAS_COLOR", Color.TRANSPARENT)
-                putExtra("IMAGE_URI", uri.toString())
+                val width = options.outWidth
+                val height = options.outHeight
+
+                withContext(Dispatchers.Main) {
+                    if (width > 0 && height > 0) {
+                        val intent = Intent(this@MainActivity, EditorActivity::class.java).apply {
+                            putExtra("CANVAS_WIDTH", width)
+                            putExtra("CANVAS_HEIGHT", height)
+                            putExtra("CANVAS_COLOR", Color.TRANSPARENT)
+                            putExtra("IMAGE_URI", uri.toString())
+                        }
+                        startActivity(intent)
+                        // Slight delay to allow transition, then hide
+                        binding.root.postDelayed({
+                            binding.loadingOverlay.visibility = View.GONE
+                        }, 1000)
+                    } else {
+                        binding.loadingOverlay.visibility = View.GONE
+                        Toast.makeText(this@MainActivity, "Failed to load image dimensions", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    binding.loadingOverlay.visibility = View.GONE
+                    Toast.makeText(this@MainActivity, "Failed to process image", Toast.LENGTH_SHORT).show()
+                }
             }
-            startActivity(intent)
-        } else {
-             Toast.makeText(this, "Failed to load image dimensions", Toast.LENGTH_SHORT).show()
         }
     }
 
