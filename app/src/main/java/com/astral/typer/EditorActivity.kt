@@ -155,22 +155,34 @@ class EditorActivity : AppCompatActivity() {
             canvasView.initCanvas(width, height, if (color == -1) Color.WHITE else color)
 
             if (imageUriString != null) {
-                try {
-                    val uri = android.net.Uri.parse(imageUriString)
-                    val inputStream = contentResolver.openInputStream(uri)
-                    val options = android.graphics.BitmapFactory.Options().apply {
-                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                binding.loadingOverlay.visibility = View.VISIBLE
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val uri = android.net.Uri.parse(imageUriString)
+                        val inputStream = contentResolver.openInputStream(uri)
+                        val options = android.graphics.BitmapFactory.Options().apply {
+                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                        }
+                        val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
+                        withContext(Dispatchers.Main) {
+                            if (bitmap != null) {
+                                canvasView.setBackgroundImage(bitmap)
+                            } else {
+                                Toast.makeText(this@EditorActivity, "Failed to decode image", Toast.LENGTH_SHORT).show()
+                            }
+                            binding.loadingOverlay.visibility = View.GONE
+                        }
+                    } catch (e: OutOfMemoryError) {
+                        withContext(Dispatchers.Main) {
+                            binding.loadingOverlay.visibility = View.GONE
+                            Toast.makeText(this@EditorActivity, "Image too large for memory!", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                         withContext(Dispatchers.Main) {
+                            binding.loadingOverlay.visibility = View.GONE
+                            Toast.makeText(this@EditorActivity, "Failed to load image", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                    val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
-                    if (bitmap != null) {
-                        canvasView.setBackgroundImage(bitmap)
-                    } else {
-                        Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: OutOfMemoryError) {
-                    Toast.makeText(this, "Image too large for memory!", Toast.LENGTH_LONG).show()
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
                 }
             }
         }
