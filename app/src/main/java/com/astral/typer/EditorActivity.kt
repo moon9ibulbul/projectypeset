@@ -359,8 +359,8 @@ class EditorActivity : AppCompatActivity() {
 
         Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
 
-        lifecycleScope.launch(Dispatchers.Default) {
-            // Run heavy OpenCV inpaint on background thread
+        lifecycleScope.launch {
+            // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
             val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
             withContext(Dispatchers.Main) {
                 if (result != null) {
@@ -1098,6 +1098,57 @@ class EditorActivity : AppCompatActivity() {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                 setMargins(0, 0, 0, dpToPx(90)) // Above Apply button
             }
+        }
+
+        // --- Engine Selector (If LaMa Available) ---
+        // Check LaMa availability
+        val lamaProcessor = com.astral.typer.utils.LaMaProcessor(this)
+        if (lamaProcessor.isModelAvailable()) {
+            val engineLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0,0,0,16)
+                }
+            }
+
+            val modes = arrayOf("OpenCV (Telea)", "LaMa (AI)")
+            val spinner = android.widget.Spinner(this)
+            val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spinner.adapter = adapter
+
+            // Set initial selection
+            spinner.setSelection(0)
+            inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+
+            spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
+                    if (pos == 0) {
+                        inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+                    } else {
+                        inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                    }
+                }
+                override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+            }
+
+            // Customizing Spinner Text Color is tricky programmatically with default layout.
+            // Wrapping it or just let it be standard Android style.
+            // Better: Radio Group? Or just a Toggle Button?
+            // Spinner is fine, but text might be dark. Let's force background to white for spinner popup or use a custom view.
+            // Simple: just add it. The text color depends on theme. Activity is AppCompat.
+
+            val tvLabel = TextView(this).apply {
+                text = "Engine: "
+                setTextColor(Color.WHITE)
+            }
+            engineLayout.addView(tvLabel)
+            engineLayout.addView(spinner)
+            toolbar.addView(engineLayout)
+        } else {
+            // Just force OpenCV
+            inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
         }
 
         // 1. Brush Size Slider

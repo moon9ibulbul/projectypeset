@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Mat
@@ -15,7 +17,14 @@ import org.opencv.photo.Photo
  */
 class InpaintManager(private val context: Context) {
 
+    enum class Engine {
+        OPENCV,
+        LAMA
+    }
+
+    private var currentEngine: Engine = Engine.OPENCV
     private var isOpenCvInitialized = false
+    private val lamaProcessor by lazy { LaMaProcessor(context) }
 
     init {
         try {
@@ -30,24 +39,35 @@ class InpaintManager(private val context: Context) {
         }
     }
 
+    fun setEngine(engine: Engine) {
+        currentEngine = engine
+    }
+
     /**
      * Inpaints the original bitmap using the provided mask.
      * @param originalBitmap The source image (ARGB_8888 recommended).
      * @param maskBitmap The mask image (where non-transparent pixels indicate areas to remove).
      * @return A new Bitmap with the area inpainted, or null if absolutely everything failed.
      */
-    fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
-        // Try OpenCV first
-        if (isOpenCvInitialized) {
-            val result = inpaintWithOpenCV(originalBitmap, maskBitmap)
-            if (result != null) {
-                return result
-            }
-            Log.w("InpaintManager", "OpenCV inpaint returned null, switching to fallback.")
+    suspend fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
+        if (currentEngine == Engine.LAMA && lamaProcessor.isModelAvailable()) {
+            val result = lamaProcessor.inpaint(originalBitmap, maskBitmap)
+            if (result != null) return result
+            Log.w("InpaintManager", "LaMa inpaint failed, falling back to OpenCV")
         }
 
-        // Fallback to simple Kotlin implementation
-        return inpaintFallback(originalBitmap, maskBitmap)
+        // Try OpenCV
+        return withContext(Dispatchers.Default) {
+            if (isOpenCvInitialized) {
+                val result = inpaintWithOpenCV(originalBitmap, maskBitmap)
+                if (result != null) {
+                    return@withContext result
+                }
+                Log.w("InpaintManager", "OpenCV inpaint returned null, switching to fallback.")
+            }
+            // Fallback to simple Kotlin implementation
+            inpaintFallback(originalBitmap, maskBitmap)
+        }
     }
 
     private fun inpaintWithOpenCV(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
