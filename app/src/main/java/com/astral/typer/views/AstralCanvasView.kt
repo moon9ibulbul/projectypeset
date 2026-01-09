@@ -580,10 +580,48 @@ class AstralCanvasView @JvmOverloads constructor(
         CUT_DRAG_TL,
         CUT_DRAG_TR,
         CUT_DRAG_BR,
-        CUT_DRAG_BL
+        CUT_DRAG_BL,
+        TYPER
     }
 
     private var currentMode = Mode.NONE
+    private val detectedBoxes = mutableListOf<RectF>()
+    var onBoxClickListener: ((RectF) -> Unit)? = null
+
+    private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GREEN
+        alpha = 100 // Semi-transparent
+        style = Paint.Style.FILL
+    }
+    private val boxStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GREEN
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+    }
+
+    fun setTyperMode(enabled: Boolean) {
+        if (enabled) {
+            currentMode = Mode.TYPER
+            selectLayer(null)
+        } else {
+            if (currentMode == Mode.TYPER) {
+                currentMode = Mode.NONE
+                detectedBoxes.clear()
+            }
+        }
+        invalidate()
+    }
+
+    fun setDetectedBoxes(boxes: List<RectF>) {
+        detectedBoxes.clear()
+        detectedBoxes.addAll(boxes)
+        invalidate()
+    }
+
+    fun removeDetectedBox(box: RectF) {
+        detectedBoxes.remove(box)
+        invalidate()
+    }
     private var warpPointIndex = -1
 
     var onColorPickedListener: ((Int) -> Unit)? = null
@@ -799,6 +837,14 @@ class AstralCanvasView @JvmOverloads constructor(
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 2f
         canvas.drawRect(backgroundRect, paint)
+
+        // Draw Detected Boxes (Typer Mode) - Draw UNDER layers
+        if (currentMode == Mode.TYPER) {
+            for (box in detectedBoxes) {
+                canvas.drawRect(box, boxPaint)
+                canvas.drawRect(box, boxStrokePaint)
+            }
+        }
 
         // Draw Layers
         drawScene(canvas)
@@ -1159,6 +1205,33 @@ class AstralCanvasView @JvmOverloads constructor(
                  setEyedropperMode(false)
              }
              return true
+        }
+
+        if (currentMode == Mode.TYPER) {
+            if (pointerCount >= 2) {
+                 currentMode = Mode.PAN_ZOOM
+                 scaleDetector.onTouchEvent(event)
+                 gestureDetector.onTouchEvent(event)
+                 if (event.actionMasked == MotionEvent.ACTION_UP) currentMode = Mode.TYPER
+                 return true
+            }
+
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                // Check if clicked inside a box
+                // We use cx, cy which are global coordinates
+                for (box in detectedBoxes) {
+                    if (box.contains(cx, cy)) {
+                        onBoxClickListener?.invoke(box)
+                        return true
+                    }
+                }
+            }
+             // Allow panning if no box clicked? Or just return true?
+             // Usually single finger drag handles pan in view mode, but here we might want to allow it.
+             // If we didn't click a box, let's treat it as pan/zoom logic if moved, or just ignore.
+             // But existing logic handles PAN_ZOOM transition only for 2 fingers.
+             // Let's rely on standard pinch zoom.
+            return true
         }
 
         if (isInpaintMode) {

@@ -60,9 +60,12 @@ class EditorActivity : AppCompatActivity() {
     private var currentProjectName: String? = null
 
     private var isInpaintMode = false
+    private var isTyperMode = false
     private var btnApplyInpaint: android.widget.Button? = null
     private var btnApplyCut: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
+    private lateinit var bubbleDetector: com.astral.typer.utils.BubbleDetectorProcessor
+    // Remove PopupWindow reference
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -190,6 +193,14 @@ class EditorActivity : AppCompatActivity() {
         // Initialize InpaintManager
         inpaintManager = InpaintManager(this)
 
+        // Initialize Bubble Detector
+        bubbleDetector = com.astral.typer.utils.BubbleDetectorProcessor(this)
+        if (bubbleDetector.isModelAvailable()) {
+            binding.btnTyper.visibility = View.VISIBLE
+        } else {
+            binding.btnTyper.visibility = View.GONE
+        }
+
         // Initialize StyleManager to load saved styles
         StyleManager.init(this)
 
@@ -309,12 +320,84 @@ class EditorActivity : AppCompatActivity() {
                          }
                     }
                 } else {
-                    if (!isInpaintMode) {
+                    if (!isInpaintMode && !isTyperMode) {
                         showInsertMenu()
                     }
                     hidePropertyDetail()
                 }
             }
+        }
+
+        canvasView.onBoxClickListener = { box ->
+             if (isTyperMode) {
+                 val typerMenu = findViewById<View>(R.id.typerMenu)
+                 val recycler = typerMenu.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
+                 val adapter = recycler.adapter as? TyperTextAdapter
+                 if (adapter != null) {
+                      val item = adapter.getSelectedItem()
+                      if (item != null) {
+                          // Create Text Layer
+                          val styleName = item.styleName
+                          val style = StyleManager.getSavedStyles().find { it.name == styleName } ?: StyleManager.getSavedStyles().firstOrNull()
+
+                          // Convert box center to canvas coords?
+                          // Box is already in global canvas coords
+                          val cx = box.centerX()
+                          val cy = box.centerY()
+
+                          val layer = TextLayer(item.text).apply {
+                              x = cx
+                              y = cy
+                              boxWidth = box.width() // Set width to box width
+                          }
+
+                          // Apply Style
+                          if (style != null) {
+                               layer.color = style.color
+                               layer.fontSize = style.fontSize
+                               layer.fontPath = style.fontPath
+                               if (style.fontPath != null) {
+                                     val found = FontManager.getStandardFonts(this@EditorActivity).find { it.name == style.fontPath }
+                                         ?: FontManager.getCustomFonts(this@EditorActivity).find { it.path == style.fontPath }
+                                     if (found != null) layer.typeface = found.typeface
+                               }
+                               layer.typeface = style.typeface
+                               layer.opacity = style.opacity
+                               layer.shadowColor = style.shadowColor
+                               layer.shadowRadius = style.shadowRadius
+                               layer.shadowDx = style.shadowDx
+                               layer.shadowDy = style.shadowDy
+                               layer.isMotionShadow = style.isMotionShadow
+                               layer.motionShadowAngle = style.motionShadowAngle
+                               layer.motionShadowDistance = style.motionShadowDistance
+                               layer.isGradient = style.isGradient
+                               layer.gradientStartColor = style.gradientStartColor
+                               layer.gradientEndColor = style.gradientEndColor
+                               layer.gradientAngle = style.gradientAngle
+                               layer.isGradientText = style.isGradientText
+                               layer.isGradientStroke = style.isGradientStroke
+                               layer.isGradientShadow = style.isGradientShadow
+                               layer.strokeColor = style.strokeColor
+                               layer.strokeWidth = style.strokeWidth
+                               layer.doubleStrokeColor = style.doubleStrokeColor
+                               layer.doubleStrokeWidth = style.doubleStrokeWidth
+                               layer.letterSpacing = style.letterSpacing
+                               layer.lineSpacing = style.lineSpacing
+                          }
+
+                          canvasView.getLayers().add(layer)
+                          canvasView.selectLayer(layer)
+
+                          // Remove box
+                          canvasView.removeDetectedBox(box)
+
+                          // Auto Advance? (Optional)
+                          // adapter.selectNext()
+                      } else {
+                          Toast.makeText(this@EditorActivity, "Select a text line first", Toast.LENGTH_SHORT).show()
+                      }
+                 }
+             }
         }
 
         canvasView.onLayerEditListener = object : AstralCanvasView.OnLayerEditListener {
@@ -462,12 +545,111 @@ class EditorActivity : AppCompatActivity() {
         }
 
         binding.btnEraser.setOnClickListener {
+            if (isTyperMode) exitTyperMode()
             toggleInpaintMode()
         }
 
-        // Undo/Redo/Layers
-        binding.btnUndo.setOnClickListener {
-            if (isInpaintMode) {
+        binding.btnTyper.setOnClickListener {
+            toggleTyperMode()
+        }
+
+    private fun toggleTyperMode() {
+        if (isTyperMode) {
+            exitTyperMode()
+        } else {
+            // Enter Typer Mode
+            isTyperMode = true
+
+            // Exit other modes
+            if (isInpaintMode) toggleInpaintMode()
+            hidePropertyDetail()
+
+            // Hide standard menus
+            binding.bottomMenuContainer.findViewById<View>(R.id.menuInsert).visibility = View.GONE
+            binding.bottomMenuContainer.findViewById<View>(R.id.menuProperties).visibility = View.GONE
+
+            canvasView.setTyperMode(true)
+            showTyperMenu()
+        }
+    }
+
+    private fun exitTyperMode() {
+        isTyperMode = false
+        canvasView.setTyperMode(false)
+        findViewById<View>(R.id.typerMenu).visibility = View.GONE
+
+        // Restore menus
+        binding.bottomMenuContainer.findViewById<View>(R.id.menuInsert).visibility = View.VISIBLE
+    }
+
+    private fun showTyperMenu() {
+        val typerMenu = findViewById<View>(R.id.typerMenu)
+        typerMenu.visibility = View.VISIBLE
+
+        val btnImport = typerMenu.findViewById<android.widget.Button>(R.id.btnImportText)
+        val btnDetect = typerMenu.findViewById<android.widget.Button>(R.id.btnDetectBubbles)
+        val recycler = typerMenu.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
+        val tvWarning = typerMenu.findViewById<TextView>(R.id.tvTyperWarning)
+
+        val styles = StyleManager.getSavedStyles().map { it.name }
+        if (styles.isEmpty()) {
+            tvWarning.visibility = View.VISIBLE
+        } else {
+            tvWarning.visibility = View.GONE
+        }
+
+        recycler.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+
+        // Re-assign listener to use the class property
+        btnImport.setOnClickListener {
+             typerImportTextLauncher.launch("text/plain")
+        }
+
+        btnDetect.setOnClickListener {
+             val bg = canvasView.getBackgroundImage()
+             if (bg != null) {
+                 binding.loadingOverlay.visibility = View.VISIBLE
+                 lifecycleScope.launch {
+                     val boxes = bubbleDetector.detect(bg)
+                     withContext(Dispatchers.Main) {
+                         binding.loadingOverlay.visibility = View.GONE
+                         if (boxes.isNotEmpty()) {
+                             canvasView.setDetectedBoxes(boxes)
+                             Toast.makeText(this@EditorActivity, "Detected ${boxes.size} bubbles", Toast.LENGTH_SHORT).show()
+                         } else {
+                             Toast.makeText(this@EditorActivity, "No bubbles detected", Toast.LENGTH_SHORT).show()
+                         }
+                     }
+                 }
+             } else {
+                 Toast.makeText(this, "No image to detect", Toast.LENGTH_SHORT).show()
+             }
+        }
+    }
+
+    // Class member for launcher
+    private val typerImportTextLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+             try {
+                 contentResolver.openInputStream(it)?.use { stream ->
+                     val text = stream.bufferedReader().use { reader -> reader.readText() }
+                     val lines = text.lines().filter { line -> line.isNotBlank() }
+
+                     // Update Adapter
+                     val typerMenu = findViewById<View>(R.id.typerMenu)
+                     val recycler = typerMenu.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
+                     val styles = StyleManager.getSavedStyles().map { style -> style.name }
+                     recycler.adapter = TyperTextAdapter(this, lines, styles)
+                 }
+             } catch (e: Exception) {
+                 Toast.makeText(this, "Failed to load text", Toast.LENGTH_SHORT).show()
+             }
+        }
+    }
+
+    // Undo/Redo/Layers
+    binding.btnUndo.setOnClickListener {
+        if (isInpaintMode) {
                  // Mask Undo First
                  if (!canvasView.undoInpaintMask()) {
                      // If no mask to undo, undo Inpaint Result (Bitmap)
