@@ -2,6 +2,10 @@ package com.astral.typer.utils
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Color
 import android.util.Log
 import ai.onnxruntime.OnnxTensor
@@ -188,23 +192,59 @@ class LaMaProcessor(private val context: Context) {
             val inputs = mapOf("image" to tensorImg, "mask" to tensorMask)
 
             // 3. Run Inference
-            val result = session.run(inputs)
-            val outputTensor = result[0] as OnnxTensor
+            val resultOrt = session.run(inputs)
+            val outputTensor = resultOrt[0] as OnnxTensor
 
             // 4. Post Process
             val outputBitmap = outputTensorToBitmap(outputTensor)
 
             // Cleanup Inputs/Outputs but keep Session
-            result.close()
+            resultOrt.close()
             tensorImg.close()
             tensorMask.close()
             // Do not close session here, it is cached
 
-            // 5. Resize Output back to original
-             if (image.width != TRAINED_SIZE || image.height != TRAINED_SIZE) {
-                 return@withContext Bitmap.createScaledBitmap(outputBitmap, image.width, image.height, true)
-             }
-            return@withContext outputBitmap
+            // 5. Composite Logic
+            // Always blend the result back into the original image using the mask.
+            // This ensures pixel-perfect fidelity for unmasked areas, even if dimensions matched.
+
+            // Upscale the output to original size (if needed) or just use it
+            val upscaledOutput = if (image.width != TRAINED_SIZE || image.height != TRAINED_SIZE) {
+                Bitmap.createScaledBitmap(outputBitmap, image.width, image.height, true)
+            } else {
+                outputBitmap // Use directly if size matches
+            }
+
+            // Create result bitmap based on original dimensions
+            val resultBitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(resultBitmap)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+            // Draw Original Image first (Base Layer)
+            canvas.drawBitmap(image, 0f, 0f, paint)
+
+            // Draw the Inpainted Result masked by the Original Mask
+            // This replaces the original pixels ONLY where the mask is opaque
+            val sc = canvas.saveLayer(0f, 0f, image.width.toFloat(), image.height.toFloat(), null)
+
+            // Draw the inferred result
+            canvas.drawBitmap(upscaledOutput, 0f, 0f, paint)
+
+            // DST_IN: Keeps the Destination (Inpainted Result) only where Source (Mask) is opaque.
+            // Areas where Mask is transparent will be removed from this layer, revealing the Original Image below.
+            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+
+            // Draw mask
+            canvas.drawBitmap(mask, 0f, 0f, paint)
+
+            // Restore
+            paint.xfermode = null
+            canvas.restoreToCount(sc)
+
+            // Note: We do not recycle outputBitmap manually here as Kotlin/ART GC handles it,
+            // and if it was not scaled, upscaledOutput IS outputBitmap.
+
+            return@withContext resultBitmap
 
         } catch (e: Exception) {
             Log.e("LaMaProcessor", "Inference failed", e)

@@ -357,12 +357,14 @@ class EditorActivity : AppCompatActivity() {
         // Save current state for Undo (Bitmap History)
         com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
 
-        Toast.makeText(this, "Inpainting...", Toast.LENGTH_SHORT).show()
+        // Show Loading Overlay
+        binding.loadingOverlay.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
             val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
             withContext(Dispatchers.Main) {
+                binding.loadingOverlay.visibility = View.GONE
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
