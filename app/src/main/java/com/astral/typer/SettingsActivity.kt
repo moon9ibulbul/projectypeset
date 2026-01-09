@@ -15,6 +15,9 @@ import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.astral.typer.utils.LaMaProcessor
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -48,6 +51,52 @@ class SettingsActivity : AppCompatActivity() {
         val btnExport = findViewById<Button>(R.id.btnExport)
         val btnImport = findViewById<Button>(R.id.btnImport)
         val btnDonate = findViewById<Button>(R.id.btnDonate)
+
+        // Model Views
+        val tvModelStatus = findViewById<TextView>(R.id.tvModelStatus)
+        val pbModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbModelDownload)
+        val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
+
+        // Init LaMa Processor Logic
+        val lamaProcessor = LaMaProcessor(this)
+
+        fun updateModelStatus() {
+            if (lamaProcessor.isModelAvailable()) {
+                tvModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadModel.text = "Redownload"
+                btnDownloadModel.isEnabled = true
+            } else {
+                tvModelStatus.text = "Status: Not Downloaded"
+                btnDownloadModel.text = "Download Model (50MB)"
+                btnDownloadModel.isEnabled = true
+            }
+        }
+        updateModelStatus()
+
+        btnDownloadModel.setOnClickListener {
+             btnDownloadModel.isEnabled = false
+             pbModelDownload.visibility = android.view.View.VISIBLE
+             tvModelStatus.text = "Status: Downloading..."
+
+             lifecycleScope.launch {
+                 val success = lamaProcessor.downloadModel { progress ->
+                     runOnUiThread {
+                         pbModelDownload.progress = (progress * 100).toInt()
+                         tvModelStatus.text = "Status: Downloading ${(progress * 100).toInt()}%"
+                     }
+                 }
+
+                 if (success) {
+                     updateModelStatus()
+                     Toast.makeText(this@SettingsActivity, "Download Complete", Toast.LENGTH_SHORT).show()
+                 } else {
+                     tvModelStatus.text = "Status: Download Failed"
+                     btnDownloadModel.isEnabled = true
+                     Toast.makeText(this@SettingsActivity, "Download Failed", Toast.LENGTH_SHORT).show()
+                 }
+                 pbModelDownload.visibility = android.view.View.GONE
+             }
+        }
 
         // Cache Logic
         updateCacheSize()
