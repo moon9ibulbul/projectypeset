@@ -2,6 +2,8 @@ package com.astral.typer.utils
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import ai.onnxruntime.OnnxTensor
@@ -23,6 +25,7 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     companion object {
         private const val INPUT_SIZE = 640
+        private const val STRIDE = 512
         private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
 
@@ -162,62 +165,110 @@ class BubbleDetectorProcessor(private val context: Context) {
         val env = OrtEnvironment.getEnvironment()
 
         // Determine input names
-        // The model likely requires "images" and "orig_target_sizes"
         val inputNames = session.inputNames
         val imageInputName = inputNames.find { it.contains("image", ignoreCase = true) } ?: "images"
         val sizeInputName = inputNames.find { it.contains("size", ignoreCase = true) || it.contains("orig", ignoreCase = true) } ?: "orig_target_sizes"
 
-        // Resize to 640x640 for the model input
-        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
+        val allDetections = mutableListOf<Detection>()
 
-        try {
-            // Prepare Image Tensor: (1, 3, 640, 640)
-            val floatBuffer = preProcess(resizedBitmap)
-            val imageTensor = OnnxTensor.createTensor(
-                env,
-                floatBuffer,
-                longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
-            )
-
-            // Prepare Size Tensor: (1, 2) with [width, height]
-            // Python: orig_size = np.array([[w, h]], dtype=np.int64)
-            val sizeBuffer = LongBuffer.allocate(2)
-            sizeBuffer.put(width.toLong())
-            sizeBuffer.put(height.toLong())
-            sizeBuffer.flip()
-            val sizeTensor = OnnxTensor.createTensor(env, sizeBuffer, longArrayOf(1, 2))
-
-            // Run Inference
-            val inputs = mapOf(
-                imageInputName to imageTensor,
-                sizeInputName to sizeTensor
-            )
-
-            val result = session.run(inputs)
-
-            // Extract outputs
-            // Expected 3 outputs: labels, boxes, scores
-            val outputs = mutableListOf<Any>()
-            for (entry in result) {
-                outputs.add(entry.value.value)
+        var y = 0
+        while (y < height) {
+            var actualY = y
+            // Handle edge case: shift window up if we are at the bottom
+            if (height >= INPUT_SIZE) {
+                if (actualY + INPUT_SIZE > height) actualY = height - INPUT_SIZE
+            } else {
+                actualY = 0 // Image smaller than input size
             }
 
-            val detections = parsePredictions(outputs)
+            var x = 0
+            while (x < width) {
+                var actualX = x
+                // Handle edge case: shift window left if we are at the right edge
+                if (width >= INPUT_SIZE) {
+                    if (actualX + INPUT_SIZE > width) actualX = width - INPUT_SIZE
+                } else {
+                    actualX = 0 // Image smaller than input size
+                }
 
-            result.close()
-            imageTensor.close()
-            sizeTensor.close()
+                // Create tile bitmap (default transparent/black)
+                val tileBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(tileBitmap)
 
-            return@withContext detections
+                // Draw crop from source
+                val srcRect = Rect(actualX, actualY, min(actualX + INPUT_SIZE, width), min(actualY + INPUT_SIZE, height))
+                // Draw into the top-left of the tile (or appropriately padded)
+                val dstRect = Rect(0, 0, srcRect.width(), srcRect.height())
 
-        } catch (e: Exception) {
-            Log.e("BubbleDetector", "Inference failed: ${e.message}", e)
-            return@withContext emptyList()
-        } finally {
-            if (resizedBitmap != bitmap) {
-                resizedBitmap.recycle()
+                canvas.drawBitmap(bitmap, srcRect, dstRect, null)
+
+                try {
+                    // Prepare Image Tensor: (1, 3, 640, 640)
+                    val floatBuffer = preProcess(tileBitmap)
+                    val imageTensor = OnnxTensor.createTensor(
+                        env,
+                        floatBuffer,
+                        longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
+                    )
+
+                    // Prepare Size Tensor: Always [640, 640] for the tile detection
+                    val sizeBuffer = LongBuffer.allocate(2)
+                    sizeBuffer.put(INPUT_SIZE.toLong())
+                    sizeBuffer.put(INPUT_SIZE.toLong())
+                    sizeBuffer.flip()
+                    val sizeTensor = OnnxTensor.createTensor(env, sizeBuffer, longArrayOf(1, 2))
+
+                    // Run Inference
+                    val inputs = mapOf(
+                        imageInputName to imageTensor,
+                        sizeInputName to sizeTensor
+                    )
+
+                    val result = session.run(inputs)
+
+                    val outputs = mutableListOf<Any>()
+                    for (entry in result) {
+                        outputs.add(entry.value.value)
+                    }
+
+                    val tileDetections = parsePredictions(outputs)
+
+                    // Adjust coordinates and accumulate
+                    for (detection in tileDetections) {
+                        // Offset the detection by the tile position
+                        val shiftedRect = RectF(detection.rect)
+                        shiftedRect.offset(actualX.toFloat(), actualY.toFloat())
+
+                        // Clip to original image bounds just in case
+                        shiftedRect.left = max(0f, shiftedRect.left)
+                        shiftedRect.top = max(0f, shiftedRect.top)
+                        shiftedRect.right = min(width.toFloat(), shiftedRect.right)
+                        shiftedRect.bottom = min(height.toFloat(), shiftedRect.bottom)
+
+                        allDetections.add(detection.copy(rect = shiftedRect))
+                    }
+
+                    result.close()
+                    imageTensor.close()
+                    sizeTensor.close()
+
+                } catch (e: Exception) {
+                    Log.e("BubbleDetector", "Tile inference failed at ($actualX, $actualY): ${e.message}", e)
+                } finally {
+                    tileBitmap.recycle()
+                }
+
+                // Break if we just processed the last chunk horizontally
+                if (actualX + INPUT_SIZE >= width) break
+                x += STRIDE
             }
+
+            // Break if we just processed the last chunk vertically
+            if (actualY + INPUT_SIZE >= height) break
+            y += STRIDE
         }
+
+        return@withContext nonMaximumSuppression(allDetections)
     }
 
     private fun preProcess(bitmap: Bitmap): FloatBuffer {
@@ -244,7 +295,7 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     data class Detection(val rect: RectF, val score: Float, val label: Long)
 
-    private fun parsePredictions(outputs: List<Any>): List<RectF> {
+    private fun parsePredictions(outputs: List<Any>): List<Detection> {
         // We expect 3 tensors from RT-DETR export.
         // Boxes: [1, N, 4] Float
         // Scores: [1, N] Float
@@ -322,7 +373,7 @@ class BubbleDetectorProcessor(private val context: Context) {
             }
         }
 
-        return nonMaximumSuppression(detections)
+        return detections
     }
 
     private fun nonMaximumSuppression(detections: List<Detection>): List<RectF> {
