@@ -25,6 +25,7 @@ class LaMaProcessor(private val context: Context) {
         private const val MODEL_FILENAME = "LaMa_512.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
+        private const val USER_AGENT = "AstralTyper/1.0"
 
         // Caching environment and session to avoid reloading overhead
         private var ortEnvironment: OrtEnvironment? = null
@@ -39,29 +40,26 @@ class LaMaProcessor(private val context: Context) {
     }
 
     suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
         try {
             val file = modelFile
             file.parentFile?.mkdirs()
             val tmpFile = File(file.parentFile, "$MODEL_FILENAME.tmp")
 
             var urlStr = MODEL_URL
-            var connection: HttpURLConnection
             var redirects = 0
             val maxRedirects = 5
 
             while (true) {
                 val url = URL(urlStr)
                 connection = url.openConnection() as HttpURLConnection
-                connection.instanceFollowRedirects = true // Try auto first, but manual loop handles protocol switches if any (though unlikely here)
-                // Actually, if we handle manually, we should set false, but let's see.
-                // HttpURLConnection follows redirects within same protocol. GitHub often redirects to same protocol (https).
-                // However, let's just use the robust loop which handles 301/302.
-                connection.instanceFollowRedirects = false
-                connection.connectTimeout = CONNECT_TIMEOUT
-                connection.readTimeout = READ_TIMEOUT
-                connection.connect()
+                connection!!.instanceFollowRedirects = false
+                connection!!.connectTimeout = CONNECT_TIMEOUT
+                connection!!.readTimeout = READ_TIMEOUT
+                connection!!.setRequestProperty("User-Agent", USER_AGENT)
+                connection!!.connect()
 
-                val responseCode = connection.responseCode
+                val responseCode = connection!!.responseCode
                 if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
                     responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
                     responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
@@ -70,11 +68,11 @@ class LaMaProcessor(private val context: Context) {
                         Log.e("LaMaProcessor", "Too many redirects")
                         return@withContext false
                     }
-                    val location = connection.getHeaderField("Location")
+                    val location = connection!!.getHeaderField("Location")
                     if (location != null) {
                         urlStr = location
                         redirects++
-                        connection.disconnect()
+                        connection!!.disconnect()
                         continue
                     } else {
                         Log.e("LaMaProcessor", "Redirect with no Location header")
@@ -83,14 +81,14 @@ class LaMaProcessor(private val context: Context) {
                 } else if (responseCode == HttpURLConnection.HTTP_OK) {
                     break
                 } else {
-                     Log.e("LaMaProcessor", "Server returned HTTP $responseCode ${connection.responseMessage}")
+                     Log.e("LaMaProcessor", "Server returned HTTP $responseCode ${connection!!.responseMessage}")
                      return@withContext false
                 }
             }
 
-            val fileLength = connection.contentLengthLong
+            val fileLength = connection!!.contentLengthLong
 
-            val input = BufferedInputStream(connection.inputStream)
+            val input = BufferedInputStream(connection!!.inputStream)
             val output = FileOutputStream(tmpFile)
 
             val data = ByteArray(8192)
@@ -107,19 +105,29 @@ class LaMaProcessor(private val context: Context) {
             output.flush()
             output.close()
             input.close()
-            connection.disconnect()
+            connection!!.disconnect()
 
             if (file.exists()) file.delete()
-            if (tmpFile.renameTo(file)) {
-                // Clear cache to reload new model if session exists
-                closeSession()
-                return@withContext true
-            } else {
-                return@withContext false
+
+            // Try rename, if fails, try copy and delete
+            if (!tmpFile.renameTo(file)) {
+                // Fallback for rename failure
+                try {
+                     tmpFile.copyTo(file, overwrite = true)
+                     tmpFile.delete()
+                } catch (e: Exception) {
+                    Log.e("LaMaProcessor", "Failed to rename or copy temp file", e)
+                    return@withContext false
+                }
             }
+
+            // Clear cache to reload new model if session exists
+            closeSession()
+            return@withContext true
 
         } catch (e: Exception) {
             Log.e("LaMaProcessor", "Download failed", e)
+            connection?.disconnect()
             return@withContext false
         }
     }
