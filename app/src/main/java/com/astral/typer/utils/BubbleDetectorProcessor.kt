@@ -15,7 +15,6 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.FloatBuffer
-import java.util.Collections
 import kotlin.math.max
 import kotlin.math.min
 
@@ -203,9 +202,13 @@ class BubbleDetectorProcessor(private val context: Context) {
 
                     val inputs = mapOf("images" to tensor)
                     val result = session.run(inputs)
-                    val output = result[0].value
 
-                    val tileDetections = parsePredictions(output)
+                    val outputs = mutableListOf<Any>()
+                    for (entry in result) {
+                        outputs.add(entry.value.value)
+                    }
+
+                    val tileDetections = parsePredictions(outputs)
 
                     for (det in tileDetections) {
                         det.rect.offset(tileX.toFloat(), tileY.toFloat())
@@ -256,81 +259,97 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     data class Detection(val rect: RectF, val score: Float)
 
-    private fun parsePredictions(output: Any): List<Detection> {
+    private fun parsePredictions(outputs: List<Any>): List<Detection> {
         val detections = mutableListOf<Detection>()
 
-        var data: Array<FloatArray>? = null
-        var isTransposed = false
+        var boxes: Array<FloatArray>? = null // [N][4]
+        var scores: Array<FloatArray>? = null // [N][C]
 
-        if (output is Array<*>) {
-            val batch = output[0]
-            if (batch is Array<*>) {
-                if (batch[0] is FloatArray) {
-                    val d = batch as Array<FloatArray>
-                    val dim1 = d.size
-                    val dim2 = d[0].size
+        // Helper to unwrap batch dimension and normalize to [N][Features]
+        fun normalize(tensor: Any): Array<FloatArray>? {
+            if (tensor is Array<*>) {
+                val batch = tensor[0] // Assume batch size 1
+                if (batch is Array<*>) {
+                    if (batch.isNotEmpty() && batch[0] is FloatArray) {
+                        @Suppress("UNCHECKED_CAST")
+                        val data = batch as Array<FloatArray>
 
-                    // RT-DETR: [300, 7] (boxes, features) usually.
-                    // If [7, 300], then dim1 < dim2.
-                    if (dim1 < dim2) {
-                        isTransposed = true
-                        data = d
-                    } else {
-                        data = d
+                        val rows = data.size
+                        val cols = if (rows > 0) data[0].size else 0
+
+                        // Heuristic for Transpose: RT-DETR queries usually 300 or 1000. Features 4 or 80.
+                        // If we see [4, 300] -> transpose to [300, 4]
+                        // If we see [80, 300] -> transpose to [300, 80]
+                        if (rows < cols && rows < 100) {
+                             val transposed = Array(cols) { FloatArray(rows) }
+                             for (i in 0 until rows) {
+                                 for (j in 0 until cols) {
+                                     transposed[j][i] = data[i][j]
+                                 }
+                             }
+                             return transposed
+                        }
+                        return data
                     }
+                }
+            }
+            return null
+        }
+
+        val parsedTensors = outputs.mapNotNull { normalize(it) }
+
+        if (parsedTensors.isEmpty()) return emptyList()
+
+        if (parsedTensors.size >= 2) {
+            // Split outputs: Boxes and Scores
+            // Find tensor with width 4 for boxes
+            boxes = parsedTensors.find { it.isNotEmpty() && it[0].size == 4 }
+
+            // Find score tensor (not the boxes tensor)
+            scores = parsedTensors.find { it !== boxes && it.isNotEmpty() }
+
+        } else {
+            // Single concatenated output
+            val data = parsedTensors[0]
+            if (data.isNotEmpty()) {
+                val dim = data[0].size
+                if (dim > 4) {
+                    // Split [cx, cy, w, h, score...]
+                    boxes = Array(data.size) { i -> FloatArray(4) { j -> data[i][j] } }
+                    scores = Array(data.size) { i -> FloatArray(dim - 4) { j -> data[i][j + 4] } }
                 }
             }
         }
 
-        if (data == null) return emptyList()
+        if (boxes == null || scores == null) return emptyList()
+        if (boxes!!.size != scores!!.size) return emptyList()
 
-        val rows = data.size
-        val cols = data[0].size
-        val numBoxes = if (isTransposed) cols else rows
+        val numQueries = boxes!!.size
+        val numClasses = scores!![0].size
 
-        for (i in 0 until numBoxes) {
-            val cx: Float
-            val cy: Float
-            val w: Float
-            val h: Float
-            val score: Float
+        for (i in 0 until numQueries) {
+            val cx = boxes!![i][0]
+            val cy = boxes!![i][1]
+            val w = boxes!![i][2]
+            val h = boxes!![i][3]
 
-            if (isTransposed) {
-                // data[feature][box_index]
-                cx = data[0][i]
-                cy = data[1][i]
-                w = data[2][i]
-                h = data[3][i]
-
-                var maxScore = 0f
-                // Classes start from index 4
-                for (j in 4 until rows) {
-                    if (data[j][i] > maxScore) maxScore = data[j][i]
-                }
-                score = maxScore
-            } else {
-                // data[box_index][feature]
-                cx = data[i][0]
-                cy = data[i][1]
-                w = data[i][2]
-                h = data[i][3]
-
-                var maxScore = 0f
-                // Classes start from index 4
-                for (j in 4 until cols) {
-                    if (data[i][j] > maxScore) maxScore = data[i][j]
-                }
-                score = maxScore
+            var maxScore = 0f
+            // Some models export scores with background class, some without.
+            // Usually we just take max across all classes.
+            for (j in 0 until numClasses) {
+                 if (scores!![i][j] > maxScore) maxScore = scores!![i][j]
             }
 
-            if (score > CONFIDENCE_THRESHOLD) {
+            if (maxScore > CONFIDENCE_THRESHOLD) {
                 var finalX = cx
                 var finalY = cy
                 var finalW = w
                 var finalH = h
 
-                // Sanity check for normalization
-                if (cx <= 1.0f && cy <= 1.0f && w <= 1.0f && h <= 1.0f && score > 0.0f) {
+                // Normalize if values are relative (<= 1.0)
+                // RT-DETR can output normalized or absolute.
+                // Usually normalized.
+                if (cx <= 1.05f && cy <= 1.05f && w <= 1.05f && h <= 1.05f) {
                      finalX *= INPUT_SIZE
                      finalY *= INPUT_SIZE
                      finalW *= INPUT_SIZE
@@ -342,7 +361,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                 val right = finalX + finalW / 2f
                 val bottom = finalY + finalH / 2f
 
-                detections.add(Detection(RectF(left, top, right, bottom), score))
+                detections.add(Detection(RectF(left, top, right, bottom), maxScore))
             }
         }
 
