@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.VectorDrawable
@@ -23,6 +24,7 @@ import com.astral.typer.models.ImageLayer
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
+import kotlin.math.min
 
 class AstralCanvasView @JvmOverloads constructor(
     context: Context,
@@ -30,11 +32,16 @@ class AstralCanvasView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
+    // Tiled Rendering Configuration
+    data class ImageTile(val bitmap: android.graphics.Bitmap, val rect: RectF)
+    private val backgroundTiles = mutableListOf<ImageTile>()
+    private val TILE_SIZE = 1024
+
     // Canvas Configuration
     private var canvasWidth = 1080
     private var canvasHeight = 1080
     private var canvasColor = Color.WHITE
-    private var canvasBitmap: android.graphics.Bitmap? = null
+    // private var canvasBitmap: android.graphics.Bitmap? = null // Removed
 
     // Drawing Tools
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -77,7 +84,7 @@ class AstralCanvasView @JvmOverloads constructor(
     // Layer Erase Settings
     var layerEraseSize = 50f
     var layerEraseOpacity = 255
-    var layerEraseHardness = 0f // 0 to 100? Or Blur Radius? Let's use Radius.
+    var layerEraseHardness = 0f
 
     // Temp path for layer erase
     private val currentLayerErasePath = Path()
@@ -92,9 +99,9 @@ class AstralCanvasView @JvmOverloads constructor(
     private val redoOps = mutableListOf<Pair<Path, InpaintTool>>()
     private var currentInpaintPath = Path()
 
-    // Cached Mask Bitmap
-    private var cachedMaskBitmap: android.graphics.Bitmap? = null
-    private var isMaskDirty = true
+    // Cached Mask Bitmap REMOVED
+    // private var cachedMaskBitmap: android.graphics.Bitmap? = null
+    // private var isMaskDirty = true
 
     var brushSize = 50f
         set(value) {
@@ -132,65 +139,57 @@ class AstralCanvasView @JvmOverloads constructor(
         strokeWidth = 5f
     }
 
+    /**
+     * Generates the Inpaint mask on demand.
+     * Note: This allocates a full bitmap. Use with care on large canvases.
+     * Use getRegionAsBitmap for tiled access if possible.
+     */
     fun getInpaintMask(): android.graphics.Bitmap {
-        return getCachedInpaintMask()
-    }
-
-    private fun getCachedInpaintMask(): android.graphics.Bitmap {
-        if (cachedMaskBitmap == null || cachedMaskBitmap?.width != canvasWidth || cachedMaskBitmap?.height != canvasHeight) {
-            try {
-                cachedMaskBitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
-                isMaskDirty = true
-            } catch (e: OutOfMemoryError) {
-                android.util.Log.e("AstralCanvasView", "Failed to create mask bitmap: OOM")
-                // Fallback: Create a smaller bitmap?
-                // Or let it be null and handle it?
-                // For now, if OOM, we can't draw the mask properly.
-                // Creating a 1x1 dummy to prevent NPE if app continues
-                cachedMaskBitmap = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
-            }
+        // Create a bitmap on the fly
+        val bmp = try {
+            android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("AstralCanvasView", "OOM generating inpaint mask")
+            android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
         }
 
-        if (isMaskDirty && cachedMaskBitmap != null) {
-            val canvas = Canvas(cachedMaskBitmap!!)
-            canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR) // Clear
+        val canvas = Canvas(bmp)
+        canvas.drawColor(Color.TRANSPARENT)
 
-            val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                style = Paint.Style.STROKE
-                strokeWidth = brushSize
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                style = Paint.Style.STROKE
-                strokeWidth = brushSize
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                style = Paint.Style.FILL
-            }
-
-            for ((path, tool) in inpaintOps) {
-                when(tool) {
-                    InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
-                    InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
-                    InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
-                }
-            }
-            isMaskDirty = false
+        val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = brushSize
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
         }
-        return cachedMaskBitmap!!
+        val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+            style = Paint.Style.STROKE
+            strokeWidth = brushSize
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+
+        for ((path, tool) in inpaintOps) {
+            when(tool) {
+                InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
+                InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
+                InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+            }
+        }
+        // Draw current path if any? (Usually getInpaintMask is called after lifting finger)
+        return bmp
     }
 
     fun clearInpaintMask() {
         inpaintOps.clear()
         redoOps.clear()
         currentInpaintPath.reset()
-        isMaskDirty = true
         invalidate()
     }
 
@@ -198,7 +197,6 @@ class AstralCanvasView @JvmOverloads constructor(
         if (inpaintOps.isNotEmpty()) {
             val last = inpaintOps.removeAt(inpaintOps.size - 1)
             redoOps.add(last)
-            isMaskDirty = true
             invalidate()
             return true
         }
@@ -209,7 +207,6 @@ class AstralCanvasView @JvmOverloads constructor(
         if (redoOps.isNotEmpty()) {
             val last = redoOps.removeAt(redoOps.size - 1)
             inpaintOps.add(last)
-            isMaskDirty = true
             invalidate()
             return true
         }
@@ -219,17 +216,11 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setInpaintMode(enabled: Boolean) {
         isInpaintMode = enabled
         if (enabled) {
-            // Fix Crash on Large Images: If > 4096 (safe limit), use software rendering
-            // Hardware acceleration crashes if texture size > GL_MAX_TEXTURE_SIZE
-            val maxDim = max(canvasWidth, canvasHeight)
-            if (maxDim > 4096) {
-                setLayerType(LAYER_TYPE_SOFTWARE, null)
-                // Also warn? Maybe not needed if it works.
-            }
+            // Re-enabled Hardware Acceleration thanks to Tiled Rendering
+            setLayerType(LAYER_TYPE_HARDWARE, null)
             selectLayer(null)
             currentMode = Mode.INPAINT
         } else {
-            // Restore Hardware Acceleration
             setLayerType(LAYER_TYPE_HARDWARE, null)
             currentMode = Mode.NONE
         }
@@ -309,10 +300,6 @@ class AstralCanvasView @JvmOverloads constructor(
             layer.bitmap = newBitmap
 
             // We need to adjust layer position because the center has changed!
-            // The new center relative to the old top-left is bounds.center()
-            // Old center was (w/2, h/2).
-            // The cut center in old local coords is bounds.centerX() - offsetX, bounds.centerY() - offsetY.
-
             val localCenterShiftX = bounds.centerX() - offsetX
             val localCenterShiftY = bounds.centerY() - offsetY
 
@@ -336,9 +323,6 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun getViewportCenter(): FloatArray {
-        // Calculate center of visible area in canvas coordinates
-        // viewMatrix maps Canvas -> View
-        // invert viewMatrix to map View Center -> Canvas
         val inverse = Matrix()
         viewMatrix.invert(inverse)
         val center = floatArrayOf(width / 2f, height / 2f)
@@ -347,7 +331,85 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun getBackgroundImage(): android.graphics.Bitmap? {
-        return canvasBitmap
+        // Reconstruct full bitmap from tiles for compatibility (e.g. Saving)
+        // Warning: This may OOM on huge images.
+        if (backgroundTiles.isEmpty()) return null
+
+        try {
+            val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            for (tile in backgroundTiles) {
+                canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, null)
+            }
+            return bitmap
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("AstralCanvasView", "OOM in getBackgroundImage")
+            return null
+        }
+    }
+
+    /**
+     * Extracts a specific region of the background image as a single Bitmap.
+     * Efficiently stitches relevant tiles.
+     */
+    fun getRegionAsBitmap(rect: RectF): android.graphics.Bitmap {
+        val width = rect.width().toInt().coerceAtLeast(1)
+        val height = rect.height().toInt().coerceAtLeast(1)
+
+        val output = try {
+            android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("AstralCanvasView", "OOM in getRegionAsBitmap")
+            return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+        }
+
+        val canvas = Canvas(output)
+        // Shift canvas so that rect.left, rect.top aligns with 0,0
+        canvas.translate(-rect.left, -rect.top)
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        for (tile in backgroundTiles) {
+            if (RectF.intersects(tile.rect, rect)) {
+                canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, paint)
+            }
+        }
+        return output
+    }
+
+    /**
+     * Pastes a source bitmap (e.g. Inpaint result) back onto the background tiles.
+     * Updates the specific tiles that intersect with the position.
+     */
+    fun pasteBitmapToTiles(source: android.graphics.Bitmap, position: PointF) {
+        val srcRect = RectF(
+            position.x,
+            position.y,
+            position.x + source.width,
+            position.y + source.height
+        )
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        // Xfermode SRC to replace content
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC)
+
+        for (tile in backgroundTiles) {
+            if (RectF.intersects(tile.rect, srcRect)) {
+                // We need to draw the relevant part of 'source' onto 'tile.bitmap'
+
+                // 1. Create a canvas for the tile
+                val tileCanvas = Canvas(tile.bitmap)
+
+                // 2. We want to draw 'source' at 'position'
+                // But we are drawing into 'tile' which is at 'tile.rect.left, tile.rect.top'
+                // So the source should be drawn at (position.x - tile.left, position.y - tile.top)
+                val drawX = position.x - tile.rect.left
+                val drawY = position.y - tile.rect.top
+
+                tileCanvas.drawBitmap(source, drawX, drawY, paint)
+            }
+        }
+        invalidate()
     }
 
     fun getLayers(): MutableList<Layer> {
@@ -357,7 +419,7 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setLayers(newLayers: List<Layer>) {
         layers.clear()
         layers.addAll(newLayers)
-        selectedLayer = null // Reset selection or try to maintain?
+        selectedLayer = null
         invalidate()
     }
 
@@ -373,7 +435,6 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun setWarpToolActive(enabled: Boolean) {
         isWarpToolActive = enabled
-        // If disabling, ensure we exit warp drag mode
         if (!enabled && currentMode == Mode.WARP_DRAG) {
             currentMode = Mode.NONE
         }
@@ -383,9 +444,8 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setEraseLayerMode(enabled: Boolean) {
         if (enabled) {
             currentMode = Mode.ERASE_LAYER
-            // Deselect logic? No, we need a selected layer to erase it.
             if (selectedLayer !is TextLayer) {
-                 // Maybe warn or auto select?
+                 // Warning logic
             }
         } else {
             if (currentMode == Mode.ERASE_LAYER) {
@@ -398,34 +458,6 @@ class AstralCanvasView @JvmOverloads constructor(
     fun undoLayerErase() {
         if (selectedLayer is TextLayer) {
             val layer = selectedLayer as TextLayer
-            // We need to restore the base mask (loaded from file) if we undo all paths
-            // But we don't have reference to original "base" mask easily unless we stored it separately.
-            // Actually rebuildEraseMask uses existing eraseMask? No, it clears it.
-            // Wait, rebuildEraseMask needs a clean slate.
-            // If we loaded from file, eraseMask has data. `erasePaths` is empty.
-            // We can't granularly undo loaded data. That's fine.
-            // But for new paths, we need to redraw them on top of... what?
-            // If we didn't save base mask, we lost it when we started drawing?
-            // Ah, in onTouch ACTION_DOWN, we might need to snapshot the base mask if erasePaths is empty?
-            // Or simpler: We treat current `eraseMask` as accumulated result.
-            // But to undo, we must be able to re-construct.
-            // If we don't have the history of the base mask, we can't fully support mix of loaded mask + new undoable paths unless we composite.
-            // Solution: When loading project, `eraseMask` is set. `erasePaths` is empty.
-            // When user starts erasing, `erasePaths` gets added.
-            // `rebuildEraseMask` clears bitmap. If we clear it, we lose loaded mask!
-            // We need `baseEraseMask` in TextLayer.
-            // Let's modify TextLayer to have `baseEraseMask`.
-            // But TextLayer modification is in another file.
-            // For now, let's assume `undoLastErasePath` will try its best.
-            // If we really want to fix "undo removes all 3", we just need to use paths for the current session.
-
-            // Actually, I can pass null as baseMask to undoLastErasePath, meaning it clears everything and draws only paths.
-            // This implies loaded mask is LOST if we undo?
-            // Yes, unless we preserved it.
-            // Given constraints, I will implement `undoLastErasePath` assuming we only care about paths added in this session.
-            // If the user wants to keep loaded mask, we should have saved it.
-            // I'll skip complex base mask logic for now and focus on the requested "3 strokes undo" fix which implies session-based undo.
-
             layer.undoLastErasePath(null)
             invalidate()
         }
@@ -443,16 +475,13 @@ class AstralCanvasView @JvmOverloads constructor(
         val screenH = layer.getHeight() * abs(layer.scaleY)
         val minScreenDim = kotlin.math.min(screenW, screenH)
 
-        // Target visual radius in screen pixels
         val targetVisualRadius = if (minScreenDim < 150f) {
             kotlin.math.max(10f, minScreenDim / 5f)
         } else {
             HANDLE_RADIUS
         }
 
-        // Convert to Local Space
         val localRadius = targetVisualRadius / avgScale
-        // Scale for the path (based on ~15px base size)
         val localIconScale = localRadius / 15f
         val handleOffset = localRadius * 1.5f
 
@@ -520,9 +549,9 @@ class AstralCanvasView @JvmOverloads constructor(
         pathStretchV.lineTo(5f, 5f)
 
         // Box Width: |<->|
-        pathBoxWidth.moveTo(-8f, -8f); pathBoxWidth.lineTo(-8f, 8f) // Left bar
-        pathBoxWidth.moveTo(8f, -8f); pathBoxWidth.lineTo(8f, 8f)   // Right bar
-        pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(8f, 0f)   // Center line
+        pathBoxWidth.moveTo(-8f, -8f); pathBoxWidth.lineTo(-8f, 8f)
+        pathBoxWidth.moveTo(8f, -8f); pathBoxWidth.lineTo(8f, 8f)
+        pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(8f, 0f)
         pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(-4f, -4f)
         pathBoxWidth.moveTo(-8f, 0f); pathBoxWidth.lineTo(-4f, 4f)
         pathBoxWidth.moveTo(8f, 0f); pathBoxWidth.lineTo(4f, -4f)
@@ -571,7 +600,6 @@ class AstralCanvasView @JvmOverloads constructor(
         return pixel
     }
 
-    // Interaction State
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var startTouchX = 0f
@@ -583,33 +611,24 @@ class AstralCanvasView @JvmOverloads constructor(
     private var initialScaleY = 1f
     private var initialBoxWidth = 0f
 
-    // Interaction Reference Points (for calculation)
     private var centerX = 0f
     private var centerY = 0f
     private var startAngle = 0f
     private var startDist = 0f
-    private var startX = 0f // Local X
-    private var startY = 0f // Local Y
+    private var startX = 0f
+    private var startY = 0f
 
-    // Eyedropper state
     private var eyedropperX = 0f
     private var eyedropperY = 0f
     private var eyedropperScreenX = 0f
     private var eyedropperScreenY = 0f
 
-    // Camera / Viewport
     private val viewMatrix = Matrix()
-    private val invertedMatrix = Matrix() // For mapping touch to canvas coords
+    private val invertedMatrix = Matrix()
 
-    // Gestures
     private val scaleDetector = ScaleGestureDetector(context, ScaleListener())
     private val gestureDetector = GestureDetector(context, GestureListener())
 
-    // Multi-touch tracking
-    private var activePointerId = MotionEvent.INVALID_POINTER_ID
-    private var secondaryPointerId = MotionEvent.INVALID_POINTER_ID
-
-    // Listener
     interface OnLayerSelectedListener {
         fun onLayerSelected(layer: Layer?)
     }
@@ -638,8 +657,6 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun addImageLayer(bitmap: android.graphics.Bitmap, path: String? = null) {
-        // Limit initial size if too big relative to canvas?
-        // For now, scale to 50% of canvas width if huge
         var scale = 1f
         if (bitmap.width > canvasWidth * 0.8f) {
             scale = (canvasWidth * 0.8f) / bitmap.width
@@ -660,16 +677,11 @@ class AstralCanvasView @JvmOverloads constructor(
         if (selectedLayer != layer) {
             selectedLayer = layer
             onLayerSelectedListener?.onLayerSelected(layer)
-            // Reset mode on selection change
             isPerspectiveMode = false
             exitCutMode()
             (layer as? TextLayer)?.isPerspective = false
             invalidate()
         } else {
-             // Even if same layer, ensure listener is called to update UI if needed (Fix for "Active Layer Bug" if EditorActivity state is stale)
-             // But EditorActivity logic relies on `showPropertiesMenu()` which might just show container.
-             // We need to ensure that the properties shown actually match.
-             // Calling listener again forces update.
              onLayerSelectedListener?.onLayerSelected(layer)
         }
     }
@@ -688,14 +700,30 @@ class AstralCanvasView @JvmOverloads constructor(
 
         backgroundRect.set(0f, 0f, width.toFloat(), height.toFloat())
 
-        // Initial Center
         post {
              centerCanvas()
         }
     }
 
     fun setBackgroundImage(bitmap: android.graphics.Bitmap) {
-        canvasBitmap = bitmap
+        backgroundTiles.clear()
+
+        val w = bitmap.width
+        val h = bitmap.height
+
+        // Tiling Logic
+        for (y in 0 until h step TILE_SIZE) {
+            for (x in 0 until w step TILE_SIZE) {
+                val tileW = min(TILE_SIZE, w - x)
+                val tileH = min(TILE_SIZE, h - y)
+
+                // Create tile
+                val tileBitmap = android.graphics.Bitmap.createBitmap(bitmap, x, y, tileW, tileH)
+                val tileRect = RectF(x.toFloat(), y.toFloat(), (x + tileW).toFloat(), (y + tileH).toFloat())
+
+                backgroundTiles.add(ImageTile(tileBitmap, tileRect))
+            }
+        }
         invalidate()
     }
 
@@ -709,10 +737,10 @@ class AstralCanvasView @JvmOverloads constructor(
         bgPaint.style = Paint.Style.FILL
         canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), bgPaint)
 
-        // Draw Background Image
-        canvasBitmap?.let {
-             val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-             canvas.drawBitmap(it, null, RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat()), bitmapPaint)
+        // Draw Background Tiles
+        val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        for (tile in backgroundTiles) {
+            canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
         }
 
         // Draw Layers
@@ -729,7 +757,6 @@ class AstralCanvasView @JvmOverloads constructor(
         val scaleX = width.toFloat() / canvasWidth
         val scaleY = height.toFloat() / canvasHeight
 
-        // Fit center with some padding
         val scale = minOf(scaleX, scaleY) * 0.8f
 
         val dx = (width - canvasWidth * scale) / 2f
@@ -744,21 +771,27 @@ class AstralCanvasView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Save current state
         canvas.save()
-
-        // Apply Camera Matrix (Zoom/Pan)
         canvas.concat(viewMatrix)
 
-        // Draw Canvas Background (The "Paper")
+        // Draw Canvas Background
         paint.color = canvasColor
         paint.style = Paint.Style.FILL
         canvas.drawRect(backgroundRect, paint)
 
-        // Draw Background Image if exists
-        canvasBitmap?.let {
-             val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-             canvas.drawBitmap(it, null, backgroundRect, bitmapPaint)
+        // Draw Background Tiles with Frustum Culling
+        if (backgroundTiles.isNotEmpty()) {
+            val visibleViewport = RectF(0f, 0f, width.toFloat(), height.toFloat())
+            val inverse = Matrix()
+            viewMatrix.invert(inverse)
+            inverse.mapRect(visibleViewport)
+
+            val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            for (tile in backgroundTiles) {
+                if (RectF.intersects(tile.rect, visibleViewport)) {
+                    canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+                }
+            }
         }
 
         // Draw Border
@@ -770,28 +803,51 @@ class AstralCanvasView @JvmOverloads constructor(
         // Draw Layers
         drawScene(canvas)
 
-        // Draw Inpaint Path (in World Space)
+        // Draw Inpaint Path (Vector optimized, no cache bitmap)
         if (isInpaintMode) {
-            // Use saveLayer to isolate blending (especially for Eraser/CLEAR)
             val saveCount = canvas.saveLayer(null, null)
 
-            // Draw cached mask
-            val mask = getCachedInpaintMask()
-            val p = Paint()
-            // Tint Red for visibility
-            p.colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
-            p.alpha = 128
-            canvas.drawBitmap(mask, 0f, 0f, p)
+            // Draw Paths directly
+            val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = brushSize
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            // Inpaint Overlay Tint
+            brushP.colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
+            brushP.alpha = 128
 
-            // Draw live path
+            val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                style = Paint.Style.STROKE
+                strokeWidth = brushSize
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = Paint.Style.FILL
+                colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
+                alpha = 128
+            }
+
+            // Draw History
+            for ((path, tool) in inpaintOps) {
+                when(tool) {
+                    InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
+                    InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
+                    InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+                }
+            }
+
+            // Draw Current Path
             if (!currentInpaintPath.isEmpty) {
                  when(currentInpaintTool) {
                     InpaintTool.BRUSH -> canvas.drawPath(currentInpaintPath, inpaintPaint)
-                    // Eraser: Use CLEAR mode to punch hole in the mask layer we just saved
                     InpaintTool.ERASER -> canvas.drawPath(currentInpaintPath, eraserPaint)
-                    InpaintTool.LASSO -> {
-                         canvas.drawPath(currentInpaintPath, lassoStrokePaint)
-                    }
+                    InpaintTool.LASSO -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
                 }
             }
             canvas.restoreToCount(saveCount)
@@ -804,7 +860,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
         canvas.restore()
 
-        // Draw Grid Lines (Snap) - In Screen Space for constant thickness
+        // Draw Grid Lines (Screen Space)
         if (showVerticalCenterLine) {
             val pts = floatArrayOf(canvasWidth / 2f, 0f, canvasWidth / 2f, canvasHeight.toFloat())
             viewMatrix.mapPoints(pts)
@@ -816,9 +872,8 @@ class AstralCanvasView @JvmOverloads constructor(
             canvas.drawLine(pts[0], pts[1], pts[2], pts[3], snapPaint)
         }
 
-        // Draw Eyedropper UI (Overlay on top of everything)
+        // Draw Eyedropper UI
         if (currentMode == Mode.EYEDROPPER) {
-             // 1. Crosshair (In Screen Space)
              paint.style = Paint.Style.STROKE
              paint.color = Color.BLACK
              paint.strokeWidth = 2f
@@ -827,20 +882,17 @@ class AstralCanvasView @JvmOverloads constructor(
              canvas.drawLine(eyedropperScreenX, eyedropperScreenY - size, eyedropperScreenX, eyedropperScreenY + size, paint)
              paint.color = Color.WHITE
              paint.strokeWidth = 1f
-             canvas.drawLine(eyedropperScreenX - size, eyedropperScreenY - 1f, eyedropperScreenX + size, eyedropperScreenY - 1f, paint) // pseudo shadow
+             canvas.drawLine(eyedropperScreenX - size, eyedropperScreenY - 1f, eyedropperScreenX + size, eyedropperScreenY - 1f, paint)
 
-             // 2. Preview Box (In Screen Space)
              canvas.save()
              val boxSize = 200f
              val boxMargin = 30f
              val boxRect = RectF(width - boxSize - boxMargin, boxMargin, width - boxMargin, boxMargin + boxSize)
 
-             // Background for box
              paint.style = Paint.Style.FILL
              paint.color = Color.BLACK
              canvas.drawRect(boxRect, paint)
 
-             // Draw zoomed content
              canvas.save()
              canvas.clipRect(boxRect)
              canvas.translate(boxRect.centerX(), boxRect.centerY())
@@ -848,29 +900,27 @@ class AstralCanvasView @JvmOverloads constructor(
              canvas.scale(zoomLevel, zoomLevel)
              canvas.translate(-eyedropperX, -eyedropperY)
 
-             // Draw White Background first (Canvas Color)
              paint.color = canvasColor
              paint.style = Paint.Style.FILL
              canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), paint)
-             // Image
-             canvasBitmap?.let {
-                 val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-                 canvas.drawBitmap(it, null, RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat()), bitmapPaint)
+
+             // Draw Tiles in Eyedropper
+             val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+             for (tile in backgroundTiles) {
+                 canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
              }
-             // Layers
+
              for (layer in layers) {
                  layer.draw(canvas)
              }
 
-             canvas.restore() // End Clip/Transform
+             canvas.restore()
 
-             // Draw Border for Box
              paint.style = Paint.Style.STROKE
              paint.color = Color.WHITE
              paint.strokeWidth = 4f
              canvas.drawRect(boxRect, paint)
 
-             // Center Crosshair in Box
              paint.color = Color.RED
              paint.strokeWidth = 2f
              canvas.drawLine(boxRect.centerX() - 10, boxRect.centerY(), boxRect.centerX() + 10, boxRect.centerY(), paint)
@@ -881,7 +931,6 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun drawScene(canvas: Canvas) {
-        // Draw Layers
         for (layer in layers) {
             layer.draw(canvas)
         }
@@ -893,13 +942,11 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.rotate(layer.rotation)
         canvas.scale(layer.scaleX, layer.scaleY)
 
-        // If Cut Mode
         if (cutPoints != null && layer is ImageLayer) {
              val pts = cutPoints!!
-             // Draw connecting lines (Mask boundary)
              paint.style = Paint.Style.STROKE
              paint.color = Color.MAGENTA
-             paint.strokeWidth = 2f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f) // Scale stroke
+             paint.strokeWidth = 2f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
              val path = Path()
              path.moveTo(pts[0], pts[1])
              path.lineTo(pts[2], pts[3])
@@ -908,20 +955,18 @@ class AstralCanvasView @JvmOverloads constructor(
              path.close()
              canvas.drawPath(path, paint)
 
-             // Draw 4 handles
              val handleRadius = 20f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
              handlePaint.color = Color.MAGENTA
 
-             canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint) // TL
-             canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint) // TR
-             canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint) // BR
-             canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint) // BL
+             canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
+             canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint)
+             canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint)
+             canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
 
              canvas.restore()
              return
         }
 
-        // If Warp Mode
         if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
              val mesh = layer.warpMesh
              val rows = layer.warpRows
@@ -931,7 +976,6 @@ class AstralCanvasView @JvmOverloads constructor(
                  paint.color = Color.CYAN
                  paint.strokeWidth = 2f
 
-                 // Draw Grid
                  for (r in 0..rows) {
                      val startIdx = r * (cols + 1)
                      for (c in 0 until cols) {
@@ -948,7 +992,6 @@ class AstralCanvasView @JvmOverloads constructor(
                      }
                  }
 
-                 // Draw Handles
                  val handleRadius = 15f / ((layer.scaleX + layer.scaleY)/2f)
                  handlePaint.color = Color.YELLOW
                  for (i in 0 until (mesh.size / 2)) {
@@ -959,12 +1002,9 @@ class AstralCanvasView @JvmOverloads constructor(
              return
         }
 
-        // If Perspective Mode, we hide normal box and show 4 corners
         if (isPerspectiveMode && layer is TextLayer) {
-            // "semua ikon control hilang... sudut jadi titik"
             val pts = layer.perspectivePoints
             if (pts != null && pts.size >= 8) {
-                // Draw connecting lines (the deformed box)
                 paint.style = Paint.Style.STROKE
                 paint.color = Color.CYAN
                 paint.strokeWidth = 2f
@@ -976,14 +1016,13 @@ class AstralCanvasView @JvmOverloads constructor(
                 path.close()
                 canvas.drawPath(path, paint)
 
-                // Draw 4 handles
                 val handleRadius = 20f / ((layer.scaleX + layer.scaleY)/2f)
                 handlePaint.color = Color.CYAN
 
-                canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint) // TL
-                canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint) // TR
-                canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint) // BR
-                canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint) // BL
+                canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
+                canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint)
+                canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint)
+                canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
             }
 
             canvas.restore()
@@ -994,36 +1033,30 @@ class AstralCanvasView @JvmOverloads constructor(
         val halfH = layer.getHeight() / 2f
 
         val geometry = getHandleGeometry(layer)
-        val localRadius = geometry.radius
         val handleOffset = geometry.offset
         val localIconScale = geometry.scale
         val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
 
-        // Box
         paint.style = Paint.Style.STROKE
         paint.color = Color.BLUE
-        paint.strokeWidth = 3f / avgScale // Keep stroke constant width visually
+        paint.strokeWidth = 3f / avgScale
         val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
         canvas.drawRect(box, paint)
 
-        // Hide handles if in Erase Mode
         if (currentMode == Mode.ERASE_LAYER) {
             canvas.restore()
             return
         }
 
-        // --- Draw Handles Helper ---
         fun drawIconHandle(x: Float, y: Float, path: Path, iconColor: Int, useStroke: Boolean = true) {
             canvas.save()
             canvas.translate(x, y)
             canvas.scale(localIconScale, localIconScale)
 
-            // Draw Icon
             iconPaint.color = iconColor
-            iconPaint.strokeWidth = 3f // Thicker for visibility
+            iconPaint.strokeWidth = 3f
             iconPaint.style = Paint.Style.STROKE
 
-            // Background shadow/outline for visibility
             val shadowPaint = Paint(iconPaint).apply {
                 this.color = Color.BLACK
                 this.strokeWidth = 5f
@@ -1034,35 +1067,21 @@ class AstralCanvasView @JvmOverloads constructor(
             canvas.restore()
         }
 
-        // 1. Delete Handle (Top-Left) -> X
         drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
-
-        // 2. Rotate Handle (Top-Right) -> Circle Arrow
         drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
-
-        // 3. Resize Handle (Bottom-Right) -> Diagonal Arrow
         drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
-
-        // 4. Stretch Horizontal (Left-Middle) -> Horizontal Arrow
         drawIconHandle(-halfW - handleOffset, 0f, pathStretchH, Color.DKGRAY)
-
-        // 5. Stretch Vertical (Bottom-Middle) -> Vertical Arrow
         drawIconHandle(0f, halfH + handleOffset, pathStretchV, Color.DKGRAY)
 
-        // 6. Box Width (Right-Middle) -> Rect icon (Resize box)
         if (layer is TextLayer) {
              drawIconHandle(halfW + handleOffset, 0f, pathBoxWidth, Color.MAGENTA)
         }
 
-        // --- Top Action Icons (Duplicate & Copy Style) ---
-        // Adjust position based on dynamic handle size
         val topY = -halfH - handleOffset * 2.5f
-        val iconSpacing = localRadius * 2.5f
+        val iconSpacing = geometry.radius * 2.5f
 
-        // Duplicate Icon
         val dupX = -iconSpacing / 1.5f
 
-        // Draw Duplicate Icon Manually or use path? Let's use simple rects
         canvas.save()
         canvas.translate(dupX, topY)
         canvas.scale(localIconScale, localIconScale)
@@ -1078,7 +1097,6 @@ class AstralCanvasView @JvmOverloads constructor(
 
         canvas.restore()
 
-        // Copy Style Icon
         val copyX = iconSpacing / 1.5f
         canvas.save()
         canvas.translate(copyX, topY)
@@ -1087,7 +1105,6 @@ class AstralCanvasView @JvmOverloads constructor(
         val copyP = Paint(iconPaint).apply { color = Color.YELLOW; style = Paint.Style.STROKE }
         val copyShadow = Paint(copyP).apply { color = Color.BLACK; strokeWidth = 5f }
 
-        // Circle + Fill
         canvas.drawCircle(0f, 0f, 8f, copyShadow)
         canvas.drawCircle(0f, 0f, 8f, copyP)
 
@@ -1112,20 +1129,17 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Multi-touch tracking
         val pointerCount = event.pointerCount
 
-        // If 2 fingers are down, we force PAN_ZOOM mode
         if (pointerCount >= 2) {
             if (currentMode != Mode.EYEDROPPER) {
                 currentMode = Mode.PAN_ZOOM
             }
             scaleDetector.onTouchEvent(event)
-            gestureDetector.onTouchEvent(event) // Allow scroll/pan
+            gestureDetector.onTouchEvent(event)
             return true
         }
 
-        // Map touch to canvas coordinates
         val touchPoint = floatArrayOf(event.x, event.y)
         viewMatrix.invert(invertedMatrix)
         invertedMatrix.mapPoints(touchPoint)
@@ -1148,15 +1162,11 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (isInpaintMode) {
-            // Check for multi-touch (Pan/Zoom) cancellation
-            // The issue is that ACTION_POINTER_DOWN (2nd finger) triggers a short MOVE or is missed if we only check pointerCount
-            // We need to check if ANY gesture is multi-touch or if Mode is already PAN_ZOOM
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 if (!currentInpaintPath.isEmpty) {
-                    currentInpaintPath.reset() // Cancel current stroke immediately
+                    currentInpaintPath.reset()
                     invalidate()
                 }
-                // Allow gesture detector to handle pan/zoom
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
@@ -1174,22 +1184,19 @@ class AstralCanvasView @JvmOverloads constructor(
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    // Double check pointer count again to be safe
                     if (event.pointerCount == 1) {
                         currentInpaintPath.lineTo(cx, cy)
                         invalidate()
                     }
                 }
                 MotionEvent.ACTION_UP -> {
-                    // Commit path
                     if (!currentInpaintPath.isEmpty) {
                          if (currentInpaintTool == InpaintTool.LASSO) {
                              currentInpaintPath.close()
                          }
                          inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
-                         redoOps.clear() // Clear redo stack on new action
+                         redoOps.clear()
                          currentInpaintPath.reset()
-                         isMaskDirty = true
                     }
                     invalidate()
                 }
@@ -1197,7 +1204,6 @@ class AstralCanvasView @JvmOverloads constructor(
             return true
         }
 
-        // Layer Erase Mode
         if (currentMode == Mode.ERASE_LAYER && selectedLayer is TextLayer) {
              val layer = selectedLayer as TextLayer
              if (pointerCount >= 2 || (event.actionMasked != MotionEvent.ACTION_DOWN && currentMode == Mode.PAN_ZOOM)) {
@@ -1208,7 +1214,6 @@ class AstralCanvasView @JvmOverloads constructor(
                  return true
              }
 
-             // Map to Local
              val localPoint = floatArrayOf(cx, cy)
              val globalToLocal = Matrix()
              globalToLocal.postTranslate(-layer.x, -layer.y)
@@ -1220,10 +1225,6 @@ class AstralCanvasView @JvmOverloads constructor(
 
              val w = layer.getWidth().toInt().coerceAtLeast(1)
              val h = layer.getHeight().toInt().coerceAtLeast(1)
-             // The mask is relative to layer center? No, usually 0,0 is center of drawing.
-             // TextLayer draw uses drawContent with center 0,0.
-             // But Bitmap.createBitmap uses w, h.
-             // We need to map local coordinates (-w/2, -h/2) to (0, 0)
              val maskX = lx + w/2f
              val maskY = ly + h/2f
 
@@ -1231,18 +1232,12 @@ class AstralCanvasView @JvmOverloads constructor(
                  MotionEvent.ACTION_DOWN -> {
                      currentLayerErasePath.reset()
                      currentLayerErasePath.moveTo(maskX, maskY)
-                     // Ensure mask exists
-                     if (layer.eraseMask == null || layer.eraseMask!!.width != w || layer.eraseMask!!.height != h) {
-                         // Initialize if needed (though rebuild logic handles it, real-time feedback needs bitmap)
-                         if (layer.eraseMask == null) {
-                             layer.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-                             // If we have paths, we should have rebuilt already. If this is fresh, it's empty.
-                         }
+                     if (layer.eraseMask == null) {
+                         layer.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
                      }
                  }
                  MotionEvent.ACTION_MOVE -> {
                      currentLayerErasePath.lineTo(maskX, maskY)
-                     // Draw real-time on the bitmap for feedback
                      if (layer.eraseMask != null) {
                          val c = Canvas(layer.eraseMask!!)
                          val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1265,7 +1260,6 @@ class AstralCanvasView @JvmOverloads constructor(
                      }
                  }
                  MotionEvent.ACTION_UP -> {
-                     // Commit path to layer history
                      if (!currentLayerErasePath.isEmpty) {
                          layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
                          currentLayerErasePath.reset()
@@ -1282,11 +1276,9 @@ class AstralCanvasView @JvmOverloads constructor(
                 startTouchX = cx
                 startTouchY = cy
 
-                // 1. Check Handles (if layer selected)
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
 
-                    // Transform touch to local layer space
                     val localPoint = floatArrayOf(cx, cy)
                     val globalToLocal = Matrix()
                     globalToLocal.postTranslate(-layer.x, -layer.y)
@@ -1297,19 +1289,16 @@ class AstralCanvasView @JvmOverloads constructor(
                     val lx = localPoint[0]
                     val ly = localPoint[1]
 
-                    // Cut Mode Handling
                     if (cutPoints != null && layer is ImageLayer) {
                         val pts = cutPoints!!
-                        val hitRadius = 60f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f) // Increased hit radius
+                        val hitRadius = 60f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
                         if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.CUT_DRAG_TL; return true }
                         if (getDistance(lx, ly, pts[2], pts[3]) < hitRadius) { currentMode = Mode.CUT_DRAG_TR; return true }
                         if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.CUT_DRAG_BR; return true }
                         if (getDistance(lx, ly, pts[6], pts[7]) < hitRadius) { currentMode = Mode.CUT_DRAG_BL; return true }
-                        // Consume touch in Cut Mode even if not hitting handle (to prevent bg selection)
                         return true
                     }
 
-                    // Warp Mode Handling
                     if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
                          val mesh = layer.warpMesh
                          if (mesh != null) {
@@ -1333,18 +1322,15 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                     }
 
-                    // Perspective Mode Handling
                     if (isPerspectiveMode && layer is TextLayer) {
                          val pts = layer.perspectivePoints
                          if (pts != null) {
                              val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
-                             // Points: 0,1 TL; 2,3 TR; 4,5 BR; 6,7 BL
                              if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TL; return true }
                              if (getDistance(lx, ly, pts[2], pts[3]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TR; return true }
                              if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BR; return true }
                              if (getDistance(lx, ly, pts[6], pts[7]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BL; return true }
                          }
-                         // Fallthrough to allow dragging body in Perspective Mode
                     }
 
                     if (!isPerspectiveMode) {
@@ -1353,16 +1339,14 @@ class AstralCanvasView @JvmOverloads constructor(
 
                         val geometry = getHandleGeometry(layer)
                         val handleOffset = geometry.offset
-                        val hitRadius = geometry.radius * 2.0f // Slightly larger for easier touch
+                        val hitRadius = geometry.radius * 2.0f
 
-                        // Top Actions
                         val topY = -halfH - handleOffset * 2.5f
                         val iconSpacing = geometry.radius * 2.5f
                         val dupX = -iconSpacing / 1.5f
                         val copyX = iconSpacing / 1.5f
 
                         if (getDistance(lx, ly, dupX, topY) <= hitRadius) {
-                            // DUPLICATE
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             val newLayer = layer.clone()
                             newLayer.x += 20
@@ -1373,7 +1357,6 @@ class AstralCanvasView @JvmOverloads constructor(
                         }
 
                         if (getDistance(lx, ly, copyX, topY) <= hitRadius) {
-                            // COPY STYLE
                             if (layer is TextLayer) {
                                 com.astral.typer.utils.StyleManager.copyStyle(layer)
                                 com.astral.typer.utils.StyleManager.saveStyle(context, layer)
@@ -1382,7 +1365,6 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
 
-                        // Standard Handles
                         if (getDistance(lx, ly, -halfW - handleOffset, -halfH - handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             deleteSelectedLayer()
@@ -1428,7 +1410,6 @@ class AstralCanvasView @JvmOverloads constructor(
                         if (layer is TextLayer && getDistance(lx, ly, halfW + handleOffset, 0f) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.BOX_WIDTH
-                            // Reset warp and perspective to prevent stretching
                             layer.isWarp = false
                             layer.isPerspective = false
                             layer.warpMesh = null
@@ -1443,17 +1424,13 @@ class AstralCanvasView @JvmOverloads constructor(
                     }
                 }
 
-                // 2. Check for layer hit
                 val hitLayer = layers.findLast { it.contains(cx, cy) }
                 if (hitLayer != null) {
                     wasSelectedInitially = (selectedLayer == hitLayer)
                     selectLayer(hitLayer)
-
-                    // Force invalidate to ensure handles appear on first click
                     invalidate()
 
                     if (currentMode != Mode.NONE) {
-                        // Already in a mode (e.g. handles), do nothing
                     } else {
                         com.astral.typer.utils.UndoManager.saveState(layers)
                         currentMode = Mode.DRAG_LAYER
@@ -1463,9 +1440,6 @@ class AstralCanvasView @JvmOverloads constructor(
                     }
                 } else {
                     currentMode = Mode.NONE
-                    // Only deselect if not interacting with handles?
-                    // We already handled handles above. If we are here, we touched empty space or layer.
-                    // If hitLayer is null, we touched background.
                     selectLayer(null)
                     invalidate()
                 }
@@ -1497,8 +1471,6 @@ class AstralCanvasView @JvmOverloads constructor(
                          return true
                     }
 
-                    // Perspective Drag Logic
-                    // Cut Mode Drag
                     if (cutPoints != null && layer is ImageLayer) {
                         val localPoint = floatArrayOf(cx, cy)
                         val globalToLocal = Matrix()
@@ -1511,7 +1483,6 @@ class AstralCanvasView @JvmOverloads constructor(
                         val ly = localPoint[1]
                         val pts = cutPoints!!
 
-                        // Image Bounds (Local Space centered at 0,0)
                         val w = layer.getWidth()
                         val h = layer.getHeight()
                         val boundLeft = -w / 2f
@@ -1519,52 +1490,39 @@ class AstralCanvasView @JvmOverloads constructor(
                         val boundTop = -h / 2f
                         val boundBottom = h / 2f
 
-                        // Constraint helper
                         fun constrain(v: Float, min: Float, max: Float): Float {
                             return v.coerceIn(min, max)
                         }
 
                         when (currentMode) {
                             Mode.CUT_DRAG_TL -> {
-                                val newX = constrain(lx, boundLeft, pts[2] - 10) // Must be left of TR
-                                val newY = constrain(ly, boundTop, pts[7] - 10)  // Must be above BL (pts[7] is BL Y)
-                                // Update TL
+                                val newX = constrain(lx, boundLeft, pts[2] - 10)
+                                val newY = constrain(ly, boundTop, pts[7] - 10)
                                 pts[0] = newX; pts[1] = newY
-                                // Update related corners to maintain rectangle
-                                pts[6] = newX // BL X follows TL X
-                                pts[3] = newY // TR Y follows TL Y
+                                pts[6] = newX
+                                pts[3] = newY
                             }
-
                             Mode.CUT_DRAG_TR -> {
-                                val newX = constrain(lx, pts[0] + 10, boundRight) // Must be right of TL
-                                val newY = constrain(ly, boundTop, pts[5] - 10)   // Must be above BR (pts[5] is BR Y)
-                                // Update TR
+                                val newX = constrain(lx, pts[0] + 10, boundRight)
+                                val newY = constrain(ly, boundTop, pts[5] - 10)
                                 pts[2] = newX; pts[3] = newY
-                                // Update related corners
-                                pts[4] = newX // BR X follows TR X
-                                pts[1] = newY // TL Y follows TR Y
+                                pts[4] = newX
+                                pts[1] = newY
                             }
-
                             Mode.CUT_DRAG_BR -> {
-                                val newX = constrain(lx, pts[6] + 10, boundRight) // Must be right of BL
-                                val newY = constrain(ly, pts[3] + 10, boundBottom) // Must be below TR (pts[3] is TR Y)
-                                // Update BR
+                                val newX = constrain(lx, pts[6] + 10, boundRight)
+                                val newY = constrain(ly, pts[3] + 10, boundBottom)
                                 pts[4] = newX; pts[5] = newY
-                                // Update related corners
-                                pts[2] = newX // TR X follows BR X
-                                pts[7] = newY // BL Y follows BR Y
+                                pts[2] = newX
+                                pts[7] = newY
                             }
-
                             Mode.CUT_DRAG_BL -> {
-                                val newX = constrain(lx, boundLeft, pts[4] - 10) // Must be left of BR
-                                val newY = constrain(ly, pts[1] + 10, boundBottom) // Must be below TL (pts[1] is TL Y)
-                                // Update BL
+                                val newX = constrain(lx, boundLeft, pts[4] - 10)
+                                val newY = constrain(ly, pts[1] + 10, boundBottom)
                                 pts[6] = newX; pts[7] = newY
-                                // Update related corners
-                                pts[0] = newX // TL X follows BL X
-                                pts[5] = newY // BR Y follows BL Y
+                                pts[0] = newX
+                                pts[5] = newY
                             }
-
                             else -> {}
                         }
                         invalidate()
@@ -1572,7 +1530,6 @@ class AstralCanvasView @JvmOverloads constructor(
                     }
 
                     if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
-                         // We need to map global touch back to local space to update the points
                          val localPoint = floatArrayOf(cx, cy)
                          val globalToLocal = Matrix()
                          globalToLocal.postTranslate(-layer.x, -layer.y)
@@ -1591,7 +1548,6 @@ class AstralCanvasView @JvmOverloads constructor(
                              Mode.PERSPECTIVE_DRAG_BR -> { pts[4] = lx; pts[5] = ly }
                              Mode.PERSPECTIVE_DRAG_BL -> { pts[6] = lx; pts[7] = ly }
                              Mode.DRAG_LAYER -> {
-                                 // Allow dragging the whole layer in Perspective Mode
                                  val dx = cx - lastTouchX
                                  val dy = cy - lastTouchY
                                  layer.x += dx
@@ -1613,7 +1569,6 @@ class AstralCanvasView @JvmOverloads constructor(
                             val nextX = layer.x + dx
                             val nextY = layer.y + dy
 
-                            // Snap Logic
                             val snapThreshold = 20f
                             var snappedX = false
                             var snappedY = false
@@ -1636,10 +1591,6 @@ class AstralCanvasView @JvmOverloads constructor(
 
                             layer.x += dx
                             layer.y += dy
-                            // Update lastTouch to avoid jumps if not snapping,
-                            // but if snapping, we visually hold the object.
-                            // However, touch continues to move.
-                            // Standard behavior: lastTouch always follows finger.
                             lastTouchX = cx
                             lastTouchY = cy
                             invalidate()
@@ -1730,8 +1681,6 @@ class AstralCanvasView @JvmOverloads constructor(
         return true
     }
 
-    // --- Gesture Handling ---
-
     private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             if (currentMode == Mode.PAN_ZOOM) {
@@ -1743,40 +1692,6 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             return true
         }
-    }
-
-    private fun renderMaskToBitmap(): android.graphics.Bitmap {
-        val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.TRANSPARENT)
-
-        val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.STROKE
-            strokeWidth = 50f
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-            style = Paint.Style.STROKE
-            strokeWidth = 50f
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.FILL
-        }
-
-        for ((path, tool) in inpaintOps) {
-             when(tool) {
-                 InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
-                 InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
-                 InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
-             }
-        }
-        return bitmap
     }
 
     private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
