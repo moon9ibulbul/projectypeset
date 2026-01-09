@@ -380,7 +380,7 @@ class EditorActivity : AppCompatActivity() {
                              layer.fontPath = if (found.isCustom) found.path else found.name
                          }
                     } else {
-                        layer.typeface = style.typeface
+                        layer.typeface = Typeface.DEFAULT
                     }
 
                     layer.opacity = style.opacity
@@ -389,11 +389,11 @@ class EditorActivity : AppCompatActivity() {
                     layer.shadowDx = style.shadowDx
                     layer.shadowDy = style.shadowDy
                     layer.isMotionShadow = style.isMotionShadow
-                    layer.motionShadowAngle = style.motionShadowAngle
-                    layer.motionShadowDistance = style.motionShadowDistance
+                    layer.motionShadowAngle = style.motionAngle
+                    layer.motionShadowDistance = style.motionDist
                     layer.isGradient = style.isGradient
-                    layer.gradientStartColor = style.gradientStartColor
-                    layer.gradientEndColor = style.gradientEndColor
+                    layer.gradientStartColor = style.gradientStart
+                    layer.gradientEndColor = style.gradientEnd
                     layer.gradientAngle = style.gradientAngle
                     layer.isGradientText = style.isGradientText
                     layer.isGradientStroke = style.isGradientStroke

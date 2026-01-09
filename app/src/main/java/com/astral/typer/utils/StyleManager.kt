@@ -120,7 +120,7 @@ object StyleManager {
         val opacityAngle: Int
     )
 
-    private fun toModel(l: TextLayer): StyleModel {
+    fun toModel(l: TextLayer): StyleModel {
         return StyleModel(
             l.name,
             l.color, l.fontSize, l.fontPath, l.opacity,
