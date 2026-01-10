@@ -167,81 +167,112 @@ class BubbleDetectorProcessor(private val context: Context) {
     suspend fun process(bitmap: Bitmap): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
-        val width = bitmap.width
-        val height = bitmap.height
+        // Optimization: Resize to width 640 while maintaining aspect ratio
+        val originalWidth = bitmap.width
+        val originalHeight = bitmap.height
+        val targetWidth = 640
 
-        val session = getSession()
-        val env = OrtEnvironment.getEnvironment()
+        // Calculate scale factor
+        val scaleFactor = if (originalWidth > targetWidth) targetWidth.toFloat() / originalWidth else 1.0f
 
-        // Determine input names
-        val inputNames = session.inputNames
-        val imageInputName = inputNames.find { it.contains("image", ignoreCase = true) } ?: "images"
-        val sizeInputName = inputNames.find { it.contains("size", ignoreCase = true) || it.contains("orig", ignoreCase = true) } ?: "orig_target_sizes"
+        val procBitmap = if (scaleFactor < 1.0f) {
+            val targetHeight = (originalHeight * scaleFactor).toInt()
+            Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+        } else {
+            bitmap
+        }
 
-        // 1. Calculate Tile Positions
-        val tiles = mutableListOf<Point>()
-        var y = 0
-        while (y < height) {
-            var actualY = y
-            // Handle edge case: shift window up if we are at the bottom
-            if (height >= INPUT_SIZE) {
-                if (actualY + INPUT_SIZE > height) actualY = height - INPUT_SIZE
-            } else {
-                actualY = 0 // Image smaller than input size
-            }
+        try {
+            val width = procBitmap.width
+            val height = procBitmap.height
 
-            var x = 0
-            while (x < width) {
-                var actualX = x
-                // Handle edge case: shift window left if we are at the right edge
-                if (width >= INPUT_SIZE) {
-                    if (actualX + INPUT_SIZE > width) actualX = width - INPUT_SIZE
+            val session = getSession()
+            val env = OrtEnvironment.getEnvironment()
+
+            // Determine input names
+            val inputNames = session.inputNames
+            val imageInputName = inputNames.find { it.contains("image", ignoreCase = true) } ?: "images"
+            val sizeInputName = inputNames.find { it.contains("size", ignoreCase = true) || it.contains("orig", ignoreCase = true) } ?: "orig_target_sizes"
+
+            // 1. Calculate Tile Positions
+            val tiles = mutableListOf<Point>()
+            var y = 0
+            while (y < height) {
+                var actualY = y
+                // Handle edge case: shift window up if we are at the bottom
+                if (height >= INPUT_SIZE) {
+                    if (actualY + INPUT_SIZE > height) actualY = height - INPUT_SIZE
                 } else {
-                    actualX = 0 // Image smaller than input size
+                    actualY = 0 // Image smaller than input size
                 }
 
-                tiles.add(Point(actualX, actualY))
+                var x = 0
+                while (x < width) {
+                    var actualX = x
+                    // Handle edge case: shift window left if we are at the right edge
+                    if (width >= INPUT_SIZE) {
+                        if (actualX + INPUT_SIZE > width) actualX = width - INPUT_SIZE
+                    } else {
+                        actualX = 0 // Image smaller than input size
+                    }
 
-                // Break if we just processed the last chunk horizontally
-                if (actualX + INPUT_SIZE >= width) break
-                x += STRIDE
+                    tiles.add(Point(actualX, actualY))
+
+                    // Break if we just processed the last chunk horizontally
+                    if (actualX + INPUT_SIZE >= width) break
+                    x += STRIDE
+                }
+
+                // Break if we just processed the last chunk vertically
+                if (actualY + INPUT_SIZE >= height) break
+                y += STRIDE
             }
 
-            // Break if we just processed the last chunk vertically
-            if (actualY + INPUT_SIZE >= height) break
-            y += STRIDE
-        }
+            // 2. Parallel Inference
+            val allResults = coroutineScope {
+                tiles.map { point ->
+                    async {
+                        processTile(procBitmap, point.x, point.y, width, height, env, session, imageInputName, sizeInputName)
+                    }
+                }.awaitAll()
+            }
 
-        // 2. Parallel Inference
-        val allResults = coroutineScope {
-            tiles.map { point ->
-                async {
-                    processTile(bitmap, point.x, point.y, width, height, env, session, imageInputName, sizeInputName)
-                }
-            }.awaitAll()
-        }
+            // 3. Flatten results and apply NMS
+            val allDetections = allResults.flatten()
 
-        // 3. Flatten results and apply NMS
-        val allDetections = allResults.flatten()
+            val nmsResults = nonMaximumSuppression(allDetections)
 
-        val nmsResults = nonMaximumSuppression(allDetections)
+            // 4. Merge Adjacent Boxes (Split by tiling)
+            val mergedBoxes = mergeTouchingBoxes(nmsResults)
 
-        // 4. Merge Adjacent Boxes (Split by tiling)
-        val mergedBoxes = mergeTouchingBoxes(nmsResults)
+            // 5. Shrink boxes to fit inside the bubble (Inner Box)
+            // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
+            val boxScale = 0.75f
 
-        // 5. Shrink boxes to fit inside the bubble (Inner Box)
-        // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
-        val scale = 0.75f
-        return@withContext mergedBoxes.map { box ->
-            val cx = box.centerX()
-            val cy = box.centerY()
-            val w = box.width()
-            val h = box.height()
+            return@withContext mergedBoxes.map { box ->
+                // Map back to original coordinates
+                val originalBox = RectF(
+                    box.left / scaleFactor,
+                    box.top / scaleFactor,
+                    box.right / scaleFactor,
+                    box.bottom / scaleFactor
+                )
 
-            val newW = w * scale
-            val newH = h * scale
+                val cx = originalBox.centerX()
+                val cy = originalBox.centerY()
+                val w = originalBox.width()
+                val h = originalBox.height()
 
-            RectF(cx - newW / 2, cy - newH / 2, cx + newW / 2, cy + newH / 2)
+                val newW = w * boxScale
+                val newH = h * boxScale
+
+                RectF(cx - newW / 2, cy - newH / 2, cx + newW / 2, cy + newH / 2)
+            }
+        } finally {
+            // Recycle scaled bitmap if it was created
+            if (procBitmap != bitmap) {
+                procBitmap.recycle()
+            }
         }
     }
 
