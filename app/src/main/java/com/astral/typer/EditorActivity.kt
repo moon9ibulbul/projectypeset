@@ -465,9 +465,9 @@ class EditorActivity : AppCompatActivity() {
                     layer.scaleX = finalScale
                     layer.scaleY = finalScale
                 } else {
-                    // Sparse: Hybrid Logic
-                    // 1. Measure Natural Width (Unlimited Box)
-                    layer.boxWidth = 10000f
+                    // Sparse: Hybrid Logic (Fixed)
+                    // 1. Measure Natural Width without forced constraints
+                    layer.boxWidth = null
                     val naturalWidth = layer.getWidth()
 
                     // 2. Set boxWidth to MAX(NaturalWidth, TargetWidth)
@@ -477,7 +477,6 @@ class EditorActivity : AppCompatActivity() {
                     layer.boxWidth = if (safeWidth > targetWidth) safeWidth else targetWidth
 
                     // 3. Fit in Box Logic
-                    // Scale down to fit Target Width
                     val newH = layer.getHeight()
                     val scaleX = targetWidth / layer.boxWidth!!
                     val scaleY = targetHeight / newH
