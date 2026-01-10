@@ -430,21 +430,10 @@ class EditorActivity : AppCompatActivity() {
                 val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
                 val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
-                // Measure text width to determine if we can use a slimmer box
-                val textPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-                textPaint.textSize = layer.fontSize
-                textPaint.typeface = layer.typeface
-                val desiredWidth = android.text.StaticLayout.getDesiredWidth(layer.text, textPaint)
+                // Always use targetWidth for box width initially to match Area Width
+                val initialBoxWidth = targetWidth
 
-                // If text is short (fits in target width), use text width (Slimmer).
-                // Otherwise use target width (Match Area).
-                val initialBoxWidth = if (desiredWidth < targetWidth) {
-                    desiredWidth + 10f // Add small padding
-                } else {
-                    targetWidth
-                }
-
-                // 1. Start with Scale 1.0 and Initial BoxWidth
+                // 1. Start with Scale 1.0
                 layer.scaleX = 1f
                 layer.scaleY = 1f
                 layer.boxWidth = initialBoxWidth
@@ -452,23 +441,28 @@ class EditorActivity : AppCompatActivity() {
                 // 2. Measure Height
                 val contentHeight = layer.getHeight()
 
-                // 3. If Height overflows, scale down
-                if (contentHeight > targetHeight) {
-                     val scale = targetHeight / contentHeight
-                     layer.scaleX = scale
-                     layer.scaleY = scale
+                // 3. Calculate Fit Scale
+                val fitScale = if (contentHeight > 0) targetHeight / contentHeight else 1f
 
-                     // Crucial: If we scale down, the visual width shrinks.
-                     // We must increase boxWidth so that boxWidth * scale == targetWidth.
-                     // However, if we started with a slim box, we might want to maintain the aspect ratio logic?
-                     // If we started with slim box, and height overflows (unlikely for single line unless HUGE font),
-                     // we should probably just scale down.
-                     // But wait, if initialBoxWidth was targetWidth (Long text), we definitely need to increase boxWidth.
-                     // If initialBoxWidth was desiredWidth (Short text), scaling down reduces visual width too.
-                     // If we want visual width to match "slimmer" width, we need to adjust boxWidth?
-                     // Yes: newBoxWidth = initialBoxWidth / scale.
-                     layer.boxWidth = initialBoxWidth / scale
+                // 4. Determine if content is "Dense" (heuristic: length > 20 chars)
+                val isDense = layer.text.length > 20
+
+                // 5. Apply Scaling Logic
+                val finalScale = if (isDense) {
+                    // Dense: Force fit to height (Scale Up or Down)
+                    fitScale
+                } else {
+                    // Sparse: Only Scale Down if overflowing (Never Scale Up)
+                    if (contentHeight > targetHeight) fitScale else 1f
                 }
+
+                layer.scaleX = finalScale
+                layer.scaleY = finalScale
+
+                // Adjust boxWidth to ensure Visual Width matches Target Width
+                // Visual Width = boxWidth * scale. We want Visual Width = targetWidth.
+                // So boxWidth = targetWidth / scale.
+                layer.boxWidth = targetWidth / finalScale
 
                 // Save state before adding to allow step-by-step undo
                 com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
