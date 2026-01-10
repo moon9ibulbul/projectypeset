@@ -240,10 +240,14 @@ class BubbleDetectorProcessor(private val context: Context) {
             // 3. Flatten results and apply NMS
             val allDetections = allResults.flatten()
 
-            val nmsResults = nonMaximumSuppression(allDetections)
+            // Scale thresholds to match the scaled image
+            val currentMinBoxSize = MIN_BOX_SIZE * scaleFactor
+            val currentTouchingTolerance = TOUCHING_TOLERANCE_PX * scaleFactor
+
+            val nmsResults = nonMaximumSuppression(allDetections, currentMinBoxSize)
 
             // 4. Merge Adjacent Boxes (Split by tiling)
-            val mergedBoxes = mergeTouchingBoxes(nmsResults)
+            val mergedBoxes = mergeTouchingBoxes(nmsResults, currentTouchingTolerance)
 
             // 5. Shrink boxes to fit inside the bubble (Inner Box)
             // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
@@ -467,7 +471,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         return detections
     }
 
-    private fun nonMaximumSuppression(detections: List<Detection>): List<RectF> {
+    private fun nonMaximumSuppression(detections: List<Detection>, minBoxSize: Float): List<RectF> {
         // 1. Sort by Area (Largest first)
         val sorted = detections.sortedByDescending {
             it.rect.width() * it.rect.height()
@@ -500,7 +504,7 @@ class BubbleDetectorProcessor(private val context: Context) {
             }
 
             // NOISE FILTER: Only add if dimensions are large enough to be a bubble/text
-            if (best.rect.width() > MIN_BOX_SIZE && best.rect.height() > MIN_BOX_SIZE) {
+            if (best.rect.width() > minBoxSize && best.rect.height() > minBoxSize) {
                 results.add(best.rect)
             }
         }
@@ -512,7 +516,7 @@ class BubbleDetectorProcessor(private val context: Context) {
      * significant alignment on the shared axis. This fixes the issue where tiling
      * splits large bubbles into multiple non-overlapping boxes.
      */
-    private fun mergeTouchingBoxes(initialBoxes: List<RectF>): List<RectF> {
+    private fun mergeTouchingBoxes(initialBoxes: List<RectF>, tolerance: Float): List<RectF> {
         val boxes = initialBoxes.toMutableList()
         var merged = true
 
@@ -526,7 +530,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                     val boxB = boxes[j]
 
                     // Check if they should be merged
-                    if (shouldMerge(boxA, boxB)) {
+                    if (shouldMerge(boxA, boxB, tolerance)) {
                         // Merge B into A
                         boxA.union(boxB)
                         // Remove B
@@ -544,7 +548,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         return boxes
     }
 
-    private fun shouldMerge(a: RectF, b: RectF): Boolean {
+    private fun shouldMerge(a: RectF, b: RectF, tolerance: Float): Boolean {
         // 1. Vertical Adjacency Check (One above another)
         val vertGap = if (a.bottom < b.top) b.top - a.bottom else if (b.bottom < a.top) a.top - b.bottom else -1f
 
@@ -560,7 +564,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         val minWidth = min(a.width(), b.width())
         val isVertAligned = (hOverlapLen > 0) && (hOverlapLen / minWidth > ALIGNMENT_OVERLAP_RATIO)
 
-        if (isVertAligned && vertGap <= TOUCHING_TOLERANCE_PX && vertGap > -TOUCHING_TOLERANCE_PX) {
+        if (isVertAligned && vertGap <= tolerance && vertGap > -tolerance) {
              return true
         }
 
@@ -575,7 +579,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         val minHeight = min(a.height(), b.height())
         val isHorzAligned = (vOverlapLen > 0) && (vOverlapLen / minHeight > ALIGNMENT_OVERLAP_RATIO)
 
-        if (isHorzAligned && horzGap <= TOUCHING_TOLERANCE_PX && horzGap > -TOUCHING_TOLERANCE_PX) {
+        if (isHorzAligned && horzGap <= tolerance && horzGap > -tolerance) {
             return true
         }
 
