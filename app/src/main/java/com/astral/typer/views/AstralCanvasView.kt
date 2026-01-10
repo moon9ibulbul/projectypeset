@@ -1581,6 +1581,7 @@ class AstralCanvasView @JvmOverloads constructor(
                         invalidate()
                     }
                 } else {
+                    // Empty space touch
                     if (isTyperActive && currentTyperTool == TyperTool.HAND) {
                         currentMode = Mode.PAN_ZOOM
                         scaleDetector.onTouchEvent(event)
@@ -1589,9 +1590,11 @@ class AstralCanvasView @JvmOverloads constructor(
                         startTouchY = cy
                         hasMoved = false
                     } else {
+                        // Standard mode empty space
+                        // Do NOT deselect immediately to allow panning without closing menus (Task 6)
                         currentMode = Mode.NONE
-                        selectLayer(null)
-                        invalidate()
+                        // We do not call selectLayer(null) here anymore.
+                        // We wait for ACTION_UP to confirm it was a tap, not a pan.
                     }
                 }
             }
@@ -1832,9 +1835,8 @@ class AstralCanvasView @JvmOverloads constructor(
                     showHorizontalCenterLine = false
                     invalidate()
                 }
-                if (currentMode == Mode.DRAG_LAYER && !hasMoved && wasSelectedInitially && selectedLayer != null) {
-                    onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
-                }
+                // Removed single-tap triggering double-tap listener
+                // Double Tap logic moved to GestureDetector.onDoubleTap
 
                 if (isTyperActive && currentTyperTool == TyperTool.HAND && currentMode == Mode.PAN_ZOOM) {
                      if (!hasMoved && detectedBubbles != null) {
@@ -1845,6 +1847,10 @@ class AstralCanvasView @JvmOverloads constructor(
                      }
                      currentMode = Mode.TYPER
                 } else {
+                     // If we are in Mode.NONE and haven't moved, it was a tap on empty space.
+                     if (currentMode == Mode.NONE && !hasMoved) {
+                         selectLayer(null)
+                     }
                      currentMode = Mode.NONE
                 }
             }
@@ -1889,8 +1895,10 @@ class AstralCanvasView @JvmOverloads constructor(
              val cy = touchPoint[1]
 
              val hitLayer = layers.findLast { it.contains(cx, cy) }
-             if (hitLayer == null) {
-                  centerCanvas()
+             if (hitLayer != null) {
+                 onLayerEditListener?.onLayerDoubleTap(hitLayer)
+             } else {
+                 centerCanvas()
              }
              return true
         }

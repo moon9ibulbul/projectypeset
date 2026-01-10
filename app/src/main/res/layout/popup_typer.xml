@@ -64,6 +64,7 @@
             android:textColor="#FFFFFF"
             android:gravity="top|start"
             android:padding="8dp"
+            android:inputType="textMultiLine|text"
             android:hint="Paste your text here..."
             android:textColorHint="#888888"/>
 
