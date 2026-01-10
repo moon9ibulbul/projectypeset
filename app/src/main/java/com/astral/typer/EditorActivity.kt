@@ -67,6 +67,7 @@ class EditorActivity : AppCompatActivity() {
 
     // Typer
     private var typerAdapter: TyperTextAdapter? = null
+    private var typerTextLines: List<String> = emptyList()
     private var typerPopup: android.widget.PopupWindow? = null
     private var loadingDialog: android.app.Dialog? = null
 
@@ -1747,6 +1748,9 @@ class EditorActivity : AppCompatActivity() {
         activeEditText = null
         isFontPickerVisible = false
 
+        // Allow deselection again
+        canvasView.preventDeselection = false
+
         // If exiting perspective menu, ensure mode is off
         if (currentMenuType == "PERSPECTIVE") {
             togglePerspectiveMode(false)
@@ -1778,6 +1782,10 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "ERASE" && type != "ERASE") {
                 canvasView.setEraseLayerMode(false)
+            }
+            // Enable prevent deselection for property menus
+            if (type != "QUICK_EDIT") {
+                canvasView.preventDeselection = true
             }
             showAction()
             currentMenuType = type
@@ -1817,6 +1825,7 @@ class EditorActivity : AppCompatActivity() {
         // Also helps with robust touch handling.
         typerPopup?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         typerPopup?.inputMethodMode = android.widget.PopupWindow.INPUT_METHOD_NEEDED
+        typerPopup?.softInputMode = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         typerPopup?.isClippingEnabled = false
 
         // Prevent dismissal when touching outside (especially when focusable is true)
@@ -1898,9 +1907,9 @@ class EditorActivity : AppCompatActivity() {
             tvWarning.visibility = View.GONE
         }
 
-        // Init Adapter (Empty initially)
+        // Init Adapter (Use stored lines)
         val styleModels = styles.map { StyleManager.toModel(it) }
-        typerAdapter = TyperTextAdapter(this, emptyList(), styleModels) { _, _ ->
+        typerAdapter = TyperTextAdapter(this, typerTextLines, styleModels) { _, _ ->
             // Selection updated
         }
         recycler.adapter = typerAdapter
@@ -1976,8 +1985,9 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun updateTyperList(lines: List<String>) {
+        typerTextLines = lines
         val styles = StyleManager.getSavedStyles().map { StyleManager.toModel(it) }
-        typerAdapter = TyperTextAdapter(this, lines, styles) { _, _ -> }
+        typerAdapter = TyperTextAdapter(this, typerTextLines, styles) { _, _ -> }
 
         if (typerPopup != null && typerPopup!!.isShowing) {
              val recycler = typerPopup!!.contentView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
