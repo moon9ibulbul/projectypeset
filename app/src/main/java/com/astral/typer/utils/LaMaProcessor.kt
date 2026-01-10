@@ -414,8 +414,10 @@ class LaMaProcessor(private val context: Context) {
         // This implies the normal model outputs values in 0..255 range directly.
         // Whereas FAST model likely outputs 0..1 range and needs 255 scaling.
 
-        // So for LaMa_512.onnx (Normal), we multiply by 1.
-        val amp = 1
+        // For standard LaMa model (0..255), amp = 1.
+        // For models outputting 0..1 (like typical ONNX exports or Fast models), amp = 255.
+        // The "lama-manga-dynamic" model outputs in 0..1 range.
+        val amp = 255
 
         for (i in 0 until size) {
             val r = (data[i] * amp).toInt().coerceIn(0, 255)
