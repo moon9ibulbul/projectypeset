@@ -1835,9 +1835,8 @@ class AstralCanvasView @JvmOverloads constructor(
                     showHorizontalCenterLine = false
                     invalidate()
                 }
-                if (currentMode == Mode.DRAG_LAYER && !hasMoved && wasSelectedInitially && selectedLayer != null) {
-                    onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
-                }
+                // Removed single-tap triggering double-tap listener
+                // Double Tap logic moved to GestureDetector.onDoubleTap
 
                 if (isTyperActive && currentTyperTool == TyperTool.HAND && currentMode == Mode.PAN_ZOOM) {
                      if (!hasMoved && detectedBubbles != null) {
@@ -1896,8 +1895,10 @@ class AstralCanvasView @JvmOverloads constructor(
              val cy = touchPoint[1]
 
              val hitLayer = layers.findLast { it.contains(cx, cy) }
-             if (hitLayer == null) {
-                  centerCanvas()
+             if (hitLayer != null) {
+                 onLayerEditListener?.onLayerDoubleTap(hitLayer)
+             } else {
+                 centerCanvas()
              }
              return true
         }

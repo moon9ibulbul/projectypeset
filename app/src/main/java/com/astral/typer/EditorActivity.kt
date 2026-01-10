@@ -68,6 +68,7 @@ class EditorActivity : AppCompatActivity() {
     // Typer
     private var typerAdapter: TyperTextAdapter? = null
     private var typerPopup: android.widget.PopupWindow? = null
+    private var loadingDialog: android.app.Dialog? = null
 
     private val importTxtLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -118,6 +119,16 @@ class EditorActivity : AppCompatActivity() {
 
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Initialize Loading Dialog
+        loadingDialog = android.app.Dialog(this).apply {
+            requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+            setContentView(android.widget.ProgressBar(context).apply {
+                indeterminateTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+            })
+            window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            setCancelable(false)
+        }
 
         // Bind included sidebar
         // Use findViewById to ensure we get the View, avoiding Binding vs View ambiguity
@@ -414,30 +425,29 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Box Width (Constraint)
-                // User Request: Follow box scale AND box width
+                // User Request: Follow box scale AND box width strictly matching visual area
                 val padding = 20f
-                if (rect.width() > padding * 2) {
-                    layer.boxWidth = rect.width() - padding
-                }
+                val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
+                val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
-                // Force layout calculation
-                // Reset scale to 1 first to check natural fit
+                // 1. Start with Scale 1.0 and BoxWidth = TargetWidth
                 layer.scaleX = 1f
                 layer.scaleY = 1f
+                layer.boxWidth = targetWidth
 
+                // 2. Measure Height
                 val contentHeight = layer.getHeight()
-                val targetHeight = rect.height() - padding
 
-                // Adjust Scale if needed to fit height
-                if (contentHeight > targetHeight && contentHeight > 0) {
+                // 3. If Height overflows, scale down
+                if (contentHeight > targetHeight) {
                      val scale = targetHeight / contentHeight
                      layer.scaleX = scale
                      layer.scaleY = scale
-                }
-                // Note: Since boxWidth is constrained to rect.width, we don't need to scale down for width
-                // unless we wanted to support padding there too, which we did via boxWidth.
 
-                // If it's too small (vertically), we might want to center it vertically (which x/y does).
+                     // Crucial: If we scale down, the visual width shrinks.
+                     // We must increase boxWidth so that boxWidth * scale == targetWidth.
+                     layer.boxWidth = targetWidth / scale
+                }
 
                 canvasView.getLayers().add(layer)
                 canvasView.selectLayer(layer)
@@ -1895,6 +1905,11 @@ class EditorActivity : AppCompatActivity() {
                 // Make focusable so EditText works and context menu (Paste) works
                 typerPopup?.isFocusable = true
                 typerPopup?.update()
+
+                // Force focus on EditText
+                etPaste.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(etPaste, InputMethodManager.SHOW_IMPLICIT)
             }
         }
 
@@ -1946,13 +1961,14 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
-        // User Request: Center loading animation. Use Activity Overlay always.
-        binding.loadingOverlay.visibility = View.VISIBLE
+        // User Request: Center loading animation and ensure it's not covered by Popup.
+        // Use a Dialog to ensure z-order above PopupWindow.
+        loadingDialog?.show()
 
         lifecycleScope.launch {
             val rects = bubbleProcessor.detect(bg)
             withContext(Dispatchers.Main) {
-                binding.loadingOverlay.visibility = View.GONE
+                loadingDialog?.dismiss()
 
                 if (rects.isNotEmpty()) {
                     canvasView.setDetectedBubbles(rects)
