@@ -3,6 +3,7 @@ package com.astral.typer.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
@@ -10,6 +11,9 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.File
@@ -169,8 +173,8 @@ class BubbleDetectorProcessor(private val context: Context) {
         val imageInputName = inputNames.find { it.contains("image", ignoreCase = true) } ?: "images"
         val sizeInputName = inputNames.find { it.contains("size", ignoreCase = true) || it.contains("orig", ignoreCase = true) } ?: "orig_target_sizes"
 
-        val allDetections = mutableListOf<Detection>()
-
+        // 1. Calculate Tile Positions
+        val tiles = mutableListOf<Point>()
         var y = 0
         while (y < height) {
             var actualY = y
@@ -191,72 +195,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                     actualX = 0 // Image smaller than input size
                 }
 
-                // Create tile bitmap (default transparent/black)
-                val tileBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(tileBitmap)
-
-                // Draw crop from source
-                val srcRect = Rect(actualX, actualY, min(actualX + INPUT_SIZE, width), min(actualY + INPUT_SIZE, height))
-                // Draw into the top-left of the tile (or appropriately padded)
-                val dstRect = Rect(0, 0, srcRect.width(), srcRect.height())
-
-                canvas.drawBitmap(bitmap, srcRect, dstRect, null)
-
-                try {
-                    // Prepare Image Tensor: (1, 3, 640, 640)
-                    val floatBuffer = preProcess(tileBitmap)
-                    val imageTensor = OnnxTensor.createTensor(
-                        env,
-                        floatBuffer,
-                        longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
-                    )
-
-                    // Prepare Size Tensor: Always [640, 640] for the tile detection
-                    val sizeBuffer = LongBuffer.allocate(2)
-                    sizeBuffer.put(INPUT_SIZE.toLong())
-                    sizeBuffer.put(INPUT_SIZE.toLong())
-                    sizeBuffer.flip()
-                    val sizeTensor = OnnxTensor.createTensor(env, sizeBuffer, longArrayOf(1, 2))
-
-                    // Run Inference
-                    val inputs = mapOf(
-                        imageInputName to imageTensor,
-                        sizeInputName to sizeTensor
-                    )
-
-                    val result = session.run(inputs)
-
-                    val outputs = mutableListOf<Any>()
-                    for (entry in result) {
-                        outputs.add(entry.value.value)
-                    }
-
-                    val tileDetections = parsePredictions(outputs)
-
-                    // Adjust coordinates and accumulate
-                    for (detection in tileDetections) {
-                        // Offset the detection by the tile position
-                        val shiftedRect = RectF(detection.rect)
-                        shiftedRect.offset(actualX.toFloat(), actualY.toFloat())
-
-                        // Clip to original image bounds just in case
-                        shiftedRect.left = max(0f, shiftedRect.left)
-                        shiftedRect.top = max(0f, shiftedRect.top)
-                        shiftedRect.right = min(width.toFloat(), shiftedRect.right)
-                        shiftedRect.bottom = min(height.toFloat(), shiftedRect.bottom)
-
-                        allDetections.add(detection.copy(rect = shiftedRect))
-                    }
-
-                    result.close()
-                    imageTensor.close()
-                    sizeTensor.close()
-
-                } catch (e: Exception) {
-                    Log.e("BubbleDetector", "Tile inference failed at ($actualX, $actualY): ${e.message}", e)
-                } finally {
-                    tileBitmap.recycle()
-                }
+                tiles.add(Point(actualX, actualY))
 
                 // Break if we just processed the last chunk horizontally
                 if (actualX + INPUT_SIZE >= width) break
@@ -268,7 +207,105 @@ class BubbleDetectorProcessor(private val context: Context) {
             y += STRIDE
         }
 
+        // 2. Parallel Inference
+        val allResults = coroutineScope {
+            tiles.map { point ->
+                async {
+                    processTile(bitmap, point.x, point.y, width, height, env, session, imageInputName, sizeInputName)
+                }
+            }.awaitAll()
+        }
+
+        // 3. Flatten results and apply NMS
+        val allDetections = allResults.flatten()
+
         return@withContext nonMaximumSuppression(allDetections)
+    }
+
+    private fun processTile(
+        sourceBitmap: Bitmap,
+        actualX: Int,
+        actualY: Int,
+        totalWidth: Int,
+        totalHeight: Int,
+        env: OrtEnvironment,
+        session: OrtSession,
+        imageInputName: String,
+        sizeInputName: String
+    ): List<Detection> {
+        // Create tile bitmap (default transparent/black)
+        val tileBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(tileBitmap)
+
+        try {
+            // Draw crop from source
+            val srcRect = Rect(actualX, actualY, min(actualX + INPUT_SIZE, totalWidth), min(actualY + INPUT_SIZE, totalHeight))
+            // Draw into the top-left of the tile (or appropriately padded)
+            val dstRect = Rect(0, 0, srcRect.width(), srcRect.height())
+
+            // Note: sourceBitmap access is thread-safe for reading.
+            canvas.drawBitmap(sourceBitmap, srcRect, dstRect, null)
+
+            // Prepare Image Tensor: (1, 3, 640, 640)
+            val floatBuffer = preProcess(tileBitmap)
+            val imageTensor = OnnxTensor.createTensor(
+                env,
+                floatBuffer,
+                longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
+            )
+
+            // Prepare Size Tensor: Always [640, 640] for the tile detection
+            val sizeBuffer = LongBuffer.allocate(2)
+            sizeBuffer.put(INPUT_SIZE.toLong())
+            sizeBuffer.put(INPUT_SIZE.toLong())
+            sizeBuffer.flip()
+            val sizeTensor = OnnxTensor.createTensor(env, sizeBuffer, longArrayOf(1, 2))
+
+            // Run Inference
+            val inputs = mapOf(
+                imageInputName to imageTensor,
+                sizeInputName to sizeTensor
+            )
+
+            // OrtSession.run is thread-safe
+            val result = session.run(inputs)
+
+            val outputs = mutableListOf<Any>()
+            for (entry in result) {
+                outputs.add(entry.value.value)
+            }
+
+            val tileDetections = parsePredictions(outputs)
+
+            val shiftedDetections = mutableListOf<Detection>()
+
+            // Adjust coordinates and accumulate
+            for (detection in tileDetections) {
+                // Offset the detection by the tile position
+                val shiftedRect = RectF(detection.rect)
+                shiftedRect.offset(actualX.toFloat(), actualY.toFloat())
+
+                // Clip to original image bounds just in case
+                shiftedRect.left = max(0f, shiftedRect.left)
+                shiftedRect.top = max(0f, shiftedRect.top)
+                shiftedRect.right = min(totalWidth.toFloat(), shiftedRect.right)
+                shiftedRect.bottom = min(totalHeight.toFloat(), shiftedRect.bottom)
+
+                shiftedDetections.add(detection.copy(rect = shiftedRect))
+            }
+
+            result.close()
+            imageTensor.close()
+            sizeTensor.close()
+
+            return shiftedDetections
+
+        } catch (e: Exception) {
+            Log.e("BubbleDetector", "Tile inference failed at ($actualX, $actualY): ${e.message}", e)
+            return emptyList()
+        } finally {
+            tileBitmap.recycle()
+        }
     }
 
     private fun preProcess(bitmap: Bitmap): FloatBuffer {
@@ -377,7 +414,11 @@ class BubbleDetectorProcessor(private val context: Context) {
     }
 
     private fun nonMaximumSuppression(detections: List<Detection>): List<RectF> {
-        val sorted = detections.sortedByDescending { it.score }.toMutableList()
+        // Sort by Area (Largest first) instead of Score
+        val sorted = detections.sortedByDescending {
+            it.rect.width() * it.rect.height()
+        }.toMutableList()
+
         val results = mutableListOf<RectF>()
 
         while (sorted.isNotEmpty()) {
@@ -387,12 +428,33 @@ class BubbleDetectorProcessor(private val context: Context) {
             val iterator = sorted.iterator()
             while (iterator.hasNext()) {
                 val other = iterator.next()
-                if (calculateIoU(best.rect, other.rect) > IOU_THRESHOLD) {
+
+                // Check IoU
+                val iou = calculateIoU(best.rect, other.rect)
+
+                // Remove if high overlap OR if 'other' is contained inside 'best'
+                if (iou > IOU_THRESHOLD || isContained(other.rect, best.rect)) {
                     iterator.remove()
                 }
             }
         }
         return results
+    }
+
+    private fun isContained(inner: RectF, outer: RectF): Boolean {
+        val left = max(inner.left, outer.left)
+        val top = max(inner.top, outer.top)
+        val right = min(inner.right, outer.right)
+        val bottom = min(inner.bottom, outer.bottom)
+
+        if (right < left || bottom < top) return false
+
+        val intersectionArea = (right - left) * (bottom - top)
+        val innerArea = inner.width() * inner.height()
+
+        if (innerArea <= 0) return false
+        // If > 85% of the inner box is inside the outer box, consider it contained
+        return (intersectionArea / innerArea) > 0.85f
     }
 
     private fun calculateIoU(a: RectF, b: RectF): Float {
