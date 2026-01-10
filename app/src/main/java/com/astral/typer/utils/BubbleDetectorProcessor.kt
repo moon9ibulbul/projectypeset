@@ -162,9 +162,9 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     // --- Core Inference Logic ---
 
-    suspend fun detect(image: Bitmap, allowedLabels: Set<Long>? = null): List<RectF> = process(image, allowedLabels)
+    suspend fun detect(image: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = process(image, allowedLabels, boxScale)
 
-    suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null): List<RectF> = withContext(Dispatchers.Default) {
+    suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
         // Optimization: Resize to width 640 while maintaining aspect ratio
@@ -253,7 +253,7 @@ class BubbleDetectorProcessor(private val context: Context) {
 
             // 5. Shrink boxes to fit inside the bubble (Inner Box)
             // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
-            val boxScale = 0.75f
+            // boxScale is now a parameter
 
             return@withContext mergedBoxes.map { box ->
                 // Map back to original coordinates

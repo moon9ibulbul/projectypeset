@@ -2000,7 +2000,8 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
         lifecycleScope.launch {
             // Class 1 (text_bubble) and 2 (text_free)
-            val rects = bubbleProcessor.detect(bg, setOf(1L, 2L))
+            // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
+            val rects = bubbleProcessor.detect(bg, setOf(1L, 2L), 1.0f)
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
                 if (rects.isNotEmpty()) {
