@@ -470,7 +470,7 @@ class TextLayer(
             val angleRad = Math.toRadians(motionShadowAngle.toDouble())
             val cos = Math.cos(angleRad).toFloat()
             val sin = Math.sin(angleRad).toFloat()
-            val maxBlur = 10f
+            val maxBlur = 4f
 
             paint.color = shadowColor
             paint.alpha = (30 * (255 / 255f)).toInt().coerceAtLeast(1)
