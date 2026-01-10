@@ -414,22 +414,30 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Box Width (Constraint)
-                // For now, set box width to bubble width minus padding
+                // User Request: Follow box scale AND box width
                 val padding = 20f
                 if (rect.width() > padding * 2) {
                     layer.boxWidth = rect.width() - padding
                 }
 
-                // Auto Scale to Fit Height
                 // Force layout calculation
-                val contentHeight = layer.getHeight()
-                val targetHeight = rect.height() - padding // Use same padding for height safety
+                // Reset scale to 1 first to check natural fit
+                layer.scaleX = 1f
+                layer.scaleY = 1f
 
+                val contentHeight = layer.getHeight()
+                val targetHeight = rect.height() - padding
+
+                // Adjust Scale if needed to fit height
                 if (contentHeight > targetHeight && contentHeight > 0) {
                      val scale = targetHeight / contentHeight
                      layer.scaleX = scale
                      layer.scaleY = scale
                 }
+                // Note: Since boxWidth is constrained to rect.width, we don't need to scale down for width
+                // unless we wanted to support padding there too, which we did via boxWidth.
+
+                // If it's too small (vertically), we might want to center it vertically (which x/y does).
 
                 canvasView.getLayers().add(layer)
                 canvasView.selectLayer(layer)
@@ -1165,6 +1173,7 @@ class EditorActivity : AppCompatActivity() {
 
         if (isInpaintMode) {
             binding.btnEraser.setImageResource(R.drawable.ic_pencil)
+            binding.btnEraser.setColorFilter(Color.CYAN) // Active Indicator
             canvasView.setInpaintMode(true)
             Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
 
@@ -1208,6 +1217,7 @@ class EditorActivity : AppCompatActivity() {
 
         } else {
             binding.btnEraser.setImageResource(R.drawable.ic_eraser)
+            binding.btnEraser.setColorFilter(Color.WHITE) // Inactive Indicator
             canvasView.setInpaintMode(false)
             binding.bottomMenuContainer.visibility = View.VISIBLE
             showInsertMenu()
@@ -1788,7 +1798,9 @@ class EditorActivity : AppCompatActivity() {
         // Focusable = false to allow interaction with canvas (outside touches pass through)
         typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
         typerPopup?.elevation = 20f
+        // Prevent dismissal on outside touch, but we need to manage focus manually for typing
         typerPopup?.isOutsideTouchable = false
+        typerPopup?.setBackgroundDrawable(null) // Important for persistence with focusable state
 
         // Show Popup at Bottom
         typerPopup?.showAtLocation(binding.root, Gravity.BOTTOM, 0, 0)
@@ -1880,7 +1892,7 @@ class EditorActivity : AppCompatActivity() {
                 pasteContainer.visibility = View.VISIBLE
                 recycler.visibility = View.GONE
                 btnPaste.text = "Back to List"
-                // Make focusable so EditText works
+                // Make focusable so EditText works and context menu (Paste) works
                 typerPopup?.isFocusable = true
                 typerPopup?.update()
             }
@@ -1934,24 +1946,13 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
-        // Use Popup Overlay if showing, else Activity Overlay
-        val isPopupShowing = typerPopup?.isShowing == true
-        val popupLoading = if (isPopupShowing) typerPopup?.contentView?.findViewById<View>(R.id.loadingOverlay) else null
-
-        if (popupLoading != null) {
-            popupLoading.visibility = View.VISIBLE
-        } else {
-            binding.loadingOverlay.visibility = View.VISIBLE
-        }
+        // User Request: Center loading animation. Use Activity Overlay always.
+        binding.loadingOverlay.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             val rects = bubbleProcessor.detect(bg)
             withContext(Dispatchers.Main) {
-                if (popupLoading != null) {
-                    popupLoading.visibility = View.GONE
-                } else {
-                    binding.loadingOverlay.visibility = View.GONE
-                }
+                binding.loadingOverlay.visibility = View.GONE
 
                 if (rects.isNotEmpty()) {
                     canvasView.setDetectedBubbles(rects)
