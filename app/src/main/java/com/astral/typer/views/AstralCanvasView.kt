@@ -69,6 +69,7 @@ class AstralCanvasView @JvmOverloads constructor(
     private var isInpaintMode = false
     private var isWarpToolActive = false
     var isTyperActive = false
+    var preventDeselection = false
 
     // Grid Snap
     private var showVerticalCenterLine = false
@@ -1851,7 +1852,9 @@ class AstralCanvasView @JvmOverloads constructor(
                 } else {
                      // If we are in Mode.NONE and haven't moved, it was a tap on empty space.
                      if (currentMode == Mode.NONE && !hasMoved) {
-                         selectLayer(null)
+                         if (!preventDeselection) {
+                             selectLayer(null)
+                         }
                      }
                      currentMode = Mode.NONE
                 }

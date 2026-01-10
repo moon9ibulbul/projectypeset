@@ -144,6 +144,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                  sessionOptions.setInterOpNumThreads(4)
                  sessionOptions.setIntraOpNumThreads(4)
+                 sessionOptions.addNnapi()
              } catch (e: Exception) {
                  Log.w("BubbleDetector", "Failed to set opts", e)
              }
