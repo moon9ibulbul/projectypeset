@@ -1999,8 +1999,8 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showPasteDialog() {
-        val dialog = android.app.Dialog(this)
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val dialog = androidx.appcompat.app.AppCompatDialog(this)
+        dialog.supportRequestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
 
         // Ensure keyboard resizes the dialog
         dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -2024,7 +2024,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Set Dialog width
-        dialog.window?.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setLayout(dpToPx(320), ViewGroup.LayoutParams.WRAP_CONTENT)
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
 
         dialog.show()
