@@ -24,6 +24,7 @@ import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.abs
 
 class BubbleDetectorProcessor(private val context: Context) {
 
@@ -33,6 +34,8 @@ class BubbleDetectorProcessor(private val context: Context) {
         private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
         private const val MIN_BOX_SIZE = 20f // Noise filter threshold
+        private const val TOUCHING_TOLERANCE_PX = 15f // Distance to consider boxes "touching"
+        private const val ALIGNMENT_OVERLAP_RATIO = 0.5f // Ratio of shared edge length to consider aligned
 
         private const val MODEL_URL = "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"
@@ -220,7 +223,10 @@ class BubbleDetectorProcessor(private val context: Context) {
         // 3. Flatten results and apply NMS
         val allDetections = allResults.flatten()
 
-        return@withContext nonMaximumSuppression(allDetections)
+        val nmsResults = nonMaximumSuppression(allDetections)
+
+        // 4. Merge Adjacent Boxes (Split by tiling)
+        return@withContext mergeTouchingBoxes(nmsResults)
     }
 
     private fun processTile(
@@ -452,6 +458,81 @@ class BubbleDetectorProcessor(private val context: Context) {
             }
         }
         return results
+    }
+
+    /**
+     * Merges boxes that are physically adjacent (touching or very close) and share
+     * significant alignment on the shared axis. This fixes the issue where tiling
+     * splits large bubbles into multiple non-overlapping boxes.
+     */
+    private fun mergeTouchingBoxes(initialBoxes: List<RectF>): List<RectF> {
+        val boxes = initialBoxes.toMutableList()
+        var merged = true
+
+        while (merged) {
+            merged = false
+            var i = 0
+            while (i < boxes.size) {
+                val boxA = boxes[i]
+                var j = i + 1
+                while (j < boxes.size) {
+                    val boxB = boxes[j]
+
+                    // Check if they should be merged
+                    if (shouldMerge(boxA, boxB)) {
+                        // Merge B into A
+                        boxA.union(boxB)
+                        // Remove B
+                        boxes.removeAt(j)
+                        // Flag to restart or continue aggressively
+                        merged = true
+                        // Don't increment j, as the next element shifted to j
+                    } else {
+                        j++
+                    }
+                }
+                i++
+            }
+        }
+        return boxes
+    }
+
+    private fun shouldMerge(a: RectF, b: RectF): Boolean {
+        // 1. Vertical Adjacency Check (One above another)
+        val vertGap = if (a.bottom < b.top) b.top - a.bottom else if (b.bottom < a.top) a.top - b.bottom else -1f
+
+        // If they overlap vertically (negative gap), they might be candidates if the overlap is small
+        // but here we are looking for "split" boxes, so we usually care about small gaps OR small overlaps
+        // actually NMS handles big overlaps. This is for "tiled" splits which might have 0 gap or slight overlap.
+
+        // Horizontal Overlap for Vertical Adjacency
+        val hOverlapStart = max(a.left, b.left)
+        val hOverlapEnd = min(a.right, b.right)
+        val hOverlapLen = hOverlapEnd - hOverlapStart
+
+        val minWidth = min(a.width(), b.width())
+        val isVertAligned = (hOverlapLen > 0) && (hOverlapLen / minWidth > ALIGNMENT_OVERLAP_RATIO)
+
+        if (isVertAligned && vertGap <= TOUCHING_TOLERANCE_PX && vertGap > -TOUCHING_TOLERANCE_PX) {
+             return true
+        }
+
+        // 2. Horizontal Adjacency Check (Side by side)
+        val horzGap = if (a.right < b.left) b.left - a.right else if (b.right < a.left) a.left - b.right else -1f
+
+        // Vertical Overlap for Horizontal Adjacency
+        val vOverlapStart = max(a.top, b.top)
+        val vOverlapEnd = min(a.bottom, b.bottom)
+        val vOverlapLen = vOverlapEnd - vOverlapStart
+
+        val minHeight = min(a.height(), b.height())
+        val isHorzAligned = (vOverlapLen > 0) && (vOverlapLen / minHeight > ALIGNMENT_OVERLAP_RATIO)
+
+        if (isHorzAligned && horzGap <= TOUCHING_TOLERANCE_PX && horzGap > -TOUCHING_TOLERANCE_PX) {
+            return true
+        }
+
+        return false
     }
 
     // Helper: Intersection over Smaller Area (to detect contained boxes)
