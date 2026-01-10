@@ -1928,6 +1928,25 @@ class EditorActivity : AppCompatActivity() {
         val etPaste = popupView.findViewById<EditText>(R.id.etPasteInput)
         val btnParse = popupView.findViewById<android.widget.Button>(R.id.btnParsePaste)
         val recycler = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
+
+        // Fix: Enable pasting by long-pressing the container if the EditText menu fails
+        pasteContainer.setOnLongClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            if (clipboard.hasPrimaryClip()) {
+                val clip = clipboard.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val text = clip.getItemAt(0).text
+                    if (!text.isNullOrEmpty()) {
+                         val start = etPaste.selectionStart.coerceAtLeast(0)
+                         val end = etPaste.selectionEnd.coerceAtLeast(0)
+                         val editable = etPaste.text
+                         editable.replace(minOf(start, end), maxOf(start, end), text)
+                        Toast.makeText(this@EditorActivity, "Pasted from Clipboard", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            true
+        }
         val tvWarning = popupView.findViewById<TextView>(R.id.tvWarning)
 
         // Add Floating Tools Sidebar
@@ -2010,6 +2029,8 @@ class EditorActivity : AppCompatActivity() {
                 btnPaste.text = "Back to List"
                 // Make focusable so EditText works and context menu (Paste) works
                 typerPopup?.isFocusable = true
+                // Ensure soft input mode is set correctly for resizing
+                typerPopup?.softInputMode = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
                 typerPopup?.update()
 
                 // Force focus on EditText
