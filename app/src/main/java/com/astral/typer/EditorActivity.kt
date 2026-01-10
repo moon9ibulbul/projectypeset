@@ -449,6 +449,9 @@ class EditorActivity : AppCompatActivity() {
                      layer.boxWidth = targetWidth / scale
                 }
 
+                // Save state before adding to allow step-by-step undo
+                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+
                 canvasView.getLayers().add(layer)
                 canvasView.selectLayer(layer)
 
