@@ -430,39 +430,66 @@ class EditorActivity : AppCompatActivity() {
                 val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
                 val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
-                // Always use targetWidth for box width initially to match Area Width
-                val initialBoxWidth = targetWidth
-
-                // 1. Start with Scale 1.0
-                layer.scaleX = 1f
-                layer.scaleY = 1f
-                layer.boxWidth = initialBoxWidth
-
-                // 2. Measure Height
-                val contentHeight = layer.getHeight()
-
-                // 3. Calculate Fit Scale
-                val fitScale = if (contentHeight > 0) targetHeight / contentHeight else 1f
-
                 // 4. Determine if content is "Dense" (heuristic: length > 20 chars)
                 val isDense = layer.text.length > 20
 
-                // 5. Apply Scaling Logic
-                val finalScale = if (isDense) {
-                    // Dense: Force fit to height (Scale Up or Down)
-                    fitScale
+                if (isDense) {
+                    // Dense: Optimize boxWidth to match Aspect Ratio of Target
+                    // Goal: Match the Green Area (Fill Width and Height)
+                    // We calculate an ideal boxWidth that results in a text block with Aspect Ratio ≈ Target Aspect Ratio.
+
+                    // Measure Height at full width first to estimate Area
+                    layer.boxWidth = targetWidth
+                    layer.scaleX = 1f; layer.scaleY = 1f
+                    val currentH = layer.getHeight()
+
+                    // Estimate Ideal Width based on Area Conservation
+                    // Area ≈ targetWidth * currentH
+                    // Target Aspect = targetWidth / targetHeight
+                    // Ideal Width ≈ sqrt(Area * Target Aspect)
+                    val area = targetWidth * currentH
+                    val targetAspect = targetWidth / targetHeight
+                    val idealWidth = kotlin.math.sqrt(area * targetAspect)
+
+                    // Apply Ideal Width
+                    layer.boxWidth = idealWidth
+
+                    // Recalculate dimensions
+                    val newH = layer.getHeight()
+
+                    // Calculate Scale to fit Target Box (Contain)
+                    val scaleX = targetWidth / idealWidth
+                    val scaleY = targetHeight / newH
+                    val finalScale = minOf(scaleX, scaleY)
+
+                    layer.scaleX = finalScale
+                    layer.scaleY = finalScale
                 } else {
-                    // Sparse: Only Scale Down if overflowing (Never Scale Up)
-                    if (contentHeight > targetHeight) fitScale else 1f
+                    // Sparse: "Slimmer" Box (Tight Fit)
+                    // Do not force boxWidth to be huge if text is short.
+
+                    // 1. Measure Natural Width (Unlimited Box)
+                    layer.boxWidth = 10000f // Arbitrary large to prevent wrapping
+                    val naturalWidth = layer.getWidth()
+
+                    // 2. Set boxWidth to Natural Width (plus padding/safety)
+                    // If natural width exceeds targetWidth, clamp it.
+                    val safeWidth = if (naturalWidth > targetWidth) targetWidth else (naturalWidth + 10f)
+                    layer.boxWidth = safeWidth
+
+                    // 3. Fit in Box Logic
+                    val newH = layer.getHeight()
+                    val scaleX = targetWidth / safeWidth
+                    val scaleY = targetHeight / newH
+                    val fitScale = minOf(scaleX, scaleY)
+
+                    // For sparse text, capping scale at 1.0 prevents exploding small text into huge letters.
+                    // Unless it overflows, then scale down.
+                    val finalScale = if (fitScale < 1f) fitScale else 1f
+
+                    layer.scaleX = finalScale
+                    layer.scaleY = finalScale
                 }
-
-                layer.scaleX = finalScale
-                layer.scaleY = finalScale
-
-                // Adjust boxWidth to ensure Visual Width matches Target Width
-                // Visual Width = boxWidth * scale. We want Visual Width = targetWidth.
-                // So boxWidth = targetWidth / scale.
-                layer.boxWidth = targetWidth / finalScale
 
                 // Save state before adding to allow step-by-step undo
                 com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
