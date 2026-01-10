@@ -29,7 +29,7 @@ class TextLayer(
     var fontSize: Float = 100f
     var typeface: Typeface = Typeface.DEFAULT
     var fontPath: String? = null // Identifier for the font (e.g., "Standard:Serif" or "/path/to/font.ttf")
-    var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
+    var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_CENTER
     var isJustified: Boolean = false
 
     // Spacing
