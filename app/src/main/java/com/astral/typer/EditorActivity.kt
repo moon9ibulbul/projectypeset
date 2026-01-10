@@ -445,14 +445,19 @@ class EditorActivity : AppCompatActivity() {
         canvasView.onLayerEditListener = object : AstralCanvasView.OnLayerEditListener {
             override fun onLayerDoubleTap(layer: Layer) {
                 if (layer is TextLayer) {
+                    if (currentMenuType == "QUICK_EDIT") return
+
                     // Open Quick Edit menu and focus input
                     showQuickEditMenu()
                     currentMenuType = "QUICK_EDIT"
                     // Delay focus slightly to ensure view is attached
                     binding.root.postDelayed({
-                        activeEditText?.requestFocus()
-                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(activeEditText, InputMethodManager.SHOW_IMPLICIT)
+                        val et = activeEditText
+                        if (et != null) {
+                            et.requestFocus()
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                            imm.showSoftInput(et, InputMethodManager.SHOW_IMPLICIT)
+                        }
                     }, 300)
                 }
             }

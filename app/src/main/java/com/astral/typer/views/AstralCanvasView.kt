@@ -728,8 +728,6 @@ class AstralCanvasView @JvmOverloads constructor(
             exitCutMode()
             (layer as? TextLayer)?.isPerspective = false
             invalidate()
-        } else {
-             onLayerSelectedListener?.onLayerSelected(layer)
         }
     }
 
