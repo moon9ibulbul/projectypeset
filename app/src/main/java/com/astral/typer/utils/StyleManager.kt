@@ -3,11 +3,13 @@ package com.astral.typer.utils
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
 import android.text.Layout
+import android.text.Spannable
 import android.text.SpannableStringBuilder
-import android.text.StaticLayout
-import android.text.TextPaint
+import android.text.style.StrikethroughSpan
+import android.text.style.StyleSpan
+import android.text.style.UnderlineSpan
 import android.content.Context
 import com.astral.typer.models.TextLayer
 import com.google.gson.Gson
@@ -37,9 +39,23 @@ object StyleManager {
         // Reset position properties to make it generic
         newStyle.text = SpannableStringBuilder("Abc")
         newStyle.boxWidth = null
-        // Ensure name is set if missing (default to generic name logic later or current layer name)
-        // If layer name is default "Layer", maybe we want "Style X"?
-        // For now, keep layer name.
+
+        // Ensure we capture the formatting spans from the original layer into the "Abc" text
+        // Actually, layer.clone() copies text spans. But we just replaced text with "Abc".
+        // We need to re-apply the formatting flags to "Abc" so the preview looks correct.
+        // And when saving to model, we extract flags.
+
+        // Check flags from original layer
+        val isBold = layer.text.getSpans(0, layer.text.length, StyleSpan::class.java).any { it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC } || layer.typeface.isBold
+        val isItalic = layer.text.getSpans(0, layer.text.length, StyleSpan::class.java).any { it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC } || layer.typeface.isItalic
+        val isUnderline = layer.text.getSpans(0, layer.text.length, UnderlineSpan::class.java).isNotEmpty()
+        val isStrike = layer.text.getSpans(0, layer.text.length, StrikethroughSpan::class.java).isNotEmpty()
+
+        if (isBold) newStyle.text.setSpan(StyleSpan(Typeface.BOLD), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (isItalic) newStyle.text.setSpan(StyleSpan(Typeface.ITALIC), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (isUnderline) newStyle.text.setSpan(UnderlineSpan(), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (isStrike) newStyle.text.setSpan(StrikethroughSpan(), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+
         savedStyles.add(newStyle)
         persistStyles(context)
     }
@@ -117,10 +133,24 @@ object StyleManager {
         val isOpacityGradient: Boolean,
         val opacityStart: Int,
         val opacityEnd: Int,
-        val opacityAngle: Int
+        val opacityAngle: Int,
+
+        // Formatting
+        val textAlign: Int = 0, // 0=Left, 1=Center, 2=Right
+        val isJustified: Boolean = false,
+        val isBold: Boolean = false,
+        val isItalic: Boolean = false,
+        val isUnderline: Boolean = false,
+        val isStrike: Boolean = false
     )
 
     fun toModel(l: TextLayer): StyleModel {
+        // Detect Formatting
+        val isBold = l.text.getSpans(0, l.text.length, StyleSpan::class.java).any { it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC } || l.typeface.isBold
+        val isItalic = l.text.getSpans(0, l.text.length, StyleSpan::class.java).any { it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC } || l.typeface.isItalic
+        val isUnderline = l.text.getSpans(0, l.text.length, UnderlineSpan::class.java).isNotEmpty()
+        val isStrike = l.text.getSpans(0, l.text.length, StrikethroughSpan::class.java).isNotEmpty()
+
         return StyleModel(
             l.name,
             l.color, l.fontSize, l.fontPath, l.opacity,
@@ -130,7 +160,9 @@ object StyleManager {
             l.isGradientText, l.isGradientStroke, l.isGradientShadow,
             l.letterSpacing, l.lineSpacing,
             l.isMotionShadow, l.motionShadowAngle, l.motionShadowDistance,
-            l.blendMode, l.isOpacityGradient, l.opacityStart, l.opacityEnd, l.opacityAngle
+            l.blendMode, l.isOpacityGradient, l.opacityStart, l.opacityEnd, l.opacityAngle,
+            l.textAlign.ordinal, l.isJustified,
+            isBold, isItalic, isUnderline, isStrike
         )
     }
 
@@ -140,11 +172,6 @@ object StyleManager {
         l.color = m.color
         l.fontSize = m.fontSize
         l.fontPath = m.fontPath
-        // Resolve Font?
-        // We can't resolve Context here easily for typeface loading.
-        // We'll leave typeface as default and let EditorActivity resolve it if applied?
-        // Or StyleManager just holds properties.
-        // When applying style, we copy properties.
 
         l.opacity = m.opacity
         l.shadowColor = m.shadowColor
@@ -178,6 +205,17 @@ object StyleManager {
         l.opacityEnd = m.opacityEnd
         l.opacityAngle = m.opacityAngle
 
+        // Formatting
+        if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {
+            l.textAlign = Layout.Alignment.values()[m.textAlign]
+        }
+        l.isJustified = m.isJustified
+
+        if (m.isBold) l.text.setSpan(StyleSpan(Typeface.BOLD), 0, l.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (m.isItalic) l.text.setSpan(StyleSpan(Typeface.ITALIC), 0, l.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (m.isUnderline) l.text.setSpan(UnderlineSpan(), 0, l.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (m.isStrike) l.text.setSpan(StrikethroughSpan(), 0, l.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+
         return l
     }
 
@@ -196,7 +234,23 @@ object StyleManager {
         canvas.drawColor(Color.DKGRAY)
 
         val previewLayer = layer.clone() as TextLayer
+        // Ensure preview text has formatting spans
+        // Cloning copies spans, so if layer has spans on "Abc", they are preserved.
         previewLayer.text = SpannableStringBuilder("Abc")
+
+        // Re-apply spans based on layer properties (since we reset text to Abc)
+        // Wait, if layer text was already "Abc" with spans, good.
+        // But if layer was "Hello World" with spans, clone copies Hello World.
+        // Then we set text = "Abc" -> spans lost.
+        // We need to re-apply spans from the source layer (or check if source has them).
+
+        // However, this getPreview is called usually after fromModel or saveStyle (which sets text to Abc and adds spans).
+        // So previewLayer is likely already correct.
+        // Just in case, let's copy spans from input layer if it is "Abc"
+        if (layer.text.toString() == "Abc") {
+            previewLayer.text = SpannableStringBuilder(layer.text)
+        }
+
         previewLayer.fontSize = 60f
         previewLayer.x = w/2f
         previewLayer.y = h/2f
