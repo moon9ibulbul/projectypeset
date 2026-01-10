@@ -1774,6 +1774,9 @@ class EditorActivity : AppCompatActivity() {
             hidePropertyDetail()
         } else {
             // Switching menus
+            if (currentMenuType == "TYPER" && type != "TYPER") {
+                toggleTyperMode()
+            }
             if (currentMenuType == "PERSPECTIVE" && type != "PERSPECTIVE") {
                 togglePerspectiveMode(false)
             }
@@ -1803,13 +1806,12 @@ class EditorActivity : AppCompatActivity() {
             binding.bottomMenuContainer.visibility = View.GONE
             hidePropertyDetail()
             showTyperMenu()
+            currentMenuType = "TYPER"
             // Highlight icon
             binding.btnTopTyper.setColorFilter(Color.CYAN)
         } else {
             // Exit Typer Mode
             exitTyperMode()
-            binding.bottomMenuContainer.visibility = View.VISIBLE
-            binding.btnTopTyper.setColorFilter(Color.WHITE)
         }
     }
 
@@ -1978,10 +1980,11 @@ class EditorActivity : AppCompatActivity() {
         }
 
         canvasView.setTyperMode(false)
-        // Keep detected bubbles? The user said "remove that specific box" on click.
-        // Usually exiting mode might clear overlays, but user said "Clear all temporary detected box overlays" only on exit.
-        // Yes, clear them.
         canvasView.setDetectedBubbles(emptyList())
+
+        // Reset UI
+        binding.bottomMenuContainer.visibility = View.VISIBLE
+        binding.btnTopTyper.setColorFilter(Color.WHITE)
     }
 
     private fun updateTyperList(lines: List<String>) {
