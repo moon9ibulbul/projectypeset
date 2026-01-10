@@ -1737,7 +1737,7 @@ class EditorActivity : AppCompatActivity() {
     // --- TYPER MENU ---
     private fun showTyperMenu() {
         val popupView = layoutInflater.inflate(R.layout.popup_typer, null)
-        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         typerPopup?.elevation = 20f
         typerPopup?.isOutsideTouchable = false
 
@@ -1880,7 +1880,9 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Use Popup Overlay if showing, else Activity Overlay
-        val popupLoading = typerPopup?.contentView?.findViewById<View>(R.id.loadingOverlay)
+        val isPopupShowing = typerPopup?.isShowing == true
+        val popupLoading = if (isPopupShowing) typerPopup?.contentView?.findViewById<View>(R.id.loadingOverlay) else null
+
         if (popupLoading != null) {
             popupLoading.visibility = View.VISIBLE
         } else {

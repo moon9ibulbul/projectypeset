@@ -1133,9 +1133,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
         val isTyperHand = isTyperActive && currentTyperTool == TyperTool.HAND
 
-        if (!isTyperHand) {
-            drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
-        }
+        drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
         drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
         drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
         if (!isTyperHand) {
@@ -1238,7 +1236,6 @@ class AstralCanvasView @JvmOverloads constructor(
                 // Pass through for Layer Controls check.
                 // If no layer is hit, we will handle Pan/Zoom in the fall-through logic.
             } else {
-                // cx and cy already calculated above
                 when(currentTyperTool) {
                     TyperTool.RECT -> {
                         when(event.actionMasked) {
@@ -1307,7 +1304,6 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (isInpaintMode) {
-            // cx and cy already calculated above
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 if (!currentInpaintPath.isEmpty) {
                     currentInpaintPath.reset()
@@ -1513,7 +1509,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
 
-                        if (!isTyperHand && getDistance(lx, ly, -halfW - handleOffset, -halfH - handleOffset) <= hitRadius) {
+                        if (getDistance(lx, ly, -halfW - handleOffset, -halfH - handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             deleteSelectedLayer()
                             return true
