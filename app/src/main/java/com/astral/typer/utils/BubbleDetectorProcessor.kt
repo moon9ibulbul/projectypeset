@@ -162,9 +162,9 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     // --- Core Inference Logic ---
 
-    suspend fun detect(image: Bitmap): List<RectF> = process(image)
+    suspend fun detect(image: Bitmap, allowedLabels: Set<Long>? = null): List<RectF> = process(image, allowedLabels)
 
-    suspend fun process(bitmap: Bitmap): List<RectF> = withContext(Dispatchers.Default) {
+    suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
         // Optimization: Resize to width 640 while maintaining aspect ratio
@@ -240,7 +240,13 @@ class BubbleDetectorProcessor(private val context: Context) {
             // 3. Flatten results and apply NMS
             val allDetections = allResults.flatten()
 
-            val nmsResults = nonMaximumSuppression(allDetections)
+            val filteredDetections = if (allowedLabels != null) {
+                allDetections.filter { allowedLabels.contains(it.label) }
+            } else {
+                allDetections
+            }
+
+            val nmsResults = nonMaximumSuppression(filteredDetections)
 
             // 4. Merge Adjacent Boxes (Split by tiling)
             val mergedBoxes = mergeTouchingBoxes(nmsResults)
