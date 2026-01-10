@@ -25,8 +25,8 @@ class LaMaProcessor(private val context: Context) {
 
     companion object {
         private const val TRAINED_SIZE = 512
-        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
-        private const val MODEL_FILENAME = "LaMa_512.onnx"
+        private const val MODEL_URL = "https://huggingface.co/ogkalu/lama-manga-onnx-dynamic/resolve/main/lama-manga-dynamic.onnx"
+        private const val MODEL_FILENAME = "lama-manga-dynamic.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
