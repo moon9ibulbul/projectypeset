@@ -18,6 +18,7 @@ import java.util.zip.ZipOutputStream
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.astral.typer.utils.LaMaProcessor
+import com.astral.typer.utils.BubbleDetectorProcessor
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -52,13 +53,20 @@ class SettingsActivity : AppCompatActivity() {
         val btnImport = findViewById<Button>(R.id.btnImport)
         val btnDonate = findViewById<Button>(R.id.btnDonate)
 
-        // Model Views
+        // Model Views (LaMa)
         val tvModelStatus = findViewById<TextView>(R.id.tvModelStatus)
         val pbModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbModelDownload)
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
 
+        // Model Views (Bubble Detector)
+        val tvTyperModelStatus = findViewById<TextView>(R.id.tvTyperModelStatus)
+        val pbTyperModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperModelDownload)
+        val btnDownloadTyperModel = findViewById<Button>(R.id.btnDownloadTyperModel)
+
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
+        // Init Bubble Processor
+        val bubbleProcessor = BubbleDetectorProcessor(this)
 
         fun updateModelStatus() {
             if (lamaProcessor.isModelAvailable()) {
@@ -69,6 +77,16 @@ class SettingsActivity : AppCompatActivity() {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
                 btnDownloadModel.isEnabled = true
+            }
+
+            if (bubbleProcessor.isModelAvailable()) {
+                tvTyperModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadTyperModel.text = "Redownload"
+                btnDownloadTyperModel.isEnabled = true
+            } else {
+                tvTyperModelStatus.text = "Status: Not Downloaded"
+                btnDownloadTyperModel.text = "Download Model (170 MB)"
+                btnDownloadTyperModel.isEnabled = true
             }
         }
         updateModelStatus()
@@ -96,6 +114,31 @@ class SettingsActivity : AppCompatActivity() {
                  }
                  pbModelDownload.visibility = android.view.View.GONE
              }
+        }
+
+        btnDownloadTyperModel.setOnClickListener {
+            btnDownloadTyperModel.isEnabled = false
+            pbTyperModelDownload.visibility = android.view.View.VISIBLE
+            tvTyperModelStatus.text = "Status: Downloading..."
+
+            lifecycleScope.launch {
+                val success = bubbleProcessor.downloadModel { progress ->
+                    runOnUiThread {
+                        pbTyperModelDownload.progress = (progress * 100).toInt()
+                        tvTyperModelStatus.text = "Status: Downloading ${(progress * 100).toInt()}%"
+                    }
+                }
+
+                if (success) {
+                    updateModelStatus()
+                    Toast.makeText(this@SettingsActivity, "Download Complete", Toast.LENGTH_SHORT).show()
+                } else {
+                    tvTyperModelStatus.text = "Status: Download Failed"
+                    btnDownloadTyperModel.isEnabled = true
+                    Toast.makeText(this@SettingsActivity, "Download Failed", Toast.LENGTH_SHORT).show()
+                }
+                pbTyperModelDownload.visibility = android.view.View.GONE
+            }
         }
 
         // Cache Logic

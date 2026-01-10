@@ -580,10 +580,48 @@ class AstralCanvasView @JvmOverloads constructor(
         CUT_DRAG_TL,
         CUT_DRAG_TR,
         CUT_DRAG_BR,
-        CUT_DRAG_BL
+        CUT_DRAG_BL,
+        TYPER
     }
 
     private var currentMode = Mode.NONE
+    private var detectedBubbles: List<RectF>? = null
+    private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GREEN
+        style = Paint.Style.FILL
+        alpha = 80 // Semi-transparent
+    }
+    private val bubbleStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GREEN
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+    }
+
+    fun setTyperMode(enabled: Boolean) {
+        if (enabled) {
+            currentMode = Mode.TYPER
+            selectLayer(null)
+        } else {
+            if (currentMode == Mode.TYPER) currentMode = Mode.NONE
+        }
+        invalidate()
+    }
+
+    fun setDetectedBubbles(bubbles: List<RectF>) {
+        detectedBubbles = bubbles
+        invalidate()
+    }
+
+    fun getDetectedBubbles(): List<RectF> {
+        return detectedBubbles ?: emptyList()
+    }
+
+    fun removeDetectedBubble(rect: RectF) {
+        if (detectedBubbles != null) {
+            detectedBubbles = detectedBubbles!!.filter { it != rect }
+            invalidate()
+        }
+    }
     private var warpPointIndex = -1
 
     var onColorPickedListener: ((Int) -> Unit)? = null
@@ -644,6 +682,7 @@ class AstralCanvasView @JvmOverloads constructor(
     var onLayerSelectedListener: OnLayerSelectedListener? = null
     var onLayerEditListener: OnLayerEditListener? = null
     var onLayerUpdateListener: OnLayerUpdateListener? = null
+    var onBubbleClickListener: ((RectF) -> Unit)? = null
 
     fun addTextLayer(text: String) {
         val center = getViewportCenter()
@@ -802,6 +841,14 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Layers
         drawScene(canvas)
+
+        // Draw Detected Bubbles (Bottom Layer overlay)
+        if (currentMode == Mode.TYPER && detectedBubbles != null) {
+            for (rect in detectedBubbles!!) {
+                canvas.drawRect(rect, bubblePaint)
+                canvas.drawRect(rect, bubbleStrokePaint)
+            }
+        }
 
         // Draw Inpaint Path (Vector optimized, no cache bitmap)
         if (isInpaintMode) {
@@ -1157,6 +1204,23 @@ class AstralCanvasView @JvmOverloads constructor(
                  val color = getPixelColor(cx, cy)
                  onColorPickedListener?.invoke(color)
                  setEyedropperMode(false)
+             }
+             return true
+        }
+
+        if (currentMode == Mode.TYPER && detectedBubbles != null && pointerCount == 1) {
+             val touchPoint = floatArrayOf(event.x, event.y)
+             viewMatrix.invert(invertedMatrix)
+             invertedMatrix.mapPoints(touchPoint)
+             val cx = touchPoint[0]
+             val cy = touchPoint[1]
+
+             if (event.actionMasked == MotionEvent.ACTION_UP) {
+                 // Check if clicked inside a bubble
+                 val clickedBubble = detectedBubbles!!.find { it.contains(cx, cy) }
+                 if (clickedBubble != null) {
+                     onBubbleClickListener?.invoke(clickedBubble)
+                 }
              }
              return true
         }
