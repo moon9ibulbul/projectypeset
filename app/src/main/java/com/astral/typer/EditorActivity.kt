@@ -1924,29 +1924,7 @@ class EditorActivity : AppCompatActivity() {
         val btnImport = popupView.findViewById<android.widget.Button>(R.id.btnImportTxt)
         val btnDetect = popupView.findViewById<android.widget.Button>(R.id.btnDetectBubbles)
         val btnPaste = popupView.findViewById<android.widget.Button>(R.id.btnPasteText)
-        val pasteContainer = popupView.findViewById<LinearLayout>(R.id.pasteContainer)
-        val etPaste = popupView.findViewById<EditText>(R.id.etPasteInput)
-        val btnParse = popupView.findViewById<android.widget.Button>(R.id.btnParsePaste)
         val recycler = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
-
-        // Fix: Enable pasting by long-pressing the container if the EditText menu fails
-        pasteContainer.setOnLongClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            if (clipboard.hasPrimaryClip()) {
-                val clip = clipboard.primaryClip
-                if (clip != null && clip.itemCount > 0) {
-                    val text = clip.getItemAt(0).text
-                    if (!text.isNullOrEmpty()) {
-                         val start = etPaste.selectionStart.coerceAtLeast(0)
-                         val end = etPaste.selectionEnd.coerceAtLeast(0)
-                         val editable = etPaste.text
-                         editable.replace(minOf(start, end), maxOf(start, end), text)
-                        Toast.makeText(this@EditorActivity, "Pasted from Clipboard", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            true
-        }
         val tvWarning = popupView.findViewById<TextView>(R.id.tvWarning)
 
         // Add Floating Tools Sidebar
@@ -2016,41 +1994,45 @@ class EditorActivity : AppCompatActivity() {
         }
 
         btnPaste.setOnClickListener {
-            if (pasteContainer.visibility == View.VISIBLE) {
-                pasteContainer.visibility = View.GONE
-                recycler.visibility = View.VISIBLE
-                btnPaste.text = "Paste Text"
-                // Make non-focusable so canvas interaction works
-                typerPopup?.isFocusable = false
-                typerPopup?.update()
-            } else {
-                pasteContainer.visibility = View.VISIBLE
-                recycler.visibility = View.GONE
-                btnPaste.text = "Back to List"
-                // Make focusable so EditText works and context menu (Paste) works
-                typerPopup?.isFocusable = true
-                // Ensure soft input mode is set correctly for resizing
-                typerPopup?.softInputMode = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-                typerPopup?.update()
-
-                // Force focus on EditText
-                etPaste.requestFocus()
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(etPaste, InputMethodManager.SHOW_IMPLICIT)
-            }
+            showPasteDialog()
         }
+    }
+
+    private fun showPasteDialog() {
+        val dialog = android.app.Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
+        // Ensure keyboard resizes the dialog
+        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
+        val view = layoutInflater.inflate(R.layout.dialog_paste_input, null)
+        dialog.setContentView(view)
+
+        val etInput = view.findViewById<EditText>(R.id.etPasteInputDialog)
+        val btnParse = view.findViewById<android.widget.Button>(R.id.btnParsePasteDialog)
 
         btnParse.setOnClickListener {
-            val text = etPaste.text.toString()
+            val text = etInput.text.toString()
             if (text.isNotBlank()) {
                 val lines = text.lines().filter { it.isNotBlank() }
                 updateTyperList(lines)
-                pasteContainer.visibility = View.GONE
-                recycler.visibility = View.VISIBLE
-                btnPaste.text = "Paste Text"
-                etPaste.setText("")
+                dialog.dismiss()
+                Toast.makeText(this, "Parsed ${lines.size} lines", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Please enter text", Toast.LENGTH_SHORT).show()
             }
         }
+
+        // Set Dialog width
+        dialog.window?.setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+
+        dialog.show()
+
+        // Focus and Keyboard
+        etInput.requestFocus()
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(etInput, InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun detectTextForInpaint() {
