@@ -426,15 +426,28 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Box Width (Constraint)
-                // User Request: Follow box scale AND box width strictly matching visual area
                 val padding = 20f
                 val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
                 val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
-                // 1. Start with Scale 1.0 and BoxWidth = TargetWidth
+                // Measure text width to determine if we can use a slimmer box
+                val textPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                textPaint.textSize = layer.fontSize
+                textPaint.typeface = layer.typeface
+                val desiredWidth = android.text.StaticLayout.getDesiredWidth(layer.text, textPaint)
+
+                // If text is short (fits in target width), use text width (Slimmer).
+                // Otherwise use target width (Match Area).
+                val initialBoxWidth = if (desiredWidth < targetWidth) {
+                    desiredWidth + 10f // Add small padding
+                } else {
+                    targetWidth
+                }
+
+                // 1. Start with Scale 1.0 and Initial BoxWidth
                 layer.scaleX = 1f
                 layer.scaleY = 1f
-                layer.boxWidth = targetWidth
+                layer.boxWidth = initialBoxWidth
 
                 // 2. Measure Height
                 val contentHeight = layer.getHeight()
@@ -447,7 +460,14 @@ class EditorActivity : AppCompatActivity() {
 
                      // Crucial: If we scale down, the visual width shrinks.
                      // We must increase boxWidth so that boxWidth * scale == targetWidth.
-                     layer.boxWidth = targetWidth / scale
+                     // However, if we started with a slim box, we might want to maintain the aspect ratio logic?
+                     // If we started with slim box, and height overflows (unlikely for single line unless HUGE font),
+                     // we should probably just scale down.
+                     // But wait, if initialBoxWidth was targetWidth (Long text), we definitely need to increase boxWidth.
+                     // If initialBoxWidth was desiredWidth (Short text), scaling down reduces visual width too.
+                     // If we want visual width to match "slimmer" width, we need to adjust boxWidth?
+                     // Yes: newBoxWidth = initialBoxWidth / scale.
+                     layer.boxWidth = initialBoxWidth / scale
                 }
 
                 // Save state before adding to allow step-by-step undo
