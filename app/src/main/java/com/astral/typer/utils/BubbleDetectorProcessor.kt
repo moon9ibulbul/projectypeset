@@ -10,7 +10,6 @@ import android.util.Log
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
-import ai.onnxruntime.providers.NnapiFlags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -145,7 +144,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                  sessionOptions.setInterOpNumThreads(4)
                  sessionOptions.setIntraOpNumThreads(4)
-                 sessionOptions.addNnapi(java.util.EnumSet.of(NnapiFlags.CPU_DISABLED))
+                 sessionOptions.addNnapi()
              } catch (e: Exception) {
                  Log.w("BubbleDetector", "Failed to set opts", e)
              }
