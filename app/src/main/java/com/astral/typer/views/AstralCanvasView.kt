@@ -1227,118 +1227,79 @@ class AstralCanvasView @JvmOverloads constructor(
 
         if (isTyperActive && pointerCount == 1 && !isInpaintMode) {
             if (currentTyperTool == TyperTool.HAND) {
-                // Hand: Pan Zoom Only
-                // But check clicks on bubbles?
-                // "Saat menekan ikon hand, user bisa melakukan pan and zoom tanpa mempengaruhi kanvas box area deteksi."
-                // "Saat user menekan ikon eraser... tap pada box... hapus box yang di sentuh"
-                // Original click-to-add-text might be desired in HAND mode or a separate mode?
-                // The prompt says "When pressing Hand icon, user can pan and zoom...".
-                // I will allow click-to-add-text in HAND mode only if not panning.
-
-                val touchPoint = floatArrayOf(event.x, event.y)
-                viewMatrix.invert(invertedMatrix)
-                invertedMatrix.mapPoints(touchPoint)
-                val cx = touchPoint[0]
-                val cy = touchPoint[1]
-
-                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                     currentMode = Mode.PAN_ZOOM
-                     scaleDetector.onTouchEvent(event)
-                     gestureDetector.onTouchEvent(event)
-                     startTouchX = cx
-                     startTouchY = cy
-                     hasMoved = false
-                } else if (event.actionMasked == MotionEvent.ACTION_MOVE) {
-                     if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 10f) {
-                         hasMoved = true
-                     }
-                     scaleDetector.onTouchEvent(event)
-                     gestureDetector.onTouchEvent(event)
-                } else if (event.actionMasked == MotionEvent.ACTION_UP) {
-                     if (!hasMoved && detectedBubbles != null) {
-                         val clickedBubble = detectedBubbles!!.find { it.contains(cx, cy) }
-                         if (clickedBubble != null) {
-                             onBubbleClickListener?.invoke(clickedBubble)
+                // Pass through for Layer Controls check.
+                // If no layer is hit, we will handle Pan/Zoom in the fall-through logic.
+            } else {
+                // cx and cy already calculated above
+                when(currentTyperTool) {
+                    TyperTool.RECT -> {
+                        when(event.actionMasked) {
+                            MotionEvent.ACTION_DOWN -> {
+                                 startTouchX = cx
+                                 startTouchY = cy
+                                 currentTyperPath.reset()
+                                 currentTyperPath.addRect(cx, cy, cx, cy, Path.Direction.CW)
+                                 invalidate()
+                            }
+                            MotionEvent.ACTION_MOVE -> {
+                                 currentTyperPath.reset()
+                                 currentTyperPath.addRect(startTouchX, startTouchY, cx, cy, Path.Direction.CW)
+                                 invalidate()
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                 val rect = RectF(startTouchX, startTouchY, cx, cy)
+                                 rect.sort()
+                                 if (rect.width() > 10 && rect.height() > 10) {
+                                      val newList = (detectedBubbles ?: emptyList()) + rect
+                                      setDetectedBubbles(newList)
+                                 }
+                                 currentTyperPath.reset()
+                                 invalidate()
+                            }
+                        }
+                    }
+                    TyperTool.LASSO -> {
+                         when(event.actionMasked) {
+                             MotionEvent.ACTION_DOWN -> {
+                                 currentTyperPath.reset()
+                                 currentTyperPath.moveTo(cx, cy)
+                                 invalidate()
+                             }
+                             MotionEvent.ACTION_MOVE -> {
+                                 currentTyperPath.lineTo(cx, cy)
+                                 invalidate()
+                             }
+                             MotionEvent.ACTION_UP -> {
+                                 val bounds = RectF()
+                                 currentTyperPath.computeBounds(bounds, true)
+                                 if (bounds.width() > 10 && bounds.height() > 10) {
+                                      val newList = (detectedBubbles ?: emptyList()) + bounds
+                                      setDetectedBubbles(newList)
+                                 }
+                                 currentTyperPath.reset()
+                                 invalidate()
+                             }
                          }
-                     }
-                     currentMode = Mode.TYPER
+                    }
+                    TyperTool.ERASER -> {
+                         if (event.actionMasked == MotionEvent.ACTION_UP) {
+                             if (detectedBubbles != null) {
+                                 // Find bubble to delete
+                                 val toDelete = detectedBubbles!!.find { it.contains(cx, cy) }
+                                 if (toDelete != null) {
+                                     removeDetectedBubble(toDelete)
+                                 }
+                             }
+                         }
+                    }
+                    else -> {}
                 }
                 return true
             }
-
-            val touchPoint = floatArrayOf(event.x, event.y)
-            viewMatrix.invert(invertedMatrix)
-            invertedMatrix.mapPoints(touchPoint)
-            val cx = touchPoint[0]
-            val cy = touchPoint[1]
-
-            when(currentTyperTool) {
-                TyperTool.RECT -> {
-                    when(event.actionMasked) {
-                        MotionEvent.ACTION_DOWN -> {
-                             startTouchX = cx
-                             startTouchY = cy
-                             currentTyperPath.reset()
-                             currentTyperPath.addRect(cx, cy, cx, cy, Path.Direction.CW)
-                             invalidate()
-                        }
-                        MotionEvent.ACTION_MOVE -> {
-                             currentTyperPath.reset()
-                             currentTyperPath.addRect(startTouchX, startTouchY, cx, cy, Path.Direction.CW)
-                             invalidate()
-                        }
-                        MotionEvent.ACTION_UP -> {
-                             val rect = RectF(startTouchX, startTouchY, cx, cy)
-                             rect.sort()
-                             if (rect.width() > 10 && rect.height() > 10) {
-                                  val newList = (detectedBubbles ?: emptyList()) + rect
-                                  setDetectedBubbles(newList)
-                             }
-                             currentTyperPath.reset()
-                             invalidate()
-                        }
-                    }
-                }
-                TyperTool.LASSO -> {
-                     when(event.actionMasked) {
-                         MotionEvent.ACTION_DOWN -> {
-                             currentTyperPath.reset()
-                             currentTyperPath.moveTo(cx, cy)
-                             invalidate()
-                         }
-                         MotionEvent.ACTION_MOVE -> {
-                             currentTyperPath.lineTo(cx, cy)
-                             invalidate()
-                         }
-                         MotionEvent.ACTION_UP -> {
-                             val bounds = RectF()
-                             currentTyperPath.computeBounds(bounds, true)
-                             if (bounds.width() > 10 && bounds.height() > 10) {
-                                  val newList = (detectedBubbles ?: emptyList()) + bounds
-                                  setDetectedBubbles(newList)
-                             }
-                             currentTyperPath.reset()
-                             invalidate()
-                         }
-                     }
-                }
-                TyperTool.ERASER -> {
-                     if (event.actionMasked == MotionEvent.ACTION_UP) {
-                         if (detectedBubbles != null) {
-                             // Find bubble to delete
-                             val toDelete = detectedBubbles!!.find { it.contains(cx, cy) }
-                             if (toDelete != null) {
-                                 removeDetectedBubble(toDelete)
-                             }
-                         }
-                     }
-                }
-                else -> {}
-            }
-            return true
         }
 
         if (isInpaintMode) {
+            // cx and cy already calculated above
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 if (!currentInpaintPath.isEmpty) {
                     currentInpaintPath.reset()
@@ -1499,7 +1460,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                     }
 
-                    if (isPerspectiveMode && layer is TextLayer) {
+                    if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
                          val pts = layer.perspectivePoints
                          if (pts != null) {
                              val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
@@ -1616,13 +1577,32 @@ class AstralCanvasView @JvmOverloads constructor(
                         invalidate()
                     }
                 } else {
-                    currentMode = Mode.NONE
-                    selectLayer(null)
-                    invalidate()
+                    if (isTyperActive && currentTyperTool == TyperTool.HAND) {
+                        currentMode = Mode.PAN_ZOOM
+                        scaleDetector.onTouchEvent(event)
+                        gestureDetector.onTouchEvent(event)
+                        startTouchX = cx
+                        startTouchY = cy
+                        hasMoved = false
+                    } else {
+                        currentMode = Mode.NONE
+                        selectLayer(null)
+                        invalidate()
+                    }
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (currentMode == Mode.NONE || currentMode == Mode.PAN_ZOOM) return true
+                if (currentMode == Mode.PAN_ZOOM) {
+                    if (event.pointerCount == 1 && isTyperActive && currentTyperTool == TyperTool.HAND) {
+                        if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 10f) {
+                             hasMoved = true
+                        }
+                        scaleDetector.onTouchEvent(event)
+                        gestureDetector.onTouchEvent(event)
+                    }
+                    return true
+                }
+                if (currentMode == Mode.NONE) return true
 
                 if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 5f) {
                     hasMoved = true
@@ -1851,7 +1831,18 @@ class AstralCanvasView @JvmOverloads constructor(
                 if (currentMode == Mode.DRAG_LAYER && !hasMoved && wasSelectedInitially && selectedLayer != null) {
                     onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
                 }
-                currentMode = Mode.NONE
+
+                if (isTyperActive && currentTyperTool == TyperTool.HAND && currentMode == Mode.PAN_ZOOM) {
+                     if (!hasMoved && detectedBubbles != null) {
+                         val clickedBubble = detectedBubbles!!.find { it.contains(cx, cy) }
+                         if (clickedBubble != null) {
+                             onBubbleClickListener?.invoke(clickedBubble)
+                         }
+                     }
+                     currentMode = Mode.TYPER
+                } else {
+                     currentMode = Mode.NONE
+                }
             }
         }
 

@@ -1879,11 +1879,23 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
-        binding.loadingOverlay.visibility = View.VISIBLE
+        // Use Popup Overlay if showing, else Activity Overlay
+        val popupLoading = typerPopup?.contentView?.findViewById<View>(R.id.loadingOverlay)
+        if (popupLoading != null) {
+            popupLoading.visibility = View.VISIBLE
+        } else {
+            binding.loadingOverlay.visibility = View.VISIBLE
+        }
+
         lifecycleScope.launch {
             val rects = bubbleProcessor.detect(bg)
             withContext(Dispatchers.Main) {
-                binding.loadingOverlay.visibility = View.GONE
+                if (popupLoading != null) {
+                    popupLoading.visibility = View.GONE
+                } else {
+                    binding.loadingOverlay.visibility = View.GONE
+                }
+
                 if (rects.isNotEmpty()) {
                     canvasView.setDetectedBubbles(rects)
                     Toast.makeText(this@EditorActivity, "Detected ${rects.size} bubbles", Toast.LENGTH_SHORT).show()
