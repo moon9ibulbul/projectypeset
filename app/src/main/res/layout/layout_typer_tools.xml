@@ -11,7 +11,7 @@
         android:id="@+id/btnToolHand"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@android:drawable/ic_menu_move"
+        android:src="@drawable/ic_hand"
         android:padding="8dp"
         app:tint="@color/white"
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
