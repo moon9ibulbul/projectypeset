@@ -1879,11 +1879,22 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
-        binding.loadingOverlay.visibility = View.VISIBLE
+        val progressBar = typerPopup?.contentView?.findViewById<View>(R.id.typerProgressBar)
+        if (progressBar != null) {
+            progressBar.visibility = View.VISIBLE
+        } else {
+            binding.loadingOverlay.visibility = View.VISIBLE
+        }
+
         lifecycleScope.launch {
             val rects = bubbleProcessor.detect(bg)
             withContext(Dispatchers.Main) {
-                binding.loadingOverlay.visibility = View.GONE
+                if (progressBar != null) {
+                    progressBar.visibility = View.GONE
+                } else {
+                    binding.loadingOverlay.visibility = View.GONE
+                }
+
                 if (rects.isNotEmpty()) {
                     canvasView.setDetectedBubbles(rects)
                     Toast.makeText(this@EditorActivity, "Detected ${rects.size} bubbles", Toast.LENGTH_SHORT).show()
