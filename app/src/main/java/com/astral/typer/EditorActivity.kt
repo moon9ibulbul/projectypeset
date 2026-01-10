@@ -465,27 +465,26 @@ class EditorActivity : AppCompatActivity() {
                     layer.scaleX = finalScale
                     layer.scaleY = finalScale
                 } else {
-                    // Sparse: "Slimmer" Box (Tight Fit)
-                    // Priority: Keep text on one line (or natural wrap) and scale down to fit.
-                    // Do NOT clamp boxWidth to targetWidth, which causes unnatural wrapping on small bubbles.
+                    // Sparse: Match Target Width, Natural Height
+                    // User Request: "Samakan saja dengan width area hijau, tapi heightnya jangan."
+                    // (Match the width of the green area, but not the height).
 
-                    // 1. Measure Natural Width (Unlimited Box)
-                    layer.boxWidth = 10000f // Arbitrary large to prevent wrapping
-                    val naturalWidth = layer.getWidth()
+                    // 1. Set Box Width to Target Width
+                    // This ensures the visual box handles match the bubble width.
+                    layer.boxWidth = targetWidth
 
-                    // 2. Set boxWidth to Natural Width (plus padding/safety)
-                    // We allow boxWidth to be larger than targetWidth, and rely on Scaling to fit it.
-                    val safeWidth = naturalWidth + 10f
-                    layer.boxWidth = safeWidth
-
-                    // 3. Fit in Box Logic
+                    // 2. Fit in Box Logic
+                    // scaleX will be 1.0 because boxWidth == targetWidth
                     val newH = layer.getHeight()
-                    val scaleX = targetWidth / safeWidth
+                    val scaleX = targetWidth / layer.boxWidth!! // == 1.0f
                     val scaleY = targetHeight / newH
+
+                    // We only scale DOWN if height overflows. We generally don't scale UP for sparse text.
+                    // But we must respect the "fit" logic if it's too big.
                     val fitScale = minOf(scaleX, scaleY)
 
-                    // For sparse text, capping scale at 1.0 prevents exploding small text into huge letters.
-                    // Unless it overflows, then scale down.
+                    // Cap at 1.0 to prevent blowing up small text in large bubbles,
+                    // but allow shrinking if it doesn't fit height-wise.
                     val finalScale = if (fitScale < 1f) fitScale else 1f
 
                     layer.scaleX = finalScale
