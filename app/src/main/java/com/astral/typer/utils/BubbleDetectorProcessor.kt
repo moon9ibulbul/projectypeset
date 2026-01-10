@@ -37,7 +37,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         private const val TOUCHING_TOLERANCE_PX = 15f // Distance to consider boxes "touching"
         private const val ALIGNMENT_OVERLAP_RATIO = 0.5f // Ratio of shared edge length to consider aligned
 
-        private const val MODEL_URL = "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector.onnx"
+        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"
         private const val CONNECT_TIMEOUT = 30000
         private const val READ_TIMEOUT = 30000

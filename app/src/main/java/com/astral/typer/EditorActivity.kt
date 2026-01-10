@@ -1907,18 +1907,6 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // Safety Net: Re-show if dismissed while active (e.g. system dismissed it)
-        typerPopup?.setOnDismissListener {
-            if (isTyperModeActive) {
-                // Was active, so this dismissal was unintentional. Re-show.
-                binding.root.post {
-                    if (isTyperModeActive) {
-                        showTyperMenu()
-                    }
-                }
-            }
-        }
-
         // Show Popup at Bottom
         typerPopup?.showAtLocation(binding.root, Gravity.BOTTOM, 0, 0)
 

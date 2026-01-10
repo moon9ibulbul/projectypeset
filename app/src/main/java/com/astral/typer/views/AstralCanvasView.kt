@@ -1750,8 +1750,9 @@ class AstralCanvasView @JvmOverloads constructor(
                             val snapThreshold = 20f
                             var snappedX = false
                             var snappedY = false
+                            val currentSnapThreshold = 6f
 
-                            if (abs(nextX - canvasWidth / 2f) < snapThreshold) {
+                            if (abs(nextX - canvasWidth / 2f) < currentSnapThreshold) {
                                 dx = (canvasWidth / 2f) - layer.x
                                 showVerticalCenterLine = true
                                 snappedX = true
@@ -1759,7 +1760,7 @@ class AstralCanvasView @JvmOverloads constructor(
                                 showVerticalCenterLine = false
                             }
 
-                            if (abs(nextY - canvasHeight / 2f) < snapThreshold) {
+                            if (abs(nextY - canvasHeight / 2f) < currentSnapThreshold) {
                                 dy = (canvasHeight / 2f) - layer.y
                                 showHorizontalCenterLine = true
                                 snappedY = true
