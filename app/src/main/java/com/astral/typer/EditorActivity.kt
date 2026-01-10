@@ -1759,8 +1759,9 @@ class EditorActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            gravity = Gravity.TOP or Gravity.START
             marginStart = dpToPx(16)
+            topMargin = dpToPx(16)
         }
         binding.canvasContainer.addView(toolsView, params)
         // Store reference to remove later
