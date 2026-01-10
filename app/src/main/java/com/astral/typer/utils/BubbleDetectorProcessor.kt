@@ -32,6 +32,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         private const val STRIDE = 512
         private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
+        private const val MIN_BOX_SIZE = 20f // Noise filter threshold
 
         private const val MODEL_URL = "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"
@@ -414,7 +415,7 @@ class BubbleDetectorProcessor(private val context: Context) {
     }
 
     private fun nonMaximumSuppression(detections: List<Detection>): List<RectF> {
-        // Sort by Area (Largest first) instead of Score
+        // 1. Sort by Area (Largest first)
         val sorted = detections.sortedByDescending {
             it.rect.width() * it.rect.height()
         }.toMutableList()
@@ -422,39 +423,51 @@ class BubbleDetectorProcessor(private val context: Context) {
         val results = mutableListOf<RectF>()
 
         while (sorted.isNotEmpty()) {
-            val best = sorted.removeAt(0)
-            results.add(best.rect)
+            val best = sorted.removeAt(0) // The "main" bubble candidate
 
             val iterator = sorted.iterator()
             while (iterator.hasNext()) {
                 val other = iterator.next()
 
-                // Check IoU
+                // Calculate IoU (Standard Overlap)
                 val iou = calculateIoU(best.rect, other.rect)
 
-                // Remove if high overlap OR if 'other' is contained inside 'best'
-                if (iou > IOU_THRESHOLD || isContained(other.rect, best.rect)) {
+                // Calculate IoS (Intersection over Smaller / Containment)
+                // How much of the 'other' box is inside 'best'?
+                val ios = calculateIoS(other.rect, best.rect)
+
+                // LOGIC:
+                // Only suppress/remove the smaller box if:
+                // 1. It overlaps significantly (IoU > 0.5) OR
+                // 2. It is ALMOST FULLY contained inside the big box (IoS > 0.85).
+                // We do NOT use union/merge here to preserve the accuracy of the main box.
+                if (iou > IOU_THRESHOLD || ios > 0.85f) {
                     iterator.remove()
                 }
+            }
+
+            // NOISE FILTER: Only add if dimensions are large enough to be a bubble/text
+            if (best.rect.width() > MIN_BOX_SIZE && best.rect.height() > MIN_BOX_SIZE) {
+                results.add(best.rect)
             }
         }
         return results
     }
 
-    private fun isContained(inner: RectF, outer: RectF): Boolean {
+    // Helper: Intersection over Smaller Area (to detect contained boxes)
+    private fun calculateIoS(inner: RectF, outer: RectF): Float {
         val left = max(inner.left, outer.left)
         val top = max(inner.top, outer.top)
         val right = min(inner.right, outer.right)
         val bottom = min(inner.bottom, outer.bottom)
 
-        if (right < left || bottom < top) return false
+        if (right < left || bottom < top) return 0f
 
         val intersectionArea = (right - left) * (bottom - top)
         val innerArea = inner.width() * inner.height()
 
-        if (innerArea <= 0) return false
-        // If > 85% of the inner box is inside the outer box, consider it contained
-        return (intersectionArea / innerArea) > 0.85f
+        if (innerArea <= 0) return 0f
+        return intersectionArea / innerArea
     }
 
     private fun calculateIoU(a: RectF, b: RectF): Float {
