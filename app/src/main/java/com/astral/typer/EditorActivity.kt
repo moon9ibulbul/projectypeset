@@ -426,28 +426,68 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Box Width (Constraint)
-                // User Request: Follow box scale AND box width strictly matching visual area
                 val padding = 20f
                 val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
                 val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
-                // 1. Start with Scale 1.0 and BoxWidth = TargetWidth
-                layer.scaleX = 1f
-                layer.scaleY = 1f
-                layer.boxWidth = targetWidth
+                // 4. Determine if content is "Dense" (heuristic: length > 20 chars)
+                val isDense = layer.text.length > 20
 
-                // 2. Measure Height
-                val contentHeight = layer.getHeight()
+                if (isDense) {
+                    // Dense: Optimize boxWidth to match Aspect Ratio of Target
+                    // Goal: Match the Green Area (Fill Width and Height)
+                    // We calculate an ideal boxWidth that results in a text block with Aspect Ratio ≈ Target Aspect Ratio.
 
-                // 3. If Height overflows, scale down
-                if (contentHeight > targetHeight) {
-                     val scale = targetHeight / contentHeight
-                     layer.scaleX = scale
-                     layer.scaleY = scale
+                    // Measure Height at full width first to estimate Area
+                    layer.boxWidth = targetWidth
+                    layer.scaleX = 1f; layer.scaleY = 1f
+                    val currentH = layer.getHeight()
 
-                     // Crucial: If we scale down, the visual width shrinks.
-                     // We must increase boxWidth so that boxWidth * scale == targetWidth.
-                     layer.boxWidth = targetWidth / scale
+                    // Estimate Ideal Width based on Area Conservation
+                    // Area ≈ targetWidth * currentH
+                    // Target Aspect = targetWidth / targetHeight
+                    // Ideal Width ≈ sqrt(Area * Target Aspect)
+                    val area = targetWidth * currentH
+                    val targetAspect = targetWidth / targetHeight
+                    val idealWidth = kotlin.math.sqrt(area * targetAspect)
+
+                    // Apply Ideal Width
+                    layer.boxWidth = idealWidth
+
+                    // Recalculate dimensions
+                    val newH = layer.getHeight()
+
+                    // Calculate Scale to fit Target Box (Contain)
+                    val scaleX = targetWidth / idealWidth
+                    val scaleY = targetHeight / newH
+                    val finalScale = minOf(scaleX, scaleY)
+
+                    layer.scaleX = finalScale
+                    layer.scaleY = finalScale
+                } else {
+                    // Sparse: Hybrid Logic (Fixed)
+                    // 1. Measure Natural Width without forced constraints
+                    layer.boxWidth = null
+                    val naturalWidth = layer.getWidth()
+
+                    // 2. Set boxWidth to MAX(NaturalWidth, TargetWidth)
+                    // If text is short ("OK"), boxWidth = TargetWidth (Handles match bubble).
+                    // If text is long ("Hello World..."), boxWidth = NaturalWidth (No forced wrapping).
+                    val safeWidth = naturalWidth + 20f
+                    layer.boxWidth = if (safeWidth > targetWidth) safeWidth else targetWidth
+
+                    // 3. Fit in Box Logic
+                    val newH = layer.getHeight()
+                    val scaleX = targetWidth / layer.boxWidth!!
+                    val scaleY = targetHeight / newH
+
+                    val fitScale = minOf(scaleX, scaleY)
+
+                    // Cap at 1.0 to prevent blowing up small text
+                    val finalScale = if (fitScale < 1f) fitScale else 1f
+
+                    layer.scaleX = finalScale
+                    layer.scaleY = finalScale
                 }
 
                 // Save state before adding to allow step-by-step undo
