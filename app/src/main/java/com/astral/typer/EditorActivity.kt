@@ -466,15 +466,16 @@ class EditorActivity : AppCompatActivity() {
                     layer.scaleY = finalScale
                 } else {
                     // Sparse: "Slimmer" Box (Tight Fit)
-                    // Do not force boxWidth to be huge if text is short.
+                    // Priority: Keep text on one line (or natural wrap) and scale down to fit.
+                    // Do NOT clamp boxWidth to targetWidth, which causes unnatural wrapping on small bubbles.
 
                     // 1. Measure Natural Width (Unlimited Box)
                     layer.boxWidth = 10000f // Arbitrary large to prevent wrapping
                     val naturalWidth = layer.getWidth()
 
                     // 2. Set boxWidth to Natural Width (plus padding/safety)
-                    // If natural width exceeds targetWidth, clamp it.
-                    val safeWidth = if (naturalWidth > targetWidth) targetWidth else (naturalWidth + 10f)
+                    // We allow boxWidth to be larger than targetWidth, and rely on Scaling to fit it.
+                    val safeWidth = naturalWidth + 10f
                     layer.boxWidth = safeWidth
 
                     // 3. Fit in Box Logic
