@@ -399,6 +399,16 @@ class EditorActivity : AppCompatActivity() {
                     layer.doubleStrokeWidth = style.doubleStrokeWidth
                     layer.letterSpacing = style.letterSpacing
                     layer.lineSpacing = style.lineSpacing
+
+                    // Formatting
+                    layer.textAlign = if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size)
+                        Layout.Alignment.values()[style.textAlign] else Layout.Alignment.ALIGN_NORMAL
+                    layer.isJustified = style.isJustified
+
+                    if (style.isBold) layer.text.setSpan(StyleSpan(Typeface.BOLD), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    if (style.isItalic) layer.text.setSpan(StyleSpan(Typeface.ITALIC), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    if (style.isUnderline) layer.text.setSpan(UnderlineSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    if (style.isStrike) layer.text.setSpan(StrikethroughSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 } else {
                     layer.color = Color.BLACK
                 }
@@ -408,6 +418,17 @@ class EditorActivity : AppCompatActivity() {
                 val padding = 20f
                 if (rect.width() > padding * 2) {
                     layer.boxWidth = rect.width() - padding
+                }
+
+                // Auto Scale to Fit Height
+                // Force layout calculation
+                val contentHeight = layer.getHeight()
+                val targetHeight = rect.height() - padding // Use same padding for height safety
+
+                if (contentHeight > targetHeight && contentHeight > 0) {
+                     val scale = targetHeight / contentHeight
+                     layer.scaleX = scale
+                     layer.scaleY = scale
                 }
 
                 canvasView.getLayers().add(layer)
@@ -1567,6 +1588,28 @@ class EditorActivity : AppCompatActivity() {
                         layer.letterSpacing = style.letterSpacing
                         layer.lineSpacing = style.lineSpacing
 
+                        // Formatting
+                        layer.textAlign = style.textAlign
+                        layer.isJustified = style.isJustified
+
+                        // Apply formatting spans from style
+                        val text = layer.text
+                        // Remove existing formatting spans
+                        val existingStyle = text.getSpans(0, text.length, StyleSpan::class.java)
+                        for (s in existingStyle) text.removeSpan(s)
+                        val existingUnder = text.getSpans(0, text.length, UnderlineSpan::class.java)
+                        for (s in existingUnder) text.removeSpan(s)
+                        val existingStrike = text.getSpans(0, text.length, StrikethroughSpan::class.java)
+                        for (s in existingStrike) text.removeSpan(s)
+
+                        // Apply new spans
+                        val styleSpans = style.text.getSpans(0, style.text.length, Object::class.java)
+                        for (span in styleSpans) {
+                            if (span is StyleSpan) text.setSpan(StyleSpan(span.style), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            if (span is UnderlineSpan) text.setSpan(UnderlineSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            if (span is StrikethroughSpan) text.setSpan(StrikethroughSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
+
                         canvasView.invalidate()
                         Toast.makeText(context, "Style Applied", Toast.LENGTH_SHORT).show()
                     }
@@ -1737,7 +1780,8 @@ class EditorActivity : AppCompatActivity() {
     // --- TYPER MENU ---
     private fun showTyperMenu() {
         val popupView = layoutInflater.inflate(R.layout.popup_typer, null)
-        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        // Focusable = false to allow interaction with canvas (outside touches pass through)
+        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
         typerPopup?.elevation = 20f
         typerPopup?.isOutsideTouchable = false
 
@@ -1824,10 +1868,16 @@ class EditorActivity : AppCompatActivity() {
                 pasteContainer.visibility = View.GONE
                 recycler.visibility = View.VISIBLE
                 btnPaste.text = "Paste Text"
+                // Make non-focusable so canvas interaction works
+                typerPopup?.isFocusable = false
+                typerPopup?.update()
             } else {
                 pasteContainer.visibility = View.VISIBLE
                 recycler.visibility = View.GONE
                 btnPaste.text = "Back to List"
+                // Make focusable so EditText works
+                typerPopup?.isFocusable = true
+                typerPopup?.update()
             }
         }
 
