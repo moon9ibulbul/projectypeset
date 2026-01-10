@@ -1737,7 +1737,7 @@ class EditorActivity : AppCompatActivity() {
     // --- TYPER MENU ---
     private fun showTyperMenu() {
         val popupView = layoutInflater.inflate(R.layout.popup_typer, null)
-        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         typerPopup?.elevation = 20f
         typerPopup?.isOutsideTouchable = false
 
@@ -1879,11 +1879,25 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
-        binding.loadingOverlay.visibility = View.VISIBLE
+        // Use Popup Overlay if showing, else Activity Overlay
+        val isPopupShowing = typerPopup?.isShowing == true
+        val popupLoading = if (isPopupShowing) typerPopup?.contentView?.findViewById<View>(R.id.loadingOverlay) else null
+
+        if (popupLoading != null) {
+            popupLoading.visibility = View.VISIBLE
+        } else {
+            binding.loadingOverlay.visibility = View.VISIBLE
+        }
+
         lifecycleScope.launch {
             val rects = bubbleProcessor.detect(bg)
             withContext(Dispatchers.Main) {
-                binding.loadingOverlay.visibility = View.GONE
+                if (popupLoading != null) {
+                    popupLoading.visibility = View.GONE
+                } else {
+                    binding.loadingOverlay.visibility = View.GONE
+                }
+
                 if (rects.isNotEmpty()) {
                     canvasView.setDetectedBubbles(rects)
                     Toast.makeText(this@EditorActivity, "Detected ${rects.size} bubbles", Toast.LENGTH_SHORT).show()
