@@ -1863,27 +1863,38 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private var isTyperModeActive = false
+    private var lastTyperClickTime = 0L
 
     private fun toggleTyperMode() {
-        isTyperModeActive = !isTyperModeActive
+        val now = System.currentTimeMillis()
+        if (now - lastTyperClickTime < 500) return
+        lastTyperClickTime = now
 
         if (isTyperModeActive) {
-            // Enter Typer Mode
-            canvasView.setTyperMode(true)
-            binding.bottomMenuContainer.visibility = View.GONE
-            hidePropertyDetail()
-            showTyperMenu()
-            currentMenuType = "TYPER"
-            // Highlight icon
-            binding.btnTopTyper.setColorFilter(Color.CYAN)
-        } else {
-            // Exit Typer Mode
             exitTyperMode()
+        } else {
+            enterTyperMode()
         }
+    }
+
+    private fun enterTyperMode() {
+        if (isTyperModeActive) return
+        isTyperModeActive = true
+
+        // Enter Typer Mode
+        canvasView.setTyperMode(true)
+        binding.bottomMenuContainer.visibility = View.GONE
+        hidePropertyDetail()
+        showTyperMenu()
+        currentMenuType = "TYPER"
+        // Highlight icon
+        binding.btnTopTyper.setColorFilter(Color.CYAN)
     }
 
     // --- TYPER MENU ---
     private fun showTyperMenu() {
+        if (typerPopup != null && typerPopup!!.isShowing) return
+
         val popupView = layoutInflater.inflate(R.layout.popup_typer, null)
         // Focusable = false to allow interaction with canvas (outside touches pass through)
         typerPopup = android.widget.PopupWindow(popupView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
@@ -2046,8 +2057,10 @@ class EditorActivity : AppCompatActivity() {
         // Must set flag FALSE first so OnDismissListener doesn't respawn it
         isTyperModeActive = false
 
-        typerPopup?.dismiss()
-        typerPopup = null
+        if (typerPopup != null) {
+            typerPopup?.dismiss()
+            typerPopup = null
+        }
 
         // Remove tools sidebar
         val toolsView = binding.canvasContainer.findViewWithTag<View>("TYPER_TOOLS")
@@ -2061,6 +2074,10 @@ class EditorActivity : AppCompatActivity() {
         // Reset UI
         binding.bottomMenuContainer.visibility = View.VISIBLE
         binding.btnTopTyper.setColorFilter(Color.WHITE)
+
+        if (currentMenuType == "TYPER") {
+            currentMenuType = null
+        }
     }
 
     private fun updateTyperList(lines: List<String>) {
