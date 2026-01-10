@@ -449,6 +449,9 @@ class EditorActivity : AppCompatActivity() {
                      layer.boxWidth = targetWidth / scale
                 }
 
+                // Save state before adding to allow step-by-step undo
+                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+
                 canvasView.getLayers().add(layer)
                 canvasView.selectLayer(layer)
 
@@ -1810,7 +1813,33 @@ class EditorActivity : AppCompatActivity() {
         typerPopup?.elevation = 20f
         // Prevent dismissal on outside touch, but we need to manage focus manually for typing
         typerPopup?.isOutsideTouchable = false
-        typerPopup?.setBackgroundDrawable(null) // Important for persistence with focusable state
+        // Using ColorDrawable fixes issues with Context Menu not showing (Paste).
+        // Also helps with robust touch handling.
+        typerPopup?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        typerPopup?.inputMethodMode = android.widget.PopupWindow.INPUT_METHOD_NEEDED
+        typerPopup?.isClippingEnabled = false
+
+        // Prevent dismissal when touching outside (especially when focusable is true)
+        typerPopup?.setTouchInterceptor { _, event ->
+            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
+                // Consume outside touch to prevent dismissal
+                true
+            } else {
+                false
+            }
+        }
+
+        // Safety Net: Re-show if dismissed while active (e.g. system dismissed it)
+        typerPopup?.setOnDismissListener {
+            if (isTyperModeActive) {
+                // Was active, so this dismissal was unintentional. Re-show.
+                binding.root.post {
+                    if (isTyperModeActive) {
+                        showTyperMenu()
+                    }
+                }
+            }
+        }
 
         // Show Popup at Bottom
         typerPopup?.showAtLocation(binding.root, Gravity.BOTTOM, 0, 0)
@@ -1927,6 +1956,9 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun exitTyperMode() {
+        // Must set flag FALSE first so OnDismissListener doesn't respawn it
+        isTyperModeActive = false
+
         typerPopup?.dismiss()
         typerPopup = null
 
@@ -1937,7 +1969,6 @@ class EditorActivity : AppCompatActivity() {
         }
 
         canvasView.setTyperMode(false)
-        isTyperModeActive = false
         // Keep detected bubbles? The user said "remove that specific box" on click.
         // Usually exiting mode might clear overlays, but user said "Clear all temporary detected box overlays" only on exit.
         // Yes, clear them.

@@ -1831,12 +1831,14 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP -> {
                 if (currentMode == Mode.DRAG_LAYER) {
+                    // Trigger edit mode if tapped on an already selected layer (and not moved)
+                    if (!hasMoved && wasSelectedInitially && selectedLayer != null) {
+                        onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
+                    }
                     showVerticalCenterLine = false
                     showHorizontalCenterLine = false
                     invalidate()
                 }
-                // Removed single-tap triggering double-tap listener
-                // Double Tap logic moved to GestureDetector.onDoubleTap
 
                 if (isTyperActive && currentTyperTool == TyperTool.HAND && currentMode == Mode.PAN_ZOOM) {
                      if (!hasMoved && detectedBubbles != null) {
