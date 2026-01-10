@@ -41,6 +41,40 @@
             android:layout_marginStart="4dp"/>
     </LinearLayout>
 
+    <Button
+        android:id="@+id/btnPasteText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Paste Text"
+        android:textSize="12sp"
+        android:layout_marginBottom="8dp"/>
+
+    <LinearLayout
+        android:id="@+id/pasteContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etPasteInput"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:background="#333333"
+            android:textColor="#FFFFFF"
+            android:gravity="top|start"
+            android:padding="8dp"
+            android:hint="Paste your text here..."
+            android:textColorHint="#888888"/>
+
+        <Button
+            android:id="@+id/btnParsePaste"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Parse"
+            android:layout_marginTop="8dp"/>
+    </LinearLayout>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerTyperText"
         android:layout_width="match_parent"

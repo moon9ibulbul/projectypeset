@@ -224,11 +224,8 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun checkTyperAvailability() {
-        if (!bubbleProcessor.isModelAvailable()) {
-            binding.btnTopTyper.visibility = View.GONE
-        } else {
-            binding.btnTopTyper.visibility = View.VISIBLE
-        }
+        // Always visible
+        binding.btnTopTyper.visibility = View.VISIBLE
     }
 
     private fun loadProjectData(proj: ProjectManager.ProjectData, images: Map<String, android.graphics.Bitmap>) {
@@ -1749,8 +1746,46 @@ class EditorActivity : AppCompatActivity() {
 
         val btnImport = popupView.findViewById<android.widget.Button>(R.id.btnImportTxt)
         val btnDetect = popupView.findViewById<android.widget.Button>(R.id.btnDetectBubbles)
+        val btnPaste = popupView.findViewById<android.widget.Button>(R.id.btnPasteText)
+        val pasteContainer = popupView.findViewById<LinearLayout>(R.id.pasteContainer)
+        val etPaste = popupView.findViewById<EditText>(R.id.etPasteInput)
+        val btnParse = popupView.findViewById<android.widget.Button>(R.id.btnParsePaste)
         val recycler = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
         val tvWarning = popupView.findViewById<TextView>(R.id.tvWarning)
+
+        // Add Floating Tools Sidebar
+        val toolsView = layoutInflater.inflate(R.layout.layout_typer_tools, binding.canvasContainer, false)
+        val params = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            marginStart = dpToPx(16)
+        }
+        binding.canvasContainer.addView(toolsView, params)
+        // Store reference to remove later
+        toolsView.tag = "TYPER_TOOLS"
+
+        // Tools Logic
+        val btnHand = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolHand)
+        val btnRect = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolRect)
+        val btnLasso = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolLasso)
+        val btnEraser = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolEraser)
+
+        fun updateToolUI(tool: AstralCanvasView.TyperTool) {
+            canvasView.currentTyperTool = tool
+            btnHand.setColorFilter(if (tool == AstralCanvasView.TyperTool.HAND) Color.CYAN else Color.WHITE)
+            btnRect.setColorFilter(if (tool == AstralCanvasView.TyperTool.RECT) Color.CYAN else Color.WHITE)
+            btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else Color.WHITE)
+            btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else Color.WHITE)
+        }
+
+        btnHand.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.HAND) }
+        btnRect.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.RECT) }
+        btnLasso.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.LASSO) }
+        btnEraser.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.ERASER) }
+
+        updateToolUI(AstralCanvasView.TyperTool.HAND)
 
         recycler.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
 
@@ -1773,14 +1808,51 @@ class EditorActivity : AppCompatActivity() {
             importTxtLauncher.launch("text/plain")
         }
 
-        btnDetect.setOnClickListener {
-             detectBubbles()
+        if (!bubbleProcessor.isModelAvailable()) {
+            btnDetect.isEnabled = false
+            btnDetect.alpha = 0.5f
+            btnDetect.text = "Model Missing"
+        } else {
+            btnDetect.setOnClickListener {
+                 detectBubbles()
+            }
+        }
+
+        btnPaste.setOnClickListener {
+            if (pasteContainer.visibility == View.VISIBLE) {
+                pasteContainer.visibility = View.GONE
+                recycler.visibility = View.VISIBLE
+                btnPaste.text = "Paste Text"
+            } else {
+                pasteContainer.visibility = View.VISIBLE
+                recycler.visibility = View.GONE
+                btnPaste.text = "Back to List"
+            }
+        }
+
+        btnParse.setOnClickListener {
+            val text = etPaste.text.toString()
+            if (text.isNotBlank()) {
+                val lines = text.lines().filter { it.isNotBlank() }
+                updateTyperList(lines)
+                pasteContainer.visibility = View.GONE
+                recycler.visibility = View.VISIBLE
+                btnPaste.text = "Paste Text"
+                etPaste.setText("")
+            }
         }
     }
 
     private fun exitTyperMode() {
         typerPopup?.dismiss()
         typerPopup = null
+
+        // Remove tools sidebar
+        val toolsView = binding.canvasContainer.findViewWithTag<View>("TYPER_TOOLS")
+        if (toolsView != null) {
+            binding.canvasContainer.removeView(toolsView)
+        }
+
         canvasView.setTyperMode(false)
         isTyperModeActive = false
         // Keep detected bubbles? The user said "remove that specific box" on click.
