@@ -8,14 +8,12 @@
     tools:context=".EditorActivity">
 
     <!-- Top Bar -->
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:background="@color/surface_dark"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="16dp"
+        android:paddingHorizontal="4dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
@@ -23,7 +21,12 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_revert"
-            app:tint="@color/white" />
+            app:tint="@color/white"
+            app:layout_constraintHorizontal_chainStyle="spread"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btnUndo"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnUndo"
@@ -32,7 +35,10 @@
             android:src="@android:drawable/ic_menu_rotate"
             android:scaleX="-1"
             app:tint="@color/white"
-            android:layout_marginStart="24dp"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnBack"
+            app:layout_constraintEnd_toStartOf="@id/btnRedo"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnRedo"
@@ -40,7 +46,10 @@
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_rotate"
             app:tint="@color/white"
-            android:layout_marginStart="24dp"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnUndo"
+            app:layout_constraintEnd_toStartOf="@id/btnAdd"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnAdd"
@@ -48,7 +57,10 @@
             android:layout_height="24dp"
             android:src="@android:drawable/ic_input_add"
             app:tint="@color/white"
-            android:layout_marginStart="24dp"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnRedo"
+            app:layout_constraintEnd_toStartOf="@id/btnTopTyper"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnTopTyper"
@@ -56,13 +68,10 @@
             android:layout_height="24dp"
             android:src="@drawable/ic_typer"
             app:tint="@color/white"
-            android:layout_marginStart="24dp"
-            android:layout_marginEnd="12dp"/>
-
-        <Space
-             android:layout_width="0dp"
-             android:layout_height="wrap_content"
-             android:layout_weight="1"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnAdd"
+            app:layout_constraintEnd_toStartOf="@id/btnEraser"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnEraser"
@@ -70,8 +79,10 @@
             android:layout_height="24dp"
             android:src="@drawable/ic_eraser"
             app:tint="@color/white"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="24dp"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnTopTyper"
+            app:layout_constraintEnd_toStartOf="@id/btnCut"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnCut"
@@ -79,8 +90,11 @@
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_crop"
             app:tint="@color/white"
-            android:layout_marginEnd="24dp"
-            android:visibility="gone"/>
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnEraser"
+            app:layout_constraintEnd_toStartOf="@id/btnLayers"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btnLayers"
@@ -88,16 +102,23 @@
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_sort_by_size"
             app:tint="@color/white"
-            android:layout_marginEnd="24dp"/>
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnCut"
+            app:layout_constraintEnd_toStartOf="@id/btnSave"
+            app:layout_constraintTop_toTopOf="parent" />
 
-         <ImageView
+        <ImageView
             android:id="@+id/btnSave"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_save"
-            app:tint="@color/white" />
+            app:tint="@color/white"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnLayers"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Canvas Area -->
     <FrameLayout
