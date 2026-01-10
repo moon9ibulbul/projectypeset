@@ -1357,6 +1357,33 @@ class EditorActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
         }
 
+        // Detect Text Button (if model available)
+        if (bubbleProcessor.isModelAvailable()) {
+            val btnDetectText = android.widget.LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(16, 8, 16, 8)
+                layoutParams = LinearLayout.LayoutParams(dpToPx(60), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+            val ivDetect = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_typer) // Reusing Typer icon
+                setColorFilter(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24))
+            }
+            val tvDetect = TextView(this).apply {
+                text = "Text"
+                setTextColor(Color.WHITE)
+                textSize = 10f
+                gravity = Gravity.CENTER
+            }
+            btnDetectText.addView(ivDetect)
+            btnDetectText.addView(tvDetect)
+            btnDetectText.setOnClickListener {
+                detectTextForInpaint()
+            }
+            btnContainer.addView(btnDetectText)
+        }
+
         // Helper to update button visual
         fun updateButtonVisual(btnLayout: LinearLayout, iconRes: Int, text: String) {
              val iv = btnLayout.getChildAt(0) as android.widget.ImageView
@@ -1962,6 +1989,27 @@ class EditorActivity : AppCompatActivity() {
                 recycler.visibility = View.VISIBLE
                 btnPaste.text = "Paste Text"
                 etPaste.setText("")
+            }
+        }
+    }
+
+    private fun detectTextForInpaint() {
+        val bg = canvasView.getBackgroundImage()
+        if (bg == null) return
+
+        loadingDialog?.show()
+        lifecycleScope.launch {
+            // Class 1 (text_bubble) and 2 (text_free)
+            // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
+            val rects = bubbleProcessor.detect(bg, setOf(1L, 2L), 1.0f)
+            withContext(Dispatchers.Main) {
+                loadingDialog?.dismiss()
+                if (rects.isNotEmpty()) {
+                    canvasView.addInpaintMask(rects)
+                    Toast.makeText(this@EditorActivity, "Added ${rects.size} text masks", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@EditorActivity, "No text detected", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

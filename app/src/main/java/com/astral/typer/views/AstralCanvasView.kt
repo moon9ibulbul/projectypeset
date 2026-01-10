@@ -221,6 +221,19 @@ class AstralCanvasView @JvmOverloads constructor(
         return false
     }
 
+    fun addInpaintMask(rects: List<RectF>) {
+        if (!isInpaintMode) return
+        val path = Path()
+        for (rect in rects) {
+            path.addRect(rect, Path.Direction.CW)
+        }
+        if (!path.isEmpty) {
+            inpaintOps.add(Pair(path, InpaintTool.LASSO))
+            redoOps.clear()
+            invalidate()
+        }
+    }
+
     fun setInpaintMode(enabled: Boolean) {
         isInpaintMode = enabled
         if (enabled) {
