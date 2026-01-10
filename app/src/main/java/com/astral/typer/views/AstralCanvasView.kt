@@ -1131,51 +1131,59 @@ class AstralCanvasView @JvmOverloads constructor(
             canvas.restore()
         }
 
-        drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
+        val isTyperHand = isTyperActive && currentTyperTool == TyperTool.HAND
+
+        if (!isTyperHand) {
+            drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
+        }
         drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
         drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
-        drawIconHandle(-halfW - handleOffset, 0f, pathStretchH, Color.DKGRAY)
-        drawIconHandle(0f, halfH + handleOffset, pathStretchV, Color.DKGRAY)
+        if (!isTyperHand) {
+            drawIconHandle(-halfW - handleOffset, 0f, pathStretchH, Color.DKGRAY)
+            drawIconHandle(0f, halfH + handleOffset, pathStretchV, Color.DKGRAY)
+        }
 
         if (layer is TextLayer) {
              drawIconHandle(halfW + handleOffset, 0f, pathBoxWidth, Color.MAGENTA)
         }
 
-        val topY = -halfH - handleOffset * 2.5f
-        val iconSpacing = geometry.radius * 2.5f
+        if (!isTyperHand) {
+            val topY = -halfH - handleOffset * 2.5f
+            val iconSpacing = geometry.radius * 2.5f
 
-        val dupX = -iconSpacing / 1.5f
+            val dupX = -iconSpacing / 1.5f
 
-        canvas.save()
-        canvas.translate(dupX, topY)
-        canvas.scale(localIconScale, localIconScale)
+            canvas.save()
+            canvas.translate(dupX, topY)
+            canvas.scale(localIconScale, localIconScale)
 
-        val dupP = Paint(iconPaint).apply { color = Color.LTGRAY; style = Paint.Style.STROKE }
-        val dupShadow = Paint(dupP).apply { color = Color.BLACK; strokeWidth = 5f }
+            val dupP = Paint(iconPaint).apply { color = Color.LTGRAY; style = Paint.Style.STROKE }
+            val dupShadow = Paint(dupP).apply { color = Color.BLACK; strokeWidth = 5f }
 
-        val r1 = RectF(-8f, -8f, 2f, 2f)
-        val r2 = RectF(-2f, -2f, 8f, 8f)
+            val r1 = RectF(-8f, -8f, 2f, 2f)
+            val r2 = RectF(-2f, -2f, 8f, 8f)
 
-        canvas.drawRect(r1, dupShadow); canvas.drawRect(r2, dupShadow)
-        canvas.drawRect(r1, dupP); canvas.drawRect(r2, dupP)
+            canvas.drawRect(r1, dupShadow); canvas.drawRect(r2, dupShadow)
+            canvas.drawRect(r1, dupP); canvas.drawRect(r2, dupP)
 
-        canvas.restore()
+            canvas.restore()
 
-        val copyX = iconSpacing / 1.5f
-        canvas.save()
-        canvas.translate(copyX, topY)
-        canvas.scale(localIconScale, localIconScale)
+            val copyX = iconSpacing / 1.5f
+            canvas.save()
+            canvas.translate(copyX, topY)
+            canvas.scale(localIconScale, localIconScale)
 
-        val copyP = Paint(iconPaint).apply { color = Color.YELLOW; style = Paint.Style.STROKE }
-        val copyShadow = Paint(copyP).apply { color = Color.BLACK; strokeWidth = 5f }
+            val copyP = Paint(iconPaint).apply { color = Color.YELLOW; style = Paint.Style.STROKE }
+            val copyShadow = Paint(copyP).apply { color = Color.BLACK; strokeWidth = 5f }
 
-        canvas.drawCircle(0f, 0f, 8f, copyShadow)
-        canvas.drawCircle(0f, 0f, 8f, copyP)
+            canvas.drawCircle(0f, 0f, 8f, copyShadow)
+            canvas.drawCircle(0f, 0f, 8f, copyP)
 
-        val fillP = Paint(copyP).apply { style = Paint.Style.FILL; alpha = 150 }
-        canvas.drawCircle(0f, 0f, 5f, fillP)
+            val fillP = Paint(copyP).apply { style = Paint.Style.FILL; alpha = 150 }
+            canvas.drawCircle(0f, 0f, 5f, fillP)
 
-        canvas.restore()
+            canvas.restore()
+        }
 
         canvas.restore()
     }
@@ -1484,7 +1492,9 @@ class AstralCanvasView @JvmOverloads constructor(
                         val dupX = -iconSpacing / 1.5f
                         val copyX = iconSpacing / 1.5f
 
-                        if (getDistance(lx, ly, dupX, topY) <= hitRadius) {
+                        val isTyperHand = isTyperActive && currentTyperTool == TyperTool.HAND
+
+                        if (!isTyperHand && getDistance(lx, ly, dupX, topY) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             val newLayer = layer.clone()
                             newLayer.x += 20
@@ -1494,7 +1504,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
 
-                        if (getDistance(lx, ly, copyX, topY) <= hitRadius) {
+                        if (!isTyperHand && getDistance(lx, ly, copyX, topY) <= hitRadius) {
                             if (layer is TextLayer) {
                                 com.astral.typer.utils.StyleManager.copyStyle(layer)
                                 com.astral.typer.utils.StyleManager.saveStyle(context, layer)
@@ -1503,7 +1513,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             return true
                         }
 
-                        if (getDistance(lx, ly, -halfW - handleOffset, -halfH - handleOffset) <= hitRadius) {
+                        if (!isTyperHand && getDistance(lx, ly, -halfW - handleOffset, -halfH - handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             deleteSelectedLayer()
                             return true
@@ -1527,7 +1537,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             startDist = getDistance(centerX, centerY, cx, cy)
                             return true
                         }
-                        if (getDistance(lx, ly, -halfW - handleOffset, 0f) <= hitRadius) {
+                        if (!isTyperHand && getDistance(lx, ly, -halfW - handleOffset, 0f) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_H
                             initialScaleX = layer.scaleX
@@ -1536,7 +1546,7 @@ class AstralCanvasView @JvmOverloads constructor(
                             startX = lx
                             return true
                         }
-                        if (getDistance(lx, ly, 0f, halfH + handleOffset) <= hitRadius) {
+                        if (!isTyperHand && getDistance(lx, ly, 0f, halfH + handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_V
                             initialScaleY = layer.scaleY
