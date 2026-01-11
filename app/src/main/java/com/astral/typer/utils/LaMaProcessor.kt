@@ -25,8 +25,8 @@ class LaMaProcessor(private val context: Context) {
 
     companion object {
         private const val TRAINED_SIZE = 512
-        private const val MODEL_URL = "https://huggingface.co/ogkalu/lama-manga-onnx-dynamic/resolve/main/lama-manga-dynamic.onnx"
-        private const val MODEL_FILENAME = "lama-manga-dynamic.onnx"
+        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
+        private const val MODEL_FILENAME = "LaMa_512.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
@@ -414,10 +414,8 @@ class LaMaProcessor(private val context: Context) {
         // This implies the normal model outputs values in 0..255 range directly.
         // Whereas FAST model likely outputs 0..1 range and needs 255 scaling.
 
-        // For standard LaMa model (0..255), amp = 1.
-        // For models outputting 0..1 (like typical ONNX exports or Fast models), amp = 255.
-        // The "lama-manga-dynamic" model outputs in 0..1 range.
-        val amp = 255
+        // So for LaMa_512.onnx (Normal), we multiply by 1.
+        val amp = 1
 
         for (i in 0 until size) {
             val r = (data[i] * amp).toInt().coerceIn(0, 255)
