@@ -499,7 +499,7 @@ class EditorActivity : AppCompatActivity() {
                 canvasView.selectLayer(layer)
 
                 // Remove the bubble overlay
-                canvasView.removeDetectedBubble(rect)
+                canvasView.removeDetectedBubble(bubble)
 
                 // Advance
                 typerAdapter?.advanceSelection()
