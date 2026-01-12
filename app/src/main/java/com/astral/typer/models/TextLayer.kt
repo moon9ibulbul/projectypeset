@@ -87,6 +87,13 @@ class TextLayer(
     // Effect
     var currentEffect: TextEffectType = TextEffectType.NONE
 
+    // Gaussian Blur
+    var blurRadius: Float = 0f
+
+    // Motion Blur
+    var motionBlurLength: Float = 0f
+    var motionBlurAngle: Int = 0
+
     // Random Seed for Glitch effect
     var effectSeed: Long = System.currentTimeMillis()
 
@@ -166,6 +173,9 @@ class TextLayer(
         }
 
         newLayer.currentEffect = this.currentEffect
+        newLayer.blurRadius = this.blurRadius
+        newLayer.motionBlurLength = this.motionBlurLength
+        newLayer.motionBlurAngle = this.motionBlurAngle
         newLayer.effectSeed = this.effectSeed
 
         newLayer.x = this.x
@@ -716,6 +726,68 @@ class TextLayer(
              // Restore
              paint.color = originalColor
 
+        } else if (currentEffect == TextEffectType.GAUSSIAN_BLUR) {
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                 // API 31+ RenderEffect
+                 val node = android.graphics.RenderNode("GaussianBlurNode")
+                 val wInt = w.toInt().coerceAtLeast(1)
+                 val hInt = h.toInt().coerceAtLeast(1)
+                 node.setPosition(0, 0, wInt, hInt)
+
+                 val recordingCanvas = node.beginRecording()
+                 recordingCanvas.translate(-layout.width / 2f, -layout.height / 2f) // Center in node
+                 recordingCanvas.translate(w/2f, h/2f) // Re-center
+                 // Drawing logic in recording canvas
+                 // We need to replicate paint state? No, layout has paint.
+                 layout.draw(recordingCanvas)
+                 node.endRecording()
+
+                 val r = blurRadius.coerceAtLeast(0.1f)
+                 node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+
+                 // Draw the node
+                 canvas.drawRenderNode(node)
+             } else {
+                 // Fallback: MaskFilter
+                 val originalMask = paint.maskFilter
+                 if (blurRadius > 0) {
+                     paint.maskFilter = BlurMaskFilter(blurRadius.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                 }
+                 layout.draw(canvas)
+                 paint.maskFilter = originalMask
+             }
+        } else if (currentEffect == TextEffectType.MOTION_BLUR) {
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                 // API 33+ AGSL
+                 val node = android.graphics.RenderNode("MotionBlurNode")
+                 val wInt = w.toInt().coerceAtLeast(1)
+                 val hInt = h.toInt().coerceAtLeast(1)
+                 node.setPosition(0, 0, wInt, hInt)
+
+                 val recordingCanvas = node.beginRecording()
+                 // Draw content
+                 layout.draw(recordingCanvas)
+                 node.endRecording()
+
+                 // Create RuntimeShader
+                 val shader = android.graphics.RuntimeShader(MOTION_BLUR_SHADER)
+                 val rad = Math.toRadians(motionBlurAngle.toDouble())
+                 shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat())
+                 shader.setFloatUniform("length", motionBlurLength)
+
+                 // RenderEffect
+                 node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                 canvas.drawRenderNode(node)
+             } else {
+                 // Fallback: Standard Blur
+                 val originalMask = paint.maskFilter
+                 val fallbackBlur = motionBlurLength / 2f
+                 if (fallbackBlur > 0) {
+                     paint.maskFilter = BlurMaskFilter(fallbackBlur.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                 }
+                 layout.draw(canvas)
+                 paint.maskFilter = originalMask
+             }
         } else {
             layout.draw(canvas)
         }
@@ -738,5 +810,28 @@ class TextLayer(
         )
         matrix.setPolyToPoly(srcPts, 0, dst, 0, 4)
         return matrix
+    }
+
+    companion object {
+        // AGSL Shader for Motion Blur
+        // Samples along the direction vector centered on the pixel
+        const val MOTION_BLUR_SHADER = """
+            uniform shader content;
+            uniform float2 direction;
+            uniform float length;
+
+            half4 main(float2 coord) {
+                half4 color = half4(0);
+                float total = 0.0;
+                // Sample 15 points
+                for (float i = 0.0; i <= 15.0; i += 1.0) {
+                    float t = i / 15.0;
+                    float offset = (t - 0.5) * length;
+                    color += content.eval(coord + direction * offset);
+                    total += 1.0;
+                }
+                return color / total;
+            }
+        """
     }
 }

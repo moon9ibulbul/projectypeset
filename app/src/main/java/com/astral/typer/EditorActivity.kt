@@ -848,8 +848,54 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
+        // Gaussian Blur
+        layout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
+            layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Motion Blur
+        layout.addView(createCard("Motion Blur", TextEffectType.MOTION_BLUR, layer.currentEffect == TextEffectType.MOTION_BLUR) {
+            layer.currentEffect = TextEffectType.MOTION_BLUR
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
         scroll.addView(layout)
         container.addView(scroll)
+
+        // Settings Container for specific effects
+        val settingsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 8, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        if (layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
+             settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
+                 layer.blurRadius = it.toFloat()
+                 canvasView.invalidate()
+                 (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+             })
+             container.addView(settingsLayout)
+        } else if (layer.currentEffect == TextEffectType.MOTION_BLUR) {
+             settingsLayout.addView(createSlider("Blur Strength: ${layer.motionBlurLength.toInt()}", layer.motionBlurLength.toInt(), 100) {
+                 layer.motionBlurLength = it.toFloat()
+                 canvasView.invalidate()
+                 (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+             })
+
+             settingsLayout.addView(createSlider("Blur Angle: ${layer.motionBlurAngle}°", layer.motionBlurAngle, 360) {
+                 layer.motionBlurAngle = it
+                 canvasView.invalidate()
+                 (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Angle: $it°" }
+             })
+             container.addView(settingsLayout)
+        }
 
         // Restore scroll position
         if (savedScrollX > 0) {

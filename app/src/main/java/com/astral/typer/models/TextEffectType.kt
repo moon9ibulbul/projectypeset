@@ -6,5 +6,7 @@ enum class TextEffectType {
     GLITCH,
     PIXELATION,
     NEON,
-    LONG_SHADOW
+    LONG_SHADOW,
+    GAUSSIAN_BLUR,
+    MOTION_BLUR
 }
