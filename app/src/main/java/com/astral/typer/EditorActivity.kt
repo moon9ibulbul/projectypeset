@@ -2218,9 +2218,11 @@ class EditorActivity : AppCompatActivity() {
 
             // Generate Smart Masks
             // Extract bitmaps on Main Thread
-            val rois = rects.map { rect ->
-                val roi = canvasView.getRegionAsBitmap(rect)
-                Triple(roi, rect.left, rect.top)
+            val rois = withContext(Dispatchers.Main) {
+                rects.map { rect ->
+                    val roi = canvasView.getRegionAsBitmap(rect)
+                    Triple(roi, rect.left, rect.top)
+                }
             }
 
             // Process on Default Thread
@@ -2274,10 +2276,10 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // 2. Simple Dilation (Expand white pixels by 2px to cover anti-aliasing)
+        // 2. Simple Dilation (Expand white pixels significantly to cover strokes and anti-aliasing)
         // This is crucial for clean inpainting.
         val dilatedPixels = IntArray(w * h)
-        val kernelSize = 2
+        val kernelSize = 6
 
         for (y in 0 until h) {
             for (x in 0 until w) {
