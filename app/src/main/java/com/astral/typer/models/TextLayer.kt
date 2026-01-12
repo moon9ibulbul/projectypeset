@@ -766,7 +766,7 @@ class TextLayer(
              paint.color = originalColor
 
         } else if (currentEffect == TextEffectType.GAUSSIAN_BLUR) {
-             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && canvas.isHardwareAccelerated) {
                  // API 31+ RenderEffect
                  val node = android.graphics.RenderNode("GaussianBlurNode")
                  val wInt = w.toInt().coerceAtLeast(1)
@@ -796,7 +796,7 @@ class TextLayer(
                  paint.maskFilter = originalMask
              }
         } else if (currentEffect == TextEffectType.MOTION_BLUR) {
-             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
                  // API 33+ AGSL
                  val node = android.graphics.RenderNode("MotionBlurNode")
                  val wInt = w.toInt().coerceAtLeast(1)
@@ -828,7 +828,7 @@ class TextLayer(
                  paint.maskFilter = originalMask
              }
         } else if (currentEffect == TextEffectType.HALFTONE) {
-             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
                  val node = android.graphics.RenderNode("HalftoneNode")
                  val wInt = w.toInt().coerceAtLeast(1)
                  val hInt = h.toInt().coerceAtLeast(1)
@@ -853,7 +853,7 @@ class TextLayer(
                  layout.draw(canvas)
              }
         } else if (currentEffect == TextEffectType.CRT_SCANLINES) {
-             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
                  val node = android.graphics.RenderNode("CRTNode")
                  val wInt = w.toInt().coerceAtLeast(1)
                  val hInt = h.toInt().coerceAtLeast(1)
