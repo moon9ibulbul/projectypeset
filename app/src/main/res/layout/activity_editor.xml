@@ -196,6 +196,7 @@
                     android:text="@string/style"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
+
                 <Button
                     android:id="@+id/btnPropFont"
                     android:layout_width="wrap_content"
@@ -203,6 +204,7 @@
                     android:text="@string/font"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
+
                  <Button
                     android:id="@+id/btnPropFormat"
                     android:layout_width="wrap_content"
@@ -212,10 +214,10 @@
                     android:textColor="@color/white"/>
 
                  <Button
-                    android:id="@+id/btnPropEffect"
+                    android:id="@+id/btnPropColor"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Effect"
+                    android:text="@string/color"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
 
@@ -227,13 +229,6 @@
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
 
-                 <Button
-                    android:id="@+id/btnPropColor"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/color"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
                   <Button
                     android:id="@+id/btnPropStroke"
                     android:layout_width="wrap_content"
@@ -266,11 +261,27 @@
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
 
+                 <Button
+                    android:id="@+id/btnPropEffect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Effect"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
                   <Button
                     android:id="@+id/btnPropTexture"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Texture"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
+
+                  <Button
+                    android:id="@+id/btnPropOpacity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Opacity"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
 
@@ -295,14 +306,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Warp"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
-
-                  <Button
-                    android:id="@+id/btnPropOpacity"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Opacity"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
             </LinearLayout>

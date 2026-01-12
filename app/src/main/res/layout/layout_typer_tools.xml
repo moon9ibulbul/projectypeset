@@ -26,6 +26,15 @@
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
 
     <ImageView
+        android:id="@+id/btnToolCircle"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/ic_circle"
+        android:padding="8dp"
+        app:tint="@color/white"
+        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+
+    <ImageView
         android:id="@+id/btnToolLasso"
         android:layout_width="40dp"
         android:layout_height="40dp"

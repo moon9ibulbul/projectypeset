@@ -120,6 +120,9 @@ class TextLayer(
     // Chromatic Aberration
     var chromaticShift: Float = 5f
 
+    // Shape
+    var isOval: Boolean = false
+
     // Random Seed for Glitch effect
     var effectSeed: Long = System.currentTimeMillis()
 
@@ -176,6 +179,7 @@ class TextLayer(
         newLayer.doubleStrokeColor = this.doubleStrokeColor
         newLayer.doubleStrokeWidth = this.doubleStrokeWidth
         newLayer.boxWidth = this.boxWidth
+        newLayer.isOval = this.isOval
 
         newLayer.isPerspective = this.isPerspective
         newLayer.perspectivePoints = this.perspectivePoints?.clone()

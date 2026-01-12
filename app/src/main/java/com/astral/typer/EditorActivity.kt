@@ -359,14 +359,16 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        canvasView.onBubbleClickListener = { rect ->
+        canvasView.onBubbleClickListener = { bubble ->
             // User clicked a detected bubble
             if (typerAdapter != null) {
                 val text = typerAdapter?.getSelectedText() ?: "Text"
                 val style = typerAdapter?.getSelectedStyle()
+                val rect = bubble.rect
 
                 // Create Text Layer
                 val layer = TextLayer(text)
+                layer.isOval = bubble.isOval
 
                 // Position centered on rect
                 // The rect is in Global Coords. layer.x/y is global.
@@ -2073,6 +2075,7 @@ class EditorActivity : AppCompatActivity() {
         // Tools Logic
         val btnHand = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolHand)
         val btnRect = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolRect)
+        val btnCircle = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolCircle)
         val btnLasso = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolLasso)
         val btnEraser = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolEraser)
 
@@ -2080,12 +2083,14 @@ class EditorActivity : AppCompatActivity() {
             canvasView.currentTyperTool = tool
             btnHand.setColorFilter(if (tool == AstralCanvasView.TyperTool.HAND) Color.CYAN else Color.WHITE)
             btnRect.setColorFilter(if (tool == AstralCanvasView.TyperTool.RECT) Color.CYAN else Color.WHITE)
+            btnCircle.setColorFilter(if (tool == AstralCanvasView.TyperTool.CIRCLE) Color.CYAN else Color.WHITE)
             btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else Color.WHITE)
             btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else Color.WHITE)
         }
 
         btnHand.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.HAND) }
         btnRect.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.RECT) }
+        btnCircle.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.CIRCLE) }
         btnLasso.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.LASSO) }
         btnEraser.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.ERASER) }
 
@@ -2240,7 +2245,8 @@ class EditorActivity : AppCompatActivity() {
                 loadingDialog?.dismiss()
 
                 if (rects.isNotEmpty()) {
-                    canvasView.setDetectedBubbles(rects)
+                    val bubbles = rects.map { com.astral.typer.views.AstralCanvasView.TyperBubble(it, true) }
+                    canvasView.setDetectedBubbles(bubbles)
                     Toast.makeText(this@EditorActivity, "Detected ${rects.size} bubbles", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this@EditorActivity, "No bubbles detected", Toast.LENGTH_SHORT).show()
@@ -2445,7 +2451,14 @@ class EditorActivity : AppCompatActivity() {
             popup.show()
         }
 
-        // 6. Done (Check)
+        // 6. Shape Toggle (Oval/Rect)
+        addIcon(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square) { view ->
+            layer.isOval = !layer.isOval
+            (view as android.widget.ImageView).setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
+            canvasView.invalidate()
+        }
+
+        // 7. Done (Check)
         addIcon(R.drawable.ic_check) {
             hidePropertyDetail()
             showPropertiesMenu()
@@ -3214,6 +3227,20 @@ class EditorActivity : AppCompatActivity() {
             layer.scaleY *= -1
             canvasView.invalidate()
         }
+
+        // Shape Toggle (Oval/Rect)
+        val btnShape = android.widget.ImageView(this).apply {
+            setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
+            setColorFilter(Color.WHITE)
+            setPadding(0, 16, 0, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                layer.isOval = !layer.isOval
+                setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
+                canvasView.invalidate()
+            }
+        }
+        transformRow.addView(btnShape)
 
         layout.addView(alignRow) // Ensure Align row is added first
         layout.addView(transformRow)
