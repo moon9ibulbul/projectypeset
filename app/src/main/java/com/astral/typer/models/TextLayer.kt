@@ -352,6 +352,8 @@ class TextLayer(
                     text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
                 ).setAlignment(textAlign)
                  .setLineSpacing(lineSpacing, 1.0f)
+                 .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                 .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
 
                 if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     b.setJustificationMode(1)
