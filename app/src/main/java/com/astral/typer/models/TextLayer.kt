@@ -766,27 +766,35 @@ class TextLayer(
              paint.color = originalColor
 
         } else if (currentEffect == TextEffectType.GAUSSIAN_BLUR) {
+             var useRenderEffect = false
              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && canvas.isHardwareAccelerated) {
-                 // API 31+ RenderEffect
-                 val node = android.graphics.RenderNode("GaussianBlurNode")
-                 val wInt = w.toInt().coerceAtLeast(1)
-                 val hInt = h.toInt().coerceAtLeast(1)
-                 node.setPosition(0, 0, wInt, hInt)
+                 try {
+                     // API 31+ RenderEffect
+                     val node = android.graphics.RenderNode("GaussianBlurNode")
+                     val wInt = w.toInt().coerceAtLeast(1)
+                     val hInt = h.toInt().coerceAtLeast(1)
+                     node.setPosition(0, 0, wInt, hInt)
 
-                 val recordingCanvas = node.beginRecording()
-                 recordingCanvas.translate(-layout.width / 2f, -layout.height / 2f) // Center in node
-                 recordingCanvas.translate(w/2f, h/2f) // Re-center
-                 // Drawing logic in recording canvas
-                 // We need to replicate paint state? No, layout has paint.
-                 layout.draw(recordingCanvas)
-                 node.endRecording()
+                     val recordingCanvas = node.beginRecording()
+                     recordingCanvas.translate(-layout.width / 2f, -layout.height / 2f) // Center in node
+                     recordingCanvas.translate(w/2f, h/2f) // Re-center
+                     // Drawing logic in recording canvas
+                     // We need to replicate paint state? No, layout has paint.
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
 
-                 val r = blurRadius.coerceAtLeast(0.1f)
-                 node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+                     val r = blurRadius.coerceAtLeast(0.1f)
+                     node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
 
-                 // Draw the node
-                 canvas.drawRenderNode(node)
-             } else {
+                     // Draw the node
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch (e: Exception) {
+                     android.util.Log.e("TextLayer", "GaussianBlur RenderNode Failed", e)
+                 }
+             }
+
+             if (!useRenderEffect) {
                  // Fallback: MaskFilter
                  val originalMask = paint.maskFilter
                  if (blurRadius > 0) {
@@ -796,28 +804,36 @@ class TextLayer(
                  paint.maskFilter = originalMask
              }
         } else if (currentEffect == TextEffectType.MOTION_BLUR) {
+             var useRenderEffect = false
              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
-                 // API 33+ AGSL
-                 val node = android.graphics.RenderNode("MotionBlurNode")
-                 val wInt = w.toInt().coerceAtLeast(1)
-                 val hInt = h.toInt().coerceAtLeast(1)
-                 node.setPosition(0, 0, wInt, hInt)
+                 try {
+                     // API 33+ AGSL
+                     val node = android.graphics.RenderNode("MotionBlurNode")
+                     val wInt = w.toInt().coerceAtLeast(1)
+                     val hInt = h.toInt().coerceAtLeast(1)
+                     node.setPosition(0, 0, wInt, hInt)
 
-                 val recordingCanvas = node.beginRecording()
-                 // Draw content
-                 layout.draw(recordingCanvas)
-                 node.endRecording()
+                     val recordingCanvas = node.beginRecording()
+                     // Draw content
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
 
-                 // Create RuntimeShader
-                 val shader = android.graphics.RuntimeShader(MOTION_BLUR_SHADER)
-                 val rad = Math.toRadians(motionBlurAngle.toDouble())
-                 shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat())
-                 shader.setFloatUniform("length", motionBlurLength)
+                     // Create RuntimeShader
+                     val shader = android.graphics.RuntimeShader(MOTION_BLUR_SHADER)
+                     val rad = Math.toRadians(motionBlurAngle.toDouble())
+                     shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat())
+                     shader.setFloatUniform("length", motionBlurLength)
 
-                 // RenderEffect
-                 node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                 canvas.drawRenderNode(node)
-             } else {
+                     // RenderEffect
+                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch (e: Exception) {
+                     android.util.Log.e("TextLayer", "MotionBlur RenderNode Failed", e)
+                 }
+             }
+
+             if (!useRenderEffect) {
                  // Fallback: Standard Blur
                  val originalMask = paint.maskFilter
                  val fallbackBlur = motionBlurLength / 2f
@@ -828,48 +844,64 @@ class TextLayer(
                  paint.maskFilter = originalMask
              }
         } else if (currentEffect == TextEffectType.HALFTONE) {
+             var useRenderEffect = false
              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
-                 val node = android.graphics.RenderNode("HalftoneNode")
-                 val wInt = w.toInt().coerceAtLeast(1)
-                 val hInt = h.toInt().coerceAtLeast(1)
-                 node.setPosition(0, 0, wInt, hInt)
+                 try {
+                     val node = android.graphics.RenderNode("HalftoneNode")
+                     val wInt = w.toInt().coerceAtLeast(1)
+                     val hInt = h.toInt().coerceAtLeast(1)
+                     node.setPosition(0, 0, wInt, hInt)
 
-                 val recordingCanvas = node.beginRecording()
-                 layout.draw(recordingCanvas)
-                 node.endRecording()
+                     val recordingCanvas = node.beginRecording()
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
 
-                 val shader = android.graphics.RuntimeShader(HALFTONE_SHADER)
-                 shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f))
-                 shader.setFloatUniform("threshold", halftoneThreshold)
-                 val r = Color.red(halftoneDotColor) / 255f
-                 val g = Color.green(halftoneDotColor) / 255f
-                 val b = Color.blue(halftoneDotColor) / 255f
-                 shader.setFloatUniform("dotColor", r, g, b)
+                     val shader = android.graphics.RuntimeShader(HALFTONE_SHADER)
+                     shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f))
+                     shader.setFloatUniform("threshold", halftoneThreshold)
+                     val r = Color.red(halftoneDotColor) / 255f
+                     val g = Color.green(halftoneDotColor) / 255f
+                     val b = Color.blue(halftoneDotColor) / 255f
+                     shader.setFloatUniform("dotColor", r, g, b)
 
-                 node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                 canvas.drawRenderNode(node)
-             } else {
+                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch (e: Exception) {
+                     android.util.Log.e("TextLayer", "Halftone RenderNode Failed", e)
+                 }
+             }
+
+             if (!useRenderEffect) {
                  // Fallback: Just draw standard text for now (Halftone hard without shaders)
                  layout.draw(canvas)
              }
         } else if (currentEffect == TextEffectType.CRT_SCANLINES) {
+             var useRenderEffect = false
              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
-                 val node = android.graphics.RenderNode("CRTNode")
-                 val wInt = w.toInt().coerceAtLeast(1)
-                 val hInt = h.toInt().coerceAtLeast(1)
-                 node.setPosition(0, 0, wInt, hInt)
+                 try {
+                     val node = android.graphics.RenderNode("CRTNode")
+                     val wInt = w.toInt().coerceAtLeast(1)
+                     val hInt = h.toInt().coerceAtLeast(1)
+                     node.setPosition(0, 0, wInt, hInt)
 
-                 val recordingCanvas = node.beginRecording()
-                 layout.draw(recordingCanvas)
-                 node.endRecording()
+                     val recordingCanvas = node.beginRecording()
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
 
-                 val shader = android.graphics.RuntimeShader(CRT_SHADER)
-                 shader.setFloatUniform("lineHeight", crtLineHeight.coerceAtLeast(1f))
-                 shader.setFloatUniform("intensity", crtIntensity)
+                     val shader = android.graphics.RuntimeShader(CRT_SHADER)
+                     shader.setFloatUniform("lineHeight", crtLineHeight.coerceAtLeast(1f))
+                     shader.setFloatUniform("intensity", crtIntensity)
 
-                 node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                 canvas.drawRenderNode(node)
-             } else {
+                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch (e: Exception) {
+                     android.util.Log.e("TextLayer", "CRT RenderNode Failed", e)
+                 }
+             }
+
+             if (!useRenderEffect) {
                  // Fallback: Draw lines on top
                  layout.draw(canvas)
                  val originalStyle = paint.style

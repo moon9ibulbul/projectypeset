@@ -732,24 +732,32 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showEffectMenu() {
-        // Save scroll position
-        val savedScrollX = if (binding.propertyDetailContainer.childCount > 0) {
-            val child = binding.propertyDetailContainer.getChildAt(0)
-            if (child is HorizontalScrollView) child.scrollX else 0
-        } else 0
-
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
 
-        val scroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
+        // Wrap everything in a ScrollView to ensure sliders are visible on small screens/landscape
+        val mainScroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        mainScroll.addView(mainLayout)
+        container.addView(mainScroll)
 
-        val layout = LinearLayout(this).apply {
+        val cardsScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val cardsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(16, 16, 16, 16)
         }
@@ -807,77 +815,87 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // None
-        layout.addView(createCard("None", TextEffectType.NONE, layer.currentEffect == TextEffectType.NONE) {
+        cardsLayout.addView(createCard("None", TextEffectType.NONE, layer.currentEffect == TextEffectType.NONE) {
             layer.currentEffect = TextEffectType.NONE
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Chromatic Aberration
-        layout.addView(createCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION, layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
+        cardsLayout.addView(createCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION, layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
             layer.currentEffect = TextEffectType.CHROMATIC_ABERRATION
+            if (layer.chromaticShift == 0f) layer.chromaticShift = 5f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Glitch
-        layout.addView(createCard("Glitch", TextEffectType.GLITCH, layer.currentEffect == TextEffectType.GLITCH) {
+        cardsLayout.addView(createCard("Glitch", TextEffectType.GLITCH, layer.currentEffect == TextEffectType.GLITCH) {
             layer.currentEffect = TextEffectType.GLITCH
+            if (layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Pixelation
-        layout.addView(createCard("Pixelation", TextEffectType.PIXELATION, layer.currentEffect == TextEffectType.PIXELATION) {
+        cardsLayout.addView(createCard("Pixelation", TextEffectType.PIXELATION, layer.currentEffect == TextEffectType.PIXELATION) {
             layer.currentEffect = TextEffectType.PIXELATION
+            if (layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Neon
-        layout.addView(createCard("Neon", TextEffectType.NEON, layer.currentEffect == TextEffectType.NEON) {
+        cardsLayout.addView(createCard("Neon", TextEffectType.NEON, layer.currentEffect == TextEffectType.NEON) {
             layer.currentEffect = TextEffectType.NEON
+            if (layer.neonRadius == 0f) layer.neonRadius = 30f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Long Shadow
-        layout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
+        cardsLayout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
             layer.currentEffect = TextEffectType.LONG_SHADOW
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Gaussian Blur
-        layout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
+        cardsLayout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
             layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
+            if (layer.blurRadius == 0f) layer.blurRadius = 10f // Set Default
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Motion Blur
-        layout.addView(createCard("Motion Blur", TextEffectType.MOTION_BLUR, layer.currentEffect == TextEffectType.MOTION_BLUR) {
+        cardsLayout.addView(createCard("Motion Blur", TextEffectType.MOTION_BLUR, layer.currentEffect == TextEffectType.MOTION_BLUR) {
             layer.currentEffect = TextEffectType.MOTION_BLUR
+            if (layer.motionBlurLength == 0f) layer.motionBlurLength = 20f // Set Default
+            if (layer.motionBlurAngle == 0) layer.motionBlurAngle = 45
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Halftone
-        layout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
+        cardsLayout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
             layer.currentEffect = TextEffectType.HALFTONE
+            if (layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // CRT Scanlines
-        layout.addView(createCard("CRT", TextEffectType.CRT_SCANLINES, layer.currentEffect == TextEffectType.CRT_SCANLINES) {
+        cardsLayout.addView(createCard("CRT", TextEffectType.CRT_SCANLINES, layer.currentEffect == TextEffectType.CRT_SCANLINES) {
             layer.currentEffect = TextEffectType.CRT_SCANLINES
+            if (layer.crtIntensity == 0f) layer.crtIntensity = 0.5f
+            if (layer.crtLineHeight == 0f) layer.crtLineHeight = 5f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
-        scroll.addView(layout)
-        container.addView(scroll)
+        cardsScroll.addView(cardsLayout)
+        mainLayout.addView(cardsScroll)
 
         // Settings Container for specific effects
         val settingsLayout = LinearLayout(this).apply {
@@ -981,12 +999,7 @@ class EditorActivity : AppCompatActivity() {
             else -> {}
         }
 
-        container.addView(settingsLayout)
-
-        // Restore scroll position
-        if (savedScrollX > 0) {
-            scroll.post { scroll.scrollTo(savedScrollX, 0) }
-        }
+        mainLayout.addView(settingsLayout)
     }
 
     private fun showTextureMenu() {
