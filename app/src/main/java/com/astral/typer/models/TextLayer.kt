@@ -353,6 +353,51 @@ class TextLayer(
             if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 builder.setJustificationMode(1)
             }
+
+            // Oval Shape Support (API 23+)
+            if (isOval && boxWidth != null && boxWidth!! > 0) {
+                // Heuristic: Iterate to find height and indents
+                // Pass 1: Build basic layout to estimate height
+                val tempLayout = builder.build()
+                val height = tempLayout.height
+                val halfH = height / 2f
+                val halfW = layoutWidth / 2f
+
+                val leftIndents = IntArray(height)
+                val rightIndents = IntArray(height)
+
+                // We can't set per-pixel indents easily without complex span logic or LineBreaker (API 29+).
+                // However, setIndents accepts arrays for lines.
+                // But we don't know line count exactly before layout.
+                // Use a simplified approach: padding based on height.
+                // Or better: calculate indents based on line index if we assume line height?
+                // Problem: StaticLayout.Builder.setIndents uses arrays that cycle if shorter than line count.
+                // We need to provide enough values or accept cycling.
+
+                // Let's assume a standard line height to generate the indent array
+                val lineHeight = textPaint.fontMetrics.bottom - textPaint.fontMetrics.top + lineSpacing
+                val estLines = (height / lineHeight).toInt() + 2 // buffer
+
+                val lIndents = IntArray(estLines)
+                val rIndents = IntArray(estLines)
+
+                for (i in 0 until estLines) {
+                    val y = (i * lineHeight) - halfH + (lineHeight/2f)
+                    // Oval: (x/a)^2 + (y/b)^2 = 1 => x = a * sqrt(1 - (y/b)^2)
+                    // Available width at y is 2*x.
+                    // Indent is a - x.
+                    val normalizedY = (y / halfH).coerceIn(-1f, 1f)
+                    val widthFactor = kotlin.math.sqrt(1f - normalizedY * normalizedY)
+                    val availableHalfWidth = halfW * widthFactor
+                    val indent = (halfW - availableHalfWidth).toInt().coerceAtLeast(0)
+
+                    lIndents[i] = indent
+                    rIndents[i] = indent
+                }
+
+                builder.setIndents(lIndents, rIndents)
+            }
+
             cachedLayout = builder.build()
         } else {
             cachedLayout = StaticLayout(

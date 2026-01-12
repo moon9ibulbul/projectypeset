@@ -2240,7 +2240,8 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
 
         lifecycleScope.launch {
-            val rects = bubbleProcessor.detect(bg)
+            // Increase boxScale to 0.90 as requested
+            val rects = bubbleProcessor.detect(bg, boxScale = 0.90f)
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
 
