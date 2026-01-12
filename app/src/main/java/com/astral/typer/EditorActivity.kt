@@ -732,24 +732,32 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showEffectMenu() {
-        // Save scroll position
-        val savedScrollX = if (binding.propertyDetailContainer.childCount > 0) {
-            val child = binding.propertyDetailContainer.getChildAt(0)
-            if (child is HorizontalScrollView) child.scrollX else 0
-        } else 0
-
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
 
-        val scroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
+        // Wrap everything in a ScrollView to ensure sliders are visible on small screens/landscape
+        val mainScroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        mainScroll.addView(mainLayout)
+        container.addView(mainScroll)
 
-        val layout = LinearLayout(this).apply {
+        val cardsScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val cardsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(16, 16, 16, 16)
         }
@@ -807,54 +815,175 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // None
-        layout.addView(createCard("None", TextEffectType.NONE, layer.currentEffect == TextEffectType.NONE) {
+        cardsLayout.addView(createCard("None", TextEffectType.NONE, layer.currentEffect == TextEffectType.NONE) {
             layer.currentEffect = TextEffectType.NONE
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Chromatic Aberration
-        layout.addView(createCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION, layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
+        cardsLayout.addView(createCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION, layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
             layer.currentEffect = TextEffectType.CHROMATIC_ABERRATION
+            if (layer.chromaticShift == 0f) layer.chromaticShift = 5f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Glitch
-        layout.addView(createCard("Glitch", TextEffectType.GLITCH, layer.currentEffect == TextEffectType.GLITCH) {
+        cardsLayout.addView(createCard("Glitch", TextEffectType.GLITCH, layer.currentEffect == TextEffectType.GLITCH) {
             layer.currentEffect = TextEffectType.GLITCH
+            if (layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Pixelation
-        layout.addView(createCard("Pixelation", TextEffectType.PIXELATION, layer.currentEffect == TextEffectType.PIXELATION) {
+        cardsLayout.addView(createCard("Pixelation", TextEffectType.PIXELATION, layer.currentEffect == TextEffectType.PIXELATION) {
             layer.currentEffect = TextEffectType.PIXELATION
+            if (layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Neon
-        layout.addView(createCard("Neon", TextEffectType.NEON, layer.currentEffect == TextEffectType.NEON) {
+        cardsLayout.addView(createCard("Neon", TextEffectType.NEON, layer.currentEffect == TextEffectType.NEON) {
             layer.currentEffect = TextEffectType.NEON
+            if (layer.neonRadius == 0f) layer.neonRadius = 30f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
         // Long Shadow
-        layout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
+        cardsLayout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
             layer.currentEffect = TextEffectType.LONG_SHADOW
+            if (layer.longShadowLength == 0f) layer.longShadowLength = 30f // Default
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
 
-        scroll.addView(layout)
-        container.addView(scroll)
+        // Gaussian Blur
+        cardsLayout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
+            layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
+            if (layer.blurRadius == 0f) layer.blurRadius = 10f // Set Default
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
 
-        // Restore scroll position
-        if (savedScrollX > 0) {
-            scroll.post { scroll.scrollTo(savedScrollX, 0) }
+        // Halftone
+        cardsLayout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
+            layer.currentEffect = TextEffectType.HALFTONE
+            if (layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        cardsScroll.addView(cardsLayout)
+        mainLayout.addView(cardsScroll)
+
+        // Settings Container for specific effects
+        val settingsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 8, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
         }
+
+        when (layer.currentEffect) {
+            TextEffectType.LONG_SHADOW -> {
+                settingsLayout.addView(createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
+                    layer.longShadowLength = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Length: $it" }
+                })
+                val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.longShadowColor,
+                    { c -> layer.longShadowColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.longShadowColor) { c -> layer.longShadowColor = c; canvasView.invalidate() } }
+                ))
+            }
+            TextEffectType.GAUSSIAN_BLUR -> {
+                settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
+                    layer.blurRadius = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+                })
+            }
+            TextEffectType.HALFTONE -> {
+                settingsLayout.addView(createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
+                    layer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Dot Size: $it" }
+                })
+                val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.halftoneDotColor,
+                    { c -> layer.halftoneDotColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.halftoneDotColor) { c -> layer.halftoneDotColor = c; canvasView.invalidate() } }
+                ))
+            }
+            TextEffectType.CRT_SCANLINES -> {
+                settingsLayout.addView(createSlider("Intensity: ${(layer.crtIntensity * 100).toInt()}%", (layer.crtIntensity * 100).toInt(), 100) {
+                    layer.crtIntensity = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                })
+                settingsLayout.addView(createSlider("Line Height: ${layer.crtLineHeight.toInt()}", layer.crtLineHeight.toInt().coerceIn(2, 50), 50) {
+                    layer.crtLineHeight = it.coerceAtLeast(2).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Line Height: $it" }
+                })
+            }
+            TextEffectType.NEON -> {
+                settingsLayout.addView(createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
+                    layer.neonRadius = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Glow Radius: $it" }
+                })
+                val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.neonColor,
+                    { c -> layer.neonColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.neonColor) { c -> layer.neonColor = c; canvasView.invalidate() } }
+                ))
+            }
+            TextEffectType.GLITCH -> {
+                settingsLayout.addView(createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
+                    layer.glitchIntensity = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                })
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Seed"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        layer.effectSeed = System.currentTimeMillis()
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
+            }
+            TextEffectType.PIXELATION -> {
+                settingsLayout.addView(createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
+                    layer.pixelBlockSize = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Block Size: $it" }
+                })
+            }
+            TextEffectType.CHROMATIC_ABERRATION -> {
+                settingsLayout.addView(createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
+                    layer.chromaticShift = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
+                })
+            }
+            else -> {}
+        }
+
+        mainLayout.addView(settingsLayout)
     }
 
     private fun showTextureMenu() {
