@@ -97,8 +97,10 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     enum class TyperTool {
-        HAND, RECT, LASSO, ERASER
+        HAND, RECT, CIRCLE, LASSO, ERASER
     }
+
+    data class TyperBubble(val rect: RectF, val isOval: Boolean)
 
     var currentInpaintTool = InpaintTool.BRUSH
     var currentTyperTool = TyperTool.HAND
@@ -606,7 +608,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private var currentMode = Mode.NONE
-    private var detectedBubbles: List<RectF>? = null
+    private var detectedBubbles: List<TyperBubble>? = null
     private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.GREEN
         style = Paint.Style.FILL
@@ -629,18 +631,18 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setDetectedBubbles(bubbles: List<RectF>) {
+    fun setDetectedBubbles(bubbles: List<TyperBubble>) {
         detectedBubbles = bubbles
         invalidate()
     }
 
-    fun getDetectedBubbles(): List<RectF> {
+    fun getDetectedBubbles(): List<TyperBubble> {
         return detectedBubbles ?: emptyList()
     }
 
-    fun removeDetectedBubble(rect: RectF) {
+    fun removeDetectedBubble(bubble: TyperBubble) {
         if (detectedBubbles != null) {
-            detectedBubbles = detectedBubbles!!.filter { it != rect }
+            detectedBubbles = detectedBubbles!!.filter { it != bubble }
             invalidate()
         }
     }
@@ -704,7 +706,7 @@ class AstralCanvasView @JvmOverloads constructor(
     var onLayerSelectedListener: OnLayerSelectedListener? = null
     var onLayerEditListener: OnLayerEditListener? = null
     var onLayerUpdateListener: OnLayerUpdateListener? = null
-    var onBubbleClickListener: ((RectF) -> Unit)? = null
+    var onBubbleClickListener: ((TyperBubble) -> Unit)? = null
 
     fun addTextLayer(text: String) {
         val center = getViewportCenter()
@@ -864,9 +866,14 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Detected Bubbles (Bottom Layer overlay)
         if (isTyperActive && detectedBubbles != null) {
-            for (rect in detectedBubbles!!) {
-                canvas.drawRect(rect, bubblePaint)
-                canvas.drawRect(rect, bubbleStrokePaint)
+            for (bubble in detectedBubbles!!) {
+                if (bubble.isOval) {
+                    canvas.drawOval(bubble.rect, bubblePaint)
+                    canvas.drawOval(bubble.rect, bubbleStrokePaint)
+                } else {
+                    canvas.drawRect(bubble.rect, bubblePaint)
+                    canvas.drawRect(bubble.rect, bubbleStrokePaint)
+                }
             }
 
             // Draw Typer Current Path
@@ -874,6 +881,8 @@ class AstralCanvasView @JvmOverloads constructor(
                  if (currentTyperTool == TyperTool.LASSO) {
                      canvas.drawPath(currentTyperPath, lassoStrokePaint)
                  } else if (currentTyperTool == TyperTool.RECT) {
+                     canvas.drawPath(currentTyperPath, bubbleStrokePaint)
+                 } else if (currentTyperTool == TyperTool.CIRCLE) {
                      canvas.drawPath(currentTyperPath, bubbleStrokePaint)
                  }
             }
@@ -1117,7 +1126,12 @@ class AstralCanvasView @JvmOverloads constructor(
         paint.color = Color.BLUE
         paint.strokeWidth = 3f / avgScale
         val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
-        canvas.drawRect(box, paint)
+
+        if (layer is TextLayer && layer.isOval) {
+            canvas.drawOval(box, paint)
+        } else {
+            canvas.drawRect(box, paint)
+        }
 
         if (currentMode == Mode.ERASE_LAYER) {
             canvas.restore()
@@ -1249,25 +1263,36 @@ class AstralCanvasView @JvmOverloads constructor(
                 // If no layer is hit, we will handle Pan/Zoom in the fall-through logic.
             } else {
                 when(currentTyperTool) {
-                    TyperTool.RECT -> {
+                    TyperTool.RECT, TyperTool.CIRCLE -> {
                         when(event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> {
                                  startTouchX = cx
                                  startTouchY = cy
                                  currentTyperPath.reset()
-                                 currentTyperPath.addRect(cx, cy, cx, cy, Path.Direction.CW)
+                                 if (currentTyperTool == TyperTool.CIRCLE) {
+                                     currentTyperPath.addOval(cx, cy, cx, cy, Path.Direction.CW)
+                                 } else {
+                                     currentTyperPath.addRect(cx, cy, cx, cy, Path.Direction.CW)
+                                 }
                                  invalidate()
                             }
                             MotionEvent.ACTION_MOVE -> {
                                  currentTyperPath.reset()
-                                 currentTyperPath.addRect(startTouchX, startTouchY, cx, cy, Path.Direction.CW)
+                                 if (currentTyperTool == TyperTool.CIRCLE) {
+                                     val rect = RectF(startTouchX, startTouchY, cx, cy)
+                                     rect.sort()
+                                     currentTyperPath.addOval(rect, Path.Direction.CW)
+                                 } else {
+                                     currentTyperPath.addRect(startTouchX, startTouchY, cx, cy, Path.Direction.CW)
+                                 }
                                  invalidate()
                             }
                             MotionEvent.ACTION_UP -> {
                                  val rect = RectF(startTouchX, startTouchY, cx, cy)
                                  rect.sort()
                                  if (rect.width() > 10 && rect.height() > 10) {
-                                      val newList = (detectedBubbles ?: emptyList()) + rect
+                                      val isOval = (currentTyperTool == TyperTool.CIRCLE)
+                                      val newList = (detectedBubbles ?: emptyList()) + TyperBubble(rect, isOval)
                                       setDetectedBubbles(newList)
                                  }
                                  currentTyperPath.reset()
@@ -1290,7 +1315,8 @@ class AstralCanvasView @JvmOverloads constructor(
                                  val bounds = RectF()
                                  currentTyperPath.computeBounds(bounds, true)
                                  if (bounds.width() > 10 && bounds.height() > 10) {
-                                      val newList = (detectedBubbles ?: emptyList()) + bounds
+                                      // Lasso creates Oval bubble as per requirement
+                                      val newList = (detectedBubbles ?: emptyList()) + TyperBubble(bounds, true)
                                       setDetectedBubbles(newList)
                                  }
                                  currentTyperPath.reset()
@@ -1302,7 +1328,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          if (event.actionMasked == MotionEvent.ACTION_UP) {
                              if (detectedBubbles != null) {
                                  // Find bubble to delete
-                                 val toDelete = detectedBubbles!!.find { it.contains(cx, cy) }
+                                 val toDelete = detectedBubbles!!.find { it.rect.contains(cx, cy) }
                                  if (toDelete != null) {
                                      removeDetectedBubble(toDelete)
                                  }
@@ -1857,7 +1883,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
                 if (isTyperActive && currentTyperTool == TyperTool.HAND && currentMode == Mode.PAN_ZOOM) {
                      if (!hasMoved && detectedBubbles != null) {
-                         val clickedBubble = detectedBubbles!!.find { it.contains(cx, cy) }
+                         val clickedBubble = detectedBubbles!!.find { it.rect.contains(cx, cy) }
                          if (clickedBubble != null) {
                              onBubbleClickListener?.invoke(clickedBubble)
                          }

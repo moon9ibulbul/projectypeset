@@ -359,14 +359,16 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        canvasView.onBubbleClickListener = { rect ->
+        canvasView.onBubbleClickListener = { bubble ->
             // User clicked a detected bubble
             if (typerAdapter != null) {
                 val text = typerAdapter?.getSelectedText() ?: "Text"
                 val style = typerAdapter?.getSelectedStyle()
+                val rect = bubble.rect
 
                 // Create Text Layer
                 val layer = TextLayer(text)
+                layer.isOval = bubble.isOval
 
                 // Position centered on rect
                 // The rect is in Global Coords. layer.x/y is global.
@@ -430,61 +432,98 @@ class EditorActivity : AppCompatActivity() {
                 val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
                 val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
+                // Calculate Max Word Width to prevent splitting
+                val paint = android.text.TextPaint().apply {
+                    textSize = layer.fontSize
+                    typeface = layer.typeface
+                    letterSpacing = layer.letterSpacing
+                }
+                val textStr = layer.text.toString()
+                // Split by spaces to find longest word
+                val words = textStr.split("\\s+".toRegex())
+                var maxWordWidth = 0f
+                for (word in words) {
+                    val w = paint.measureText(word)
+                    if (w > maxWordWidth) maxWordWidth = w
+                }
+                // Add padding to max word width
+                maxWordWidth += 40f
+
                 // 4. Determine if content is "Dense" (heuristic: length > 20 chars)
                 val isDense = layer.text.length > 20
 
                 if (isDense) {
                     // Dense: Optimize boxWidth to match Aspect Ratio of Target
-                    // Goal: Match the Green Area (Fill Width and Height)
-                    // We calculate an ideal boxWidth that results in a text block with Aspect Ratio ≈ Target Aspect Ratio.
 
-                    // Measure Height at full width first to estimate Area
-                    layer.boxWidth = targetWidth
-                    layer.scaleX = 1f; layer.scaleY = 1f
-                    val currentH = layer.getHeight()
+                    // Measure Height at arbitrary large width to estimate Area
+                    layer.boxWidth = 1000f
+                    val refH = layer.getHeight()
 
-                    // Estimate Ideal Width based on Area Conservation
-                    // Area ≈ targetWidth * currentH
-                    // Target Aspect = targetWidth / targetHeight
-                    // Ideal Width ≈ sqrt(Area * Target Aspect)
-                    val area = targetWidth * currentH
+                    val estimatedArea = 1000f * refH
                     val targetAspect = targetWidth / targetHeight
-                    val idealWidth = kotlin.math.sqrt(area * targetAspect)
+
+                    // Ideal Width in Local Space
+                    var idealWidth = kotlin.math.sqrt(estimatedArea * targetAspect)
+
+                    // Constraint 1: Must be at least Max Word Width
+                    if (idealWidth < maxWordWidth) idealWidth = maxWordWidth
+
+                    // Constraint 2: Oval Adjustment
+                    // Ovals have less effective width at top/bottom.
+                    // Expanding width gives more room for text to flow without breaking.
+                    if (layer.isOval) {
+                        idealWidth *= 1.2f
+                    }
 
                     // Apply Ideal Width
                     layer.boxWidth = idealWidth
 
-                    // Recalculate dimensions
+                    // Recalculate dimensions (Local Space)
                     val newH = layer.getHeight()
 
-                    // Calculate Scale to fit Target Box (Contain)
+                    // Calculate Scale to fit Target Box (Screen Space)
                     val scaleX = targetWidth / idealWidth
                     val scaleY = targetHeight / newH
-                    val finalScale = minOf(scaleX, scaleY)
+
+                    var finalScale = minOf(scaleX, scaleY)
+
+                    // If oval, boost scale slightly to fill better (resize permission)
+                    if (layer.isOval) {
+                         finalScale *= 1.15f
+                    }
 
                     layer.scaleX = finalScale
                     layer.scaleY = finalScale
+
                 } else {
-                    // Sparse: Hybrid Logic (Fixed)
-                    // 1. Measure Natural Width without forced constraints
+                    // Sparse
                     layer.boxWidth = null
-                    val naturalWidth = layer.getWidth()
+                    val naturalWidth = layer.getWidth() // Local natural width
 
-                    // 2. Set boxWidth to MAX(NaturalWidth, TargetWidth)
-                    // If text is short ("OK"), boxWidth = TargetWidth (Handles match bubble).
-                    // If text is long ("Hello World..."), boxWidth = NaturalWidth (No forced wrapping).
-                    val safeWidth = naturalWidth + 20f
-                    layer.boxWidth = if (safeWidth > targetWidth) safeWidth else targetWidth
+                    var chosenWidth = naturalWidth + 40f // Padding
 
-                    // 3. Fit in Box Logic
+                    // Ensure we accommodate maxWordWidth (Local)
+                    if (chosenWidth < maxWordWidth) chosenWidth = maxWordWidth
+
+                    if (layer.isOval) {
+                        chosenWidth *= 1.15f
+                    }
+
+                    layer.boxWidth = chosenWidth
                     val newH = layer.getHeight()
-                    val scaleX = targetWidth / layer.boxWidth!!
+
+                    val scaleX = targetWidth / chosenWidth
                     val scaleY = targetHeight / newH
 
-                    val fitScale = minOf(scaleX, scaleY)
+                    var finalScale = minOf(scaleX, scaleY)
 
                     // Cap at 1.0 to prevent blowing up small text
-                    val finalScale = if (fitScale < 1f) fitScale else 1f
+                    if (finalScale > 1f) finalScale = 1f
+
+                    if (layer.isOval) {
+                         // Allow slightly larger if oval to fill
+                         finalScale *= 1.15f
+                    }
 
                     layer.scaleX = finalScale
                     layer.scaleY = finalScale
@@ -497,7 +536,7 @@ class EditorActivity : AppCompatActivity() {
                 canvasView.selectLayer(layer)
 
                 // Remove the bubble overlay
-                canvasView.removeDetectedBubble(rect)
+                canvasView.removeDetectedBubble(bubble)
 
                 // Advance
                 typerAdapter?.advanceSelection()
@@ -2073,6 +2112,7 @@ class EditorActivity : AppCompatActivity() {
         // Tools Logic
         val btnHand = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolHand)
         val btnRect = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolRect)
+        val btnCircle = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolCircle)
         val btnLasso = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolLasso)
         val btnEraser = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolEraser)
 
@@ -2080,12 +2120,14 @@ class EditorActivity : AppCompatActivity() {
             canvasView.currentTyperTool = tool
             btnHand.setColorFilter(if (tool == AstralCanvasView.TyperTool.HAND) Color.CYAN else Color.WHITE)
             btnRect.setColorFilter(if (tool == AstralCanvasView.TyperTool.RECT) Color.CYAN else Color.WHITE)
+            btnCircle.setColorFilter(if (tool == AstralCanvasView.TyperTool.CIRCLE) Color.CYAN else Color.WHITE)
             btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else Color.WHITE)
             btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else Color.WHITE)
         }
 
         btnHand.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.HAND) }
         btnRect.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.RECT) }
+        btnCircle.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.CIRCLE) }
         btnLasso.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.LASSO) }
         btnEraser.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.ERASER) }
 
@@ -2235,12 +2277,14 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
 
         lifecycleScope.launch {
-            val rects = bubbleProcessor.detect(bg)
+            // Increase boxScale to 0.90 as requested
+            val rects = bubbleProcessor.detect(bg, boxScale = 0.90f)
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
 
                 if (rects.isNotEmpty()) {
-                    canvasView.setDetectedBubbles(rects)
+                    val bubbles = rects.map { com.astral.typer.views.AstralCanvasView.TyperBubble(it, true) }
+                    canvasView.setDetectedBubbles(bubbles)
                     Toast.makeText(this@EditorActivity, "Detected ${rects.size} bubbles", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this@EditorActivity, "No bubbles detected", Toast.LENGTH_SHORT).show()
@@ -2445,7 +2489,14 @@ class EditorActivity : AppCompatActivity() {
             popup.show()
         }
 
-        // 6. Done (Check)
+        // 6. Shape Toggle (Oval/Rect)
+        addIcon(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square) { view ->
+            layer.isOval = !layer.isOval
+            (view as android.widget.ImageView).setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
+            canvasView.invalidate()
+        }
+
+        // 7. Done (Check)
         addIcon(R.drawable.ic_check) {
             hidePropertyDetail()
             showPropertiesMenu()
@@ -3214,6 +3265,20 @@ class EditorActivity : AppCompatActivity() {
             layer.scaleY *= -1
             canvasView.invalidate()
         }
+
+        // Shape Toggle (Oval/Rect)
+        val btnShape = android.widget.ImageView(this).apply {
+            setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
+            setColorFilter(Color.WHITE)
+            setPadding(0, 16, 0, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                layer.isOval = !layer.isOval
+                setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
+                canvasView.invalidate()
+            }
+        }
+        transformRow.addView(btnShape)
 
         layout.addView(alignRow) // Ensure Align row is added first
         layout.addView(transformRow)
