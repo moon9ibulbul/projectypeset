@@ -862,6 +862,20 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
+        // Halftone
+        layout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
+            layer.currentEffect = TextEffectType.HALFTONE
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // CRT Scanlines
+        layout.addView(createCard("CRT", TextEffectType.CRT_SCANLINES, layer.currentEffect == TextEffectType.CRT_SCANLINES) {
+            layer.currentEffect = TextEffectType.CRT_SCANLINES
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
         scroll.addView(layout)
         container.addView(scroll)
 
@@ -875,27 +889,99 @@ class EditorActivity : AppCompatActivity() {
             )
         }
 
-        if (layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
-             settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
-                 layer.blurRadius = it.toFloat()
-                 canvasView.invalidate()
-                 (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
-             })
-             container.addView(settingsLayout)
-        } else if (layer.currentEffect == TextEffectType.MOTION_BLUR) {
-             settingsLayout.addView(createSlider("Blur Strength: ${layer.motionBlurLength.toInt()}", layer.motionBlurLength.toInt(), 100) {
-                 layer.motionBlurLength = it.toFloat()
-                 canvasView.invalidate()
-                 (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
-             })
-
-             settingsLayout.addView(createSlider("Blur Angle: ${layer.motionBlurAngle}°", layer.motionBlurAngle, 360) {
-                 layer.motionBlurAngle = it
-                 canvasView.invalidate()
-                 (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Angle: $it°" }
-             })
-             container.addView(settingsLayout)
+        when (layer.currentEffect) {
+            TextEffectType.GAUSSIAN_BLUR -> {
+                settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
+                    layer.blurRadius = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+                })
+            }
+            TextEffectType.MOTION_BLUR -> {
+                settingsLayout.addView(createSlider("Blur Strength: ${layer.motionBlurLength.toInt()}", layer.motionBlurLength.toInt(), 100) {
+                    layer.motionBlurLength = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+                })
+                settingsLayout.addView(createSlider("Blur Angle: ${layer.motionBlurAngle}°", layer.motionBlurAngle, 360) {
+                    layer.motionBlurAngle = it
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Angle: $it°" }
+                })
+            }
+            TextEffectType.HALFTONE -> {
+                settingsLayout.addView(createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
+                    layer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Dot Size: $it" }
+                })
+                val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.halftoneDotColor,
+                    { c -> layer.halftoneDotColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.halftoneDotColor) { c -> layer.halftoneDotColor = c; canvasView.invalidate() } }
+                ))
+            }
+            TextEffectType.CRT_SCANLINES -> {
+                settingsLayout.addView(createSlider("Intensity: ${(layer.crtIntensity * 100).toInt()}%", (layer.crtIntensity * 100).toInt(), 100) {
+                    layer.crtIntensity = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                })
+                settingsLayout.addView(createSlider("Line Height: ${layer.crtLineHeight.toInt()}", layer.crtLineHeight.toInt().coerceIn(2, 50), 50) {
+                    layer.crtLineHeight = it.coerceAtLeast(2).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Line Height: $it" }
+                })
+            }
+            TextEffectType.NEON -> {
+                settingsLayout.addView(createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
+                    layer.neonRadius = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Glow Radius: $it" }
+                })
+                val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.neonColor,
+                    { c -> layer.neonColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.neonColor) { c -> layer.neonColor = c; canvasView.invalidate() } }
+                ))
+            }
+            TextEffectType.GLITCH -> {
+                settingsLayout.addView(createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
+                    layer.glitchIntensity = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                })
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Seed"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        layer.effectSeed = System.currentTimeMillis()
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
+            }
+            TextEffectType.PIXELATION -> {
+                settingsLayout.addView(createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
+                    layer.pixelBlockSize = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Block Size: $it" }
+                })
+            }
+            TextEffectType.CHROMATIC_ABERRATION -> {
+                settingsLayout.addView(createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
+                    layer.chromaticShift = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
+                })
+            }
+            else -> {}
         }
+
+        container.addView(settingsLayout)
 
         // Restore scroll position
         if (savedScrollX > 0) {
