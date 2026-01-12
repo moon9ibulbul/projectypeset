@@ -2215,16 +2215,102 @@ class EditorActivity : AppCompatActivity() {
             // Class 1 (text_bubble) and 2 (text_free)
             // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
             val rects = bubbleProcessor.detect(bg, setOf(1L, 2L), 1.0f)
+
+            // Generate Smart Masks
+            // Extract bitmaps on Main Thread
+            val rois = rects.map { rect ->
+                val roi = canvasView.getRegionAsBitmap(rect)
+                Triple(roi, rect.left, rect.top)
+            }
+
+            // Process on Default Thread
+            val masks = withContext(Dispatchers.Default) {
+                rois.map { (roi, x, y) ->
+                    val mask = generateSmartTextMask(roi)
+                    Triple(mask, x, y)
+                }
+            }
+
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
-                if (rects.isNotEmpty()) {
-                    canvasView.addInpaintMask(rects)
-                    Toast.makeText(this@EditorActivity, "Added ${rects.size} text masks", Toast.LENGTH_SHORT).show()
+                if (masks.isNotEmpty()) {
+                    for ((mask, x, y) in masks) {
+                        canvasView.addInpaintBitmapAction(mask, x, y)
+                    }
+                    Toast.makeText(this@EditorActivity, "Added ${masks.size} text masks", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this@EditorActivity, "No text detected", Toast.LENGTH_SHORT).show()
                 }
             }
         }
+    }
+
+    private fun generateSmartTextMask(source: android.graphics.Bitmap): android.graphics.Bitmap {
+        val w = source.width
+        val h = source.height
+        val pixels = IntArray(w * h)
+        source.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val maskPixels = IntArray(w * h)
+
+        // 1. Thresholding (Text is usually dark on light background)
+        // We assume standard manga/comics: Black text on White/Light bubble.
+        // We can use a fixed threshold or a simple adaptive one.
+        // Let's use a safe high threshold because "Inpaint" needs to cover the text fully.
+
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            // Luminance
+            val lum = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+
+            // Threshold: Anything darker than light gray is considered text/stroke
+            if (lum < 200) {
+                maskPixels[i] = Color.WHITE
+            } else {
+                maskPixels[i] = Color.TRANSPARENT
+            }
+        }
+
+        // 2. Simple Dilation (Expand white pixels by 2px to cover anti-aliasing)
+        // This is crucial for clean inpainting.
+        val dilatedPixels = IntArray(w * h)
+        val kernelSize = 2
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val idx = y * w + x
+                if (maskPixels[idx] == Color.WHITE) {
+                    dilatedPixels[idx] = Color.WHITE
+                    continue
+                }
+
+                // Check neighbors
+                var hit = false
+                search@ for (dy in -kernelSize..kernelSize) {
+                    for (dx in -kernelSize..kernelSize) {
+                        val nx = x + dx
+                        val ny = y + dy
+                        if (nx in 0 until w && ny in 0 until h) {
+                            if (maskPixels[ny * w + nx] == Color.WHITE) {
+                                hit = true
+                                break@search
+                            }
+                        }
+                    }
+                }
+
+                if (hit) {
+                    dilatedPixels[idx] = Color.WHITE
+                } else {
+                    dilatedPixels[idx] = Color.TRANSPARENT
+                }
+            }
+        }
+
+        return android.graphics.Bitmap.createBitmap(dilatedPixels, w, h, android.graphics.Bitmap.Config.ARGB_8888)
     }
 
     private fun exitTyperMode() {

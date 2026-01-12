@@ -102,10 +102,15 @@ class AstralCanvasView @JvmOverloads constructor(
 
     data class TyperBubble(val rect: RectF, val isOval: Boolean)
 
+    sealed class InpaintAction {
+        data class PathOp(val path: Path, val tool: InpaintTool) : InpaintAction()
+        data class BitmapOp(val bitmap: android.graphics.Bitmap, val x: Float, val y: Float) : InpaintAction()
+    }
+
     var currentInpaintTool = InpaintTool.BRUSH
     var currentTyperTool = TyperTool.HAND
-    private val inpaintOps = mutableListOf<Pair<Path, InpaintTool>>()
-    private val redoOps = mutableListOf<Pair<Path, InpaintTool>>()
+    private val inpaintOps = mutableListOf<InpaintAction>()
+    private val redoOps = mutableListOf<InpaintAction>()
     private var currentInpaintPath = Path()
     private val currentTyperPath = Path()
 
@@ -149,6 +154,11 @@ class AstralCanvasView @JvmOverloads constructor(
         strokeWidth = 5f
     }
 
+    private val bitmapMaskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
+        alpha = 128
+    }
+
     /**
      * Generates the Inpaint mask on demand.
      * Note: This allocates a full bitmap. Use with care on large canvases.
@@ -184,12 +194,20 @@ class AstralCanvasView @JvmOverloads constructor(
             color = Color.WHITE
             style = Paint.Style.FILL
         }
+        val bitmapP = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        for ((path, tool) in inpaintOps) {
-            when(tool) {
-                InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
-                InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
-                InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+        for (op in inpaintOps) {
+            when(op) {
+                is InpaintAction.PathOp -> {
+                    when(op.tool) {
+                        InpaintTool.BRUSH -> canvas.drawPath(op.path, brushP)
+                        InpaintTool.ERASER -> canvas.drawPath(op.path, eraseP)
+                        InpaintTool.LASSO -> canvas.drawPath(op.path, lassoP)
+                    }
+                }
+                is InpaintAction.BitmapOp -> {
+                    canvas.drawBitmap(op.bitmap, op.x, op.y, bitmapP)
+                }
             }
         }
         // Draw current path if any? (Usually getInpaintMask is called after lifting finger)
@@ -230,10 +248,17 @@ class AstralCanvasView @JvmOverloads constructor(
             path.addRect(rect, Path.Direction.CW)
         }
         if (!path.isEmpty) {
-            inpaintOps.add(Pair(path, InpaintTool.LASSO))
+            inpaintOps.add(InpaintAction.PathOp(path, InpaintTool.LASSO))
             redoOps.clear()
             invalidate()
         }
+    }
+
+    fun addInpaintBitmapAction(bitmap: android.graphics.Bitmap, x: Float, y: Float) {
+        if (!isInpaintMode) return
+        inpaintOps.add(InpaintAction.BitmapOp(bitmap, x, y))
+        redoOps.clear()
+        invalidate()
     }
 
     fun setInpaintMode(enabled: Boolean) {
@@ -919,11 +944,18 @@ class AstralCanvasView @JvmOverloads constructor(
             }
 
             // Draw History
-            for ((path, tool) in inpaintOps) {
-                when(tool) {
-                    InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
-                    InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
-                    InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+            for (op in inpaintOps) {
+                when(op) {
+                    is InpaintAction.PathOp -> {
+                        when(op.tool) {
+                            InpaintTool.BRUSH -> canvas.drawPath(op.path, brushP)
+                            InpaintTool.ERASER -> canvas.drawPath(op.path, eraseP)
+                            InpaintTool.LASSO -> canvas.drawPath(op.path, lassoP)
+                        }
+                    }
+                    is InpaintAction.BitmapOp -> {
+                        canvas.drawBitmap(op.bitmap, op.x, op.y, bitmapMaskPaint)
+                    }
                 }
             }
 
@@ -1374,7 +1406,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          if (currentInpaintTool == InpaintTool.LASSO) {
                              currentInpaintPath.close()
                          }
-                         inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
+                         inpaintOps.add(InpaintAction.PathOp(Path(currentInpaintPath), currentInpaintTool))
                          redoOps.clear()
                          currentInpaintPath.reset()
                     }
