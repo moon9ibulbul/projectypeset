@@ -433,7 +433,11 @@ class EditorActivity : AppCompatActivity() {
                 val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
 
                 // Calculate Max Word Width to prevent splitting
-                val paint = layer.paint
+                val paint = android.text.TextPaint().apply {
+                    textSize = layer.fontSize
+                    typeface = layer.typeface
+                    letterSpacing = layer.letterSpacing
+                }
                 val textStr = layer.text.toString()
                 // Split by spaces to find longest word
                 val words = textStr.split("\\s+".toRegex())
