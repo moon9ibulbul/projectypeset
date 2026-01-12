@@ -856,6 +856,7 @@ class EditorActivity : AppCompatActivity() {
         // Long Shadow
         cardsLayout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
             layer.currentEffect = TextEffectType.LONG_SHADOW
+            if (layer.longShadowLength == 0f) layer.longShadowLength = 30f // Default
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
@@ -868,28 +869,10 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
-        // Motion Blur
-        cardsLayout.addView(createCard("Motion Blur", TextEffectType.MOTION_BLUR, layer.currentEffect == TextEffectType.MOTION_BLUR) {
-            layer.currentEffect = TextEffectType.MOTION_BLUR
-            if (layer.motionBlurLength == 0f) layer.motionBlurLength = 20f // Set Default
-            if (layer.motionBlurAngle == 0) layer.motionBlurAngle = 45
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
         // Halftone
         cardsLayout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
             layer.currentEffect = TextEffectType.HALFTONE
             if (layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
-        // CRT Scanlines
-        cardsLayout.addView(createCard("CRT", TextEffectType.CRT_SCANLINES, layer.currentEffect == TextEffectType.CRT_SCANLINES) {
-            layer.currentEffect = TextEffectType.CRT_SCANLINES
-            if (layer.crtIntensity == 0f) layer.crtIntensity = 0.5f
-            if (layer.crtLineHeight == 0f) layer.crtLineHeight = 5f
             canvasView.invalidate()
             showEffectMenu() // Refresh UI
         })
@@ -908,23 +891,24 @@ class EditorActivity : AppCompatActivity() {
         }
 
         when (layer.currentEffect) {
+            TextEffectType.LONG_SHADOW -> {
+                settingsLayout.addView(createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
+                    layer.longShadowLength = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Length: $it" }
+                })
+                val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.longShadowColor,
+                    { c -> layer.longShadowColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.longShadowColor) { c -> layer.longShadowColor = c; canvasView.invalidate() } }
+                ))
+            }
             TextEffectType.GAUSSIAN_BLUR -> {
                 settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
                     layer.blurRadius = it.toFloat()
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
-                })
-            }
-            TextEffectType.MOTION_BLUR -> {
-                settingsLayout.addView(createSlider("Blur Strength: ${layer.motionBlurLength.toInt()}", layer.motionBlurLength.toInt(), 100) {
-                    layer.motionBlurLength = it.toFloat()
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
-                })
-                settingsLayout.addView(createSlider("Blur Angle: ${layer.motionBlurAngle}°", layer.motionBlurAngle, 360) {
-                    layer.motionBlurAngle = it
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Angle: $it°" }
                 })
             }
             TextEffectType.HALFTONE -> {

@@ -90,6 +90,10 @@ class TextLayer(
     // Gaussian Blur
     var blurRadius: Float = 0f
 
+    // Long Shadow
+    var longShadowLength: Float = 30f
+    var longShadowColor: Int = Color.DKGRAY
+
     // Motion Blur
     var motionBlurLength: Float = 0f
     var motionBlurAngle: Int = 0
@@ -196,6 +200,8 @@ class TextLayer(
 
         newLayer.currentEffect = this.currentEffect
         newLayer.blurRadius = this.blurRadius
+        newLayer.longShadowLength = this.longShadowLength
+        newLayer.longShadowColor = this.longShadowColor
         newLayer.motionBlurLength = this.motionBlurLength
         newLayer.motionBlurAngle = this.motionBlurAngle
         newLayer.halftoneDotSize = this.halftoneDotSize
@@ -750,8 +756,9 @@ class TextLayer(
              val originalColor = paint.color
 
              // Step 1: Loop for shadow
-             paint.color = Color.DKGRAY
-             for (i in 1..30) {
+             paint.color = longShadowColor
+             val shadowLen = longShadowLength.toInt().coerceAtLeast(1)
+             for (i in 1..shadowLen) {
                  canvas.save()
                  canvas.translate(i.toFloat(), i.toFloat())
                  layout.draw(canvas)
