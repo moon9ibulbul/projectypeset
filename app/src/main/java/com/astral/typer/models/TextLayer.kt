@@ -345,56 +345,70 @@ class TextLayer(
         }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            val builder = StaticLayout.Builder.obtain(
-                text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
-            ).setAlignment(textAlign)
-             .setLineSpacing(lineSpacing, 1.0f)
 
-            if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                builder.setJustificationMode(1)
+            // Helper to create a fresh builder (Builders cannot be reused after build())
+            fun createBuilder(): StaticLayout.Builder {
+                val b = StaticLayout.Builder.obtain(
+                    text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
+                ).setAlignment(textAlign)
+                 .setLineSpacing(lineSpacing, 1.0f)
+
+                if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    b.setJustificationMode(1)
+                }
+                return b
             }
+
+            var builder = createBuilder()
 
             // Oval Shape Support (API 23+)
             if (isOval && boxWidth != null && boxWidth!! > 0) {
                 // Heuristic: Iterate to find height and indents
-                // Pass 1: Build basic layout to estimate height
+                // Pass 1: Build basic layout to estimate height (Rectangular)
+                // This consumes the first builder
                 val tempLayout = builder.build()
-                val height = tempLayout.height
-                val halfH = height / 2f
+                val rectHeight = tempLayout.height
+
+                // Estimate target height for Oval (Area compensation: Oval fits less text than Rect)
+                // A_rect = w*h. A_oval = (PI/4)*w*h_oval. To wrap same text: h_oval approx 1.27 * h_rect.
+                val targetHeight = (rectHeight * 1.3f).toInt()
+
+                val halfH = targetHeight / 2f
                 val halfW = layoutWidth / 2f
 
-                val leftIndents = IntArray(height)
-                val rightIndents = IntArray(height)
+                // Estimate lines based on temp layout
+                val lineCount = tempLayout.lineCount
+                val avgLineHeight = if(lineCount > 0) rectHeight.toFloat() / lineCount else (textPaint.textSize + lineSpacing)
 
-                // We can't set per-pixel indents easily without complex span logic or LineBreaker (API 29+).
-                // However, setIndents accepts arrays for lines.
-                // But we don't know line count exactly before layout.
-                // Use a simplified approach: padding based on height.
-                // Or better: calculate indents based on line index if we assume line height?
-                // Problem: StaticLayout.Builder.setIndents uses arrays that cycle if shorter than line count.
-                // We need to provide enough values or accept cycling.
-
-                // Let's assume a standard line height to generate the indent array
-                val lineHeight = textPaint.fontMetrics.bottom - textPaint.fontMetrics.top + lineSpacing
-                val estLines = (height / lineHeight).toInt() + 2 // buffer
+                // Allocate enough slots for increased height
+                val estLines = (targetHeight / avgLineHeight).toInt() + 5
 
                 val lIndents = IntArray(estLines)
                 val rIndents = IntArray(estLines)
 
                 for (i in 0 until estLines) {
-                    val y = (i * lineHeight) - halfH + (lineHeight/2f)
-                    // Oval: (x/a)^2 + (y/b)^2 = 1 => x = a * sqrt(1 - (y/b)^2)
-                    // Available width at y is 2*x.
-                    // Indent is a - x.
-                    val normalizedY = (y / halfH).coerceIn(-1f, 1f)
+                    // Calculate Y for this line relative to oval center
+                    val lineY = (i * avgLineHeight) + (avgLineHeight / 2f)
+                    val yRel = lineY - (targetHeight / 2f) // Center is at targetHeight/2
+
+                    // Normalize Y to -1..1 range, clamping slightly inside to avoid 0-width edge cases
+                    val normalizedY = (yRel / halfH).coerceIn(-0.99f, 0.99f)
+
+                    // Oval width factor at this Y: sqrt(1 - y^2)
                     val widthFactor = kotlin.math.sqrt(1f - normalizedY * normalizedY)
-                    val availableHalfWidth = halfW * widthFactor
-                    val indent = (halfW - availableHalfWidth).toInt().coerceAtLeast(0)
+
+                    // Available width at this Y
+                    val availW = layoutWidth * widthFactor
+
+                    // Indent required on each side
+                    val indent = ((layoutWidth - availW) / 2f).toInt().coerceAtLeast(0)
 
                     lIndents[i] = indent
                     rIndents[i] = indent
                 }
 
+                // Obtain a NEW builder for the final layout
+                builder = createBuilder()
                 builder.setIndents(lIndents, rIndents)
             }
 
