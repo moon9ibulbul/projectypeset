@@ -914,13 +914,6 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
-        // Particle Dissolve
-        cardsLayout.addView(createCard("Particle", TextEffectType.PARTICLE_DISSOLVE, layer.currentEffect == TextEffectType.PARTICLE_DISSOLVE) {
-            layer.currentEffect = TextEffectType.PARTICLE_DISSOLVE
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
         // Gaussian Blur
         cardsLayout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
             layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
@@ -1000,33 +993,6 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Frequency: $it" }
                 })
-            }
-            TextEffectType.PARTICLE_DISSOLVE -> {
-                settingsLayout.addView(createSlider("Particle Size: ${layer.particleSize.toInt()}", layer.particleSize.toInt(), 50) {
-                    layer.particleSize = it.coerceAtLeast(1).toFloat()
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Particle Size: $it" }
-                })
-                settingsLayout.addView(createSlider("Spread: ${(layer.particleSpread * 100).toInt()}%", (layer.particleSpread * 100).toInt(), 100) {
-                    layer.particleSpread = it / 100f
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Spread: $it%" }
-                })
-                settingsLayout.addView(createSlider("Angle: ${layer.particleDissolveAngle.toInt()}°", layer.particleDissolveAngle.toInt(), 360) {
-                    layer.particleDissolveAngle = it.toFloat()
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
-                })
-                val btnSeed = android.widget.Button(this).apply {
-                    text = "Randomize"
-                    setTextColor(Color.WHITE)
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
-                    setOnClickListener {
-                        layer.effectSeed = System.currentTimeMillis()
-                        canvasView.invalidate()
-                    }
-                }
-                settingsLayout.addView(btnSeed)
             }
             TextEffectType.GAUSSIAN_BLUR -> {
                 settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
