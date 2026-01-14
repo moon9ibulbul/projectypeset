@@ -1328,6 +1328,15 @@ class EditorActivity : AppCompatActivity() {
                 Toast.makeText(this, "Enter file name", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
+            // Check permissions for older Androids
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 1001)
+                    return@setOnClickListener
+                }
+            }
+
             val formatStr = sidebarBinding.spinnerFormat.selectedItem.toString()
             val quality = sidebarBinding.seekBarQuality.progress
 
@@ -2410,14 +2419,24 @@ class EditorActivity : AppCompatActivity() {
             et.setSelection(et.text.length)
         }
 
-        val toolbar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            weightSum = 6f // X, Left, Center, Right, Overflow, Check
+        val toolbarScroll = HorizontalScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+        }
+
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
             setPadding(0, 8, 0, 0)
         }
 
@@ -2426,8 +2445,8 @@ class EditorActivity : AppCompatActivity() {
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
                 setColorFilter(Color.WHITE)
-                setPadding(0, 16, 0, 16)
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setPadding(24, 16, 24, 16)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setOnClickListener(onClick)
             }
             toolbar.addView(btn)
@@ -2504,7 +2523,8 @@ class EditorActivity : AppCompatActivity() {
             imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
         }
 
-        container.addView(toolbar)
+        toolbarScroll.addView(toolbar)
+        container.addView(toolbarScroll)
     }
 
     // --- FONT MENU ---
