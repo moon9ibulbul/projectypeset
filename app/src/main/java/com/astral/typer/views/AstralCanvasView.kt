@@ -93,7 +93,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Inpaint Tools
     enum class InpaintTool {
-        BRUSH, ERASER, LASSO
+        BRUSH, ERASER, LASSO, LASSO_ERASER
     }
 
     enum class TyperTool {
@@ -143,6 +143,12 @@ class AstralCanvasView @JvmOverloads constructor(
         style = Paint.Style.FILL
         alpha = 128
     }
+
+    private val lassoErasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        style = Paint.Style.FILL
+    }
+
     private val lassoStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         style = Paint.Style.STROKE
@@ -184,12 +190,17 @@ class AstralCanvasView @JvmOverloads constructor(
             color = Color.WHITE
             style = Paint.Style.FILL
         }
+        val lassoEraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+            style = Paint.Style.FILL
+        }
 
         for ((path, tool) in inpaintOps) {
             when(tool) {
                 InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
                 InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
                 InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+                InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
             }
         }
         // Draw current path if any? (Usually getInpaintMask is called after lifting finger)
@@ -672,6 +683,7 @@ class AstralCanvasView @JvmOverloads constructor(
     private var initialScaleX = 1f
     private var initialScaleY = 1f
     private var initialBoxWidth = 0f
+    private var initialFixedHeight = 0f // New property for fixed height resize
 
     private var centerX = 0f
     private var centerY = 0f
@@ -917,6 +929,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
                 alpha = 128
             }
+            val lassoEraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                style = Paint.Style.FILL
+            }
 
             // Draw History
             for ((path, tool) in inpaintOps) {
@@ -924,6 +940,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
                     InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
                     InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+                    InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
                 }
             }
 
@@ -933,6 +950,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     InpaintTool.BRUSH -> canvas.drawPath(currentInpaintPath, inpaintPaint)
                     InpaintTool.ERASER -> canvas.drawPath(currentInpaintPath, eraserPaint)
                     InpaintTool.LASSO -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
+                    InpaintTool.LASSO_ERASER -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
                 }
             }
             canvas.restoreToCount(saveCount)
@@ -1061,20 +1079,35 @@ class AstralCanvasView @JvmOverloads constructor(
                  paint.color = Color.CYAN
                  paint.strokeWidth = 2f
 
+                 // Draw smooth curves for rows
                  for (r in 0..rows) {
-                     val startIdx = r * (cols + 1)
-                     for (c in 0 until cols) {
-                         val i1 = (startIdx + c) * 2
-                         val i2 = (startIdx + c + 1) * 2
-                         canvas.drawLine(mesh[i1], mesh[i1+1], mesh[i2], mesh[i2+1], paint)
+                     val path = Path()
+                     // Get first point
+                     var idx = (r * (cols + 1)) * 2
+                     path.moveTo(mesh[idx], mesh[idx+1])
+
+                     for (c in 1..cols) {
+                         idx = (r * (cols + 1) + c) * 2
+                         val x = mesh[idx]
+                         val y = mesh[idx+1]
+                         path.lineTo(x, y)
                      }
+                     canvas.drawPath(path, paint)
                  }
+
+                 // Draw smooth curves for cols
                  for (c in 0..cols) {
-                     for (r in 0 until rows) {
-                          val idx1 = (r * (cols + 1) + c) * 2
-                          val idx2 = ((r + 1) * (cols + 1) + c) * 2
-                          canvas.drawLine(mesh[idx1], mesh[idx1+1], mesh[idx2], mesh[idx2+1], paint)
+                     val path = Path()
+                     var idx = c * 2
+                     path.moveTo(mesh[idx], mesh[idx+1])
+
+                     for (r in 1..rows) {
+                         idx = (r * (cols + 1) + c) * 2
+                         val x = mesh[idx]
+                         val y = mesh[idx+1]
+                         path.lineTo(x, y)
                      }
+                     canvas.drawPath(path, paint)
                  }
 
                  val handleRadius = 15f / ((layer.scaleX + layer.scaleY)/2f)
@@ -1371,7 +1404,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!currentInpaintPath.isEmpty) {
-                         if (currentInpaintTool == InpaintTool.LASSO) {
+                         if (currentInpaintTool == InpaintTool.LASSO || currentInpaintTool == InpaintTool.LASSO_ERASER) {
                              currentInpaintPath.close()
                          }
                          inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
@@ -1583,7 +1616,12 @@ class AstralCanvasView @JvmOverloads constructor(
                         if (!isTyperHand && getDistance(lx, ly, 0f, halfH + handleOffset) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.STRETCH_V
-                            initialScaleY = layer.scaleY
+                            if (layer is TextLayer) {
+                                // For TextLayer, this is height resize
+                                initialFixedHeight = layer.getHeight()
+                            } else {
+                                initialScaleY = layer.scaleY
+                            }
                             centerX = layer.x
                             centerY = layer.y
                             startY = ly
@@ -1842,11 +1880,22 @@ class AstralCanvasView @JvmOverloads constructor(
                              val dy = cy - centerY
                              val proj = -dx * sin + dy * cos
                              if (abs(proj) > 10) {
-                                 val s = (proj / (layer.getHeight() / 2f)).toFloat()
-                                 if (abs(s) >= 0.1f) {
-                                     layer.scaleY = s
+                                 if (layer is TextLayer) {
+                                     // Resize fixedHeight
+                                     // proj is distance from center to handle (half height in screen space rotated/projected)
+                                     // We want full height in local space.
+                                     // fullHeight = (abs(proj) * 2) / scaleY
+                                     val newH = (abs(proj) / layer.scaleY * 2f).toFloat().coerceAtLeast(20f)
+                                     layer.fixedHeight = newH
                                      invalidate()
                                      onLayerUpdateListener?.onLayerUpdate(layer)
+                                 } else {
+                                     val s = (proj / (layer.getHeight() / 2f)).toFloat()
+                                     if (abs(s) >= 0.1f) {
+                                         layer.scaleY = s
+                                         invalidate()
+                                         onLayerUpdateListener?.onLayerUpdate(layer)
+                                     }
                                  }
                              }
                         }

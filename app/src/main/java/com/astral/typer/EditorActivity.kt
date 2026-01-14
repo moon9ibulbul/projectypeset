@@ -900,6 +900,27 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
+        // Fiery
+        cardsLayout.addView(createCard("Fiery", TextEffectType.FIERY, layer.currentEffect == TextEffectType.FIERY) {
+            layer.currentEffect = TextEffectType.FIERY
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Wavy
+        cardsLayout.addView(createCard("Wavy", TextEffectType.WAVY, layer.currentEffect == TextEffectType.WAVY) {
+            layer.currentEffect = TextEffectType.WAVY
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
+        // Particle Dissolve
+        cardsLayout.addView(createCard("Particle", TextEffectType.PARTICLE_DISSOLVE, layer.currentEffect == TextEffectType.PARTICLE_DISSOLVE) {
+            layer.currentEffect = TextEffectType.PARTICLE_DISSOLVE
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
         // Gaussian Blur
         cardsLayout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
             layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
@@ -936,12 +957,64 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Length: $it" }
                 })
+                settingsLayout.addView(createSlider("Angle: ${layer.longShadowAngle.toInt()}°", layer.longShadowAngle.toInt(), 360) {
+                    layer.longShadowAngle = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+                })
                 val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.longShadowColor,
                     { c -> layer.longShadowColor = c; canvasView.invalidate() },
                     { showColorWheelDialogForProperty(layer.longShadowColor) { c -> layer.longShadowColor = c; canvasView.invalidate() } }
                 ))
+            }
+            TextEffectType.FIERY -> {
+                settingsLayout.addView(createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
+                    layer.fieryIntensity = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                })
+                val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(layer.fieryColor,
+                    { c -> layer.fieryColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.fieryColor) { c -> layer.fieryColor = c; canvasView.invalidate() } }
+                ))
+            }
+            TextEffectType.WAVY -> {
+                settingsLayout.addView(createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
+                    layer.wavyIntensity = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                })
+                settingsLayout.addView(createSlider("Frequency: ${layer.wavyFrequency.toInt()}", layer.wavyFrequency.toInt(), 50) {
+                    layer.wavyFrequency = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Frequency: $it" }
+                })
+            }
+            TextEffectType.PARTICLE_DISSOLVE -> {
+                settingsLayout.addView(createSlider("Particle Size: ${layer.particleSize.toInt()}", layer.particleSize.toInt(), 50) {
+                    layer.particleSize = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Particle Size: $it" }
+                })
+                settingsLayout.addView(createSlider("Spread: ${(layer.particleSpread * 100).toInt()}%", (layer.particleSpread * 100).toInt(), 100) {
+                    layer.particleSpread = it / 100f
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Spread: $it%" }
+                })
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        layer.effectSeed = System.currentTimeMillis()
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
             }
             TextEffectType.GAUSSIAN_BLUR -> {
                 settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
@@ -1656,36 +1729,61 @@ class EditorActivity : AppCompatActivity() {
         btnLassoTouch.addView(ivLT); btnLassoTouch.addView(tvLT)
 
         var isLassoActive = false
+        var isBaseToolEraser = false // true if Eraser, false if Brush
 
-        fun updateLassoTouchState() {
-             if (isLassoActive) {
-                 // Active is Lasso -> Show Touch icon
-                 updateButtonVisual(btnLassoTouch, R.drawable.ic_menu_palette, "Touch")
-                 canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
+        fun updateState() {
+             // Button 1 Visuals
+             if (isBaseToolEraser) {
+                 updateButtonVisual(btnBrushEraser, R.drawable.ic_eraser, "Eraser")
+                 btnBrushEraser.tag = "ERASER"
              } else {
-                 // Active is Touch (Standard Brush/Eraser mode) -> Show Lasso icon
+                 updateButtonVisual(btnBrushEraser, R.drawable.ic_pencil, "Brush")
+                 btnBrushEraser.tag = "BRUSH"
+             }
+
+             // Button 2 Visuals
+             if (isLassoActive) {
+                 updateButtonVisual(btnLassoTouch, R.drawable.ic_menu_palette, "Touch")
+             } else {
                  updateButtonVisual(btnLassoTouch, R.drawable.ic_pencil, "Lasso")
-                 // Restore Brush/Eraser selection
-                 if (btnBrushEraser.tag == "ERASER") {
-                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                      updateBrushEraserState()
+             }
+
+             // Apply Tool
+             if (isLassoActive) {
+                 if (isBaseToolEraser) {
+                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO_ERASER
+                     Toast.makeText(this, "Lasso Eraser", Toast.LENGTH_SHORT).show()
                  } else {
-                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                      updateBrushEraserState()
+                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
+                     Toast.makeText(this, "Lasso Brush", Toast.LENGTH_SHORT).show()
+                 }
+             } else {
+                 if (isBaseToolEraser) {
+                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
+                     Toast.makeText(this, "Eraser", Toast.LENGTH_SHORT).show()
+                 } else {
+                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
+                     Toast.makeText(this, "Brush", Toast.LENGTH_SHORT).show()
                  }
              }
         }
 
+        btnBrushEraser.setOnClickListener {
+             isBaseToolEraser = !isBaseToolEraser
+             updateState()
+        }
+
         btnLassoTouch.setOnClickListener {
              isLassoActive = !isLassoActive
-             updateLassoTouchState()
-             if (isLassoActive) {
-                 Toast.makeText(this, "Lasso Selected", Toast.LENGTH_SHORT).show()
-             } else {
-                 Toast.makeText(this, "Touch Mode (Brush/Eraser)", Toast.LENGTH_SHORT).show()
-             }
+             updateState()
         }
-        updateLassoTouchState() // Init
+
+        // Initial state update
+        // Check current canvas tool to sync
+        if (canvasView.currentInpaintTool == AstralCanvasView.InpaintTool.ERASER) {
+            isBaseToolEraser = true
+        }
+        updateState()
 
         btnContainer.addView(btnBrushEraser)
         btnContainer.addView(btnLassoTouch)
@@ -2432,13 +2530,11 @@ class EditorActivity : AppCompatActivity() {
 
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+            weightSum = 7f // 7 items
             layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER
-            }
+            )
             setPadding(0, 8, 0, 0)
         }
 
@@ -2447,8 +2543,10 @@ class EditorActivity : AppCompatActivity() {
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
                 setColorFilter(Color.WHITE)
-                setPadding(24, 16, 24, 16)
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(0, 16, 0, 16)
+                scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                // Use weight to distribute evenly
+                layoutParams = LinearLayout.LayoutParams(0, dpToPx(50), 1f)
                 setOnClickListener(onClick)
             }
             toolbar.addView(btn)

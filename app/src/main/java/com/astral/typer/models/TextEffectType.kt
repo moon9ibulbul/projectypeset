@@ -8,7 +8,10 @@ enum class TextEffectType {
     NEON,
     LONG_SHADOW,
     GAUSSIAN_BLUR,
-    MOTION_BLUR,
     HALFTONE,
-    CRT_SCANLINES
+    CRT_SCANLINES,
+    MOTION_BLUR,
+    FIERY,
+    WAVY,
+    PARTICLE_DISSOLVE
 }

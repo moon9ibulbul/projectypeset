@@ -19,6 +19,8 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import java.util.Random
 import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.sin
 
 class TextLayer(
     initialText: String = "Double tap to edit",
@@ -93,6 +95,7 @@ class TextLayer(
     // Long Shadow
     var longShadowLength: Float = 30f
     var longShadowColor: Int = Color.DKGRAY
+    var longShadowAngle: Float = 45f
 
     // Motion Blur
     var motionBlurLength: Float = 0f
@@ -120,6 +123,18 @@ class TextLayer(
     // Chromatic Aberration
     var chromaticShift: Float = 5f
 
+    // Fiery
+    var fieryColor: Int = Color.rgb(255, 100, 0)
+    var fieryIntensity: Float = 0.5f
+
+    // Wavy
+    var wavyIntensity: Float = 0.5f
+    var wavyFrequency: Float = 5f
+
+    // Particle Dissolve
+    var particleSize: Float = 5f
+    var particleSpread: Float = 0.5f
+
     // Shape
     var isOval: Boolean = false
 
@@ -136,6 +151,7 @@ class TextLayer(
     private var cachedLayout: StaticLayout? = null
 
     var boxWidth: Float? = null
+    var fixedHeight: Float? = null
 
     init {
         name = "Text Layer"
@@ -179,6 +195,7 @@ class TextLayer(
         newLayer.doubleStrokeColor = this.doubleStrokeColor
         newLayer.doubleStrokeWidth = this.doubleStrokeWidth
         newLayer.boxWidth = this.boxWidth
+        newLayer.fixedHeight = this.fixedHeight
         newLayer.isOval = this.isOval
 
         newLayer.isPerspective = this.isPerspective
@@ -206,6 +223,7 @@ class TextLayer(
         newLayer.blurRadius = this.blurRadius
         newLayer.longShadowLength = this.longShadowLength
         newLayer.longShadowColor = this.longShadowColor
+        newLayer.longShadowAngle = this.longShadowAngle
         newLayer.motionBlurLength = this.motionBlurLength
         newLayer.motionBlurAngle = this.motionBlurAngle
         newLayer.halftoneDotSize = this.halftoneDotSize
@@ -219,6 +237,13 @@ class TextLayer(
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
         newLayer.effectSeed = this.effectSeed
+
+        newLayer.fieryColor = this.fieryColor
+        newLayer.fieryIntensity = this.fieryIntensity
+        newLayer.wavyIntensity = this.wavyIntensity
+        newLayer.wavyFrequency = this.wavyFrequency
+        newLayer.particleSize = this.particleSize
+        newLayer.particleSpread = this.particleSpread
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -305,10 +330,20 @@ class TextLayer(
 
     override fun getWidth(): Float {
         ensureLayout()
-        return cachedLayout?.width?.toFloat() ?: 0f
+        // If fixedHeight is set, we return boxWidth/fixedHeight for the container size
+        // But cachedLayout.width is the text flow width.
+        // We should return the visible bounding box width.
+        return if (boxWidth != null && boxWidth!! > 0) boxWidth!! else (cachedLayout?.width?.toFloat() ?: 0f)
     }
 
     override fun getHeight(): Float {
+        ensureLayout()
+        // Return fixedHeight if set, otherwise content height
+        return if (fixedHeight != null && fixedHeight!! > 0) fixedHeight!! else (cachedLayout?.height?.toFloat() ?: 0f)
+    }
+
+    // Internal method to get actual content height (for scrolling/positioning if needed)
+    fun getContentHeight(): Float {
         ensureLayout()
         return cachedLayout?.height?.toFloat() ?: 0f
     }
@@ -501,8 +536,21 @@ class TextLayer(
         } else if (isPerspective && perspectivePoints != null) {
              drawPerspective(canvas, layout, w, h)
         } else {
-             canvas.translate(dx, dy)
-             drawContent(canvas, layout, w, h)
+             // If fixedHeight is set, we need to clip the content area
+             if (fixedHeight != null && fixedHeight!! > 0) {
+                 canvas.save()
+                 // Clip rect is centered at 0,0 in local coordinates (before translation by dx,dy)
+                 // Wait, dx/dy translate to top-left.
+                 // We want to clip to the Box area.
+                 // Box area is (-w/2, -h/2, w/2, h/2)
+                 canvas.clipRect(-w/2f, -h/2f, w/2f, h/2f)
+                 canvas.translate(dx, dy)
+                 drawContent(canvas, layout, w, h)
+                 canvas.restore()
+             } else {
+                 canvas.translate(dx, dy)
+                 drawContent(canvas, layout, w, h)
+             }
         }
 
         if (isOpacityGradient) {
@@ -692,10 +740,6 @@ class TextLayer(
              paint.color = originalColor
              paint.shader = originalShader
         } else if (currentEffect == TextEffectType.PIXELATION) {
-             // Calculate scale based on blockSize. Assuming 100px reference or dynamic?
-             // Simple mapping: scale = 1.0 / blockSize.
-             // If blockSize is 1px, scale = 1.0 (no pixelation)
-             // If blockSize is 10px, scale = 0.1
              val safeBlockSize = pixelBlockSize.coerceAtLeast(1f)
              val scaleFactor = 1f / safeBlockSize
 
@@ -730,8 +774,6 @@ class TextLayer(
             val w = getWidth()
             val h = getHeight()
 
-            // 1. Draw Base Layer (Modified Algorithm: Aggressive Slicing)
-            // Divide height into many small strips for more uniform distribution
             val numStrips = 50
             val stripHeight = h / numStrips.toFloat()
 
@@ -742,20 +784,15 @@ class TextLayer(
                 val top = i * stripHeight
                 val bottom = top + stripHeight
 
-                // 50% chance to glitch a strip (more aggressive)
                 if (random.nextFloat() < 0.5f) {
-                     val offset = (random.nextFloat() - 0.5f) * 100f * glitchIntensity // -50 to 50px (More aggressive)
-
-                     // RGB Split offset - randomized per slice
+                     val offset = (random.nextFloat() - 0.5f) * 100f * glitchIntensity
                      val rgbOff = (if (random.nextBoolean()) (random.nextFloat() * 20f + 5f) else -(random.nextFloat() * 20f + 5f)) * glitchIntensity
-
                      slices.add(Slice(top, bottom, offset, rgbOff))
                 } else {
                      slices.add(Slice(top, bottom, 0f, 0f))
                 }
             }
 
-            // Draw Slices
             val savedColor = paint.color
             val savedXfermode = paint.xfermode
 
@@ -764,29 +801,24 @@ class TextLayer(
                 canvas.clipRect(0f, slice.top, w, slice.bottom)
                 canvas.translate(slice.xOffset, 0f)
 
-                // Draw Base
                 layout.draw(canvas)
 
-                // Draw RGB Split if it's a glitch slice
                 if (kotlin.math.abs(slice.xOffset) > 0.1f) {
                     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
                     paint.shader = null
 
-                    // Red Channel
-                    paint.color = 0xCCFF0000.toInt() // 80% Alpha
+                    paint.color = 0xCCFF0000.toInt()
                     canvas.save()
                     canvas.translate(-slice.rgbOffset, 0f)
                     layout.draw(canvas)
                     canvas.restore()
 
-                    // Cyan Channel
                     paint.color = 0xCC00FFFF.toInt()
                     canvas.save()
                     canvas.translate(slice.rgbOffset, 0f)
                     layout.draw(canvas)
                     canvas.restore()
 
-                    // Restore paint for next loop
                     paint.color = savedColor
                     paint.xfermode = savedXfermode
                 }
@@ -799,20 +831,16 @@ class TextLayer(
              val originalStyle = paint.style
              val originalMaskFilter = paint.maskFilter
 
-             // Step 1: Draw Glow
              paint.style = Paint.Style.FILL
-             // Use neonColor or fallback to text color
              paint.color = if (neonColor != Color.CYAN) neonColor else color
              paint.maskFilter = BlurMaskFilter(neonRadius.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
 
              layout.draw(canvas)
 
-             // Step 2: Draw Core
              paint.maskFilter = null
              paint.color = Color.WHITE
              layout.draw(canvas)
 
-             // Restore
              paint.color = originalColor
              paint.style = originalStyle
              paint.maskFilter = originalMaskFilter
@@ -820,54 +848,122 @@ class TextLayer(
         } else if (currentEffect == TextEffectType.LONG_SHADOW) {
              val originalColor = paint.color
 
-             // Step 1: Loop for shadow
              paint.color = longShadowColor
              val shadowLen = longShadowLength.toInt().coerceAtLeast(1)
+
+             // Use angle
+             val rad = Math.toRadians(longShadowAngle.toDouble())
+             val xStep = cos(rad).toFloat()
+             val yStep = sin(rad).toFloat()
+
              for (i in 1..shadowLen) {
                  canvas.save()
-                 canvas.translate(i.toFloat(), i.toFloat())
+                 canvas.translate(i.toFloat() * xStep, i.toFloat() * yStep)
                  layout.draw(canvas)
                  canvas.restore()
              }
 
-             // Step 2: Main Text
              paint.color = color
              layout.draw(canvas)
 
-             // Restore
              paint.color = originalColor
+
+        } else if (currentEffect == TextEffectType.FIERY) {
+             // Fiery Effect using RenderNode + AGSL (API 33+) or fallback
+             var useRenderEffect = false
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
+                 try {
+                     val node = android.graphics.RenderNode("FieryNode")
+                     node.setPosition(0, 0, w.toInt(), h.toInt())
+                     val recordingCanvas = node.beginRecording()
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
+
+                     val shader = android.graphics.RuntimeShader(FIERY_SHADER)
+                     shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                     shader.setFloatUniform("intensity", fieryIntensity)
+                     val r = Color.red(fieryColor) / 255f
+                     val g = Color.green(fieryColor) / 255f
+                     val b = Color.blue(fieryColor) / 255f
+                     shader.setFloatUniform("color", r, g, b)
+
+                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch(e: Exception) {}
+             }
+             if (!useRenderEffect) layout.draw(canvas)
+
+        } else if (currentEffect == TextEffectType.WAVY) {
+             // Wavy Effect
+             var useRenderEffect = false
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
+                 try {
+                     val node = android.graphics.RenderNode("WavyNode")
+                     node.setPosition(0, 0, w.toInt(), h.toInt())
+                     val recordingCanvas = node.beginRecording()
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
+
+                     val shader = android.graphics.RuntimeShader(WAVY_SHADER)
+                     shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                     shader.setFloatUniform("intensity", wavyIntensity)
+                     shader.setFloatUniform("frequency", wavyFrequency)
+
+                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch(e: Exception) {}
+             }
+             if (!useRenderEffect) layout.draw(canvas)
+
+        } else if (currentEffect == TextEffectType.PARTICLE_DISSOLVE) {
+             // Particle Dissolve
+             var useRenderEffect = false
+             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
+                 try {
+                     val node = android.graphics.RenderNode("ParticleNode")
+                     node.setPosition(0, 0, w.toInt(), h.toInt())
+                     val recordingCanvas = node.beginRecording()
+                     layout.draw(recordingCanvas)
+                     node.endRecording()
+
+                     val shader = android.graphics.RuntimeShader(PARTICLE_SHADER)
+                     shader.setFloatUniform("particleSize", particleSize)
+                     shader.setFloatUniform("spread", particleSpread)
+                     shader.setFloatUniform("seed", effectSeed.toFloat())
+
+                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.drawRenderNode(node)
+                     useRenderEffect = true
+                 } catch(e: Exception) {}
+             }
+             if (!useRenderEffect) layout.draw(canvas)
 
         } else if (currentEffect == TextEffectType.GAUSSIAN_BLUR) {
              var useRenderEffect = false
              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && canvas.isHardwareAccelerated) {
                  try {
-                     // API 31+ RenderEffect
                      val node = android.graphics.RenderNode("GaussianBlurNode")
                      val wInt = w.toInt().coerceAtLeast(1)
                      val hInt = h.toInt().coerceAtLeast(1)
                      node.setPosition(0, 0, wInt, hInt)
 
                      val recordingCanvas = node.beginRecording()
-                     recordingCanvas.translate(-layout.width / 2f, -layout.height / 2f) // Center in node
-                     recordingCanvas.translate(w/2f, h/2f) // Re-center
-                     // Drawing logic in recording canvas
-                     // We need to replicate paint state? No, layout has paint.
+                     recordingCanvas.translate(-layout.width / 2f, -layout.height / 2f)
+                     recordingCanvas.translate(w/2f, h/2f)
                      layout.draw(recordingCanvas)
                      node.endRecording()
 
                      val r = blurRadius.coerceAtLeast(0.1f)
                      node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
 
-                     // Draw the node
                      canvas.drawRenderNode(node)
                      useRenderEffect = true
-                 } catch (e: Exception) {
-                     android.util.Log.e("TextLayer", "GaussianBlur RenderNode Failed", e)
-                 }
+                 } catch (e: Exception) {}
              }
 
              if (!useRenderEffect) {
-                 // Fallback: MaskFilter
                  val originalMask = paint.maskFilter
                  if (blurRadius > 0) {
                      paint.maskFilter = BlurMaskFilter(blurRadius.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
@@ -879,34 +975,27 @@ class TextLayer(
              var useRenderEffect = false
              if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
                  try {
-                     // API 33+ AGSL
                      val node = android.graphics.RenderNode("MotionBlurNode")
                      val wInt = w.toInt().coerceAtLeast(1)
                      val hInt = h.toInt().coerceAtLeast(1)
                      node.setPosition(0, 0, wInt, hInt)
 
                      val recordingCanvas = node.beginRecording()
-                     // Draw content
                      layout.draw(recordingCanvas)
                      node.endRecording()
 
-                     // Create RuntimeShader
                      val shader = android.graphics.RuntimeShader(MOTION_BLUR_SHADER)
                      val rad = Math.toRadians(motionBlurAngle.toDouble())
                      shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat())
                      shader.setFloatUniform("length", motionBlurLength)
 
-                     // RenderEffect
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                      canvas.drawRenderNode(node)
                      useRenderEffect = true
-                 } catch (e: Exception) {
-                     android.util.Log.e("TextLayer", "MotionBlur RenderNode Failed", e)
-                 }
+                 } catch (e: Exception) {}
              }
 
              if (!useRenderEffect) {
-                 // Fallback: Standard Blur
                  val originalMask = paint.maskFilter
                  val fallbackBlur = motionBlurLength / 2f
                  if (fallbackBlur > 0) {
@@ -939,13 +1028,10 @@ class TextLayer(
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                      canvas.drawRenderNode(node)
                      useRenderEffect = true
-                 } catch (e: Exception) {
-                     android.util.Log.e("TextLayer", "Halftone RenderNode Failed", e)
-                 }
+                 } catch (e: Exception) {}
              }
 
              if (!useRenderEffect) {
-                 // Fallback: Just draw standard text for now (Halftone hard without shaders)
                  layout.draw(canvas)
              }
         } else if (currentEffect == TextEffectType.CRT_SCANLINES) {
@@ -968,13 +1054,10 @@ class TextLayer(
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                      canvas.drawRenderNode(node)
                      useRenderEffect = true
-                 } catch (e: Exception) {
-                     android.util.Log.e("TextLayer", "CRT RenderNode Failed", e)
-                 }
+                 } catch (e: Exception) {}
              }
 
              if (!useRenderEffect) {
-                 // Fallback: Draw lines on top
                  layout.draw(canvas)
                  val originalStyle = paint.style
                  val originalColor = paint.color
@@ -1019,8 +1102,6 @@ class TextLayer(
     }
 
     companion object {
-        // AGSL Shader for Motion Blur
-        // Samples along the direction vector centered on the pixel
         const val MOTION_BLUR_SHADER = """
             uniform shader content;
             uniform float2 direction;
@@ -1029,7 +1110,6 @@ class TextLayer(
             half4 main(float2 coord) {
                 half4 color = half4(0);
                 float total = 0.0;
-                // Sample 15 points
                 for (float i = 0.0; i <= 15.0; i += 1.0) {
                     float t = i / 15.0;
                     float offset = (t - 0.5) * length;
@@ -1056,7 +1136,6 @@ class TextLayer(
                 float radius = dotSize * 0.5 * threshold;
 
                 if (dist < radius) {
-                    // Blend dot color with content
                     return half4(dotColor * c.a, c.a);
                 }
                 return half4(0);
@@ -1076,6 +1155,66 @@ class TextLayer(
                 float factor = 1.0 - (intensity * 0.5 * (1.0 - line));
 
                 return half4(c.rgb * factor, c.a);
+            }
+        """
+
+        const val FIERY_SHADER = """
+            uniform shader content;
+            uniform float time;
+            uniform float intensity;
+            uniform float3 color;
+
+            // Simple noise function (placeholder)
+            float noise(float2 co) {
+                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            half4 main(float2 coord) {
+                half4 c = content.eval(coord);
+                if (c.a == 0.0) return half4(0);
+
+                // Displace coordinate upwards with noise
+                float2 uv = coord;
+                float n = noise(uv * 0.01 + float2(0, time));
+                uv.y += n * intensity * 20.0;
+
+                half4 displaced = content.eval(uv);
+
+                // Mix with fire color
+                return mix(c, half4(color, 1.0) * c.a, intensity * n);
+            }
+        """
+
+        const val WAVY_SHADER = """
+            uniform shader content;
+            uniform float time;
+            uniform float intensity;
+            uniform float frequency;
+
+            half4 main(float2 coord) {
+                float offset = sin(coord.y * 0.05 * frequency + time * 5.0) * intensity * 10.0;
+                return content.eval(coord + float2(offset, 0));
+            }
+        """
+
+        const val PARTICLE_SHADER = """
+            uniform shader content;
+            uniform float particleSize;
+            uniform float spread;
+            uniform float seed;
+
+            float noise(float2 co) {
+                 return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            half4 main(float2 coord) {
+                // Snap to grid
+                float2 grid = floor(coord / particleSize) * particleSize;
+                float n = noise(grid + seed);
+
+                if (n < spread) return half4(0);
+
+                return content.eval(coord);
             }
         """
     }
