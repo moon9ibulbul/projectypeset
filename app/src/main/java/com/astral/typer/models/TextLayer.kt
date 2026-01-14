@@ -927,17 +927,11 @@ class TextLayer(
                      shader.setFloatUniform("color", r, g, b)
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                     canvas.save()
-                     canvas.translate(dx, dy)
                      canvas.drawRenderNode(node)
-                     canvas.restore()
                      useRenderEffect = true
                  } catch(e: Exception) {}
              }
-             if (!useRenderEffect) {
-                 canvas.translate(dx, dy)
-                 layout.draw(canvas)
-             }
+             if (!useRenderEffect) layout.draw(canvas)
 
         } else if (currentEffect == TextEffectType.WAVY) {
              // Wavy Effect
@@ -956,17 +950,11 @@ class TextLayer(
                      shader.setFloatUniform("frequency", wavyFrequency)
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                     canvas.save()
-                     canvas.translate(dx, dy)
                      canvas.drawRenderNode(node)
-                     canvas.restore()
                      useRenderEffect = true
                  } catch(e: Exception) {}
              }
-             if (!useRenderEffect) {
-                 canvas.translate(dx, dy)
-                 layout.draw(canvas)
-             }
+             if (!useRenderEffect) layout.draw(canvas)
 
         } else if (currentEffect == TextEffectType.PARTICLE_DISSOLVE) {
              // Particle Dissolve
@@ -985,17 +973,11 @@ class TextLayer(
                      shader.setFloatUniform("seed", effectSeed.toFloat())
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                     canvas.save()
-                     canvas.translate(dx, dy)
                      canvas.drawRenderNode(node)
-                     canvas.restore()
                      useRenderEffect = true
                  } catch(e: Exception) {}
              }
-             if (!useRenderEffect) {
-                 canvas.translate(dx, dy)
-                 layout.draw(canvas)
-             }
+             if (!useRenderEffect) layout.draw(canvas)
 
         } else if (currentEffect == TextEffectType.GAUSSIAN_BLUR) {
              var useRenderEffect = false
