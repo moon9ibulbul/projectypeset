@@ -937,6 +937,13 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
+        // Multi Gradient
+        cardsLayout.addView(createCard("Multi Gradient", TextEffectType.MULTI_GRADIENT, layer.currentEffect == TextEffectType.MULTI_GRADIENT) {
+            layer.currentEffect = TextEffectType.MULTI_GRADIENT
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
 
@@ -1036,16 +1043,60 @@ class EditorActivity : AppCompatActivity() {
                     { showColorWheelDialogForProperty(layer.halftoneDotColor) { c -> layer.halftoneDotColor = c; canvasView.invalidate() } }
                 ))
             }
-            TextEffectType.CRT_SCANLINES -> {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.crtIntensity * 100).toInt()}%", (layer.crtIntensity * 100).toInt(), 100) {
-                    layer.crtIntensity = it / 100f
+            TextEffectType.MULTI_GRADIENT -> {
+                // Multi Gradient Control
+                val paletteLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 8, 0, 8)
+                }
+
+                val scrollPalette = HorizontalScrollView(this).apply {
+                    isHorizontalScrollBarEnabled = false
+                }
+
+                val paletteContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                }
+                scrollPalette.addView(paletteContainer)
+
+                data class PaletteItem(val name: String, val colors: IntArray)
+                val palettes = listOf(
+                    PaletteItem("Rainbow", intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt())),
+                    PaletteItem("Sunset", intArrayOf(0xFF2D3486.toInt(), 0xFFC53888.toInt(), 0xFFFA7D60.toInt(), 0xFFFFD363.toInt())),
+                    PaletteItem("Cyberpunk", intArrayOf(0xFF00F0FF.toInt(), 0xFFFF0099.toInt(), 0xFFCCFF00.toInt())),
+                    PaletteItem("Gold", intArrayOf(0xFFBF953F.toInt(), 0xFFFCF6BA.toInt(), 0xFFFFFFFF.toInt(), 0xFFFBF5B7.toInt(), 0xFFAA771C.toInt())),
+                    PaletteItem("Cotton Candy", intArrayOf(0xFFA1C4FD.toInt(), 0xFFC2E9FB.toInt(), 0xFFFBC2EB.toInt(), 0xFFA6C1EE.toInt()))
+                )
+
+                for (p in palettes) {
+                    val btn = android.widget.Button(this).apply {
+                        text = p.name
+                        setTextColor(Color.WHITE)
+                        textSize = 10f
+                        background = GradientDrawable().apply {
+                            orientation = GradientDrawable.Orientation.LEFT_RIGHT
+                            colors = p.colors
+                            cornerRadius = dpToPx(16).toFloat()
+                            setStroke(dpToPx(1), Color.WHITE)
+                        }
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(80), dpToPx(40)).apply {
+                            setMargins(4,0,4,0)
+                        }
+                        setOnClickListener {
+                            layer.multiGradientColors = p.colors
+                            canvasView.invalidate()
+                        }
+                    }
+                    paletteContainer.addView(btn)
+                }
+
+                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(scrollPalette)
+
+                settingsLayout.addView(createSlider("Angle: ${layer.multiGradientAngle.toInt()}°", layer.multiGradientAngle.toInt(), 360) {
+                    layer.multiGradientAngle = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
-                })
-                settingsLayout.addView(createSlider("Line Height: ${layer.crtLineHeight.toInt()}", layer.crtLineHeight.toInt().coerceIn(2, 50), 50) {
-                    layer.crtLineHeight = it.coerceAtLeast(2).toFloat()
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Line Height: $it" }
+                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
                 })
             }
             TextEffectType.NEON -> {

@@ -106,10 +106,6 @@ class TextLayer(
     var halftoneDotColor: Int = Color.BLACK
     var halftoneThreshold: Float = 0.5f
 
-    // CRT Scanlines
-    var crtLineHeight: Float = 5f
-    var crtIntensity: Float = 0.5f
-
     // Neon
     var neonRadius: Float = 30f
     var neonColor: Int = Color.CYAN
@@ -134,6 +130,10 @@ class TextLayer(
     // Particle Dissolve
     var particleSize: Float = 5f
     var particleSpread: Float = 0.5f
+
+    // Multi Gradient
+    var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt()) // Classic Rainbow
+    var multiGradientAngle: Float = 0f
 
     // Shape
     var isOval: Boolean = false
@@ -229,8 +229,6 @@ class TextLayer(
         newLayer.halftoneDotSize = this.halftoneDotSize
         newLayer.halftoneDotColor = this.halftoneDotColor
         newLayer.halftoneThreshold = this.halftoneThreshold
-        newLayer.crtLineHeight = this.crtLineHeight
-        newLayer.crtIntensity = this.crtIntensity
         newLayer.neonRadius = this.neonRadius
         newLayer.neonColor = this.neonColor
         newLayer.glitchIntensity = this.glitchIntensity
@@ -244,6 +242,9 @@ class TextLayer(
         newLayer.wavyFrequency = this.wavyFrequency
         newLayer.particleSize = this.particleSize
         newLayer.particleSpread = this.particleSpread
+
+        newLayer.multiGradientColors = this.multiGradientColors.clone()
+        newLayer.multiGradientAngle = this.multiGradientAngle
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -498,6 +499,40 @@ class TextLayer(
         return LinearGradient(x0, y0, x1, y1, startColor, endColor, Shader.TileMode.CLAMP)
     }
 
+    private fun getMultiGradientShader(w: Float, h: Float): Shader {
+        val cx = w / 2f
+        val cy = h / 2f
+        val angleRad = Math.toRadians(multiGradientAngle.toDouble())
+        val cos = Math.cos(angleRad).toFloat()
+        val sin = Math.sin(angleRad).toFloat()
+
+        val corners = listOf(
+            Pair(-cx, -cy), Pair(cx, -cy), Pair(-cx, cy), Pair(cx, cy)
+        )
+
+        var minP = Float.MAX_VALUE
+        var maxP = -Float.MAX_VALUE
+
+        for ((px, py) in corners) {
+            val p = px * cos + py * sin
+            if (p < minP) minP = p
+            if (p > maxP) maxP = p
+        }
+
+        val halfLen = (maxP - minP) / 2f
+        val x0 = cx - halfLen * cos
+        val y0 = cy - halfLen * sin
+        val x1 = cx + halfLen * cos
+        val y1 = cy + halfLen * sin
+
+        // Distribute colors evenly
+        val positions = FloatArray(multiGradientColors.size) { i ->
+            i.toFloat() / (multiGradientColors.size - 1)
+        }
+
+        return LinearGradient(x0, y0, x1, y1, multiGradientColors, positions, Shader.TileMode.CLAMP)
+    }
+
     override fun draw(canvas: Canvas) {
         if (!isVisible) return
         ensureLayout()
@@ -689,7 +724,11 @@ class TextLayer(
 
         paint.style = Paint.Style.FILL
         paint.strokeWidth = 0f
-        if (isGradient && isGradientText) {
+
+        if (currentEffect == TextEffectType.MULTI_GRADIENT) {
+            paint.shader = getMultiGradientShader(w, h)
+            paint.color = Color.WHITE
+        } else if (isGradient && isGradientText) {
             paint.shader = gradientShader
             paint.color = Color.WHITE
         } else if (textureBitmap != null) {
@@ -888,11 +927,17 @@ class TextLayer(
                      shader.setFloatUniform("color", r, g, b)
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.save()
+                     canvas.translate(dx, dy)
                      canvas.drawRenderNode(node)
+                     canvas.restore()
                      useRenderEffect = true
                  } catch(e: Exception) {}
              }
-             if (!useRenderEffect) layout.draw(canvas)
+             if (!useRenderEffect) {
+                 canvas.translate(dx, dy)
+                 layout.draw(canvas)
+             }
 
         } else if (currentEffect == TextEffectType.WAVY) {
              // Wavy Effect
@@ -911,11 +956,17 @@ class TextLayer(
                      shader.setFloatUniform("frequency", wavyFrequency)
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.save()
+                     canvas.translate(dx, dy)
                      canvas.drawRenderNode(node)
+                     canvas.restore()
                      useRenderEffect = true
                  } catch(e: Exception) {}
              }
-             if (!useRenderEffect) layout.draw(canvas)
+             if (!useRenderEffect) {
+                 canvas.translate(dx, dy)
+                 layout.draw(canvas)
+             }
 
         } else if (currentEffect == TextEffectType.PARTICLE_DISSOLVE) {
              // Particle Dissolve
@@ -934,11 +985,17 @@ class TextLayer(
                      shader.setFloatUniform("seed", effectSeed.toFloat())
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                     canvas.save()
+                     canvas.translate(dx, dy)
                      canvas.drawRenderNode(node)
+                     canvas.restore()
                      useRenderEffect = true
                  } catch(e: Exception) {}
              }
-             if (!useRenderEffect) layout.draw(canvas)
+             if (!useRenderEffect) {
+                 canvas.translate(dx, dy)
+                 layout.draw(canvas)
+             }
 
         } else if (currentEffect == TextEffectType.GAUSSIAN_BLUR) {
              var useRenderEffect = false
@@ -1033,49 +1090,6 @@ class TextLayer(
 
              if (!useRenderEffect) {
                  layout.draw(canvas)
-             }
-        } else if (currentEffect == TextEffectType.CRT_SCANLINES) {
-             var useRenderEffect = false
-             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && canvas.isHardwareAccelerated) {
-                 try {
-                     val node = android.graphics.RenderNode("CRTNode")
-                     val wInt = w.toInt().coerceAtLeast(1)
-                     val hInt = h.toInt().coerceAtLeast(1)
-                     node.setPosition(0, 0, wInt, hInt)
-
-                     val recordingCanvas = node.beginRecording()
-                     layout.draw(recordingCanvas)
-                     node.endRecording()
-
-                     val shader = android.graphics.RuntimeShader(CRT_SHADER)
-                     shader.setFloatUniform("lineHeight", crtLineHeight.coerceAtLeast(1f))
-                     shader.setFloatUniform("intensity", crtIntensity)
-
-                     node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                     canvas.drawRenderNode(node)
-                     useRenderEffect = true
-                 } catch (e: Exception) {}
-             }
-
-             if (!useRenderEffect) {
-                 layout.draw(canvas)
-                 val originalStyle = paint.style
-                 val originalColor = paint.color
-                 val originalStrokeWidth = paint.strokeWidth
-
-                 paint.style = Paint.Style.STROKE
-                 paint.strokeWidth = 1f
-                 paint.color = Color.BLACK
-                 paint.alpha = (crtIntensity * 255).toInt()
-
-                 val step = crtLineHeight.coerceAtLeast(2f)
-                 for (yPos in 0 until h.toInt() step step.toInt()) {
-                     canvas.drawLine(0f, yPos.toFloat(), w, yPos.toFloat(), paint)
-                 }
-
-                 paint.style = originalStyle
-                 paint.color = originalColor
-                 paint.strokeWidth = originalStrokeWidth
              }
         } else {
             layout.draw(canvas)

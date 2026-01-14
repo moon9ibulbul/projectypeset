@@ -9,9 +9,9 @@ enum class TextEffectType {
     LONG_SHADOW,
     GAUSSIAN_BLUR,
     HALFTONE,
-    CRT_SCANLINES,
     MOTION_BLUR,
     FIERY,
     WAVY,
-    PARTICLE_DISSOLVE
+    PARTICLE_DISSOLVE,
+    MULTI_GRADIENT
 }
