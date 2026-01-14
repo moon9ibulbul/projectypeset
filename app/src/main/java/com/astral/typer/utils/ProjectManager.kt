@@ -254,10 +254,10 @@ object ProjectManager {
                 }
             } catch (e: Exception) { e.printStackTrace() }
         } else {
-            // Legacy
+            // Legacy (Android 9 and below)
             try {
                 val file = getPublicProjectFile(cleanName)
-                file.parentFile?.mkdirs()
+                if (file.parentFile?.exists() == false) file.parentFile?.mkdirs()
                 return zipFolder(tempDir, file)
             } catch (e: Exception) { e.printStackTrace() }
         }

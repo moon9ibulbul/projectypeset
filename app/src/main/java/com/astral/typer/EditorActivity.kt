@@ -1357,7 +1357,9 @@ class EditorActivity : AppCompatActivity() {
             val contentValues = android.content.ContentValues().apply {
                 put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, filename)
                 put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/$ext")
-                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                }
             }
 
             lifecycleScope.launch(Dispatchers.IO) {
