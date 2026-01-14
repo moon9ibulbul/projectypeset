@@ -167,20 +167,10 @@ class BubbleDetectorProcessor(private val context: Context) {
     suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
-        // Optimization: Resize to width 640 while maintaining aspect ratio
-        val originalWidth = bitmap.width
-        val originalHeight = bitmap.height
-        val targetWidth = 640
-
-        // Calculate scale factor
-        val scaleFactor = if (originalWidth > targetWidth) targetWidth.toFloat() / originalWidth else 1.0f
-
-        val procBitmap = if (scaleFactor < 1.0f) {
-            val targetHeight = (originalHeight * scaleFactor).toInt()
-            Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
-        } else {
-            bitmap
-        }
+        // Use original bitmap directly to preserve detail for large images
+        // The tiling strategy handles the large size.
+        val scaleFactor = 1.0f
+        val procBitmap = bitmap
 
         try {
             val width = procBitmap.width
@@ -275,10 +265,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                 RectF(cx - newW / 2, cy - newH / 2, cx + newW / 2, cy + newH / 2)
             }
         } finally {
-            // Recycle scaled bitmap if it was created
-            if (procBitmap != bitmap) {
-                procBitmap.recycle()
-            }
+            // No need to recycle procBitmap as it is the original
         }
     }
 

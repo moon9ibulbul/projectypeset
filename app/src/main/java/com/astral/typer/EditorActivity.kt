@@ -1012,6 +1012,11 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Spread: $it%" }
                 })
+                settingsLayout.addView(createSlider("Angle: ${layer.particleDissolveAngle.toInt()}°", layer.particleDissolveAngle.toInt(), 360) {
+                    layer.particleDissolveAngle = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+                })
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize"
                     setTextColor(Color.WHITE)
@@ -1532,7 +1537,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnEraser.setImageResource(R.drawable.ic_pencil)
             binding.btnEraser.setColorFilter(Color.CYAN) // Active Indicator
             canvasView.setInpaintMode(true)
-            Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
+            // Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
 
             // Hide bottom menu in inpaint mode?
             binding.bottomMenuContainer.visibility = View.GONE
@@ -1759,10 +1764,10 @@ class EditorActivity : AppCompatActivity() {
         btnBrushEraser.setOnClickListener {
              if (canvasView.currentInpaintTool == AstralCanvasView.InpaintTool.BRUSH) {
                  canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
-                 Toast.makeText(this, "Eraser Selected", Toast.LENGTH_SHORT).show()
+                 // Toast.makeText(this, "Eraser Selected", Toast.LENGTH_SHORT).show()
              } else {
                  canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                 Toast.makeText(this, "Brush Selected", Toast.LENGTH_SHORT).show()
+                 // Toast.makeText(this, "Brush Selected", Toast.LENGTH_SHORT).show()
              }
              updateBrushEraserState()
         }
@@ -1803,18 +1808,18 @@ class EditorActivity : AppCompatActivity() {
              if (isLassoActive) {
                  if (isBaseToolEraser) {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO_ERASER
-                     Toast.makeText(this, "Lasso Eraser", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Lasso Eraser", Toast.LENGTH_SHORT).show()
                  } else {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
-                     Toast.makeText(this, "Lasso Brush", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Lasso Brush", Toast.LENGTH_SHORT).show()
                  }
              } else {
                  if (isBaseToolEraser) {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
-                     Toast.makeText(this, "Eraser", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Eraser", Toast.LENGTH_SHORT).show()
                  } else {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                     Toast.makeText(this, "Brush", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Brush", Toast.LENGTH_SHORT).show()
                  }
              }
         }
@@ -1892,11 +1897,22 @@ class EditorActivity : AppCompatActivity() {
         val recyclerView = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerLayers)
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
 
-        val adapter = LayerAdapter(canvasView.getLayers()) {
+        val adapter = LayerAdapter(canvasView.getLayers(), {
             // On Item Click? Maybe select
             canvasView.selectLayer(it)
             canvasView.invalidate()
-        }
+        }, { layerToDelete ->
+            // On Delete Click
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Delete Layer")
+                .setMessage("Are you sure you want to delete this layer?")
+                .setPositiveButton("Delete") { _, _ ->
+                    canvasView.removeLayer(layerToDelete)
+                    showLayerMenu() // Refresh menu
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        })
         recyclerView.adapter = adapter
 
         // Drag and Drop
