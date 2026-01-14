@@ -444,6 +444,10 @@ object ProjectManager {
         val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
         if (publicRoot.exists()) publicRoot.listFiles { f -> f.extension == "atd" }?.let { projects.addAll(it) }
 
+        // Legacy / Root Path scan
+        val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+        if (rootPath.exists()) rootPath.listFiles { f -> f.extension == "atd" }?.let { projects.addAll(it) }
+
         if (context != null) {
              val privateRoot = context.getExternalFilesDir("Projects")
              if (privateRoot != null && privateRoot.exists()) {
@@ -454,7 +458,13 @@ object ProjectManager {
     }
 
     private fun getPublicProjectFile(name: String): File {
-        val root = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        val root = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            // Use root storage for better visibility on old Androids
+            File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+        } else {
+            // Standard path for newer Androids (if accessed via File API)
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        }
         if (!root.exists()) root.mkdirs()
         return File(root, "$name.atd")
     }
