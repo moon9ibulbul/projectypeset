@@ -766,6 +766,15 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
+    fun removeLayer(layer: Layer) {
+        layers.remove(layer)
+        if (selectedLayer == layer) {
+            selectLayer(null)
+        } else {
+            invalidate()
+        }
+    }
+
     fun initCanvas(width: Int, height: Int, color: Int) {
         canvasWidth = width
         canvasHeight = height
