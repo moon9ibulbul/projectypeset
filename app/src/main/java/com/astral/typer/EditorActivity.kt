@@ -914,13 +914,6 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
-        // Particle Dissolve
-        cardsLayout.addView(createCard("Particle", TextEffectType.PARTICLE_DISSOLVE, layer.currentEffect == TextEffectType.PARTICLE_DISSOLVE) {
-            layer.currentEffect = TextEffectType.PARTICLE_DISSOLVE
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
         // Gaussian Blur
         cardsLayout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
             layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
@@ -1000,28 +993,6 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Frequency: $it" }
                 })
-            }
-            TextEffectType.PARTICLE_DISSOLVE -> {
-                settingsLayout.addView(createSlider("Particle Size: ${layer.particleSize.toInt()}", layer.particleSize.toInt(), 50) {
-                    layer.particleSize = it.coerceAtLeast(1).toFloat()
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Particle Size: $it" }
-                })
-                settingsLayout.addView(createSlider("Spread: ${(layer.particleSpread * 100).toInt()}%", (layer.particleSpread * 100).toInt(), 100) {
-                    layer.particleSpread = it / 100f
-                    canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Spread: $it%" }
-                })
-                val btnSeed = android.widget.Button(this).apply {
-                    text = "Randomize"
-                    setTextColor(Color.WHITE)
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
-                    setOnClickListener {
-                        layer.effectSeed = System.currentTimeMillis()
-                        canvasView.invalidate()
-                    }
-                }
-                settingsLayout.addView(btnSeed)
             }
             TextEffectType.GAUSSIAN_BLUR -> {
                 settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
@@ -1532,7 +1503,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnEraser.setImageResource(R.drawable.ic_pencil)
             binding.btnEraser.setColorFilter(Color.CYAN) // Active Indicator
             canvasView.setInpaintMode(true)
-            Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
+            // Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
 
             // Hide bottom menu in inpaint mode?
             binding.bottomMenuContainer.visibility = View.GONE
@@ -1759,10 +1730,10 @@ class EditorActivity : AppCompatActivity() {
         btnBrushEraser.setOnClickListener {
              if (canvasView.currentInpaintTool == AstralCanvasView.InpaintTool.BRUSH) {
                  canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
-                 Toast.makeText(this, "Eraser Selected", Toast.LENGTH_SHORT).show()
+                 // Toast.makeText(this, "Eraser Selected", Toast.LENGTH_SHORT).show()
              } else {
                  canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                 Toast.makeText(this, "Brush Selected", Toast.LENGTH_SHORT).show()
+                 // Toast.makeText(this, "Brush Selected", Toast.LENGTH_SHORT).show()
              }
              updateBrushEraserState()
         }
@@ -1803,18 +1774,18 @@ class EditorActivity : AppCompatActivity() {
              if (isLassoActive) {
                  if (isBaseToolEraser) {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO_ERASER
-                     Toast.makeText(this, "Lasso Eraser", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Lasso Eraser", Toast.LENGTH_SHORT).show()
                  } else {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
-                     Toast.makeText(this, "Lasso Brush", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Lasso Brush", Toast.LENGTH_SHORT).show()
                  }
              } else {
                  if (isBaseToolEraser) {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
-                     Toast.makeText(this, "Eraser", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Eraser", Toast.LENGTH_SHORT).show()
                  } else {
                      canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                     Toast.makeText(this, "Brush", Toast.LENGTH_SHORT).show()
+                     // Toast.makeText(this, "Brush", Toast.LENGTH_SHORT).show()
                  }
              }
         }
@@ -1892,11 +1863,22 @@ class EditorActivity : AppCompatActivity() {
         val recyclerView = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerLayers)
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
 
-        val adapter = LayerAdapter(canvasView.getLayers()) {
+        val adapter = LayerAdapter(canvasView.getLayers(), {
             // On Item Click? Maybe select
             canvasView.selectLayer(it)
             canvasView.invalidate()
-        }
+        }, { layerToDelete ->
+            // On Delete Click
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Delete Layer")
+                .setMessage("Are you sure you want to delete this layer?")
+                .setPositiveButton("Delete") { _, _ ->
+                    canvasView.removeLayer(layerToDelete)
+                    showLayerMenu() // Refresh menu
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        })
         recyclerView.adapter = adapter
 
         // Drag and Drop

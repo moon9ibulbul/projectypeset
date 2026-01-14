@@ -167,13 +167,17 @@ class BubbleDetectorProcessor(private val context: Context) {
     suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
-        // Optimization: Resize to width 640 while maintaining aspect ratio
         val originalWidth = bitmap.width
         val originalHeight = bitmap.height
         val targetWidth = 640
 
-        // Calculate scale factor
-        val scaleFactor = if (originalWidth > targetWidth) targetWidth.toFloat() / originalWidth else 1.0f
+        // Resize to 640px if height < 35000 (Optimization)
+        // Otherwise use scale 1.0 (Full Resolution) for very large images
+        val scaleFactor = if (originalHeight < 35000 && originalWidth > targetWidth) {
+            targetWidth.toFloat() / originalWidth
+        } else {
+            1.0f
+        }
 
         val procBitmap = if (scaleFactor < 1.0f) {
             val targetHeight = (originalHeight * scaleFactor).toInt()

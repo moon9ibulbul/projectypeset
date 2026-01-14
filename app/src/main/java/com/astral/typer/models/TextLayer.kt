@@ -130,6 +130,7 @@ class TextLayer(
     // Particle Dissolve
     var particleSize: Float = 5f
     var particleSpread: Float = 0.5f
+    var particleDissolveAngle: Float = 0f
 
     // Multi Gradient
     var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt()) // Classic Rainbow
@@ -242,6 +243,7 @@ class TextLayer(
         newLayer.wavyFrequency = this.wavyFrequency
         newLayer.particleSize = this.particleSize
         newLayer.particleSpread = this.particleSpread
+        newLayer.particleDissolveAngle = this.particleDissolveAngle
 
         newLayer.multiGradientColors = this.multiGradientColors.clone()
         newLayer.multiGradientAngle = this.multiGradientAngle
@@ -971,6 +973,8 @@ class TextLayer(
                      shader.setFloatUniform("particleSize", particleSize)
                      shader.setFloatUniform("spread", particleSpread)
                      shader.setFloatUniform("seed", effectSeed.toFloat())
+                     shader.setFloatUniform("angle", particleDissolveAngle)
+                     shader.setFloatUniform("size", w, h)
 
                      node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                      canvas.drawRenderNode(node)
@@ -1198,6 +1202,8 @@ class TextLayer(
             uniform float particleSize;
             uniform float spread;
             uniform float seed;
+            uniform float angle;
+            uniform float2 size;
 
             float noise(float2 co) {
                  return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
@@ -1208,7 +1214,49 @@ class TextLayer(
                 float2 grid = floor(coord / particleSize) * particleSize;
                 float n = noise(grid + seed);
 
-                if (n < spread) return half4(0);
+                // Calculate direction
+                float rad = radians(angle);
+                float2 dir = float2(cos(rad), sin(rad));
+
+                // Project coordinate onto direction
+                float2 center = size / 2.0;
+                float2 p = coord - center;
+                float dist = dot(p, dir);
+
+                // Max distance approx
+                float maxDist = length(size) / 2.0;
+                float normDist = dist / maxDist; // -1 to 1
+
+                // Probability of survival
+                // spread controls the extent of the dissolve region
+                // We map normDist to a threshold.
+                // We want: if spread is 0, full survival.
+                // If spread is 1, full dissolve (eventually).
+                // Let's model it such that pixels 'further' in the direction are more likely to dissolve.
+
+                // Threshold ramp:
+                // We want survival probability to decrease as normDist increases.
+                // t goes from 0 (at -dir) to 1 (at +dir)
+                float t = (normDist + 1.0) / 2.0;
+
+                // Effective threshold based on spread.
+                // If spread is 0.5, we want the last 50% to start dissolving?
+                // Or maybe spread controls density.
+
+                // User Request: "Dissolve into particles at the edges"
+                // Let's say:
+                // If t > (1.0 - spread), we start dissolving.
+                // The probability of keeping the pixel decreases linearly or smoothly.
+
+                float startDissolve = 1.0 - spread;
+                float prob = 1.0;
+
+                if (t > startDissolve) {
+                     // Remap t from [startDissolve, 1.0] to [1.0, 0.0]
+                     prob = 1.0 - ((t - startDissolve) / max(0.001, spread));
+                }
+
+                if (n > prob) return half4(0);
 
                 return content.eval(coord);
             }
