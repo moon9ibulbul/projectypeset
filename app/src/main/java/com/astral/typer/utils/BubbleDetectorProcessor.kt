@@ -570,7 +570,9 @@ class BubbleDetectorProcessor(private val context: Context) {
         val minWidth = min(a.width(), b.width())
         val isVertAligned = (hOverlapLen > 0) && (hOverlapLen / minWidth > ALIGNMENT_OVERLAP_RATIO)
 
-        if (isVertAligned && vertGap <= TOUCHING_TOLERANCE_PX && vertGap > -TOUCHING_TOLERANCE_PX) {
+        // Strict Merge: Only merge if they strictly overlap (gap <= 0)
+        // Removed the lower bound check to allow deep overlaps (e.g. from tiling splits)
+        if (isVertAligned && vertGap <= 0f) {
              return true
         }
 
@@ -585,7 +587,7 @@ class BubbleDetectorProcessor(private val context: Context) {
         val minHeight = min(a.height(), b.height())
         val isHorzAligned = (vOverlapLen > 0) && (vOverlapLen / minHeight > ALIGNMENT_OVERLAP_RATIO)
 
-        if (isHorzAligned && horzGap <= TOUCHING_TOLERANCE_PX && horzGap > -TOUCHING_TOLERANCE_PX) {
+        if (isHorzAligned && horzGap <= 0f) {
             return true
         }
 
