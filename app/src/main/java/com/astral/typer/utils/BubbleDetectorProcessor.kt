@@ -34,8 +34,8 @@ class BubbleDetectorProcessor(private val context: Context) {
         private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
         private const val MIN_BOX_SIZE = 20f // Noise filter threshold
-        private const val TOUCHING_TOLERANCE_PX = 15f // Distance to consider boxes "touching"
-        private const val ALIGNMENT_OVERLAP_RATIO = 0.5f // Ratio of shared edge length to consider aligned
+        private const val TOUCHING_TOLERANCE_PX = 5f // Distance to consider boxes "touching"
+        private const val ALIGNMENT_OVERLAP_RATIO = 0.75f // Ratio of shared edge length to consider aligned
 
         private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"

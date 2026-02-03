@@ -92,6 +92,8 @@ object ProjectManager {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
+    @Volatile var isSaving: Boolean = false
+
     sealed class LoadResult {
         data class Success(val projectData: ProjectData, val images: Map<String, Bitmap>) : LoadResult()
         data class MissingAssets(val projectData: ProjectData, val images: Map<String, Bitmap>, val missingFonts: List<String>) : LoadResult()
@@ -108,6 +110,7 @@ object ProjectManager {
         projectName: String,
         thumbnail: Bitmap? = null
     ): Boolean {
+        isSaving = true
         try {
             val tempDir = File(context.cacheDir, "temp_save")
             if (tempDir.exists()) tempDir.deleteRecursively()
@@ -217,11 +220,45 @@ object ProjectManager {
             val projectData = ProjectData(width, height, canvasColor, layerModels)
             File(tempDir, "project.json").writeText(gson.toJson(projectData))
 
-            return finalizeSave(context, tempDir, projectName)
+            // Handle Autosave Naming
+            val finalName = if (projectName == "autosave") {
+                "autosave_${System.currentTimeMillis()}"
+            } else {
+                projectName
+            }
+
+            val success = finalizeSave(context, tempDir, finalName)
+
+            if (success && projectName == "autosave") {
+                pruneAutosaves(context)
+            }
+
+            return success
 
         } catch (e: Exception) {
             e.printStackTrace()
             return false
+        } finally {
+            isSaving = false
+        }
+    }
+
+    private fun pruneAutosaves(context: Context) {
+        try {
+            val allProjects = getRecentProjects(context)
+            val autosaves = allProjects.filter { it.name.startsWith("autosave_") && it.extension == "atd" }
+                .sortedByDescending { it.name } // Newest first
+
+            if (autosaves.size > 3) {
+                val toDelete = autosaves.drop(3)
+                toDelete.forEach {
+                    try { it.delete() } catch(e:Exception){}
+                    // Attempt to delete cached thumbnail too
+                    try { File(context.cacheDir, "thumbnails/${it.name}.png").delete() } catch(e:Exception){}
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
