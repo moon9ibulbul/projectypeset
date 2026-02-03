@@ -254,7 +254,9 @@ class BubbleDetectorProcessor(private val context: Context) {
             val nmsResults = nonMaximumSuppression(filteredDetections)
 
             // 4. Merge Adjacent Boxes (Split by tiling)
-            val mergedBoxes = mergeTouchingBoxes(nmsResults)
+            // Disabled to prevent distinct close bubbles from merging.
+            // val mergedBoxes = mergeTouchingBoxes(nmsResults)
+            val mergedBoxes = nmsResults
 
             // 5. Shrink boxes to fit inside the bubble (Inner Box)
             // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
