@@ -13,13 +13,15 @@ import com.astral.typer.models.TextLayer
 
 class LayerAdapter(
     private val layers: MutableList<Layer>,
-    private val onItemClick: (Layer) -> Unit
+    private val onItemClick: (Layer) -> Unit,
+    private val onDeleteClick: (Layer) -> Unit
 ) : RecyclerView.Adapter<LayerAdapter.LayerViewHolder>() {
 
     inner class LayerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val tvName: TextView = itemView.findViewById(1) // ID set below
         val btnVisible: ImageView = itemView.findViewById(2)
         val btnLock: ImageView = itemView.findViewById(3)
+        val btnDelete: ImageView = itemView.findViewById(4)
         val container: LinearLayout = itemView as LinearLayout
     }
 
@@ -59,9 +61,18 @@ class LayerAdapter(
             setColorFilter(Color.WHITE)
         }
 
+        val btnDelete = ImageView(context).apply {
+            id = 4
+            layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
+            setPadding(4,4,4,4)
+            setImageResource(android.R.drawable.ic_menu_delete) // Or generic trash
+            setColorFilter(Color.WHITE)
+        }
+
         layout.addView(tvName)
         layout.addView(btnVisible)
         layout.addView(btnLock)
+        layout.addView(btnDelete)
 
         return LayerViewHolder(layout)
     }
@@ -106,6 +117,10 @@ class LayerAdapter(
              layer.isLocked = !layer.isLocked
              notifyItemChanged(position)
              onItemClick(layer)
+        }
+
+        holder.btnDelete.setOnClickListener {
+            onDeleteClick(layer)
         }
     }
 
