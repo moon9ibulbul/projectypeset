@@ -922,6 +922,14 @@ class EditorActivity : AppCompatActivity() {
             showEffectMenu() // Refresh UI
         })
 
+        // Motion Blur
+        cardsLayout.addView(createCard("Motion Blur", TextEffectType.MOTION_BLUR, layer.currentEffect == TextEffectType.MOTION_BLUR) {
+            layer.currentEffect = TextEffectType.MOTION_BLUR
+            if (layer.motionBlurLength == 0f) layer.motionBlurLength = 20f // Set Default
+            canvasView.invalidate()
+            showEffectMenu() // Refresh UI
+        })
+
         // Halftone
         cardsLayout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
             layer.currentEffect = TextEffectType.HALFTONE
@@ -999,6 +1007,18 @@ class EditorActivity : AppCompatActivity() {
                     layer.blurRadius = it.toFloat()
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+                })
+            }
+            TextEffectType.MOTION_BLUR -> {
+                settingsLayout.addView(createSlider("Length: ${layer.motionBlurLength.toInt()}", layer.motionBlurLength.toInt(), 100) {
+                    layer.motionBlurLength = it.toFloat()
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Length: $it" }
+                })
+                settingsLayout.addView(createSlider("Angle: ${layer.motionBlurAngle}°", layer.motionBlurAngle, 360) {
+                    layer.motionBlurAngle = it
+                    canvasView.invalidate()
+                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
                 })
             }
             TextEffectType.HALFTONE -> {
