@@ -1108,15 +1108,25 @@ class TextLayer(
             uniform float length;
 
             half4 main(float2 coord) {
-                half4 color = half4(0);
-                float total = 0.0;
-                for (float i = 0.0; i <= 15.0; i += 1.0) {
-                    float t = i / 15.0;
-                    float offset = (t - 0.5) * length;
-                    color += content.eval(coord + direction * offset);
-                    total += 1.0;
+                half4 blurred = half4(0.0);
+                const int iterations = 16;
+
+                for (int i=0; i < iterations; i++) {
+                    float size = float(iterations - i);
+                    // Scale length by 0.02 to map slider (0-100) to reasonable pixel steps (0-2)
+                    float2 off = direction * size * (length * 0.02);
+
+                    float2 off1 = off * 1.3846153846;
+                    float2 off2 = off * 3.2307692308;
+
+                    blurred += content.eval(coord) * 0.2270270270;
+                    blurred += content.eval(coord + off1) * 0.3162162162;
+                    blurred += content.eval(coord - off1) * 0.3162162162;
+                    blurred += content.eval(coord + off2) * 0.0702702703;
+                    blurred += content.eval(coord - off2) * 0.0702702703;
                 }
-                return color / total;
+
+                return blurred / (float(iterations) + 1.0);
             }
         """
 
