@@ -663,7 +663,8 @@ class TextLayer(
             paint.shader = if (isGradient && isGradientShadow) gradientShader else null
 
             val originalAlpha = paint.alpha
-            val iterations = 30
+            // Increased iterations for smoothness ("tidak patah-patah")
+            val iterations = 64
             val effectiveDistance = motionShadowDistance
             val angleRad = Math.toRadians(motionShadowAngle.toDouble())
             val cos = Math.cos(angleRad).toFloat()
@@ -671,11 +672,18 @@ class TextLayer(
             val maxBlur = 4f
 
             paint.color = shadowColor
-            paint.alpha = (30 * (255 / 255f)).toInt().coerceAtLeast(1)
+            // Base alpha reduced significantly to avoid "too thick" look, and will fade out
+            val baseAlpha = 40
 
             for (i in 1..iterations) {
                 val t = i / iterations.toFloat()
-                val d = (t * t + t)/2f * effectiveDistance
+                // Use linear spacing for consistent motion trail
+                val d = t * effectiveDistance
+
+                // Alpha fade out: starts at baseAlpha and fades to 0
+                val currentAlpha = (baseAlpha * (1f - t)).toInt().coerceAtLeast(0)
+                paint.alpha = currentAlpha
+
                 val blur = t * maxBlur
                 if (blur > 0.5f) {
                     paint.maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
@@ -688,11 +696,6 @@ class TextLayer(
 
                 canvas.save()
                 canvas.translate(dx, dy)
-                layout.draw(canvas)
-                canvas.restore()
-
-                canvas.save()
-                canvas.translate(-dx, -dy)
                 layout.draw(canvas)
                 canvas.restore()
             }
