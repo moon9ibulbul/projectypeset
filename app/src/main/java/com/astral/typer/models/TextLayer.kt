@@ -74,6 +74,9 @@ class TextLayer(
     var warpCols: Int = 2
     var warpMesh: FloatArray? = null
 
+    @Transient
+    var denseRenderMesh: FloatArray? = null
+
     // Texture
     var textureBitmap: Bitmap? = null
     var textureOffsetX: Float = 0f
@@ -642,6 +645,56 @@ class TextLayer(
         }
     }
 
+    fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
+        val mesh = warpMesh ?: return
+        val rows = warpRows
+        val cols = warpCols
+        var x = 0f
+        var y = 0f
+
+        for (i in 0..rows) {
+            for (j in 0..cols) {
+                val b_i = bernstein(rows, i, v)
+                val b_j = bernstein(cols, j, u)
+                val basis = b_i * b_j
+                val idx = (i * (cols + 1) + j) * 2
+                x += mesh[idx] * basis
+                y += mesh[idx + 1] * basis
+            }
+        }
+        outPoint[0] = x
+        outPoint[1] = y
+    }
+
+    private fun bernstein(n: Int, i: Int, t: Float): Float {
+        var coeff = 1f
+        for (k in 1..i) {
+            coeff = coeff * (n - k + 1) / k
+        }
+        return coeff * Math.pow(t.toDouble(), i.toDouble()).toFloat() * Math.pow((1f - t).toDouble(), (n - i).toDouble()).toFloat()
+    }
+
+    fun updateDenseWarpMesh() {
+        if (warpMesh == null) return
+        val denseCols = 20
+        val denseRows = 20
+        val size = (denseCols + 1) * (denseRows + 1) * 2
+        if (denseRenderMesh == null || denseRenderMesh!!.size != size) {
+            denseRenderMesh = FloatArray(size)
+        }
+        val outPoint = FloatArray(2)
+        var idx = 0
+        for (i in 0..denseRows) {
+            val v = i.toFloat() / denseRows
+            for (j in 0..denseCols) {
+                val u = j.toFloat() / denseCols
+                evaluateBezierSurface(u, v, outPoint)
+                denseRenderMesh!![idx++] = outPoint[0]
+                denseRenderMesh!![idx++] = outPoint[1]
+            }
+        }
+    }
+
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
         val bmpW = ceil(w).toInt()
         val bmpH = ceil(h).toInt()
@@ -650,7 +703,16 @@ class TextLayer(
             val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
             val c = Canvas(bitmap)
             drawContent(c, layout, w, h)
-            canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
+
+            if (denseRenderMesh == null) {
+                updateDenseWarpMesh()
+            }
+
+            if (denseRenderMesh != null) {
+                canvas.drawBitmapMesh(bitmap, 20, 20, denseRenderMesh!!, 0, null, 0, null)
+            } else {
+                canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
+            }
         }
     }
 

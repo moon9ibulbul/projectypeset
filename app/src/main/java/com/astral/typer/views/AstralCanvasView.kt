@@ -1088,18 +1088,21 @@ class AstralCanvasView @JvmOverloads constructor(
                  paint.color = Color.CYAN
                  paint.strokeWidth = 2f
 
+                 val denseSteps = 20
+                 val outPoint = FloatArray(2)
+
                  // Draw smooth curves for rows
                  for (r in 0..rows) {
                      val path = Path()
-                     // Get first point
-                     var idx = (r * (cols + 1)) * 2
-                     path.moveTo(mesh[idx], mesh[idx+1])
+                     val v = r.toFloat() / rows
 
-                     for (c in 1..cols) {
-                         idx = (r * (cols + 1) + c) * 2
-                         val x = mesh[idx]
-                         val y = mesh[idx+1]
-                         path.lineTo(x, y)
+                     layer.evaluateBezierSurface(0f, v, outPoint)
+                     path.moveTo(outPoint[0], outPoint[1])
+
+                     for (step in 1..denseSteps) {
+                         val u = step.toFloat() / denseSteps
+                         layer.evaluateBezierSurface(u, v, outPoint)
+                         path.lineTo(outPoint[0], outPoint[1])
                      }
                      canvas.drawPath(path, paint)
                  }
@@ -1107,14 +1110,15 @@ class AstralCanvasView @JvmOverloads constructor(
                  // Draw smooth curves for cols
                  for (c in 0..cols) {
                      val path = Path()
-                     var idx = c * 2
-                     path.moveTo(mesh[idx], mesh[idx+1])
+                     val u = c.toFloat() / cols
 
-                     for (r in 1..rows) {
-                         idx = (r * (cols + 1) + c) * 2
-                         val x = mesh[idx]
-                         val y = mesh[idx+1]
-                         path.lineTo(x, y)
+                     layer.evaluateBezierSurface(u, 0f, outPoint)
+                     path.moveTo(outPoint[0], outPoint[1])
+
+                     for (step in 1..denseSteps) {
+                         val v = step.toFloat() / denseSteps
+                         layer.evaluateBezierSurface(u, v, outPoint)
+                         path.lineTo(outPoint[0], outPoint[1])
                      }
                      canvas.drawPath(path, paint)
                  }
@@ -1717,6 +1721,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          if (mesh != null && warpPointIndex != -1) {
                              mesh[warpPointIndex*2] = localPoint[0]
                              mesh[warpPointIndex*2+1] = localPoint[1]
+                             layer.updateDenseWarpMesh()
                              invalidate()
                          }
                          return true
