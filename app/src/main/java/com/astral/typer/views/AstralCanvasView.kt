@@ -113,6 +113,37 @@ class AstralCanvasView @JvmOverloads constructor(
     // private var cachedMaskBitmap: android.graphics.Bitmap? = null
     // private var isMaskDirty = true
 
+    // Brush Mode
+    private var isBrushMode = false
+
+    enum class DrawPathMode {
+        FREE, LINE, RECT, OVAL, LASSO
+    }
+
+    enum class DrawLineStyle {
+        SOLID, DASHED, DOTTED, ZIGZAG
+    }
+
+    data class BrushStroke(
+        val path: Path,
+        val color: Int,
+        val width: Float,
+        val softness: Float,
+        val alpha: Int,
+        val pathMode: DrawPathMode,
+        val lineStyle: DrawLineStyle
+    )
+    private val brushOps = mutableListOf<BrushStroke>()
+    private val redoBrushOps = mutableListOf<BrushStroke>()
+    private var currentBrushPath = Path()
+
+    var brushDrawColor: Int = Color.BLACK
+    var brushDrawSize: Float = 50f
+    var brushDrawSoftness: Float = 0f
+    var brushDrawAlpha: Int = 255
+    var brushDrawPathMode: DrawPathMode = DrawPathMode.FREE
+    var brushDrawLineStyle: DrawLineStyle = DrawLineStyle.SOLID
+
     var brushSize = 50f
         set(value) {
             field = value
@@ -259,6 +290,37 @@ class AstralCanvasView @JvmOverloads constructor(
             currentMode = Mode.NONE
         }
         invalidate()
+    }
+
+    fun setBrushMode(enabled: Boolean) {
+        isBrushMode = enabled
+        if (enabled) {
+            selectLayer(null)
+            currentMode = Mode.BRUSH
+        } else {
+            if (currentMode == Mode.BRUSH) currentMode = Mode.NONE
+        }
+        invalidate()
+    }
+
+    fun undoBrushStroke(): Boolean {
+        if (brushOps.isNotEmpty()) {
+            val last = brushOps.removeAt(brushOps.size - 1)
+            redoBrushOps.add(last)
+            invalidate()
+            return true
+        }
+        return false
+    }
+
+    fun redoBrushStroke(): Boolean {
+        if (redoBrushOps.isNotEmpty()) {
+            val last = redoBrushOps.removeAt(redoBrushOps.size - 1)
+            brushOps.add(last)
+            invalidate()
+            return true
+        }
+        return false
     }
 
     fun enterCutMode() {
@@ -615,7 +677,8 @@ class AstralCanvasView @JvmOverloads constructor(
         CUT_DRAG_TR,
         CUT_DRAG_BR,
         CUT_DRAG_BL,
-        TYPER
+        TYPER,
+        BRUSH
     }
 
     private var currentMode = Mode.NONE
@@ -884,6 +947,59 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Layers
         drawScene(canvas)
+
+        // Draw Brush Strokes
+        val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        fun applyLineStyle(paint: Paint, style: DrawLineStyle, width: Float) {
+            when (style) {
+                DrawLineStyle.SOLID -> paint.pathEffect = null
+                DrawLineStyle.DASHED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width * 3, width * 3), 0f)
+                DrawLineStyle.DOTTED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width, width * 2), 0f)
+                DrawLineStyle.ZIGZAG -> {
+                    val zigZagPath = Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(width, width)
+                        lineTo(width * 2, 0f)
+                    }
+                    paint.pathEffect = android.graphics.PathDashPathEffect(zigZagPath, width * 2, 0f, android.graphics.PathDashPathEffect.Style.MORPH)
+                }
+            }
+        }
+
+        // Draw stored operations
+        for (stroke in brushOps) {
+            brushPaint.color = stroke.color
+            brushPaint.strokeWidth = stroke.width
+            brushPaint.alpha = stroke.alpha
+            if (stroke.softness > 0f) {
+                brushPaint.maskFilter = android.graphics.BlurMaskFilter(stroke.softness, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            } else {
+                brushPaint.maskFilter = null
+            }
+            applyLineStyle(brushPaint, stroke.lineStyle, stroke.width)
+
+            canvas.drawPath(stroke.path, brushPaint)
+        }
+
+        // Draw current brush path
+        if (isBrushMode && !currentBrushPath.isEmpty) {
+            brushPaint.color = brushDrawColor
+            brushPaint.strokeWidth = brushDrawSize
+            brushPaint.alpha = brushDrawAlpha
+            if (brushDrawSoftness > 0f) {
+                brushPaint.maskFilter = android.graphics.BlurMaskFilter(brushDrawSoftness, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            } else {
+                brushPaint.maskFilter = null
+            }
+            applyLineStyle(brushPaint, brushDrawLineStyle, brushDrawSize)
+
+            canvas.drawPath(currentBrushPath, brushPaint)
+        }
 
         // Draw Detected Bubbles (Bottom Layer overlay)
         if (isTyperActive && detectedBubbles != null) {
@@ -1385,6 +1501,83 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
                 return true
             }
+        }
+
+        if (isBrushMode) {
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                if (!currentBrushPath.isEmpty) {
+                    currentBrushPath.reset()
+                    invalidate()
+                }
+                currentMode = Mode.PAN_ZOOM
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.BRUSH
+                }
+                return true
+            }
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    currentBrushPath.reset()
+                    startTouchX = cx
+                    startTouchY = cy
+                    if (brushDrawPathMode == DrawPathMode.FREE || brushDrawPathMode == DrawPathMode.LASSO) {
+                        currentBrushPath.moveTo(cx, cy)
+                    }
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount == 1) {
+                        when (brushDrawPathMode) {
+                            DrawPathMode.FREE, DrawPathMode.LASSO -> {
+                                currentBrushPath.lineTo(cx, cy)
+                            }
+                            DrawPathMode.LINE -> {
+                                currentBrushPath.reset()
+                                currentBrushPath.moveTo(startTouchX, startTouchY)
+                                currentBrushPath.lineTo(cx, cy)
+                            }
+                            DrawPathMode.RECT -> {
+                                currentBrushPath.reset()
+                                val rect = RectF(
+                                    minOf(startTouchX, cx), minOf(startTouchY, cy),
+                                    maxOf(startTouchX, cx), maxOf(startTouchY, cy)
+                                )
+                                currentBrushPath.addRect(rect, Path.Direction.CW)
+                            }
+                            DrawPathMode.OVAL -> {
+                                currentBrushPath.reset()
+                                val rect = RectF(
+                                    minOf(startTouchX, cx), minOf(startTouchY, cy),
+                                    maxOf(startTouchX, cx), maxOf(startTouchY, cy)
+                                )
+                                currentBrushPath.addOval(rect, Path.Direction.CW)
+                            }
+                        }
+                        invalidate()
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!currentBrushPath.isEmpty) {
+                        if (brushDrawPathMode == DrawPathMode.LASSO) {
+                            currentBrushPath.close()
+                        }
+                        val pathCopy = Path(currentBrushPath)
+                        brushOps.add(BrushStroke(
+                            pathCopy, brushDrawColor, brushDrawSize,
+                            brushDrawSoftness, brushDrawAlpha,
+                            brushDrawPathMode, brushDrawLineStyle
+                        ))
+                        redoBrushOps.clear()
+                        currentBrushPath.reset()
+                        invalidate()
+                    }
+                }
+            }
+            return true
         }
 
         if (isInpaintMode) {
