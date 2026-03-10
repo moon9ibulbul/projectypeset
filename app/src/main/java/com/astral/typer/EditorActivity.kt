@@ -1526,6 +1526,7 @@ class EditorActivity : AppCompatActivity() {
             btnBrush.setColorFilter(Color.WHITE)
             canvasView.setBrushMode(false)
             binding.bottomMenuContainer.visibility = View.VISIBLE
+            hidePropertyDetail() // Ensure any brush settings dialogs are hidden
             showInsertMenu()
 
             removeBrushToolbar()
@@ -1559,8 +1560,9 @@ class EditorActivity : AppCompatActivity() {
             setColorFilter(Color.WHITE)
             layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply { setMargins(0, 0, 32, 0) }
             setOnClickListener {
-                showColorPickerBrush(canvasView.brushDrawColor) { newColor ->
+                com.astral.typer.utils.ColorPickerHelper.showColorPickerDialog(this@EditorActivity, canvasView.brushDrawColor) { newColor ->
                     canvasView.brushDrawColor = newColor
+                    canvasView.invalidate()
                 }
             }
         }
@@ -1580,6 +1582,18 @@ class EditorActivity : AppCompatActivity() {
             }
         }
         toolbar.addView(btnEyedropper)
+
+        // Eraser
+        val btnEraser = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_eraser)
+            setColorFilter(if (canvasView.isBrushEraser) Color.CYAN else Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply { setMargins(0, 0, 32, 0) }
+            setOnClickListener {
+                canvasView.isBrushEraser = !canvasView.isBrushEraser
+                setColorFilter(if (canvasView.isBrushEraser) Color.CYAN else Color.WHITE)
+            }
+        }
+        toolbar.addView(btnEraser)
 
         // Settings (Size, Softness, Alpha)
         val btnSettings = android.widget.ImageView(this).apply {
@@ -1613,6 +1627,18 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
         }
         scroll.addView(layout)
+
+        // Close Button
+        val closeBtn = TextView(this).apply {
+            text = "Close"
+            setTextColor(Color.CYAN)
+            gravity = Gravity.END
+            setPadding(0, 0, 0, 16)
+            setOnClickListener {
+                hidePropertyDetail()
+            }
+        }
+        layout.addView(closeBtn)
 
         // Brush Size
         layout.addView(TextView(this).apply { text = "Brush Size"; setTextColor(Color.LTGRAY) })
@@ -1701,57 +1727,6 @@ class EditorActivity : AppCompatActivity() {
 
         container.addView(scroll)
         currentMenuType = "BRUSH_SETTINGS"
-    }
-
-    private fun showColorPickerBrush(initialColor: Int, onColorSelected: (Int) -> Unit) {
-        val container = prepareContainer()
-        val scroll = ScrollView(this).apply {
-            isVerticalScrollBarEnabled = false
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        }
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 16, 0, 16)
-        }
-        scroll.addView(layout)
-
-        // Palette Layout (similar to standard showColorPicker)
-        val predefinedColors = intArrayOf(
-            Color.WHITE, Color.BLACK, Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.CYAN, Color.MAGENTA, Color.GRAY,
-            Color.parseColor("#FF5722"), Color.parseColor("#4CAF50"), Color.parseColor("#3F51B5"),
-            Color.parseColor("#9C27B0"), Color.parseColor("#00BCD4"), Color.parseColor("#FFC107")
-        )
-
-        val paletteGrid = GridLayout(this).apply {
-            columnCount = 5
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
-        for (color in predefinedColors) {
-            val colorView = View(this).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(color)
-                    setStroke(2, Color.LTGRAY)
-                }
-                layoutParams = GridLayout.LayoutParams().apply {
-                    width = dpToPx(36)
-                    height = dpToPx(36)
-                    setMargins(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-                }
-                setOnClickListener {
-                    onColorSelected(color)
-                    canvasView.invalidate()
-                    hidePropertyDetail()
-                }
-            }
-            paletteGrid.addView(colorView)
-        }
-        layout.addView(paletteGrid)
-
-        container.addView(scroll)
-        currentMenuType = "BRUSH_COLOR"
     }
 
     private var inpaintToolbar: android.widget.LinearLayout? = null

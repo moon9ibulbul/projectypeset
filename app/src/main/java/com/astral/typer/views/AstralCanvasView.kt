@@ -131,7 +131,8 @@ class AstralCanvasView @JvmOverloads constructor(
         val softness: Float,
         val alpha: Int,
         val pathMode: DrawPathMode,
-        val lineStyle: DrawLineStyle
+        val lineStyle: DrawLineStyle,
+        val isEraser: Boolean
     )
     private val brushOps = mutableListOf<BrushStroke>()
     private val redoBrushOps = mutableListOf<BrushStroke>()
@@ -143,6 +144,7 @@ class AstralCanvasView @JvmOverloads constructor(
     var brushDrawAlpha: Int = 255
     var brushDrawPathMode: DrawPathMode = DrawPathMode.FREE
     var brushDrawLineStyle: DrawLineStyle = DrawLineStyle.SOLID
+    var isBrushEraser: Boolean = false
 
     var brushSize = 50f
         set(value) {
@@ -949,56 +951,77 @@ class AstralCanvasView @JvmOverloads constructor(
         drawScene(canvas)
 
         // Draw Brush Strokes
-        val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
+        if (isBrushMode || brushOps.isNotEmpty()) {
+            val saveCount = canvas.saveLayer(null, null)
+            val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
 
-        fun applyLineStyle(paint: Paint, style: DrawLineStyle, width: Float) {
-            when (style) {
-                DrawLineStyle.SOLID -> paint.pathEffect = null
-                DrawLineStyle.DASHED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width * 3, width * 3), 0f)
-                DrawLineStyle.DOTTED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width, width * 2), 0f)
-                DrawLineStyle.ZIGZAG -> {
-                    val zigZagPath = Path().apply {
-                        moveTo(0f, 0f)
-                        lineTo(width, width)
-                        lineTo(width * 2, 0f)
+            fun applyLineStyle(paint: Paint, style: DrawLineStyle, width: Float) {
+                when (style) {
+                    DrawLineStyle.SOLID -> paint.pathEffect = null
+                    DrawLineStyle.DASHED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width * 3, width * 3), 0f)
+                    DrawLineStyle.DOTTED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width, width * 2), 0f)
+                    DrawLineStyle.ZIGZAG -> {
+                        val zigZagPath = Path().apply {
+                            moveTo(0f, 0f)
+                            lineTo(width, width)
+                            lineTo(width * 2, 0f)
+                        }
+                        paint.pathEffect = android.graphics.PathDashPathEffect(zigZagPath, width * 2, 0f, android.graphics.PathDashPathEffect.Style.MORPH)
                     }
-                    paint.pathEffect = android.graphics.PathDashPathEffect(zigZagPath, width * 2, 0f, android.graphics.PathDashPathEffect.Style.MORPH)
                 }
             }
-        }
 
-        // Draw stored operations
-        for (stroke in brushOps) {
-            brushPaint.color = stroke.color
-            brushPaint.strokeWidth = stroke.width
-            brushPaint.alpha = stroke.alpha
-            if (stroke.softness > 0f) {
-                brushPaint.maskFilter = android.graphics.BlurMaskFilter(stroke.softness, android.graphics.BlurMaskFilter.Blur.NORMAL)
-            } else {
-                brushPaint.maskFilter = null
+            // Draw stored operations
+            for (stroke in brushOps) {
+                if (stroke.isEraser) {
+                    brushPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                    brushPaint.color = Color.TRANSPARENT
+                    brushPaint.alpha = 255
+                } else {
+                    brushPaint.xfermode = null
+                    brushPaint.color = stroke.color
+                    brushPaint.alpha = stroke.alpha
+                }
+
+                brushPaint.strokeWidth = stroke.width
+
+                if (stroke.softness > 0f) {
+                    brushPaint.maskFilter = android.graphics.BlurMaskFilter(stroke.softness, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                } else {
+                    brushPaint.maskFilter = null
+                }
+                applyLineStyle(brushPaint, stroke.lineStyle, stroke.width)
+
+                canvas.drawPath(stroke.path, brushPaint)
             }
-            applyLineStyle(brushPaint, stroke.lineStyle, stroke.width)
 
-            canvas.drawPath(stroke.path, brushPaint)
-        }
+            // Draw current brush path
+            if (isBrushMode && !currentBrushPath.isEmpty) {
+                if (isBrushEraser) {
+                    brushPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                    brushPaint.color = Color.TRANSPARENT
+                    brushPaint.alpha = 255
+                } else {
+                    brushPaint.xfermode = null
+                    brushPaint.color = brushDrawColor
+                    brushPaint.alpha = brushDrawAlpha
+                }
+                brushPaint.strokeWidth = brushDrawSize
 
-        // Draw current brush path
-        if (isBrushMode && !currentBrushPath.isEmpty) {
-            brushPaint.color = brushDrawColor
-            brushPaint.strokeWidth = brushDrawSize
-            brushPaint.alpha = brushDrawAlpha
-            if (brushDrawSoftness > 0f) {
-                brushPaint.maskFilter = android.graphics.BlurMaskFilter(brushDrawSoftness, android.graphics.BlurMaskFilter.Blur.NORMAL)
-            } else {
-                brushPaint.maskFilter = null
+                if (brushDrawSoftness > 0f) {
+                    brushPaint.maskFilter = android.graphics.BlurMaskFilter(brushDrawSoftness, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                } else {
+                    brushPaint.maskFilter = null
+                }
+                applyLineStyle(brushPaint, brushDrawLineStyle, brushDrawSize)
+
+                canvas.drawPath(currentBrushPath, brushPaint)
             }
-            applyLineStyle(brushPaint, brushDrawLineStyle, brushDrawSize)
-
-            canvas.drawPath(currentBrushPath, brushPaint)
+            canvas.restoreToCount(saveCount)
         }
 
         // Draw Detected Bubbles (Bottom Layer overlay)
@@ -1569,7 +1592,8 @@ class AstralCanvasView @JvmOverloads constructor(
                         brushOps.add(BrushStroke(
                             pathCopy, brushDrawColor, brushDrawSize,
                             brushDrawSoftness, brushDrawAlpha,
-                            brushDrawPathMode, brushDrawLineStyle
+                            brushDrawPathMode, brushDrawLineStyle,
+                            isBrushEraser
                         ))
                         redoBrushOps.clear()
                         currentBrushPath.reset()
