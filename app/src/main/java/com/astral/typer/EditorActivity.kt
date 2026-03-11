@@ -282,7 +282,16 @@ class EditorActivity : AppCompatActivity() {
         super.onPause()
         // Auto Save
         // Capture data on Main Thread
-        val layers = canvasView.getLayers().toList() // Shallow copy list
+        val layersToSave = canvasView.getLayers().toMutableList()
+        val brushBitmap = canvasView.getBrushBitmap()
+        if (brushBitmap != null) {
+            val brushLayer = ImageLayer(brushBitmap)
+            val center = canvasView.getViewportCenter()
+            brushLayer.x = center[0]
+            brushLayer.y = center[1]
+            brushLayer.name = "Brush Strokes"
+            layersToSave.add(brushLayer)
+        }
         val bgBitmap = canvasView.getBackgroundImage()
         val bmp = canvasView.renderToBitmap()
         val w = bmp.width
@@ -293,17 +302,24 @@ class EditorActivity : AppCompatActivity() {
         val thumbH = (h * (thumbW.toFloat() / w)).toInt()
         val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
 
+        ProjectManager.isSaving = true
+        Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
+
         lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
-            ProjectManager.saveProject(
-                this@EditorActivity,
-                layers,
-                w,
-                h,
-                Color.WHITE,
-                bgBitmap,
-                "autosave",
-                thumbnail
-            )
+            try {
+                ProjectManager.saveProject(
+                    this@EditorActivity,
+                    layersToSave,
+                    w,
+                    h,
+                    Color.WHITE,
+                    bgBitmap,
+                    "autosave",
+                    thumbnail
+                )
+            } finally {
+                ProjectManager.isSaving = false
+            }
         }
     }
 
@@ -817,19 +833,38 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Helper to create Effect Cards
-        fun createCard(title: String, effectType: TextEffectType, isSelected: Boolean, onClick: () -> Unit): View {
+        fun createCard(title: String, effectType: TextEffectType, isSelected: Boolean, isSecondary: Boolean, onClick: () -> Unit, onDoubleClick: () -> Unit): View {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(dpToPx(120), dpToPx(140)).apply {
                     setMargins(8, 8, 8, 8)
                 }
+
+                val borderColor = if (isSelected) Color.CYAN else if (isSecondary) Color.MAGENTA else Color.TRANSPARENT
+                val bgColor = if (isSelected || isSecondary) Color.DKGRAY else Color.parseColor("#333333")
+
                 background = GradientDrawable().apply {
-                    setColor(if (isSelected) Color.DKGRAY else Color.parseColor("#333333"))
+                    setColor(bgColor)
                     cornerRadius = dpToPx(8).toFloat()
-                    setStroke(dpToPx(2), if (isSelected) Color.CYAN else Color.TRANSPARENT)
+                    setStroke(dpToPx(2), borderColor)
                 }
-                setOnClickListener { onClick() }
+
+                val gestureDetector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                    override fun onSingleTapConfirmed(e: android.view.MotionEvent): Boolean {
+                        onClick()
+                        return true
+                    }
+                    override fun onDoubleTap(e: android.view.MotionEvent): Boolean {
+                        onDoubleClick()
+                        return true
+                    }
+                })
+
+                setOnTouchListener { _, event ->
+                    gestureDetector.onTouchEvent(event)
+                    true
+                }
             }
 
             // Generate Preview
@@ -868,89 +903,63 @@ class EditorActivity : AppCompatActivity() {
             return card
         }
 
-        // None
-        cardsLayout.addView(createCard("None", TextEffectType.NONE, layer.currentEffect == TextEffectType.NONE) {
-            layer.currentEffect = TextEffectType.NONE
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
+        val handleEffectToggle = { effect: TextEffectType, isToggleOff: Boolean ->
+            if (effect == TextEffectType.NONE) {
+                layer.currentEffect = TextEffectType.NONE
+                layer.secondaryEffect = TextEffectType.NONE
+            } else if (isToggleOff) {
+                if (layer.currentEffect == effect) layer.currentEffect = TextEffectType.NONE
+                if (layer.secondaryEffect == effect) layer.secondaryEffect = TextEffectType.NONE
+            } else {
+                if (layer.currentEffect == TextEffectType.NONE) {
+                    layer.currentEffect = effect
+                } else if (layer.secondaryEffect == TextEffectType.NONE && layer.currentEffect != effect) {
+                    layer.secondaryEffect = effect
+                } else if (layer.currentEffect != effect && layer.secondaryEffect != effect) {
+                    // Replace the first effect if both are full
+                    layer.currentEffect = layer.secondaryEffect
+                    layer.secondaryEffect = effect
+                }
+            }
 
-        // Chromatic Aberration
-        cardsLayout.addView(createCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION, layer.currentEffect == TextEffectType.CHROMATIC_ABERRATION) {
-            layer.currentEffect = TextEffectType.CHROMATIC_ABERRATION
-            if (layer.chromaticShift == 0f) layer.chromaticShift = 5f
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
+            // Defaults
+            if (effect == TextEffectType.CHROMATIC_ABERRATION && layer.chromaticShift == 0f) layer.chromaticShift = 5f
+            if (effect == TextEffectType.GLITCH && layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
+            if (effect == TextEffectType.PIXELATION && layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
+            if (effect == TextEffectType.NEON && layer.neonRadius == 0f) layer.neonRadius = 30f
+            if (effect == TextEffectType.LONG_SHADOW && layer.longShadowLength == 0f) layer.longShadowLength = 30f
+            if (effect == TextEffectType.GAUSSIAN_BLUR && layer.blurRadius == 0f) layer.blurRadius = 10f
+            if (effect == TextEffectType.HALFTONE && layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
 
-        // Glitch
-        cardsLayout.addView(createCard("Glitch", TextEffectType.GLITCH, layer.currentEffect == TextEffectType.GLITCH) {
-            layer.currentEffect = TextEffectType.GLITCH
-            if (layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
             canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
+            showEffectMenu()
+        }
 
-        // Pixelation
-        cardsLayout.addView(createCard("Pixelation", TextEffectType.PIXELATION, layer.currentEffect == TextEffectType.PIXELATION) {
-            layer.currentEffect = TextEffectType.PIXELATION
-            if (layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
+        fun addEffectCard(title: String, effect: TextEffectType) {
+            val isPrimary = layer.currentEffect == effect
+            val isSecondary = layer.secondaryEffect == effect
+            cardsLayout.addView(createCard(title, effect, isPrimary, isSecondary,
+                onClick = { handleEffectToggle(effect, false) },
+                onDoubleClick = { handleEffectToggle(effect, true) }
+            ))
+        }
 
-        // Neon
-        cardsLayout.addView(createCard("Neon", TextEffectType.NEON, layer.currentEffect == TextEffectType.NEON) {
-            layer.currentEffect = TextEffectType.NEON
-            if (layer.neonRadius == 0f) layer.neonRadius = 30f
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
+        val noEffectActive = layer.currentEffect == TextEffectType.NONE && layer.secondaryEffect == TextEffectType.NONE
+        cardsLayout.addView(createCard("None", TextEffectType.NONE, noEffectActive, false,
+            onClick = { handleEffectToggle(TextEffectType.NONE, false) },
+            onDoubleClick = { }
+        ))
 
-        // Long Shadow
-        cardsLayout.addView(createCard("Long Shadow", TextEffectType.LONG_SHADOW, layer.currentEffect == TextEffectType.LONG_SHADOW) {
-            layer.currentEffect = TextEffectType.LONG_SHADOW
-            if (layer.longShadowLength == 0f) layer.longShadowLength = 30f // Default
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
-        // Fiery
-        cardsLayout.addView(createCard("Fiery", TextEffectType.FIERY, layer.currentEffect == TextEffectType.FIERY) {
-            layer.currentEffect = TextEffectType.FIERY
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
-        // Wavy
-        cardsLayout.addView(createCard("Wavy", TextEffectType.WAVY, layer.currentEffect == TextEffectType.WAVY) {
-            layer.currentEffect = TextEffectType.WAVY
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
-        // Gaussian Blur
-        cardsLayout.addView(createCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR, layer.currentEffect == TextEffectType.GAUSSIAN_BLUR) {
-            layer.currentEffect = TextEffectType.GAUSSIAN_BLUR
-            if (layer.blurRadius == 0f) layer.blurRadius = 10f // Set Default
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
-        // Halftone
-        cardsLayout.addView(createCard("Halftone", TextEffectType.HALFTONE, layer.currentEffect == TextEffectType.HALFTONE) {
-            layer.currentEffect = TextEffectType.HALFTONE
-            if (layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
-
-        // Multi Gradient
-        cardsLayout.addView(createCard("Multi Gradient", TextEffectType.MULTI_GRADIENT, layer.currentEffect == TextEffectType.MULTI_GRADIENT) {
-            layer.currentEffect = TextEffectType.MULTI_GRADIENT
-            canvasView.invalidate()
-            showEffectMenu() // Refresh UI
-        })
+        addEffectCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION)
+        addEffectCard("Glitch", TextEffectType.GLITCH)
+        addEffectCard("Pixelation", TextEffectType.PIXELATION)
+        addEffectCard("Neon", TextEffectType.NEON)
+        addEffectCard("Long Shadow", TextEffectType.LONG_SHADOW)
+        addEffectCard("Fiery", TextEffectType.FIERY)
+        addEffectCard("Wavy", TextEffectType.WAVY)
+        addEffectCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR)
+        addEffectCard("Halftone", TextEffectType.HALFTONE)
+        addEffectCard("Multi Gradient", TextEffectType.MULTI_GRADIENT)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -965,8 +974,10 @@ class EditorActivity : AppCompatActivity() {
             )
         }
 
-        when (layer.currentEffect) {
-            TextEffectType.LONG_SHADOW -> {
+        // Helper to check if effect is active
+        val isEffectActive = { effect: TextEffectType -> layer.currentEffect == effect || layer.secondaryEffect == effect }
+
+        if (isEffectActive(TextEffectType.LONG_SHADOW)) {
                 settingsLayout.addView(createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
                     layer.longShadowLength = it.toFloat()
                     canvasView.invalidate()
@@ -983,8 +994,8 @@ class EditorActivity : AppCompatActivity() {
                     { c -> layer.longShadowColor = c; canvasView.invalidate() },
                     { showColorWheelDialogForProperty(layer.longShadowColor) { c -> layer.longShadowColor = c; canvasView.invalidate() } }
                 ))
-            }
-            TextEffectType.FIERY -> {
+        }
+        if (isEffectActive(TextEffectType.FIERY)) {
                 settingsLayout.addView(createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
                     layer.fieryIntensity = it / 100f
                     canvasView.invalidate()
@@ -996,8 +1007,8 @@ class EditorActivity : AppCompatActivity() {
                     { c -> layer.fieryColor = c; canvasView.invalidate() },
                     { showColorWheelDialogForProperty(layer.fieryColor) { c -> layer.fieryColor = c; canvasView.invalidate() } }
                 ))
-            }
-            TextEffectType.WAVY -> {
+        }
+        if (isEffectActive(TextEffectType.WAVY)) {
                 settingsLayout.addView(createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
                     layer.wavyIntensity = it / 100f
                     canvasView.invalidate()
@@ -1008,15 +1019,15 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Frequency: $it" }
                 })
-            }
-            TextEffectType.GAUSSIAN_BLUR -> {
+        }
+        if (isEffectActive(TextEffectType.GAUSSIAN_BLUR)) {
                 settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
                     layer.blurRadius = it.toFloat()
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
                 })
-            }
-            TextEffectType.HALFTONE -> {
+        }
+        if (isEffectActive(TextEffectType.HALFTONE)) {
                 settingsLayout.addView(createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
                     layer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
@@ -1028,8 +1039,8 @@ class EditorActivity : AppCompatActivity() {
                     { c -> layer.halftoneDotColor = c; canvasView.invalidate() },
                     { showColorWheelDialogForProperty(layer.halftoneDotColor) { c -> layer.halftoneDotColor = c; canvasView.invalidate() } }
                 ))
-            }
-            TextEffectType.MULTI_GRADIENT -> {
+        }
+        if (isEffectActive(TextEffectType.MULTI_GRADIENT)) {
                 // Multi Gradient Control
                 val paletteLayout = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -1084,8 +1095,8 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
                 })
-            }
-            TextEffectType.NEON -> {
+        }
+        if (isEffectActive(TextEffectType.NEON)) {
                 settingsLayout.addView(createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
                     layer.neonRadius = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
@@ -1097,8 +1108,8 @@ class EditorActivity : AppCompatActivity() {
                     { c -> layer.neonColor = c; canvasView.invalidate() },
                     { showColorWheelDialogForProperty(layer.neonColor) { c -> layer.neonColor = c; canvasView.invalidate() } }
                 ))
-            }
-            TextEffectType.GLITCH -> {
+        }
+        if (isEffectActive(TextEffectType.GLITCH)) {
                 settingsLayout.addView(createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
                     layer.glitchIntensity = it / 100f
                     canvasView.invalidate()
@@ -1114,22 +1125,107 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
                 settingsLayout.addView(btnSeed)
-            }
-            TextEffectType.PIXELATION -> {
+        }
+        if (isEffectActive(TextEffectType.PIXELATION)) {
                 settingsLayout.addView(createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
                     layer.pixelBlockSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
                     (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Block Size: $it" }
                 })
-            }
-            TextEffectType.CHROMATIC_ABERRATION -> {
+        }
+        if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION)) {
+                // Chromatic Palette Control
+                val paletteLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 8, 0, 8)
+                }
+
+                val scrollPalette = HorizontalScrollView(this).apply {
+                    isHorizontalScrollBarEnabled = false
+                }
+
+                val paletteContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                }
+                scrollPalette.addView(paletteContainer)
+
+                data class ChromaticPaletteItem(val name: String, val colors: IntArray)
+                val palettes = listOf(
+                    ChromaticPaletteItem("Standar", intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())),
+                    ChromaticPaletteItem("Melancholy", intArrayOf(0xFF4A6984.toInt(), 0xFF7BA4B6.toInt(), 0xFFB3A1C6.toInt())),
+                    ChromaticPaletteItem("Thriller", intArrayOf(0xFF8B0000.toInt(), 0xFF556B2F.toInt(), 0xFF4B0082.toInt())),
+                    ChromaticPaletteItem("Romantic", intArrayOf(0xFFFF69B4.toInt(), 0xFFFFB6C1.toInt(), 0xFF87CEFA.toInt())),
+                    ChromaticPaletteItem("Action", intArrayOf(0xFFFF2400.toInt(), 0xFFFFA500.toInt(), 0xFF00FFFF.toInt())),
+                    ChromaticPaletteItem("Nostalgia", intArrayOf(0xFF8B5A2B.toInt(), 0xFFDAA520.toInt(), 0xFF8F9779.toInt()))
+                )
+
+                for (p in palettes) {
+                    val btn = android.widget.Button(this).apply {
+                        text = p.name
+                        setTextColor(Color.WHITE)
+                        textSize = 10f
+                        background = GradientDrawable().apply {
+                            orientation = GradientDrawable.Orientation.LEFT_RIGHT
+                            colors = p.colors
+                            cornerRadius = dpToPx(16).toFloat()
+                            setStroke(dpToPx(1), Color.WHITE)
+                        }
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(80), dpToPx(40)).apply {
+                            setMargins(4,0,4,0)
+                        }
+                        setOnClickListener {
+                            layer.chromaticColors = p.colors
+                            canvasView.invalidate()
+                        }
+                    }
+                    paletteContainer.addView(btn)
+                }
+
+                val customContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(4, 0, 4, 0)
+                }
+
+                val customLabel = TextView(this).apply {
+                    text = "Custom: "
+                    setTextColor(Color.WHITE)
+                    textSize = 10f
+                    setPadding(8, 0, 8, 0)
+                }
+                customContainer.addView(customLabel)
+
+                for (i in 0..2) {
+                    val colorBtn = android.widget.ImageView(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).apply {
+                            setMargins(4, 0, 4, 0)
+                        }
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(layer.chromaticColors[i])
+                            setStroke(dpToPx(1), Color.WHITE)
+                        }
+                        setOnClickListener { btn ->
+                            showColorWheelDialogForProperty(layer.chromaticColors[i]) { pickedColor ->
+                                layer.chromaticColors[i] = pickedColor
+                                (btn.background as GradientDrawable).setColor(pickedColor)
+                                canvasView.invalidate()
+                            }
+                        }
+                    }
+                    customContainer.addView(colorBtn)
+                }
+
+                paletteContainer.addView(customContainer)
+
+                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(scrollPalette)
+
                 settingsLayout.addView(createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
                     layer.chromaticShift = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
+                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
                 })
-            }
-            else -> {}
         }
 
         mainLayout.addView(settingsLayout)
@@ -1387,48 +1483,17 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Show Loading
-            binding.loadingOverlay.visibility = View.VISIBLE
-
-            // Capture Data on Main Thread
-            val layers = canvasView.getLayers().toList()
-            val bgBitmap = canvasView.getBackgroundImage()
-            val bmp = canvasView.renderToBitmap()
-            val w = bmp.width
-            val h = bmp.height
-
-            // Generate Thumbnail
-            val thumbW = 300
-            val thumbH = (h * (thumbW.toFloat() / w)).toInt()
-            val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
-
-            // Save logic
-             lifecycleScope.launch(Dispatchers.IO) {
-                var success = false
-                try {
-                    success = ProjectManager.saveProject(
-                        this@EditorActivity,
-                        layers,
-                        w,
-                        h,
-                        Color.WHITE,
-                        bgBitmap,
-                        name,
-                        thumbnail
-                    )
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                withContext(Dispatchers.Main) {
-                    binding.loadingOverlay.visibility = View.GONE
-                    if (success) {
-                        Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
-                        binding.saveSidebar.root.visibility = View.GONE
-                    } else {
-                        Toast.makeText(this@EditorActivity, "Save Failed", Toast.LENGTH_SHORT).show()
+            if (ProjectManager.projectExists(this, name)) {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Peringatan")
+                    .setMessage("Sudah ada project dengan nama yang sama, apakah ingin tetap menyimpan?")
+                    .setPositiveButton("Ya") { _, _ ->
+                        performProjectSave(name)
                     }
-                }
+                    .setNegativeButton("Batal", null)
+                    .show()
+            } else {
+                performProjectSave(name)
             }
         }
 
@@ -1498,6 +1563,61 @@ class EditorActivity : AppCompatActivity() {
                     withContext(Dispatchers.Main) {
                         binding.loadingOverlay.visibility = View.GONE
                     }
+                }
+            }
+        }
+    }
+
+    private fun performProjectSave(name: String) {
+        // Show Loading
+        binding.loadingOverlay.visibility = View.VISIBLE
+
+        // Capture Data on Main Thread
+        val layersToSave = canvasView.getLayers().toMutableList()
+        val brushBitmap = canvasView.getBrushBitmap()
+        if (brushBitmap != null) {
+            val brushLayer = ImageLayer(brushBitmap)
+            val center = canvasView.getViewportCenter()
+            brushLayer.x = center[0]
+            brushLayer.y = center[1]
+            brushLayer.name = "Brush Strokes"
+            layersToSave.add(brushLayer)
+        }
+        val bgBitmap = canvasView.getBackgroundImage()
+        val bmp = canvasView.renderToBitmap()
+        val w = bmp.width
+        val h = bmp.height
+
+        // Generate Thumbnail
+        val thumbW = 300
+        val thumbH = (h * (thumbW.toFloat() / w)).toInt()
+        val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+
+        // Save logic
+        lifecycleScope.launch(Dispatchers.IO) {
+            var success = false
+            try {
+                success = ProjectManager.saveProject(
+                    this@EditorActivity,
+                    layersToSave,
+                    w,
+                    h,
+                    Color.WHITE,
+                    bgBitmap,
+                    name,
+                    thumbnail
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            withContext(Dispatchers.Main) {
+                binding.loadingOverlay.visibility = View.GONE
+                if (success) {
+                    Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
+                    binding.saveSidebar.root.visibility = View.GONE
+                } else {
+                    Toast.makeText(this@EditorActivity, "Save Failed", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -3929,6 +4049,28 @@ class EditorActivity : AppCompatActivity() {
             layout.addView(createSlider("DY", (layer.shadowDy + 50).toInt(), 100) {
                 layer.shadowDy = (it - 50).toFloat(); canvasView.invalidate()
             })
+            val btnCenter = android.widget.Button(this@EditorActivity).apply {
+                text = "Center"
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 16, 0, 16)
+                }
+                setOnClickListener {
+                    layer.shadowDx = 0f
+                    layer.shadowDy = 0f
+                    canvasView.invalidate()
+                    // Re-render the menu to update sliders
+                    showShadowControls()
+                }
+            }
+            layout.addView(btnCenter)
             addView(layout)
         }
 
@@ -4101,6 +4243,7 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
              layer.gradientAngle = it
              canvasView.invalidate()
+             (mainLayout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $it°" }
         })
 
         scroll.addView(mainLayout)

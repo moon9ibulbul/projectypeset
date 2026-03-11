@@ -446,6 +446,64 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
+    fun getBrushBitmap(): android.graphics.Bitmap? {
+        if (brushOps.isEmpty()) return null
+
+        try {
+            val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+
+            fun applyLineStyle(paint: Paint, style: DrawLineStyle, width: Float) {
+                when (style) {
+                    DrawLineStyle.SOLID -> paint.pathEffect = null
+                    DrawLineStyle.DASHED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width * 3, width * 3), 0f)
+                    DrawLineStyle.DOTTED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width, width * 2), 0f)
+                    DrawLineStyle.ZIGZAG -> {
+                        val zigZagPath = Path().apply {
+                            moveTo(0f, 0f)
+                            lineTo(width, width)
+                            lineTo(width * 2, 0f)
+                        }
+                        paint.pathEffect = android.graphics.PathDashPathEffect(zigZagPath, width * 2, 0f, android.graphics.PathDashPathEffect.Style.MORPH)
+                    }
+                }
+            }
+
+            for (stroke in brushOps) {
+                if (stroke.isEraser) {
+                    brushPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                    brushPaint.color = Color.TRANSPARENT
+                    brushPaint.alpha = 255
+                } else {
+                    brushPaint.xfermode = null
+                    brushPaint.color = stroke.color
+                    brushPaint.alpha = stroke.alpha
+                }
+
+                brushPaint.strokeWidth = stroke.width
+
+                if (stroke.softness > 0f) {
+                    brushPaint.maskFilter = android.graphics.BlurMaskFilter(stroke.softness, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                } else {
+                    brushPaint.maskFilter = null
+                }
+                applyLineStyle(brushPaint, stroke.lineStyle, stroke.width)
+
+                canvas.drawPath(stroke.path, brushPaint)
+            }
+            return bitmap
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("AstralCanvasView", "OOM generating brush bitmap")
+            return null
+        }
+    }
+
     /**
      * Extracts a specific region of the background image as a single Bitmap.
      * Efficiently stitches relevant tiles.
@@ -1356,6 +1414,27 @@ class AstralCanvasView @JvmOverloads constructor(
              drawIconHandle(halfW + handleOffset, 0f, pathBoxWidth, Color.MAGENTA)
         }
 
+        if (currentMode == Mode.RESIZE_LAYER && layer is TextLayer && this.selectedLayer == layer) {
+             canvas.save()
+             // Move to top-right handle position
+             canvas.translate(halfW + handleOffset, -halfH - handleOffset)
+             // We want the text to be right-side up, so we undo the layer's rotation and scale
+             canvas.scale(1 / layer.scaleX, 1 / layer.scaleY)
+             canvas.rotate(-layer.rotation)
+
+             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                 color = Color.WHITE
+                 textSize = 40f // Fixed screen size
+                 setShadowLayer(5f, 0f, 0f, Color.BLACK)
+                 textAlign = Paint.Align.LEFT
+             }
+             val scaleText = "${(layer.scale * 100).toInt()}%"
+
+             // Draw text slightly offset to top-right to avoid overlapping the handle
+             canvas.drawText(scaleText, 30f, -10f, textPaint)
+             canvas.restore()
+        }
+
         if (!isTyperHand) {
             val topY = -halfH - handleOffset * 2.5f
             val iconSpacing = geometry.radius * 2.5f
@@ -1678,35 +1757,26 @@ class AstralCanvasView @JvmOverloads constructor(
                      if (layer.eraseMask == null) {
                          layer.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
                      }
+                     layer.activeErasePath = currentLayerErasePath
+                     layer.activeEraseSize = layerEraseSize
+                     layer.activeEraseOpacity = layerEraseOpacity
+                     layer.activeEraseHardness = layerEraseHardness
                  }
                  MotionEvent.ACTION_MOVE -> {
                      currentLayerErasePath.lineTo(maskX, maskY)
-                     if (layer.eraseMask != null) {
-                         val c = Canvas(layer.eraseMask!!)
-                         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                             color = Color.BLACK
-                             style = Paint.Style.STROKE
-                             strokeWidth = layerEraseSize
-                             alpha = layerEraseOpacity
-                             strokeCap = Paint.Cap.ROUND
-                             strokeJoin = Paint.Join.ROUND
-                             if (layerEraseHardness < 100) {
-                                 val radius = layerEraseSize / 2f
-                                 val blur = radius * (1f - (layerEraseHardness / 100f))
-                                 if (blur > 0.5f) {
-                                    maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
-                                 }
-                             }
-                         }
-                         c.drawPath(currentLayerErasePath, p)
-                         invalidate()
-                     }
+                     layer.activeErasePath = currentLayerErasePath
+                     layer.activeEraseSize = layerEraseSize
+                     layer.activeEraseOpacity = layerEraseOpacity
+                     layer.activeEraseHardness = layerEraseHardness
+                     invalidate()
                  }
                  MotionEvent.ACTION_UP -> {
+                     layer.activeErasePath = null
                      if (!currentLayerErasePath.isEmpty) {
                          layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
                          currentLayerErasePath.reset()
                      }
+                     invalidate()
                  }
              }
              return true
