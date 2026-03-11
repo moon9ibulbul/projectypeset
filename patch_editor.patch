@@ -1,0 +1,65 @@
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -145,6 +145,11 @@
+         canvasView = AstralCanvasView(this)
+         binding.canvasContainer.addView(canvasView)
+
++        canvasView.onGradationApplied = {
++            // Refresh menu if we're in the Gradation tab so angle updates visually
++            if (currentMenuType == "GRADATION") showGradationControls()
++        }
++
+         if (projectPath != null) {
+              val file = java.io.File(projectPath)
+              currentProjectName = file.nameWithoutExtension
+@@ -2494,6 +2499,9 @@
+         if (currentMenuType == "ERASE") {
+             canvasView.setEraseLayerMode(false)
+         }
++        if (currentMenuType == "GRADATION") {
++            canvasView.setGradationMode(false)
++        }
+
+         if (currentMenuType == "TYPER") {
+             exitTyperMode()
+@@ -2520,6 +2528,9 @@
+             if (currentMenuType == "ERASE" && type != "ERASE") {
+                 canvasView.setEraseLayerMode(false)
+             }
++            if (currentMenuType == "GRADATION" && type != "GRADATION") {
++                canvasView.setGradationMode(false)
++            }
+             // Enable prevent deselection for property menus
+             if (type != "QUICK_EDIT") {
+                 canvasView.preventDeselection = true
+@@ -2545,6 +2556,7 @@
+         togglePerspectiveMode(false)
+         toggleWarpMode(false)
+         canvasView.setEraseLayerMode(false)
++        canvasView.setGradationMode(false)
+         binding.propertyDetailContainer.removeAllViews()
+         binding.propertyDetailContainer.visibility = View.GONE
+         currentMenuType = null
+@@ -4194,6 +4206,22 @@
+             setPadding(16, 16, 16, 16)
+         }
+
++        // Enter Gradation Mode Button
++        val btnGradationMode = android.widget.Button(this).apply {
++            text = "Enter Gradation Mode"
++            setTextColor(Color.WHITE)
++            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.DKGRAY)
++            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
++                setMargins(0, 0, 0, 16)
++            }
++            setOnClickListener {
++                val isActive = canvasView.isGradationMode()
++                canvasView.setGradationMode(!isActive)
++                text = if (!isActive) "Exit Gradation Mode" else "Enter Gradation Mode"
++            }
++        }
++        mainLayout.addView(btnGradationMode)
++
+         // Toggles for Text, Stroke, Shadow
+         val togglesLayout = LinearLayout(this).apply {
+             orientation = LinearLayout.HORIZONTAL

@@ -1,0 +1,253 @@
+--- app/src/main/java/com/astral/typer/views/AstralCanvasView.kt
++++ app/src/main/java/com/astral/typer/views/AstralCanvasView.kt
+@@ -107,6 +107,21 @@
+     private var currentInpaintPath = Path()
+     private val currentTyperPath = Path()
+
++    // Gradation Mode
++    private var isGradationMode = false
++    fun isGradationMode() = isGradationMode
++    private var isDrawingGradation = false
++    private var gradationStartX = 0f
++    private var gradationStartY = 0f
++    private var gradationEndX = 0f
++    private var gradationEndY = 0f
++    private val gradationLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
++        color = Color.CYAN
++        style = Paint.Style.STROKE
++        strokeWidth = 5f
++        pathEffect = android.graphics.DashPathEffect(floatArrayOf(10f, 10f), 0f)
++    }
++    var onGradationApplied: (() -> Unit)? = null
++
+     // Cached Mask Bitmap REMOVED
+     // private var cachedMaskBitmap: android.graphics.Bitmap? = null
+-    // private var isMaskDirty = true
+
+@@ -340,6 +355,16 @@
+         return false
+     }
+
++    fun setGradationMode(enabled: Boolean) {
++        isGradationMode = enabled
++        if (enabled) {
++            currentMode = Mode.GRADATION
++        } else {
++            if (currentMode == Mode.GRADATION) currentMode = Mode.NONE
++        }
++        invalidate()
++    }
++
+     fun enterCutMode() {
+         if (selectedLayer is ImageLayer) {
+             val layer = selectedLayer as ImageLayer
+@@ -737,7 +762,8 @@
+         CUT_DRAG_TR,
+         CUT_DRAG_BR,
+         CUT_DRAG_BL,
+-        TYPER,
+-        BRUSH
++        TYPER,
++        BRUSH,
++        GRADATION
+     }
+
+@@ -1189,6 +1215,11 @@
+             canvas.restoreToCount(saveCount)
+         }
+
++        // Draw Gradation Line
++        if (isDrawingGradation) {
++            canvas.drawLine(gradationStartX, gradationStartY, gradationEndX, gradationEndY, gradationLinePaint)
++        }
++
+         // Draw Selection Overlay
+         if (currentMode != Mode.EYEDROPPER && !isInpaintMode) {
+              selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+@@ -1711,6 +1742,61 @@
+             return true
+         }
+
++        if (isGradationMode) {
++            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
++                isDrawingGradation = false
++                currentMode = Mode.PAN_ZOOM
++                scaleDetector.onTouchEvent(event)
++                gestureDetector.onTouchEvent(event)
++
++                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
++                    currentMode = Mode.GRADATION
++                }
++                invalidate()
++                return true
++            }
++
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    isDrawingGradation = true
++                    gradationStartX = cx
++                    gradationStartY = cy
++                    gradationEndX = cx
++                    gradationEndY = cy
++                    invalidate()
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    if (isDrawingGradation) {
++                        gradationEndX = cx
++                        gradationEndY = cy
++                        invalidate()
++                    }
++                }
++                MotionEvent.ACTION_UP -> {
++                    if (isDrawingGradation) {
++                        gradationEndX = cx
++                        gradationEndY = cy
++                        isDrawingGradation = false
++                        applyGradationLine(gradationStartX, gradationStartY, gradationEndX, gradationEndY)
++                        invalidate()
++                    }
++                }
++                MotionEvent.ACTION_CANCEL -> {
++                    isDrawingGradation = false
++                    invalidate()
++                }
++            }
++
++            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
++                val hitLayer = findHitLayer(cx, cy)
++                if (hitLayer != null && hitLayer is TextLayer) {
++                    selectLayer(hitLayer)
++                }
++            }
++
++            return true
++        }
++
+         if (isInpaintMode) {
+             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+@@ -2188,4 +2274,57 @@
+
+     }
++
++    private fun applyGradationLine(sx: Float, sy: Float, ex: Float, ey: Float) {
++        val selected = selectedLayer as? TextLayer ?: return
++        var angleRad = Math.atan2((ey - sy).toDouble(), (ex - sx).toDouble())
++        var angleDeg = Math.toDegrees(angleRad).toFloat()
++        if (angleDeg < 0) angleDeg += 360f
++
++        for (layer in layers) {
++            if (layer !is TextLayer || !layer.isVisible) continue
++            val m = Matrix()
++            m.postTranslate(-layer.x, -layer.y)
++            m.postRotate(-layer.rotation)
++            m.postScale(1f / layer.scaleX, 1f / layer.scaleY)
++
++            val pts = floatArrayOf(sx, sy, ex, ey)
++            m.mapPoints(pts)
++            val lsx = pts[0]
++            val lsy = pts[1]
++            val lex = pts[2]
++            val ley = pts[3]
++
++            val w = layer.getWidth() / 2f
++            val h = layer.getHeight() / 2f
++
++            if (lineIntersectsRect(lsx, lsy, lex, ley, -w, -h, w, h)) {
++                layer.isGradient = selected.isGradient
++                layer.isGradientText = selected.isGradientText
++                layer.isGradientStroke = selected.isGradientStroke
++                layer.isGradientShadow = selected.isGradientShadow
++                layer.gradientStartColor = selected.gradientStartColor
++                layer.gradientEndColor = selected.gradientEndColor
++                var localAngle = (angleDeg - layer.rotation) % 360f
++                if (localAngle < 0) localAngle += 360f
++                layer.gradientAngle = localAngle.toInt()
++            }
++        }
++        onGradationApplied?.invoke()
++    }
++
++    private fun lineIntersectsRect(x1: Float, y1: Float, x2: Float, y2: Float, rx1: Float, ry1: Float, rx2: Float, ry2: Float): Boolean {
++        val minX = minOf(x1, x2)
++        val maxX = maxOf(x1, x2)
++        val minY = minOf(y1, y2)
++        val maxY = maxOf(y1, y2)
++        if (maxX < rx1 || minX > rx2 || maxY < ry1 || minY > ry2) return false
++        if (x1 >= rx1 && x1 <= rx2 && y1 >= ry1 && y1 <= ry2) return true
++        if (x2 >= rx1 && x2 <= rx2 && y2 >= ry1 && y2 <= ry2) return true
++        return linesIntersect(x1, y1, x2, y2, rx1, ry1, rx2, ry1) || linesIntersect(x1, y1, x2, y2, rx1, ry2, rx2, ry2) || linesIntersect(x1, y1, x2, y2, rx1, ry1, rx1, ry2) || linesIntersect(x1, y1, x2, y2, rx2, ry1, rx2, ry2)
++    }
++
++    private fun linesIntersect(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float, x4: Float, y4: Float): Boolean {
++        val den = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
++        if (den == 0f) return false
++        val ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / den
++        val ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / den
++        return ua >= 0f && ua <= 1f && ub >= 0f && ub <= 1f
++    }
+ }
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -145,6 +145,11 @@
+         canvasView = AstralCanvasView(this)
+         binding.canvasContainer.addView(canvasView)
+
++        canvasView.onGradationApplied = {
++            // Refresh menu if we're in the Gradation tab so angle updates visually
++            if (currentMenuType == "GRADATION") showGradationControls()
++        }
++
+         if (projectPath != null) {
+              val file = java.io.File(projectPath)
+              currentProjectName = file.nameWithoutExtension
+@@ -2494,6 +2499,9 @@
+         if (currentMenuType == "ERASE") {
+             canvasView.setEraseLayerMode(false)
+         }
++        if (currentMenuType == "GRADATION") {
++            canvasView.setGradationMode(false)
++        }
+
+         if (currentMenuType == "TYPER") {
+             exitTyperMode()
+@@ -2520,6 +2528,9 @@
+             if (currentMenuType == "ERASE" && type != "ERASE") {
+                 canvasView.setEraseLayerMode(false)
+             }
++            if (currentMenuType == "GRADATION" && type != "GRADATION") {
++                canvasView.setGradationMode(false)
++            }
+             // Enable prevent deselection for property menus
+             if (type != "QUICK_EDIT") {
+                 canvasView.preventDeselection = true
+@@ -2545,6 +2556,7 @@
+         togglePerspectiveMode(false)
+         toggleWarpMode(false)
+         canvasView.setEraseLayerMode(false)
++        canvasView.setGradationMode(false)
+         binding.propertyDetailContainer.removeAllViews()
+         binding.propertyDetailContainer.visibility = View.GONE
+         currentMenuType = null
+@@ -4194,6 +4206,22 @@
+             setPadding(16, 16, 16, 16)
+         }
+
++        // Enter Gradation Mode Button
++        val btnGradationMode = android.widget.Button(this).apply {
++            text = "Enter Gradation Mode"
++            setTextColor(Color.WHITE)
++            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.DKGRAY)
++            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
++                setMargins(0, 0, 0, 16)
++            }
++            setOnClickListener {
++                val isActive = canvasView.isGradationMode()
++                canvasView.setGradationMode(!isActive)
++                text = if (!isActive) "Exit Gradation Mode" else "Enter Gradation Mode"
++            }
++        }
++        mainLayout.addView(btnGradationMode)
++
+         // Toggles for Text, Stroke, Shadow
+         val togglesLayout = LinearLayout(this).apply {
+             orientation = LinearLayout.HORIZONTAL

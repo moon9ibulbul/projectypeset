@@ -1,0 +1,25 @@
+--- app/src/main/java/com/astral/typer/views/AstralCanvasView.kt
++++ app/src/main/java/com/astral/typer/views/AstralCanvasView.kt
+@@ -109,6 +109,21 @@
+     private var currentInpaintPath = Path()
+     private val currentTyperPath = Path()
+
++    // Gradation Mode
++    private var isGradationMode = false
++    fun isGradationMode() = isGradationMode
++    private var isDrawingGradation = false
++    private var gradationStartX = 0f
++    private var gradationStartY = 0f
++    private var gradationEndX = 0f
++    private var gradationEndY = 0f
++    private val gradationLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
++        color = Color.CYAN
++        style = Paint.Style.STROKE
++        strokeWidth = 5f
++        pathEffect = android.graphics.DashPathEffect(floatArrayOf(10f, 10f), 0f)
++    }
++    var onGradationApplied: (() -> Unit)? = null
++
+     // Cached Mask Bitmap REMOVED
+     // private var cachedMaskBitmap: android.graphics.Bitmap? = null
+     // private var isMaskDirty = true
