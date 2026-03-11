@@ -60,6 +60,8 @@ class EditorActivity : AppCompatActivity() {
     private var currentProjectName: String? = null
 
     private var isInpaintMode = false
+    private var isBrushMode = false
+    private var brushToolbar: android.widget.LinearLayout? = null
     private var btnApplyInpaint: android.widget.Button? = null
     private var btnApplyCut: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
@@ -693,6 +695,11 @@ class EditorActivity : AppCompatActivity() {
             enterCutMode()
         }
 
+        val btnBrush = findViewById<android.widget.ImageView>(R.id.btnBrush)
+        btnBrush.setOnClickListener {
+            toggleBrushMode()
+        }
+
         binding.btnEraser.setOnClickListener {
             toggleInpaintMode()
         }
@@ -712,6 +719,10 @@ class EditorActivity : AppCompatActivity() {
                          Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
                      }
                  }
+            } else if (isBrushMode) {
+                if (!canvasView.undoBrushStroke()) {
+                    Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+                }
             } else if (currentMenuType == "ERASE") {
                 // Layer Erase Undo
                 canvasView.undoLayerErase()
@@ -739,6 +750,10 @@ class EditorActivity : AppCompatActivity() {
                     } else {
                         Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
                     }
+                }
+            } else if (isBrushMode) {
+                if (!canvasView.redoBrushStroke()) {
+                    Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 val restored = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
@@ -1492,6 +1507,226 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.layoutSaveOptions.visibility = View.VISIBLE
         sidebarBinding.layoutSaveProjectForm.visibility = View.GONE
         sidebarBinding.layoutSaveFileForm.visibility = View.GONE
+    }
+
+    private fun toggleBrushMode() {
+        isBrushMode = !isBrushMode
+        val btnBrush = findViewById<android.widget.ImageView>(R.id.btnBrush)
+
+        if (isBrushMode) {
+            btnBrush.setColorFilter(Color.CYAN)
+            canvasView.setBrushMode(true)
+
+            binding.bottomMenuContainer.visibility = View.GONE
+            hidePropertyDetail()
+            canvasView.selectLayer(null)
+
+            showBrushToolbar()
+        } else {
+            btnBrush.setColorFilter(Color.WHITE)
+            canvasView.setBrushMode(false)
+            binding.bottomMenuContainer.visibility = View.VISIBLE
+            hidePropertyDetail() // Ensure any brush settings dialogs are hidden
+            showInsertMenu()
+
+            removeBrushToolbar()
+        }
+    }
+
+    private fun showBrushToolbar() {
+        if (brushToolbar != null) return
+
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#80000000"))
+                cornerRadius = dpToPx(16).toFloat()
+            }
+            setPadding(32, 16, 32, 16)
+
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, dpToPx(32))
+            }
+        }
+
+        // Color Picker
+        val btnColor = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_palette)
+            setColorFilter(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply { setMargins(0, 0, 32, 0) }
+            setOnClickListener {
+                com.astral.typer.utils.ColorPickerHelper.showColorPickerDialog(this@EditorActivity, canvasView.brushDrawColor) { newColor ->
+                    canvasView.brushDrawColor = newColor
+                    canvasView.invalidate()
+                }
+            }
+        }
+        toolbar.addView(btnColor)
+
+        // Eyedropper
+        val btnEyedropper = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_eyedropper)
+            setColorFilter(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply { setMargins(0, 0, 32, 0) }
+            setOnClickListener {
+                canvasView.setEyedropperMode(true)
+                canvasView.onColorPickedListener = { color ->
+                    canvasView.brushDrawColor = color
+                    Toast.makeText(this@EditorActivity, "Color Picked", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        toolbar.addView(btnEyedropper)
+
+        // Eraser
+        val btnEraser = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_eraser)
+            setColorFilter(if (canvasView.isBrushEraser) Color.CYAN else Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply { setMargins(0, 0, 32, 0) }
+            setOnClickListener {
+                canvasView.isBrushEraser = !canvasView.isBrushEraser
+                setColorFilter(if (canvasView.isBrushEraser) Color.CYAN else Color.WHITE)
+            }
+        }
+        toolbar.addView(btnEraser)
+
+        // Settings (Size, Softness, Alpha)
+        val btnSettings = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_settings)
+            setColorFilter(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32))
+            setOnClickListener {
+                showBrushSettingsDialog()
+            }
+        }
+        toolbar.addView(btnSettings)
+
+        binding.canvasContainer.addView(toolbar)
+        brushToolbar = toolbar
+    }
+
+    private fun removeBrushToolbar() {
+        brushToolbar?.let {
+            binding.canvasContainer.removeView(it)
+            brushToolbar = null
+        }
+    }
+
+    private fun showBrushSettingsDialog() {
+        val container = prepareContainer()
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        scroll.addView(layout)
+
+        // Close Button
+        val closeBtn = TextView(this).apply {
+            text = "Close"
+            setTextColor(Color.CYAN)
+            gravity = Gravity.END
+            setPadding(0, 0, 0, 16)
+            setOnClickListener {
+                hidePropertyDetail()
+            }
+        }
+        layout.addView(closeBtn)
+
+        // Brush Size
+        layout.addView(TextView(this).apply { text = "Brush Size"; setTextColor(Color.LTGRAY) })
+        val sizeLabel = TextView(this).apply { text = canvasView.brushDrawSize.toInt().toString(); setTextColor(Color.WHITE) }
+        val sizeSlider = android.widget.SeekBar(this).apply {
+            max = 200
+            progress = canvasView.brushDrawSize.toInt()
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                    val value = maxOf(1, progress)
+                    sizeLabel.text = value.toString()
+                    canvasView.brushDrawSize = value.toFloat()
+                }
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            })
+        }
+        layout.addView(sizeLabel)
+        layout.addView(sizeSlider)
+
+        // Brush Softness
+        layout.addView(TextView(this).apply { text = "Brush Softness"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 0) })
+        val softnessLabel = TextView(this).apply { text = canvasView.brushDrawSoftness.toInt().toString(); setTextColor(Color.WHITE) }
+        val softnessSlider = android.widget.SeekBar(this).apply {
+            max = 100
+            progress = canvasView.brushDrawSoftness.toInt()
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                    softnessLabel.text = progress.toString()
+                    canvasView.brushDrawSoftness = progress.toFloat()
+                }
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            })
+        }
+        layout.addView(softnessLabel)
+        layout.addView(softnessSlider)
+
+        // Brush Alpha
+        layout.addView(TextView(this).apply { text = "Brush Alpha"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 0) })
+        val alphaLabel = TextView(this).apply { text = canvasView.brushDrawAlpha.toString(); setTextColor(Color.WHITE) }
+        val alphaSlider = android.widget.SeekBar(this).apply {
+            max = 255
+            progress = canvasView.brushDrawAlpha
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                    alphaLabel.text = progress.toString()
+                    canvasView.brushDrawAlpha = progress
+                }
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            })
+        }
+        layout.addView(alphaLabel)
+        layout.addView(alphaSlider)
+
+        // Path Mode
+        layout.addView(TextView(this).apply { text = "Path Mode"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 0) })
+        val pathModes = AstralCanvasView.DrawPathMode.values().map { it.name }.toTypedArray()
+        val pathSpinner = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@EditorActivity, android.R.layout.simple_spinner_dropdown_item, pathModes)
+            setSelection(pathModes.indexOf(canvasView.brushDrawPathMode.name))
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    canvasView.brushDrawPathMode = AstralCanvasView.DrawPathMode.valueOf(pathModes[position])
+                }
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            }
+        }
+        layout.addView(pathSpinner)
+
+        // Line Style
+        layout.addView(TextView(this).apply { text = "Line Style"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 0) })
+        val lineStyles = AstralCanvasView.DrawLineStyle.values().map { it.name }.toTypedArray()
+        val lineSpinner = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@EditorActivity, android.R.layout.simple_spinner_dropdown_item, lineStyles)
+            setSelection(lineStyles.indexOf(canvasView.brushDrawLineStyle.name))
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    canvasView.brushDrawLineStyle = AstralCanvasView.DrawLineStyle.valueOf(lineStyles[position])
+                }
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            }
+        }
+        layout.addView(lineSpinner)
+
+        container.addView(scroll)
+        currentMenuType = "BRUSH_SETTINGS"
     }
 
     private var inpaintToolbar: android.widget.LinearLayout? = null

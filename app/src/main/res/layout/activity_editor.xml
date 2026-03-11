@@ -70,6 +70,17 @@
             app:tint="@color/white"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnAdd"
+            app:layout_constraintEnd_toStartOf="@id/btnBrush"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageView
+            android:id="@+id/btnBrush"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_brush"
+            app:tint="@color/white"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnTopTyper"
             app:layout_constraintEnd_toStartOf="@id/btnEraser"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -80,7 +91,7 @@
             android:src="@drawable/ic_eraser"
             app:tint="@color/white"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@id/btnTopTyper"
+            app:layout_constraintStart_toEndOf="@id/btnBrush"
             app:layout_constraintEnd_toStartOf="@id/btnCut"
             app:layout_constraintTop_toTopOf="parent" />
 
