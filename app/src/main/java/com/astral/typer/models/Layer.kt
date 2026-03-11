@@ -16,6 +16,7 @@ abstract class Layer {
     var isVisible: Boolean = true
     var isLocked: Boolean = false
     var name: String = "Layer"
+    var isClipping: Boolean = false
 
     // Opacity & Blend
     var opacity: Int = 255

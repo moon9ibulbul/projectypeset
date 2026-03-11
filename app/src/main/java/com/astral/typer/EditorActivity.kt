@@ -2221,7 +2221,7 @@ class EditorActivity : AppCompatActivity() {
 
         val adapter = LayerAdapter(canvasView.getLayers(), {
             // On Item Click? Maybe select
-            canvasView.selectLayer(it)
+            canvasView.selectLayerFromMenu(it)
             canvasView.invalidate()
         }, { layerToDelete ->
             // On Delete Click
@@ -2234,6 +2234,32 @@ class EditorActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
+        }, { layer, view ->
+            val popup = android.widget.PopupMenu(this, view)
+            popup.menu.add("Clip to layer below")
+            popup.menu.add("Merge with layer below")
+            popup.menu.add("Duplicate Layer")
+            popup.setOnMenuItemClickListener { item ->
+                when (item.title) {
+                    "Clip to layer below" -> {
+                        layer.isClipping = !layer.isClipping
+                        canvasView.invalidate()
+                        true
+                    }
+                    "Merge with layer below" -> {
+                        canvasView.mergeLayerWithBelow(layer)
+                        showLayerMenu()
+                        true
+                    }
+                    "Duplicate Layer" -> {
+                        canvasView.duplicateLayer(layer)
+                        showLayerMenu()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            popup.show()
         })
         recyclerView.adapter = adapter
 
@@ -2253,6 +2279,19 @@ class EditorActivity : AppCompatActivity() {
         }
         val itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(callback)
         itemTouchHelper.attachToRecyclerView(recyclerView)
+
+        val btnAddLayer = popupView.findViewById<android.widget.Button>(R.id.btnAddLayer)
+        btnAddLayer.setOnClickListener {
+            val bitmap = android.graphics.Bitmap.createBitmap(canvasView.width, canvasView.height, android.graphics.Bitmap.Config.ARGB_8888)
+            val center = canvasView.getViewportCenter()
+            val layer = ImageLayer(bitmap)
+            layer.x = center[0]
+            layer.y = center[1]
+            layer.name = "Empty Layer"
+            canvasView.getLayers().add(layer)
+            canvasView.selectLayerFromMenu(layer)
+            showLayerMenu()
+        }
     }
 
     // --- STYLE MENU ---
@@ -2882,9 +2921,11 @@ class EditorActivity : AppCompatActivity() {
             et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
-        val layer = canvasView.getSelectedLayer() as? TextLayer
-        if (layer != null) {
+        val layers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+        for (layer in layers) {
             layer.text = SpannableStringBuilder(et.editableText)
+        }
+        if (layers.isNotEmpty()) {
             canvasView.invalidate()
         }
     }
@@ -2898,7 +2939,7 @@ class EditorActivity : AppCompatActivity() {
         binding.propertyDetailContainer.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
         binding.propertyDetailContainer.requestLayout()
 
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayers().filterIsInstance<TextLayer>().firstOrNull() ?: return
         val originalText = SpannableStringBuilder(layer.text)
 
         container.addView(createInputView(layer, true))
@@ -3167,9 +3208,12 @@ class EditorActivity : AppCompatActivity() {
                                     if (et != null && et.selectionStart != et.selectionEnd) {
                                         applySpanToSelection(CustomTypefaceSpan(font.typeface))
                                     } else {
-                                        layer.typeface = font.typeface
-                                        layer.fontPath = if (font.isCustom) font.path else font.name // Save Identifier
-                                        canvasView.invalidate()
+                                        val selectedLayers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                                        for (l in selectedLayers) {
+                                            l.typeface = font.typeface
+                                            l.fontPath = if (font.isCustom) font.path else font.name
+                                        }
+                                        if (selectedLayers.isNotEmpty()) canvasView.invalidate()
                                     }
                                 }
                             }
@@ -3230,8 +3274,11 @@ class EditorActivity : AppCompatActivity() {
                                                  if (et != null && et.selectionStart != et.selectionEnd) {
                                                      applySpanToSelection(CustomTypefaceSpan(font.typeface))
                                                  } else {
-                                                     layer.typeface = font.typeface
-                                                     canvasView.invalidate()
+                                                     val selectedLayers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                                                     for (l in selectedLayers) {
+                                                         l.typeface = font.typeface
+                                                     }
+                                                     if (selectedLayers.isNotEmpty()) canvasView.invalidate()
                                                  }
                                              }
                                          }
@@ -3340,10 +3387,12 @@ class EditorActivity : AppCompatActivity() {
                       if (et != null && et.selectionStart != et.selectionEnd) {
                             applySpanToSelection(ForegroundColorSpan(color))
                       } else {
-                            // Apply Color and Disable Gradient
-                            layer.color = color
-                            layer.isGradient = false
-                            canvasView.invalidate()
+                            val selectedLayers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                            for (l in selectedLayers) {
+                                l.color = color
+                                l.isGradient = false
+                            }
+                            if (selectedLayers.isNotEmpty()) canvasView.invalidate()
                       }
                       Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
                  }
@@ -3369,10 +3418,12 @@ class EditorActivity : AppCompatActivity() {
                     if (et != null && et.selectionStart != et.selectionEnd) {
                         applySpanToSelection(ForegroundColorSpan(color))
                     } else {
-                        // Apply Color and Disable Gradient
-                        layer.color = color
-                        layer.isGradient = false
-                        canvasView.invalidate()
+                        val selectedLayers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                        for (l in selectedLayers) {
+                            l.color = color
+                            l.isGradient = false
+                        }
+                        if (selectedLayers.isNotEmpty()) canvasView.invalidate()
                     }
                 }
             }
@@ -3387,13 +3438,12 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     applySpanToSelection(ForegroundColorSpan(color))
                 } else {
-                    if (layer.color == color && !layer.isGradient) {
-                        // Already active and solid. Do nothing or toggle?
-                    } else {
-                        layer.color = color
-                        layer.isGradient = false
-                        canvasView.invalidate()
+                    val selectedLayers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                    for (l in selectedLayers) {
+                        l.color = color
+                        l.isGradient = false
                     }
+                    if (selectedLayers.isNotEmpty()) canvasView.invalidate()
                 }
             },
             null, // No add button here? Or keep it? The helper has logic for saved colors internally.
@@ -4222,29 +4272,54 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
         mainLayout.addView(createColorScroll(layer.gradientStartColor,
              { c ->
-                 layer.gradientStartColor = c
-                 if (!layer.isGradient) layer.isGradient = true
+                 val layers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                 for (l in layers) {
+                     l.gradientStartColor = c
+                     if (!l.isGradient) l.isGradient = true
+                 }
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer.gradientStartColor) { c -> layer.gradientStartColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer.gradientStartColor) { c ->
+                   val layers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                   for (l in layers) {
+                       l.gradientStartColor = c
+                       if (!l.isGradient) l.isGradient = true
+                   }
+                   canvasView.invalidate()
+               }
+             }
         ))
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
         mainLayout.addView(createColorScroll(layer.gradientEndColor,
              { c ->
-                 layer.gradientEndColor = c
-                 if (!layer.isGradient) layer.isGradient = true
+                 val layers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                 for (l in layers) {
+                     l.gradientEndColor = c
+                     if (!l.isGradient) l.isGradient = true
+                 }
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer.gradientEndColor) { c -> layer.gradientEndColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(layer.gradientEndColor) { c ->
+                   val layers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                   for (l in layers) {
+                       l.gradientEndColor = c
+                       if (!l.isGradient) l.isGradient = true
+                   }
+                   canvasView.invalidate()
+               }
+             }
         ))
 
         // Angle
-        mainLayout.addView(createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
-             layer.gradientAngle = it
+        mainLayout.addView(createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) { angle ->
+             val layers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+             for (l in layers) {
+                 l.gradientAngle = angle
+             }
              canvasView.invalidate()
-             (mainLayout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $it°" }
+             (mainLayout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $angle°" }
         })
 
         scroll.addView(mainLayout)
@@ -4436,9 +4511,12 @@ class EditorActivity : AppCompatActivity() {
              if (et != null && et.selectionStart != et.selectionEnd) {
                 applySpanToSelection(ForegroundColorSpan(color))
              } else {
-                layer.color = color
-                layer.isGradient = false
-                canvasView.invalidate()
+                val selectedLayers = canvasView.getSelectedLayers().filterIsInstance<TextLayer>()
+                for (l in selectedLayers) {
+                    l.color = color
+                    l.isGradient = false
+                }
+                if (selectedLayers.isNotEmpty()) canvasView.invalidate()
              }
         }
     }

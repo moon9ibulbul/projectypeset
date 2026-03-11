@@ -583,6 +583,89 @@ class AstralCanvasView @JvmOverloads constructor(
         return selectedLayer
     }
 
+    fun getSelectedLayers(): List<Layer> {
+        return layers.filter { it.isSelected }
+    }
+
+    fun selectLayerFromMenu(layer: Layer) {
+        if (selectedLayer != layer && layer.isSelected) {
+            selectedLayer = layer
+            onLayerSelectedListener?.onLayerSelected(layer)
+            isPerspectiveMode = false
+            exitCutMode()
+            (layer as? TextLayer)?.isPerspective = false
+            invalidate()
+        } else if (!layer.isSelected && selectedLayer == layer) {
+            val nextSelected = layers.findLast { it.isSelected }
+            selectedLayer = nextSelected
+            onLayerSelectedListener?.onLayerSelected(nextSelected)
+            isPerspectiveMode = false
+            exitCutMode()
+            (nextSelected as? TextLayer)?.isPerspective = false
+            invalidate()
+        }
+    }
+
+    fun mergeLayerWithBelow(layer: Layer) {
+        val index = layers.indexOf(layer)
+        if (index > 0) {
+            val layerBelow = layers[index - 1]
+            val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            val tempMatrix = Matrix()
+
+            // Draw below
+            canvas.save()
+            tempMatrix.setTranslate(layerBelow.x, layerBelow.y)
+            tempMatrix.preRotate(layerBelow.rotation)
+            tempMatrix.preScale(layerBelow.scaleX, layerBelow.scaleY)
+            canvas.concat(tempMatrix)
+            layerBelow.draw(canvas)
+            canvas.restore()
+
+            // Draw top
+            canvas.save()
+            if (layer.isClipping) {
+                val clipPaint = Paint().apply {
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                }
+                canvas.saveLayer(null, clipPaint)
+            }
+            tempMatrix.reset()
+            tempMatrix.setTranslate(layer.x, layer.y)
+            tempMatrix.preRotate(layer.rotation)
+            tempMatrix.preScale(layer.scaleX, layer.scaleY)
+            canvas.concat(tempMatrix)
+            layer.draw(canvas)
+            if (layer.isClipping) {
+                canvas.restore()
+            }
+            canvas.restore()
+
+            val mergedLayer = ImageLayer(bitmap)
+            val center = getViewportCenter()
+            mergedLayer.x = center[0]
+            mergedLayer.y = center[1]
+            mergedLayer.name = "Merged Layer"
+
+            layers.remove(layer)
+            layers.remove(layerBelow)
+            layers.add(index - 1, mergedLayer)
+            selectLayer(mergedLayer)
+            invalidate()
+        }
+    }
+
+    fun duplicateLayer(layer: Layer) {
+        val cloned = layer.clone()
+        cloned.x += 20f
+        cloned.y += 20f
+        layers.add(cloned)
+        selectLayer(cloned)
+        invalidate()
+    }
+
     fun setPerspectiveMode(enabled: Boolean) {
         isPerspectiveMode = enabled
         if (!enabled) currentMode = Mode.NONE
@@ -872,6 +955,11 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun selectLayer(layer: Layer?) {
+        layers.forEach { it.isSelected = false }
+        if (layer != null) {
+            layer.isSelected = true
+        }
+
         if (selectedLayer != layer) {
             selectedLayer = layer
             onLayerSelectedListener?.onLayerSelected(layer)
@@ -1164,7 +1252,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Selection Overlay
         if (currentMode != Mode.EYEDROPPER && !isInpaintMode) {
-             selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+             getSelectedLayers().forEach { drawSelectionOverlay(canvas, it) }
         }
 
         canvas.restore()
@@ -1240,8 +1328,81 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun drawScene(canvas: Canvas) {
-        for (layer in layers) {
+        for (i in layers.indices) {
+            val layer = layers[i]
+            if (!layer.isVisible) continue
+
+            canvas.save()
+
+            if (layer.isClipping && i > 0) {
+                 val layerBelow = layers[i - 1]
+                 val clipRect = android.graphics.RectF(
+                     layerBelow.x - layerBelow.getWidth() * layerBelow.scaleX / 2,
+                     layerBelow.y - layerBelow.getHeight() * layerBelow.scaleY / 2,
+                     layerBelow.x + layerBelow.getWidth() * layerBelow.scaleX / 2,
+                     layerBelow.y + layerBelow.getHeight() * layerBelow.scaleY / 2
+                 )
+                 canvas.saveLayer(clipRect, null)
+
+                 canvas.save()
+                 val tempMatrix = Matrix()
+                 tempMatrix.setTranslate(layerBelow.x, layerBelow.y)
+                 tempMatrix.preRotate(layerBelow.rotation)
+                 tempMatrix.preScale(layerBelow.scaleX, layerBelow.scaleY)
+                 canvas.concat(tempMatrix)
+                 layerBelow.draw(canvas)
+                 canvas.restore()
+
+                 val clipPaint = Paint().apply {
+                     xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                 }
+                 canvas.saveLayer(null, clipPaint)
+            }
+
+            // Opacity Gradient Setup
+            if (layer.isOpacityGradient) {
+                canvas.saveLayer(null, null)
+            }
+
+            val layerMatrix = Matrix()
+            layerMatrix.setTranslate(layer.x, layer.y)
+            layerMatrix.preRotate(layer.rotation)
+            layerMatrix.preScale(layer.scaleX, layer.scaleY)
+            canvas.concat(layerMatrix)
+
             layer.draw(canvas)
+
+            if (layer.isOpacityGradient) {
+                 val maskPaint = Paint().apply {
+                     xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+                     val w = layer.getWidth()
+                     val h = layer.getHeight()
+                     val rad = Math.toRadians(layer.opacityAngle.toDouble())
+                     val cx = 0f
+                     val cy = 0f
+                     val dx = kotlin.math.cos(rad).toFloat() * w / 2
+                     val dy = kotlin.math.sin(rad).toFloat() * h / 2
+
+                     shader = android.graphics.LinearGradient(
+                         cx - dx, cy - dy, cx + dx, cy + dy,
+                         intArrayOf(
+                             Color.argb(layer.opacityStart, 255, 255, 255),
+                             Color.argb(layer.opacityEnd, 255, 255, 255)
+                         ),
+                         null,
+                         android.graphics.Shader.TileMode.CLAMP
+                     )
+                 }
+                 canvas.drawRect(-layer.getWidth()/2, -layer.getHeight()/2, layer.getWidth()/2, layer.getHeight()/2, maskPaint)
+                 canvas.restore()
+            }
+
+            if (layer.isClipping && i > 0) {
+                 canvas.restore() // clipPaint
+                 canvas.restore() // initial clip layer
+            }
+
+            canvas.restore()
         }
     }
 
