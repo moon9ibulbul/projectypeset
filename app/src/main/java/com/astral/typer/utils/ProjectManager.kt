@@ -87,7 +87,7 @@ object ProjectManager {
         val eraseMaskPath: String? = null,
 
         // Effect
-        val currentEffect: String? = null, val effectSeed: Long? = null
+        val currentEffect: String? = null, val secondaryEffect: String? = null, val effectSeed: Long? = null
     )
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -197,7 +197,7 @@ object ProjectManager {
 
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
                         eraseMaskPath = erasePath,
-                        currentEffect = layer.currentEffect.name, effectSeed = layer.effectSeed
+                        currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed
                     ))
 
                 } else if (layer is ImageLayer) {
@@ -411,6 +411,9 @@ object ProjectManager {
 
             model.currentEffect?.let {
                 try { layer.currentEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
+            }
+            model.secondaryEffect?.let {
+                try { layer.secondaryEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
             }
             model.effectSeed?.let { layer.effectSeed = it }
 
