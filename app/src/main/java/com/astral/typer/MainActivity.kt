@@ -93,7 +93,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecentProjects() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val projects = ProjectManager.getRecentProjects(this@MainActivity)
+            val rawProjects = ProjectManager.getRecentProjects(this@MainActivity)
+            val projects = rawProjects.toMutableList()
+
+            // Check if saving is in progress
+            if (ProjectManager.isSaving) {
+                // Add a placeholder file
+                projects.add(0, File("saving_placeholder"))
+            }
+
             withContext(Dispatchers.Main) {
                 if (projects.isNotEmpty()) {
                     binding.tvRecentLabel.visibility = View.VISIBLE
@@ -128,7 +136,7 @@ class MainActivity : AppCompatActivity() {
                                 gravity = Gravity.CENTER
                                 setTextColor(Color.WHITE)
                                 textSize = 12f
-                                maxLines = 1
+                                maxLines = 2
                                 ellipsize = android.text.TextUtils.TruncateAt.END
                             }
 
@@ -155,11 +163,33 @@ class MainActivity : AppCompatActivity() {
                                 }
                             } else {
                                 val file = projects[position]
-                                text.text = file.nameWithoutExtension
-                                if (file.nameWithoutExtension == "autosave") {
+
+                                if (file.name == "saving_placeholder") {
+                                    text.text = "Saving..."
+                                    text.setTextColor(Color.YELLOW)
+                                    img.setImageResource(android.R.drawable.stat_sys_upload)
+                                    img.setColorFilter(Color.YELLOW)
+                                    img.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                                    holder.itemView.setOnClickListener(null)
+                                    return
+                                }
+
+                                if (file.name.startsWith("autosave_")) {
+                                    try {
+                                        val tsStr = file.nameWithoutExtension.substringAfter("autosave_")
+                                        val ts = tsStr.toLong()
+                                        val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                        text.text = "Autosave\n${sdf.format(java.util.Date(ts))}"
+                                        text.setTextColor(Color.YELLOW)
+                                    } catch(e: Exception) {
+                                        text.text = "Auto Save"
+                                        text.setTextColor(Color.YELLOW)
+                                    }
+                                } else if (file.nameWithoutExtension == "autosave") {
                                     text.text = "Auto Save"
                                     text.setTextColor(Color.YELLOW)
                                 } else {
+                                    text.text = file.nameWithoutExtension
                                     text.setTextColor(Color.WHITE)
                                 }
 

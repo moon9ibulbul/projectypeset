@@ -34,8 +34,9 @@ class BubbleDetectorProcessor(private val context: Context) {
         private const val CONFIDENCE_THRESHOLD = 0.35f
         private const val IOU_THRESHOLD = 0.5f
         private const val MIN_BOX_SIZE = 20f // Noise filter threshold
-        private const val TOUCHING_TOLERANCE_PX = 15f // Distance to consider boxes "touching"
-        private const val ALIGNMENT_OVERLAP_RATIO = 0.5f // Ratio of shared edge length to consider aligned
+        private const val TOUCHING_TOLERANCE_PX = 0f // Distance to consider boxes "touching"
+        private const val ALIGNMENT_OVERLAP_RATIO = 0.80f // Ratio of shared edge length to consider aligned
+        private const val MERGE_OVERLAP_THRESHOLD = 5f // Minimum overlap in pixels to consider merging
 
         private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"
@@ -555,37 +556,39 @@ class BubbleDetectorProcessor(private val context: Context) {
     }
 
     private fun shouldMerge(a: RectF, b: RectF): Boolean {
-        // 1. Vertical Adjacency Check (One above another)
-        val vertGap = if (a.bottom < b.top) b.top - a.bottom else if (b.bottom < a.top) a.top - b.bottom else -1f
+        // Calculate gap/overlap accurately.
+        // gap > 0 means separated by gap pixels.
+        // gap <= 0 means overlapping by |gap| pixels.
+        val vertGap = max(a.top, b.top) - min(a.bottom, b.bottom)
+        val horzGap = max(a.left, b.left) - min(a.right, b.right)
 
-        // If they overlap vertically (negative gap), they might be candidates if the overlap is small
-        // but here we are looking for "split" boxes, so we usually care about small gaps OR small overlaps
-        // actually NMS handles big overlaps. This is for "tiled" splits which might have 0 gap or slight overlap.
-
-        // Horizontal Overlap for Vertical Adjacency
+        // 1. Vertical Adjacency (One above another) - Check horizontal alignment
+        // We look for significant overlap in X axis to consider them vertically aligned
         val hOverlapStart = max(a.left, b.left)
         val hOverlapEnd = min(a.right, b.right)
         val hOverlapLen = hOverlapEnd - hOverlapStart
 
-        val minWidth = min(a.width(), b.width())
-        val isVertAligned = (hOverlapLen > 0) && (hOverlapLen / minWidth > ALIGNMENT_OVERLAP_RATIO)
+        // Use MAX dimension to prevent merging small bubbles into large ones.
+        // For a true split, the shared edge should be roughly equal, so both widths should be similar.
+        val maxWidth = max(a.width(), b.width())
+        val isVertAligned = (hOverlapLen > 0) && (hOverlapLen / maxWidth > ALIGNMENT_OVERLAP_RATIO)
 
-        if (isVertAligned && vertGap <= TOUCHING_TOLERANCE_PX && vertGap > -TOUCHING_TOLERANCE_PX) {
+        // Merge if aligned and significantly overlapping vertically (gap <= -5)
+        if (isVertAligned && vertGap <= -MERGE_OVERLAP_THRESHOLD) {
              return true
         }
 
-        // 2. Horizontal Adjacency Check (Side by side)
-        val horzGap = if (a.right < b.left) b.left - a.right else if (b.right < a.left) a.left - b.right else -1f
-
-        // Vertical Overlap for Horizontal Adjacency
+        // 2. Horizontal Adjacency (Side by side) - Check vertical alignment
+        // We look for significant overlap in Y axis to consider them horizontally aligned
         val vOverlapStart = max(a.top, b.top)
         val vOverlapEnd = min(a.bottom, b.bottom)
         val vOverlapLen = vOverlapEnd - vOverlapStart
 
-        val minHeight = min(a.height(), b.height())
-        val isHorzAligned = (vOverlapLen > 0) && (vOverlapLen / minHeight > ALIGNMENT_OVERLAP_RATIO)
+        val maxHeight = max(a.height(), b.height())
+        val isHorzAligned = (vOverlapLen > 0) && (vOverlapLen / maxHeight > ALIGNMENT_OVERLAP_RATIO)
 
-        if (isHorzAligned && horzGap <= TOUCHING_TOLERANCE_PX && horzGap > -TOUCHING_TOLERANCE_PX) {
+        // Merge if aligned and significantly overlapping horizontally (gap <= -5)
+        if (isHorzAligned && horzGap <= -MERGE_OVERLAP_THRESHOLD) {
             return true
         }
 

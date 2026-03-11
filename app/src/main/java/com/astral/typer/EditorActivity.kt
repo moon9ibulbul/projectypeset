@@ -281,6 +281,8 @@ class EditorActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         // Auto Save
+        Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
+
         // Capture data on Main Thread
         val layers = canvasView.getLayers().toList() // Shallow copy list
         val bgBitmap = canvasView.getBackgroundImage()
@@ -2205,7 +2207,7 @@ class EditorActivity : AppCompatActivity() {
                                  layer.typeface = found.typeface
                              }
                         }
-                        layer.typeface = style.typeface
+                        // layer.typeface = style.typeface // Removed to prevent overwriting resolved font
                         layer.opacity = style.opacity
                         layer.shadowColor = style.shadowColor
                         layer.shadowRadius = style.shadowRadius
