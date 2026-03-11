@@ -58,6 +58,10 @@ class TextLayer(
     var isGradientStroke: Boolean = false
     var isGradientShadow: Boolean = false
 
+    var isGlobalGradient: Boolean = false
+    var globalP1: android.graphics.PointF = android.graphics.PointF()
+    var globalP2: android.graphics.PointF = android.graphics.PointF()
+
     // Stroke
     var strokeColor: Int = Color.BLACK
     var strokeWidth: Float = 0f
@@ -206,6 +210,9 @@ class TextLayer(
         newLayer.isGradientText = this.isGradientText
         newLayer.isGradientStroke = this.isGradientStroke
         newLayer.isGradientShadow = this.isGradientShadow
+        newLayer.isGlobalGradient = this.isGlobalGradient
+        newLayer.globalP1 = android.graphics.PointF(this.globalP1.x, this.globalP1.y)
+        newLayer.globalP2 = android.graphics.PointF(this.globalP2.x, this.globalP2.y)
         newLayer.strokeColor = this.strokeColor
         newLayer.strokeWidth = this.strokeWidth
         newLayer.doubleStrokeColor = this.doubleStrokeColor
@@ -480,6 +487,23 @@ class TextLayer(
 
     private fun getGradientShader(w: Float, h: Float): Shader? {
         if (!isGradient) return null
+        if (isGlobalGradient) {
+            val inverse = Matrix()
+            val matrix = Matrix()
+            matrix.setTranslate(x, y)
+            matrix.preRotate(rotation)
+            matrix.preScale(scaleX, scaleY)
+            if (matrix.invert(inverse)) {
+                val pts = floatArrayOf(globalP1.x, globalP1.y, globalP2.x, globalP2.y)
+                inverse.mapPoints(pts)
+                // Points are now relative to center. Convert to top-left relative.
+                val x0 = pts[0] + w / 2f
+                val y0 = pts[1] + h / 2f
+                val x1 = pts[2] + w / 2f
+                val y1 = pts[3] + h / 2f
+                return LinearGradient(x0, y0, x1, y1, gradientStartColor, gradientEndColor, Shader.TileMode.CLAMP)
+            }
+        }
         return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor)
     }
 

@@ -978,16 +978,37 @@ class EditorActivity : AppCompatActivity() {
         val isEffectActive = { effect: TextEffectType -> layer.currentEffect == effect || layer.secondaryEffect == effect }
 
         if (isEffectActive(TextEffectType.LONG_SHADOW)) {
-                settingsLayout.addView(createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
+                val s1 = createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
                     layer.longShadowLength = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Length: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.longShadowLength = p.toFloat()
+                        tv1?.text = "Length: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
-                settingsLayout.addView(createSlider("Angle: ${layer.longShadowAngle.toInt()}°", layer.longShadowAngle.toInt(), 360) {
+                settingsLayout.addView(s1)
+
+                val s2 = createSlider("Angle: ${layer.longShadowAngle.toInt()}°", layer.longShadowAngle.toInt(), 360) {
                     layer.longShadowAngle = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s2.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.longShadowAngle = p.toFloat()
+                        tv2?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s2)
                 val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.longShadowColor,
@@ -996,11 +1017,21 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.FIERY)) {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
+                val s1 = createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
                     layer.fieryIntensity = it / 100f
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.fieryIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.fieryColor,
@@ -1009,30 +1040,71 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.WAVY)) {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
+                val s1 = createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
                     layer.wavyIntensity = it / 100f
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.wavyIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
-                settingsLayout.addView(createSlider("Frequency: ${layer.wavyFrequency.toInt()}", layer.wavyFrequency.toInt(), 50) {
+                settingsLayout.addView(s1)
+
+                val s2 = createSlider("Frequency: ${layer.wavyFrequency.toInt()}", layer.wavyFrequency.toInt(), 50) {
                     layer.wavyFrequency = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Frequency: $it" }
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s2.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.wavyFrequency = p.toFloat()
+                        tv2?.text = "Frequency: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s2)
         }
         if (isEffectActive(TextEffectType.GAUSSIAN_BLUR)) {
-                settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
+                val s1 = createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
                     layer.blurRadius = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.blurRadius = p.toFloat()
+                        tv1?.text = "Blur Strength: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
-                settingsLayout.addView(createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
+                val s1 = createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
                     layer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Dot Size: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.halftoneDotSize = p.coerceAtLeast(1).toFloat()
+                        tv1?.text = "Dot Size: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.halftoneDotColor,
@@ -1090,18 +1162,38 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
                 settingsLayout.addView(scrollPalette)
 
-                settingsLayout.addView(createSlider("Angle: ${layer.multiGradientAngle.toInt()}°", layer.multiGradientAngle.toInt(), 360) {
+                val s1 = createSlider("Angle: ${layer.multiGradientAngle.toInt()}°", layer.multiGradientAngle.toInt(), 360) {
                     layer.multiGradientAngle = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.multiGradientAngle = p.toFloat()
+                        tv1?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.NEON)) {
-                settingsLayout.addView(createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
+                val s1 = createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
                     layer.neonRadius = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Glow Radius: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.neonRadius = p.coerceAtLeast(1).toFloat()
+                        tv1?.text = "Glow Radius: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.neonColor,
@@ -1110,11 +1202,21 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
+                val s1 = createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
                     layer.glitchIntensity = it / 100f
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.glitchIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Seed"
                     setTextColor(Color.WHITE)
@@ -1127,11 +1229,21 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(btnSeed)
         }
         if (isEffectActive(TextEffectType.PIXELATION)) {
-                settingsLayout.addView(createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
+                val s1 = createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
                     layer.pixelBlockSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Block Size: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.pixelBlockSize = p.coerceAtLeast(1).toFloat()
+                        tv1?.text = "Block Size: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION)) {
                 // Chromatic Palette Control
@@ -1222,11 +1334,21 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
                 settingsLayout.addView(scrollPalette)
 
-                settingsLayout.addView(createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
+                val s1 = createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
                     layer.chromaticShift = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.chromaticShift = p.toFloat()
+                        tv1?.text = "Shift: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
 
         mainLayout.addView(settingsLayout)
@@ -3935,7 +4057,11 @@ class EditorActivity : AppCompatActivity() {
 
     private fun createSlider(label: String, initial: Int, max: Int, onChange: (Int) -> Unit): View {
         val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0,8,0,8) }
-        val tv = TextView(this).apply { text = label; setTextColor(Color.WHITE) }
+        val tv = TextView(this).apply {
+            text = label
+            setTextColor(Color.WHITE)
+            tag = "SLIDER_LABEL"
+        }
         val sb = SeekBar(this).apply {
             this.max = max
             progress = initial
@@ -4190,6 +4316,7 @@ class EditorActivity : AppCompatActivity() {
     private fun showGradationControls() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val isGradationMode = canvasView.currentModeName() == "GRADATION"
         // Do not auto-apply gradient
         // layer.isGradient = true
         // canvasView.invalidate()
@@ -4214,11 +4341,11 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 val isActive = canvasView.currentModeName() == "GRADATION"
                 canvasView.setGradationMode(!isActive)
-                text = if (!isActive) "Exit Gradation Mode" else "Enter Gradation Mode"
-                background = GradientDrawable().apply {
-                    setColor(if (!isActive) Color.CYAN else Color.DKGRAY)
-                    cornerRadius = dpToPx(8).toFloat()
+                if (!isActive) {
+                    canvasView.pendingGradientStart = layer.gradientStartColor
+                    canvasView.pendingGradientEnd = layer.gradientEndColor
                 }
+                showGradationControls()
             }
         }
         mainLayout.addView(btnGradMode)
@@ -4249,32 +4376,74 @@ class EditorActivity : AppCompatActivity() {
 
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
-        mainLayout.addView(createColorScroll(layer.gradientStartColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else layer.gradientStartColor,
              { c ->
-                 layer.gradientStartColor = c
-                 if (!layer.isGradient) layer.isGradient = true
-                 canvasView.invalidate()
+                 if (isGradationMode) {
+                     canvasView.pendingGradientStart = c
+                 } else {
+                     layer.gradientStartColor = c
+                     if (!layer.isGradient) layer.isGradient = true
+                     canvasView.invalidate()
+                 }
              },
-             { showColorWheelDialogForProperty(layer.gradientStartColor) { c -> layer.gradientStartColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             {
+                 val current = if (isGradationMode) canvasView.pendingGradientStart else layer.gradientStartColor
+                 showColorWheelDialogForProperty(current) { c ->
+                     if (isGradationMode) {
+                         canvasView.pendingGradientStart = c
+                     } else {
+                         layer.gradientStartColor = c
+                         if (!layer.isGradient) layer.isGradient = true
+                         canvasView.invalidate()
+                     }
+                 }
+             }
         ))
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
-        mainLayout.addView(createColorScroll(layer.gradientEndColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else layer.gradientEndColor,
              { c ->
-                 layer.gradientEndColor = c
-                 if (!layer.isGradient) layer.isGradient = true
-                 canvasView.invalidate()
+                 if (isGradationMode) {
+                     canvasView.pendingGradientEnd = c
+                 } else {
+                     layer.gradientEndColor = c
+                     if (!layer.isGradient) layer.isGradient = true
+                     canvasView.invalidate()
+                 }
              },
-             { showColorWheelDialogForProperty(layer.gradientEndColor) { c -> layer.gradientEndColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             {
+                 val current = if (isGradationMode) canvasView.pendingGradientEnd else layer.gradientEndColor
+                 showColorWheelDialogForProperty(current) { c ->
+                     if (isGradationMode) {
+                         canvasView.pendingGradientEnd = c
+                     } else {
+                         layer.gradientEndColor = c
+                         if (!layer.isGradient) layer.isGradient = true
+                         canvasView.invalidate()
+                     }
+                 }
+             }
         ))
 
         // Angle
-        mainLayout.addView(createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
-             layer.gradientAngle = it
-             canvasView.invalidate()
-             (mainLayout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $it°" }
-        })
+        if (!isGradationMode) {
+            val angleSlider = createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
+                 layer.gradientAngle = it
+                 canvasView.invalidate()
+            }
+            val angleLabel = angleSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            (angleSlider.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    layer.gradientAngle = p
+                    angleLabel?.text = "Gradient Angle: $p°"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            mainLayout.addView(angleSlider)
+        }
 
         scroll.addView(mainLayout)
         container.addView(scroll)

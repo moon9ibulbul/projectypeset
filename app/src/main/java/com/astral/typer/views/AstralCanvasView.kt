@@ -116,6 +116,8 @@ class AstralCanvasView @JvmOverloads constructor(
     // Mode Flags
     private var isBrushMode = false
     private var isGradationMode = false
+    var pendingGradientStart: Int = Color.RED
+    var pendingGradientEnd: Int = Color.BLUE
 
     enum class DrawPathMode {
         FREE, LINE, RECT, OVAL, LASSO
@@ -1848,6 +1850,18 @@ class AstralCanvasView @JvmOverloads constructor(
                             if (layer is TextLayer && lineIntersectsLayer(p1, p2, layer)) {
                                 layer.gradientAngle = angle
                                 layer.isGradient = true
+                                layer.isGlobalGradient = true
+                                layer.globalP1.set(p1.x, p1.y)
+                                layer.globalP2.set(p2.x, p2.y)
+                                layer.gradientStartColor = pendingGradientStart
+                                layer.gradientEndColor = pendingGradientEnd
+                                // Ensure text/stroke/shadow gradient flags are set as requested
+                                // Since batch mode doesn't know which one user wants, we enable all or keep existing?
+                                // User said: "beberapa layer text bisa terpengaruh sekaligus sesuai dengan jalur garis yang dibentuk"
+                                // It's safer to enable at least text gradient if none are active.
+                                if (!layer.isGradientText && !layer.isGradientStroke && !layer.isGradientShadow) {
+                                    layer.isGradientText = true
+                                }
                             }
                         }
                     }
