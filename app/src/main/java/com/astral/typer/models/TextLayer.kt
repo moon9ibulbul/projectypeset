@@ -909,7 +909,9 @@ class TextLayer(
 
                     while (currentY < h) {
                         // Determine random strip height
-                        val stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
+                        var stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
+                        if (stripHeight < 1f) stripHeight = 1f // Prevent infinite loop on extremely small layers
+
                         val bottom = kotlin.math.min(currentY + stripHeight, h)
 
                         // Decide if this slice should shift (50% chance)
@@ -920,6 +922,11 @@ class TextLayer(
                         }
 
                         slices.add(Pair(RectF(0f, currentY, w, bottom), xOffset))
+
+                        // Guard against floating point precision stagnation
+                        if (bottom <= currentY) {
+                            break
+                        }
                         currentY = bottom
                     }
 
