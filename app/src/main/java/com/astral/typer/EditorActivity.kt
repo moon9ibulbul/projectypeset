@@ -1483,57 +1483,17 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            // Show Loading
-            binding.loadingOverlay.visibility = View.VISIBLE
-
-            // Capture Data on Main Thread
-            val layersToSave = canvasView.getLayers().toMutableList()
-            val brushBitmap = canvasView.getBrushBitmap()
-            if (brushBitmap != null) {
-                val brushLayer = ImageLayer(brushBitmap)
-                val center = canvasView.getViewportCenter()
-                brushLayer.x = center[0]
-                brushLayer.y = center[1]
-                brushLayer.name = "Brush Strokes"
-                layersToSave.add(brushLayer)
-            }
-            val bgBitmap = canvasView.getBackgroundImage()
-            val bmp = canvasView.renderToBitmap()
-            val w = bmp.width
-            val h = bmp.height
-
-            // Generate Thumbnail
-            val thumbW = 300
-            val thumbH = (h * (thumbW.toFloat() / w)).toInt()
-            val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
-
-            // Save logic
-             lifecycleScope.launch(Dispatchers.IO) {
-                var success = false
-                try {
-                    success = ProjectManager.saveProject(
-                        this@EditorActivity,
-                        layersToSave,
-                        w,
-                        h,
-                        Color.WHITE,
-                        bgBitmap,
-                        name,
-                        thumbnail
-                    )
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                withContext(Dispatchers.Main) {
-                    binding.loadingOverlay.visibility = View.GONE
-                    if (success) {
-                        Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
-                        binding.saveSidebar.root.visibility = View.GONE
-                    } else {
-                        Toast.makeText(this@EditorActivity, "Save Failed", Toast.LENGTH_SHORT).show()
+            if (ProjectManager.projectExists(this, name)) {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Peringatan")
+                    .setMessage("Sudah ada project dengan nama yang sama, apakah ingin tetap menyimpan?")
+                    .setPositiveButton("Ya") { _, _ ->
+                        performProjectSave(name)
                     }
-                }
+                    .setNegativeButton("Batal", null)
+                    .show()
+            } else {
+                performProjectSave(name)
             }
         }
 
@@ -1603,6 +1563,61 @@ class EditorActivity : AppCompatActivity() {
                     withContext(Dispatchers.Main) {
                         binding.loadingOverlay.visibility = View.GONE
                     }
+                }
+            }
+        }
+    }
+
+    private fun performProjectSave(name: String) {
+        // Show Loading
+        binding.loadingOverlay.visibility = View.VISIBLE
+
+        // Capture Data on Main Thread
+        val layersToSave = canvasView.getLayers().toMutableList()
+        val brushBitmap = canvasView.getBrushBitmap()
+        if (brushBitmap != null) {
+            val brushLayer = ImageLayer(brushBitmap)
+            val center = canvasView.getViewportCenter()
+            brushLayer.x = center[0]
+            brushLayer.y = center[1]
+            brushLayer.name = "Brush Strokes"
+            layersToSave.add(brushLayer)
+        }
+        val bgBitmap = canvasView.getBackgroundImage()
+        val bmp = canvasView.renderToBitmap()
+        val w = bmp.width
+        val h = bmp.height
+
+        // Generate Thumbnail
+        val thumbW = 300
+        val thumbH = (h * (thumbW.toFloat() / w)).toInt()
+        val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+
+        // Save logic
+        lifecycleScope.launch(Dispatchers.IO) {
+            var success = false
+            try {
+                success = ProjectManager.saveProject(
+                    this@EditorActivity,
+                    layersToSave,
+                    w,
+                    h,
+                    Color.WHITE,
+                    bgBitmap,
+                    name,
+                    thumbnail
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            withContext(Dispatchers.Main) {
+                binding.loadingOverlay.visibility = View.GONE
+                if (success) {
+                    Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
+                    binding.saveSidebar.root.visibility = View.GONE
+                } else {
+                    Toast.makeText(this@EditorActivity, "Save Failed", Toast.LENGTH_SHORT).show()
                 }
             }
         }

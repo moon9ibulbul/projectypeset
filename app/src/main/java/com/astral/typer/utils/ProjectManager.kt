@@ -249,13 +249,34 @@ object ProjectManager {
         // MediaStore (Android 10+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             try {
+                val resolver = context.contentResolver
+
+                // Attempt to overwrite existing MediaStore entry by deleting it first
+                val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+                val selectionArgs = arrayOf("$cleanName.atd", "%Pictures/AstralTyper/Project%")
+
+                try {
+                    resolver.query(
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                        selection,
+                        selectionArgs,
+                        null
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val id = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns._ID))
+                            val uriToDelete = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                            resolver.delete(uriToDelete, null, null)
+                        }
+                    }
+                } catch (e: Exception) { e.printStackTrace() }
+
                 val contentValues = android.content.ContentValues().apply {
                     put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$cleanName.atd")
                     put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/zip")
                     put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/AstralTyper/Project")
                 }
-                val resolver = context.contentResolver
-                // Note: If file exists, this creates a new one (e.g., name (1).atd)
+
                 val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
                 if (uri != null) {
                     resolver.openOutputStream(uri)?.use { out ->
@@ -481,6 +502,37 @@ object ProjectManager {
     }
 
     // --- Helper Methods ---
+
+    fun projectExists(context: Context, projectName: String): Boolean {
+        val cleanName = projectName.trim()
+
+        // Check MediaStore (Android 10+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            val selectionArgs = arrayOf("$cleanName.atd", "%Pictures/AstralTyper/Project%")
+            try {
+                context.contentResolver.query(
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                    selection,
+                    selectionArgs,
+                    null
+                )?.use { cursor ->
+                    if (cursor.count > 0) return true
+                }
+            } catch (e: Exception) {}
+        }
+
+        // Check Legacy/Public
+        val publicFile = getPublicProjectFile(cleanName)
+        if (publicFile.exists()) return true
+
+        // Check Private Fallback
+        val privateFile = getPrivateProjectFile(context, cleanName)
+        if (privateFile.exists()) return true
+
+        return false
+    }
 
     fun getRecentProjects(context: Context? = null): List<File> {
         val projects = mutableListOf<File>()
