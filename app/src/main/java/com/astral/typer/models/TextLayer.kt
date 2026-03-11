@@ -900,54 +900,39 @@ class TextLayer(
                 }
                 TextEffectType.GLITCH -> {
                     val random = Random(effectSeed)
-                    val numStrips = 50
-                    val stripHeight = h / numStrips.toFloat()
+                    val slices = mutableListOf<Pair<RectF, Float>>()
 
-                    data class Slice(val top: Float, val bottom: Float, val xOffset: Float, val rgbOffset: Float)
-                    val slices = mutableListOf<Slice>()
+                    var currentY = 0f
+                    // Max strip height: say 15% of total height, min height 2%
+                    val maxStripHeight = h * 0.15f
+                    val minStripHeight = h * 0.02f
 
-                    for (i in 0 until numStrips) {
-                        val top = i * stripHeight
-                        val bottom = top + stripHeight
+                    while (currentY < h) {
+                        // Determine random strip height
+                        val stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
+                        val bottom = kotlin.math.min(currentY + stripHeight, h)
 
-                        if (random.nextFloat() < 0.5f) {
-                            val offset = (random.nextFloat() - 0.5f) * 100f * glitchIntensity
-                            val rgbOff = (if (random.nextBoolean()) (random.nextFloat() * 20f + 5f) else -(random.nextFloat() * 20f + 5f)) * glitchIntensity
-                            slices.add(Slice(top, bottom, offset, rgbOff))
+                        // Decide if this slice should shift (50% chance)
+                        val xOffset = if (random.nextFloat() < 0.5f) {
+                            (random.nextFloat() - 0.5f) * 100f * glitchIntensity
                         } else {
-                            slices.add(Slice(top, bottom, 0f, 0f))
+                            0f
                         }
+
+                        slices.add(Pair(RectF(0f, currentY, w, bottom), xOffset))
+                        currentY = bottom
                     }
 
-                    val savedColor = paint.color
-                    val savedXfermode = paint.xfermode
-
                     for (slice in slices) {
+                        val rect = slice.first
+                        val xOffset = slice.second
+
                         targetCanvas.save()
-                        targetCanvas.clipRect(0f, slice.top, w, slice.bottom)
-                        targetCanvas.translate(slice.xOffset, 0f)
+                        targetCanvas.clipRect(rect)
+                        targetCanvas.translate(xOffset, 0f)
 
                         drawInner(targetCanvas)
 
-                        if (kotlin.math.abs(slice.xOffset) > 0.1f) {
-                            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
-                            paint.shader = null
-
-                            paint.color = 0xCCFF0000.toInt()
-                            targetCanvas.save()
-                            targetCanvas.translate(-slice.rgbOffset, 0f)
-                            drawInner(targetCanvas)
-                            targetCanvas.restore()
-
-                            paint.color = 0xCC00FFFF.toInt()
-                            targetCanvas.save()
-                            targetCanvas.translate(slice.rgbOffset, 0f)
-                            drawInner(targetCanvas)
-                            targetCanvas.restore()
-
-                            paint.color = savedColor
-                            paint.xfermode = savedXfermode
-                        }
                         targetCanvas.restore()
                     }
                 }
