@@ -1127,10 +1127,97 @@ class EditorActivity : AppCompatActivity() {
                 })
         }
         if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION)) {
+                // Chromatic Palette Control
+                val paletteLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 8, 0, 8)
+                }
+
+                val scrollPalette = HorizontalScrollView(this).apply {
+                    isHorizontalScrollBarEnabled = false
+                }
+
+                val paletteContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                }
+                scrollPalette.addView(paletteContainer)
+
+                data class ChromaticPaletteItem(val name: String, val colors: IntArray)
+                val palettes = listOf(
+                    ChromaticPaletteItem("Standar", intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())),
+                    ChromaticPaletteItem("Melancholy", intArrayOf(0xFF4A6984.toInt(), 0xFF7BA4B6.toInt(), 0xFFB3A1C6.toInt())),
+                    ChromaticPaletteItem("Thriller", intArrayOf(0xFF8B0000.toInt(), 0xFF556B2F.toInt(), 0xFF4B0082.toInt())),
+                    ChromaticPaletteItem("Romantic", intArrayOf(0xFFFF69B4.toInt(), 0xFFFFB6C1.toInt(), 0xFF87CEFA.toInt())),
+                    ChromaticPaletteItem("Action", intArrayOf(0xFFFF2400.toInt(), 0xFFFFA500.toInt(), 0xFF00FFFF.toInt())),
+                    ChromaticPaletteItem("Nostalgia", intArrayOf(0xFF8B5A2B.toInt(), 0xFFDAA520.toInt(), 0xFF8F9779.toInt()))
+                )
+
+                for (p in palettes) {
+                    val btn = android.widget.Button(this).apply {
+                        text = p.name
+                        setTextColor(Color.WHITE)
+                        textSize = 10f
+                        background = GradientDrawable().apply {
+                            orientation = GradientDrawable.Orientation.LEFT_RIGHT
+                            colors = p.colors
+                            cornerRadius = dpToPx(16).toFloat()
+                            setStroke(dpToPx(1), Color.WHITE)
+                        }
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(80), dpToPx(40)).apply {
+                            setMargins(4,0,4,0)
+                        }
+                        setOnClickListener {
+                            layer.chromaticColors = p.colors
+                            canvasView.invalidate()
+                        }
+                    }
+                    paletteContainer.addView(btn)
+                }
+
+                val customContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(4, 0, 4, 0)
+                }
+
+                val customLabel = TextView(this).apply {
+                    text = "Custom: "
+                    setTextColor(Color.WHITE)
+                    textSize = 10f
+                    setPadding(8, 0, 8, 0)
+                }
+                customContainer.addView(customLabel)
+
+                for (i in 0..2) {
+                    val colorBtn = android.widget.ImageView(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).apply {
+                            setMargins(4, 0, 4, 0)
+                        }
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(layer.chromaticColors[i])
+                            setStroke(dpToPx(1), Color.WHITE)
+                        }
+                        setOnClickListener { btn ->
+                            showColorWheelDialogForProperty(layer.chromaticColors[i]) { pickedColor ->
+                                layer.chromaticColors[i] = pickedColor
+                                (btn.background as GradientDrawable).setColor(pickedColor)
+                                canvasView.invalidate()
+                            }
+                        }
+                    }
+                    customContainer.addView(colorBtn)
+                }
+
+                paletteContainer.addView(customContainer)
+
+                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(scrollPalette)
+
                 settingsLayout.addView(createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
                     layer.chromaticShift = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
+                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
                 })
         }
 

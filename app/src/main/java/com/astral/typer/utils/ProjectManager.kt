@@ -87,7 +87,8 @@ object ProjectManager {
         val eraseMaskPath: String? = null,
 
         // Effect
-        val currentEffect: String? = null, val secondaryEffect: String? = null, val effectSeed: Long? = null
+        val currentEffect: String? = null, val secondaryEffect: String? = null, val effectSeed: Long? = null,
+        val chromaticColors: List<Int>? = null
     )
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -197,7 +198,8 @@ object ProjectManager {
 
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
                         eraseMaskPath = erasePath,
-                        currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed
+                        currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed,
+                        chromaticColors = layer.chromaticColors.toList()
                     ))
 
                 } else if (layer is ImageLayer) {
@@ -416,6 +418,7 @@ object ProjectManager {
                 try { layer.secondaryEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
             }
             model.effectSeed?.let { layer.effectSeed = it }
+            model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
 
             applyCommonProperties(layer, model)
             return layer

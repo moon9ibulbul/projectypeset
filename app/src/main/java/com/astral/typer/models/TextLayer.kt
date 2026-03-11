@@ -132,6 +132,7 @@ class TextLayer(
 
     // Chromatic Aberration
     var chromaticShift: Float = 5f
+    var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt()) // Left, Right, Center
 
     // Fiery
     var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -250,6 +251,7 @@ class TextLayer(
         newLayer.glitchIntensity = this.glitchIntensity
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
+        newLayer.chromaticColors = this.chromaticColors.clone()
         newLayer.effectSeed = this.effectSeed
 
         newLayer.fieryColor = this.fieryColor
@@ -846,22 +848,22 @@ class TextLayer(
                     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
                     paint.shader = null
 
-                    // Red Layer
-                    paint.color = 0xFFFF0000.toInt()
+                    // Left Layer
+                    paint.color = chromaticColors[0]
                     targetCanvas.save()
                     targetCanvas.translate(-chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
-                    // Blue Layer
-                    paint.color = 0xFF0000FF.toInt()
+                    // Right Layer
+                    paint.color = chromaticColors[1]
                     targetCanvas.save()
                     targetCanvas.translate(chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
-                    // Green Layer
-                    paint.color = 0xFF00FF00.toInt()
+                    // Center Layer
+                    paint.color = chromaticColors[2]
                     drawInner(targetCanvas)
 
                     paint.xfermode = originalXfermode
