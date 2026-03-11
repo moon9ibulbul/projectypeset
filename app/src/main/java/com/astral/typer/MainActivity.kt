@@ -25,6 +25,9 @@ import com.astral.typer.databinding.DialogNewProjectBinding
 import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.ProjectManager
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -95,7 +98,9 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val projects = ProjectManager.getRecentProjects(this@MainActivity)
             withContext(Dispatchers.Main) {
-                if (projects.isNotEmpty()) {
+                val showSavingCard = ProjectManager.isSaving
+
+                if (projects.isNotEmpty() || showSavingCard) {
                     binding.tvRecentLabel.visibility = View.VISIBLE
                     binding.recentRecycler.visibility = View.VISIBLE
 
@@ -143,7 +148,10 @@ class MainActivity : AppCompatActivity() {
                             val img = layout.getChildAt(0) as ImageView
                             val text = layout.getChildAt(1) as TextView
 
-                            if (position == projects.size) {
+                            val itemCount = itemCount
+                            val isViewAll = position == itemCount - 1
+
+                            if (isViewAll && projects.isNotEmpty()) {
                                 // View All Card
                                 text.text = "View All"
                                 text.setTextColor(Color.CYAN)
@@ -153,38 +161,66 @@ class MainActivity : AppCompatActivity() {
                                 holder.itemView.setOnClickListener {
                                     startActivity(Intent(this@MainActivity, RecentActivity::class.java))
                                 }
+                            } else if (showSavingCard && position == 0) {
+                                // Saving Placeholder
+                                text.text = "Saving..."
+                                text.setTextColor(Color.YELLOW)
+                                img.setImageResource(android.R.drawable.ic_popup_sync)
+                                img.setColorFilter(Color.YELLOW)
+                                img.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                                holder.itemView.setOnClickListener(null)
                             } else {
-                                val file = projects[position]
-                                text.text = file.nameWithoutExtension
-                                if (file.nameWithoutExtension == "autosave") {
-                                    text.text = "Auto Save"
-                                    text.setTextColor(Color.YELLOW)
-                                } else {
-                                    text.setTextColor(Color.WHITE)
-                                }
+                                val projectIndex = if (showSavingCard) position - 1 else position
+                                if (projectIndex >= 0 && projectIndex < projects.size) {
+                                    val file = projects[projectIndex]
 
-                                img.setImageResource(android.R.drawable.ic_menu_gallery)
-                                img.setColorFilter(Color.GRAY)
+                                    val name = file.nameWithoutExtension
+                                    if (name.startsWith("autosave")) {
+                                        if (name.startsWith("autosave_")) {
+                                            try {
+                                                val timestamp = name.substringAfter("autosave_").toLong()
+                                                val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                                                text.text = sdf.format(Date(timestamp))
+                                            } catch (e: Exception) {
+                                                text.text = "Auto Save"
+                                            }
+                                        } else {
+                                            text.text = "Auto Save"
+                                        }
+                                        text.setTextColor(Color.YELLOW)
+                                    } else {
+                                        text.text = name
+                                        text.setTextColor(Color.WHITE)
+                                    }
 
-                                // Async Load Thumbnail
-                                lifecycleScope.launch(Dispatchers.IO) {
-                                    val bmp = ProjectManager.loadThumbnail(this@MainActivity, file)
-                                    withContext(Dispatchers.Main) {
-                                        if (bmp != null) {
-                                            img.setImageBitmap(bmp)
-                                            img.clearColorFilter()
-                                            img.scaleType = ImageView.ScaleType.CENTER_CROP
+                                    img.setImageResource(android.R.drawable.ic_menu_gallery)
+                                    img.setColorFilter(Color.GRAY)
+
+                                    // Async Load Thumbnail
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        val bmp = ProjectManager.loadThumbnail(this@MainActivity, file)
+                                        withContext(Dispatchers.Main) {
+                                            if (bmp != null) {
+                                                img.setImageBitmap(bmp)
+                                                img.clearColorFilter()
+                                                img.scaleType = ImageView.ScaleType.CENTER_CROP
+                                            }
                                         }
                                     }
-                                }
 
-                                holder.itemView.setOnClickListener {
-                                    openProject(file)
+                                    holder.itemView.setOnClickListener {
+                                        openProject(file)
+                                    }
                                 }
                             }
                         }
 
-                        override fun getItemCount() = projects.size + 1
+                        override fun getItemCount(): Int {
+                            var count = projects.size
+                            if (showSavingCard) count++
+                            if (projects.isNotEmpty()) count++ // For View All
+                            return count
+                        }
                     }
                 } else {
                     binding.tvRecentLabel.visibility = View.GONE

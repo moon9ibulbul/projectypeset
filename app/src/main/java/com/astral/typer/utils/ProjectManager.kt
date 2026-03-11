@@ -93,6 +93,9 @@ object ProjectManager {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
+    @Volatile
+    var isSaving = false
+
     sealed class LoadResult {
         data class Success(val projectData: ProjectData, val images: Map<String, Bitmap>) : LoadResult()
         data class MissingAssets(val projectData: ProjectData, val images: Map<String, Bitmap>, val missingFonts: List<String>) : LoadResult()
@@ -228,7 +231,11 @@ object ProjectManager {
     }
 
     private fun finalizeSave(context: Context, tempDir: File, projectName: String): Boolean {
-        val cleanName = projectName.trim()
+        var cleanName = projectName.trim()
+
+        if (cleanName == "autosave") {
+            cleanName = "autosave_${System.currentTimeMillis()}"
+        }
 
         // Invalidate Thumbnail Cache for this project
         try {
@@ -236,6 +243,8 @@ object ProjectManager {
             val cacheFile = File(cacheDir, "$cleanName.atd.png")
             if (cacheFile.exists()) cacheFile.delete()
         } catch (e: Exception) { e.printStackTrace() }
+
+        var success = false
 
         // MediaStore (Android 10+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -252,7 +261,7 @@ object ProjectManager {
                     resolver.openOutputStream(uri)?.use { out ->
                         ZipOutputStream(out).use { zipOut -> zipFile(tempDir, tempDir.name, zipOut) }
                     }
-                    return true
+                    success = true
                 }
             } catch (e: Exception) { e.printStackTrace() }
         } else {
@@ -260,14 +269,42 @@ object ProjectManager {
             try {
                 val file = getPublicProjectFile(cleanName)
                 if (file.parentFile?.exists() == false) file.parentFile?.mkdirs()
-                return zipFolder(tempDir, file)
+                success = zipFolder(tempDir, file)
             } catch (e: Exception) { e.printStackTrace() }
         }
 
-        // Fallback
-        val file = getPrivateProjectFile(context, cleanName)
-        file.parentFile?.mkdirs()
-        return zipFolder(tempDir, file)
+        if (!success) {
+            // Fallback
+            val file = getPrivateProjectFile(context, cleanName)
+            file.parentFile?.mkdirs()
+            success = zipFolder(tempDir, file)
+        }
+
+        if (success && projectName.trim() == "autosave") {
+            performAutosaveRotation(context)
+        }
+
+        return success
+    }
+
+    private fun performAutosaveRotation(context: Context) {
+        try {
+            val allProjects = getRecentProjects(context)
+            val autosaves = allProjects.filter { it.name.startsWith("autosave_") }
+                .sortedByDescending { it.lastModified() }
+
+            if (autosaves.size > 3) {
+                for (i in 3 until autosaves.size) {
+                    autosaves[i].delete()
+                    // Delete thumbnail cache if exists
+                    try {
+                        val cacheDir = File(context.cacheDir, "thumbnails")
+                        val cacheFile = File(cacheDir, "${autosaves[i].name}.png")
+                        if (cacheFile.exists()) cacheFile.delete()
+                    } catch (e: Exception) {}
+                }
+            }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     fun loadProject(context: Context, file: File): LoadResult {

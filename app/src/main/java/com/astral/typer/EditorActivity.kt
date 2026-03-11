@@ -302,17 +302,24 @@ class EditorActivity : AppCompatActivity() {
         val thumbH = (h * (thumbW.toFloat() / w)).toInt()
         val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
 
+        ProjectManager.isSaving = true
+        Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
+
         lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
-            ProjectManager.saveProject(
-                this@EditorActivity,
-                layersToSave,
-                w,
-                h,
-                Color.WHITE,
-                bgBitmap,
-                "autosave",
-                thumbnail
-            )
+            try {
+                ProjectManager.saveProject(
+                    this@EditorActivity,
+                    layersToSave,
+                    w,
+                    h,
+                    Color.WHITE,
+                    bgBitmap,
+                    "autosave",
+                    thumbnail
+                )
+            } finally {
+                ProjectManager.isSaving = false
+            }
         }
     }
 
@@ -4221,7 +4228,7 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
              layer.gradientAngle = it
              canvasView.invalidate()
-             (mainLayout.getChildAt(3) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $it°" }
+             (mainLayout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $it°" }
         })
 
         scroll.addView(mainLayout)
