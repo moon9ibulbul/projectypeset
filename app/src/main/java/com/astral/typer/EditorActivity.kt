@@ -1152,6 +1152,7 @@ class EditorActivity : AppCompatActivity() {
                 data class ChromaticPaletteItem(val name: String, val colors: IntArray)
                 val palettes = listOf(
                     ChromaticPaletteItem("Standar", intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())),
+                    ChromaticPaletteItem("Standar 2", intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())),
                     ChromaticPaletteItem("Melancholy", intArrayOf(0xFF4A6984.toInt(), 0xFF7BA4B6.toInt(), 0xFFB3A1C6.toInt())),
                     ChromaticPaletteItem("Thriller", intArrayOf(0xFF8B0000.toInt(), 0xFF556B2F.toInt(), 0xFF4B0082.toInt())),
                     ChromaticPaletteItem("Romantic", intArrayOf(0xFFFF69B4.toInt(), 0xFFFFB6C1.toInt(), 0xFF87CEFA.toInt())),
