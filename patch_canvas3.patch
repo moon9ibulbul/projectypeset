@@ -1,0 +1,76 @@
+--- app/src/main/java/com/astral/typer/views/AstralCanvasView.kt
++++ app/src/main/java/com/astral/typer/views/AstralCanvasView.kt
+@@ -1189,6 +1189,11 @@
+             canvas.restoreToCount(saveCount)
+         }
+
++        // Draw Gradation Line
++        if (isDrawingGradation) {
++            canvas.drawLine(gradationStartX, gradationStartY, gradationEndX, gradationEndY, gradationLinePaint)
++        }
++
+         // Draw Selection Overlay
+         if (currentMode != Mode.EYEDROPPER && !isInpaintMode) {
+              selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+@@ -1711,6 +1716,61 @@
+             return true
+         }
+
++        if (isGradationMode) {
++            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
++                isDrawingGradation = false
++                currentMode = Mode.PAN_ZOOM
++                scaleDetector.onTouchEvent(event)
++                gestureDetector.onTouchEvent(event)
++
++                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
++                    currentMode = Mode.GRADATION
++                }
++                invalidate()
++                return true
++            }
++
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    isDrawingGradation = true
++                    gradationStartX = cx
++                    gradationStartY = cy
++                    gradationEndX = cx
++                    gradationEndY = cy
++                    invalidate()
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    if (isDrawingGradation) {
++                        gradationEndX = cx
++                        gradationEndY = cy
++                        invalidate()
++                    }
++                }
++                MotionEvent.ACTION_UP -> {
++                    if (isDrawingGradation) {
++                        gradationEndX = cx
++                        gradationEndY = cy
++                        isDrawingGradation = false
++                        applyGradationLine(gradationStartX, gradationStartY, gradationEndX, gradationEndY)
++                        invalidate()
++                    }
++                }
++                MotionEvent.ACTION_CANCEL -> {
++                    isDrawingGradation = false
++                    invalidate()
++                }
++            }
++
++            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
++                val hitLayer = findHitLayer(cx, cy)
++                if (hitLayer != null && hitLayer is TextLayer) {
++                    selectLayer(hitLayer)
++                }
++            }
++
++            return true
++        }
++
+         if (isInpaintMode) {
+             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                 if (!currentInpaintPath.isEmpty) {

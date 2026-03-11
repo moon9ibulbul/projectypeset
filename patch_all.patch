@@ -22,8 +22,9 @@
 +
      // Cached Mask Bitmap REMOVED
      // private var cachedMaskBitmap: android.graphics.Bitmap? = null
-     // private var isMaskDirty = true
-@@ -342,6 +357,16 @@
+-    // private var isMaskDirty = true
+
+@@ -340,6 +355,16 @@
          return false
      }
 
@@ -40,17 +41,17 @@
      fun enterCutMode() {
          if (selectedLayer is ImageLayer) {
              val layer = selectedLayer as ImageLayer
-@@ -737,8 +762,9 @@
+@@ -737,7 +762,8 @@
          CUT_DRAG_TR,
          CUT_DRAG_BR,
          CUT_DRAG_BL,
-         TYPER,
+-        TYPER,
 -        BRUSH
++        TYPER,
 +        BRUSH,
 +        GRADATION
      }
 
-     private var currentMode = Mode.NONE
 @@ -1189,6 +1215,11 @@
              canvas.restoreToCount(saveCount)
          }
@@ -124,7 +125,6 @@
 +
          if (isInpaintMode) {
              if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
-                 if (!currentInpaintPath.isEmpty) {
 @@ -2188,4 +2274,57 @@
 
      }
