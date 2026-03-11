@@ -983,7 +983,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.longShadowLength = p.toFloat()
                         tv1?.text = "Length: $p"
@@ -999,7 +999,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s2.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.longShadowAngle = p.toFloat()
                         tv2?.text = "Angle: $p°"
@@ -1022,7 +1022,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.fieryIntensity = p / 100f
                         tv1?.text = "Intensity: $p%"
@@ -1045,7 +1045,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.wavyIntensity = p / 100f
                         tv1?.text = "Intensity: $p%"
@@ -1061,7 +1061,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s2.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.wavyFrequency = p.toFloat()
                         tv2?.text = "Frequency: $p"
@@ -1078,7 +1078,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.blurRadius = p.toFloat()
                         tv1?.text = "Blur Strength: $p"
@@ -1095,7 +1095,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.halftoneDotSize = p.coerceAtLeast(1).toFloat()
                         tv1?.text = "Dot Size: $p"
@@ -1167,7 +1167,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.multiGradientAngle = p.toFloat()
                         tv1?.text = "Angle: $p°"
@@ -1184,7 +1184,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.neonRadius = p.coerceAtLeast(1).toFloat()
                         tv1?.text = "Glow Radius: $p"
@@ -1207,7 +1207,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.glitchIntensity = p / 100f
                         tv1?.text = "Intensity: $p%"
@@ -1234,7 +1234,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.pixelBlockSize = p.coerceAtLeast(1).toFloat()
                         tv1?.text = "Block Size: $p"
@@ -1339,7 +1339,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                (s1.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.chromaticShift = p.toFloat()
                         tv1?.text = "Shift: $p"
@@ -1517,20 +1517,51 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 16, 16, 16)
         }
 
-        layout.addView(createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
+        val s1 = createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
             canvasView.layerEraseSize = it.toFloat().coerceAtLeast(1f)
-            (layout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Size: $it" }
+        }
+        val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                val value = p.coerceAtLeast(1)
+                canvasView.layerEraseSize = value.toFloat()
+                tv1?.text = "Size: $value"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s1)
 
-        layout.addView(createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
+        val s2 = createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
             canvasView.layerEraseOpacity = it
-            (layout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: $it" }
+        }
+        val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                canvasView.layerEraseOpacity = p
+                tv2?.text = "Opacity: $p"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s2)
 
-        layout.addView(createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
+        val s3 = createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
             canvasView.layerEraseHardness = it.toFloat()
-            (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Hardness: $it%" }
+        }
+        val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                canvasView.layerEraseHardness = p.toFloat()
+                tv3?.text = "Hardness: $p%"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s3)
 
         container.addView(layout)
     }
@@ -3643,6 +3674,7 @@ class EditorActivity : AppCompatActivity() {
                 setTextColor(Color.CYAN)
                 gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+                tag = "VALUE_TEXT"
             }
             val btnPlus = TextView(this).apply {
                 text = "+"
@@ -3665,14 +3697,25 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.letterSpacing -= 0.01f
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
             },
             onPlus = {
                 layer.letterSpacing += 0.01f
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
             }
         )
+        val tvLetterVal = letterSpacingRow.findViewWithTag<TextView>("VALUE_TEXT")
+        (letterSpacingRow as LinearLayout).let { row ->
+            (row.getChildAt(1) as TextView).setOnClickListener {
+                layer.letterSpacing -= 0.01f
+                canvasView.invalidate()
+                tvLetterVal?.text = String.format("%.2f", layer.letterSpacing)
+            }
+            (row.getChildAt(3) as TextView).setOnClickListener {
+                layer.letterSpacing += 0.01f
+                canvasView.invalidate()
+                tvLetterVal?.text = String.format("%.2f", layer.letterSpacing)
+            }
+        }
         layout.addView(letterSpacingRow)
 
         // Line Spacing
@@ -3680,14 +3723,25 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.lineSpacing -= 5f
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.lineSpacing.toInt()}" }
             },
             onPlus = {
                 layer.lineSpacing += 5f
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.lineSpacing.toInt()}" }
             }
         )
+        val tvLineVal = lineSpacingRow.findViewWithTag<TextView>("VALUE_TEXT")
+        (lineSpacingRow as LinearLayout).let { row ->
+            (row.getChildAt(1) as TextView).setOnClickListener {
+                layer.lineSpacing -= 5f
+                canvasView.invalidate()
+                tvLineVal?.text = "${layer.lineSpacing.toInt()}"
+            }
+            (row.getChildAt(3) as TextView).setOnClickListener {
+                layer.lineSpacing += 5f
+                canvasView.invalidate()
+                tvLineVal?.text = "${layer.lineSpacing.toInt()}"
+            }
+        }
         layout.addView(lineSpacingRow)
 
         container.addView(layout)
@@ -3989,14 +4043,25 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
             },
             onPlus = {
                 layer.fontSize += 1
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
             }
         )
+        val tvSizeVal = textSizeRow.findViewWithTag<TextView>("VAL_TEXT_SIZE")
+        (textSizeRow as LinearLayout).let { row ->
+            (row.getChildAt(1) as TextView).setOnClickListener {
+                layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
+                canvasView.invalidate()
+                tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+            }
+            (row.getChildAt(3) as TextView).setOnClickListener {
+                layer.fontSize += 1
+                canvasView.invalidate()
+                tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+            }
+        }
         layout.addView(textSizeRow)
 
         // Box Scale
@@ -4006,16 +4071,31 @@ class EditorActivity : AppCompatActivity() {
                 layer.scaleX = s
                 layer.scaleY = s
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${(layer.scale * 100).toInt()}%" }
             },
             onPlus = {
                 val s = layer.scale + 0.01f
                 layer.scaleX = s
                 layer.scaleY = s
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${(layer.scale * 100).toInt()}%" }
             }
         )
+        val tvScaleVal = scaleRow.findViewWithTag<TextView>("VAL_BOX_SCALE")
+        (scaleRow as LinearLayout).let { row ->
+            (row.getChildAt(1) as TextView).setOnClickListener {
+                val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
+                layer.scaleX = s
+                layer.scaleY = s
+                canvasView.invalidate()
+                tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
+            }
+            (row.getChildAt(3) as TextView).setOnClickListener {
+                val s = layer.scale + 0.01f
+                layer.scaleX = s
+                layer.scaleY = s
+                canvasView.invalidate()
+                tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
+            }
+        }
         layout.addView(scaleRow)
 
         // Box Width
@@ -4026,15 +4106,28 @@ class EditorActivity : AppCompatActivity() {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
                 canvasView.invalidate()
-                (layout.getChildAt(2) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.boxWidth!!.toInt()} pt" }
             },
             onPlus = {
                  val w = (layer.boxWidth ?: layer.getWidth()) + 1f
                 layer.boxWidth = w
                 canvasView.invalidate()
-                (layout.getChildAt(2) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.boxWidth!!.toInt()} pt" }
             }
         )
+        val tvWidthVal = widthRow.findViewWithTag<TextView>("VAL_BOX_WIDTH")
+        (widthRow as LinearLayout).let { row ->
+            (row.getChildAt(1) as TextView).setOnClickListener {
+                val w = (layer.boxWidth ?: layer.getWidth()) - 1f
+                layer.boxWidth = w.coerceAtLeast(50f)
+                canvasView.invalidate()
+                tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+            }
+            (row.getChildAt(3) as TextView).setOnClickListener {
+                val w = (layer.boxWidth ?: layer.getWidth()) + 1f
+                layer.boxWidth = w
+                canvasView.invalidate()
+                tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+            }
+        }
         layout.addView(widthRow)
 
         // Rotate
@@ -4042,14 +4135,25 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.rotation -= 1f
                 canvasView.invalidate()
-                (layout.getChildAt(3) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.rotation.toInt()}°" }
             },
             onPlus = {
                 layer.rotation += 1f
                 canvasView.invalidate()
-                (layout.getChildAt(3) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.rotation.toInt()}°" }
             }
         )
+        val tvRotateVal = rotateRow.findViewWithTag<TextView>("VAL_ROTATE")
+        (rotateRow as LinearLayout).let { row ->
+            (row.getChildAt(1) as TextView).setOnClickListener {
+                layer.rotation -= 1f
+                canvasView.invalidate()
+                tvRotateVal?.text = "${layer.rotation.toInt()}°"
+            }
+            (row.getChildAt(3) as TextView).setOnClickListener {
+                layer.rotation += 1f
+                canvasView.invalidate()
+                tvRotateVal?.text = "${layer.rotation.toInt()}°"
+            }
+        }
         layout.addView(rotateRow)
 
         return layout
@@ -4065,6 +4169,7 @@ class EditorActivity : AppCompatActivity() {
         val sb = SeekBar(this).apply {
             this.max = max
             progress = initial
+            tag = "SLIDER_BAR"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) { onChange(p) }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
@@ -4433,7 +4538,7 @@ class EditorActivity : AppCompatActivity() {
                  canvasView.invalidate()
             }
             val angleLabel = angleSlider.findViewWithTag<TextView>("SLIDER_LABEL")
-            (angleSlider.getChildAt(1) as SeekBar).setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            angleSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                     layer.gradientAngle = p
                     angleLabel?.text = "Gradient Angle: $p°"
@@ -4842,11 +4947,22 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(spinner)
 
         // 2. Global Opacity
-        layout.addView(createSlider("Opacity: ${(layer.opacity/2.55f).toInt()}%", layer.opacity, 255) {
+        val s1 = createSlider("Opacity: ${(layer.opacity/2.55f).toInt()}%", layer.opacity, 255) {
             layer.opacity = it
             canvasView.invalidate()
-            (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: ${(it/2.55f).toInt()}%" }
+        }
+        val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacity = p
+                tv1?.text = "Opacity: ${(p/2.55f).toInt()}%"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s1)
 
         // 3. Gradient Opacity
         val toggleGrad = android.widget.CheckBox(this).apply {
@@ -4862,25 +4978,58 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(toggleGrad)
 
         // Start Alpha
-        layout.addView(createSlider("Left Alpha: ${(layer.opacityStart/2.55f).toInt()}%", layer.opacityStart, 255) {
+        val s2 = createSlider("Left Alpha: ${(layer.opacityStart/2.55f).toInt()}%", layer.opacityStart, 255) {
             layer.opacityStart = it
             canvasView.invalidate()
-             (layout.getChildAt(4) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Left Alpha: ${(it/2.55f).toInt()}%" }
+        }
+        val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacityStart = p
+                tv2?.text = "Left Alpha: ${(p/2.55f).toInt()}%"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s2)
 
         // End Alpha
-        layout.addView(createSlider("Right Alpha: ${(layer.opacityEnd/2.55f).toInt()}%", layer.opacityEnd, 255) {
+        val s3 = createSlider("Right Alpha: ${(layer.opacityEnd/2.55f).toInt()}%", layer.opacityEnd, 255) {
             layer.opacityEnd = it
             canvasView.invalidate()
-             (layout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Right Alpha: ${(it/2.55f).toInt()}%" }
+        }
+        val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacityEnd = p
+                tv3?.text = "Right Alpha: ${(p/2.55f).toInt()}%"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s3)
 
         // Angle
-        layout.addView(createSlider("Angle: ${layer.opacityAngle}°", layer.opacityAngle, 360) {
+        val s4 = createSlider("Angle: ${layer.opacityAngle}°", layer.opacityAngle, 360) {
             layer.opacityAngle = it
             canvasView.invalidate()
-            (layout.getChildAt(6) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+        }
+        val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb4 = s4.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb4?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacityAngle = p
+                tv4?.text = "Angle: $p°"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s4)
 
         scroll.addView(layout)
         container.addView(scroll)

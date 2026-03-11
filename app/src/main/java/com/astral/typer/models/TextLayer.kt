@@ -8,6 +8,7 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
@@ -59,8 +60,8 @@ class TextLayer(
     var isGradientShadow: Boolean = false
 
     var isGlobalGradient: Boolean = false
-    var globalP1: android.graphics.PointF = android.graphics.PointF()
-    var globalP2: android.graphics.PointF = android.graphics.PointF()
+    var globalP1: PointF = PointF()
+    var globalP2: PointF = PointF()
 
     // Stroke
     var strokeColor: Int = Color.BLACK
@@ -211,8 +212,8 @@ class TextLayer(
         newLayer.isGradientStroke = this.isGradientStroke
         newLayer.isGradientShadow = this.isGradientShadow
         newLayer.isGlobalGradient = this.isGlobalGradient
-        newLayer.globalP1 = android.graphics.PointF(this.globalP1.x, this.globalP1.y)
-        newLayer.globalP2 = android.graphics.PointF(this.globalP2.x, this.globalP2.y)
+        newLayer.globalP1 = PointF(this.globalP1.x, this.globalP1.y)
+        newLayer.globalP2 = PointF(this.globalP2.x, this.globalP2.y)
         newLayer.strokeColor = this.strokeColor
         newLayer.strokeWidth = this.strokeWidth
         newLayer.doubleStrokeColor = this.doubleStrokeColor
