@@ -2494,6 +2494,9 @@ class EditorActivity : AppCompatActivity() {
         if (currentMenuType == "ERASE") {
             canvasView.setEraseLayerMode(false)
         }
+        if (currentMenuType == "GRADATION") {
+            canvasView.setGradationMode(false)
+        }
 
         if (currentMenuType == "TYPER") {
             exitTyperMode()
@@ -2518,6 +2521,9 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "ERASE" && type != "ERASE") {
                 canvasView.setEraseLayerMode(false)
+            }
+            if (currentMenuType == "GRADATION" && type != "GRADATION") {
+                canvasView.setGradationMode(false)
             }
             // Enable prevent deselection for property menus
             if (type != "QUICK_EDIT") {
@@ -4193,6 +4199,29 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 16, 16, 16)
         }
+
+        // Enter Gradation Mode Button
+        val btnGradMode = android.widget.Button(this).apply {
+            text = if (canvasView.currentModeName() == "GRADATION") "Exit Gradation Mode" else "Enter Gradation Mode"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(if (canvasView.currentModeName() == "GRADATION") Color.CYAN else Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 16)
+            }
+            setOnClickListener {
+                val isActive = canvasView.currentModeName() == "GRADATION"
+                canvasView.setGradationMode(!isActive)
+                text = if (!isActive) "Exit Gradation Mode" else "Enter Gradation Mode"
+                background = GradientDrawable().apply {
+                    setColor(if (!isActive) Color.CYAN else Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+            }
+        }
+        mainLayout.addView(btnGradMode)
 
         // Toggles for Text, Stroke, Shadow
         val togglesLayout = LinearLayout(this).apply {

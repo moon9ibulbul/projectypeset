@@ -113,8 +113,9 @@ class AstralCanvasView @JvmOverloads constructor(
     // private var cachedMaskBitmap: android.graphics.Bitmap? = null
     // private var isMaskDirty = true
 
-    // Brush Mode
+    // Mode Flags
     private var isBrushMode = false
+    private var isGradationMode = false
 
     enum class DrawPathMode {
         FREE, LINE, RECT, OVAL, LASSO
@@ -738,10 +739,20 @@ class AstralCanvasView @JvmOverloads constructor(
         CUT_DRAG_BR,
         CUT_DRAG_BL,
         TYPER,
-        BRUSH
+        BRUSH,
+        GRADATION
     }
 
     private var currentMode = Mode.NONE
+
+    private var gradationStart: PointF? = null
+    private var gradationEnd: PointF? = null
+    private val gradationLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.CYAN
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(20f, 10f), 0f)
+    }
     private var detectedBubbles: List<TyperBubble>? = null
     private val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.GREEN
@@ -761,6 +772,26 @@ class AstralCanvasView @JvmOverloads constructor(
             selectLayer(null)
         } else {
             if (currentMode == Mode.TYPER) currentMode = Mode.NONE
+        }
+        invalidate()
+    }
+
+    fun currentModeName(): String {
+        return currentMode.name
+    }
+
+    fun setGradationMode(enabled: Boolean) {
+        isGradationMode = enabled
+        if (enabled) {
+            currentMode = Mode.GRADATION
+            gradationStart = null
+            gradationEnd = null
+        } else {
+            if (currentMode == Mode.GRADATION) {
+                currentMode = Mode.NONE
+                gradationStart = null
+                gradationEnd = null
+            }
         }
         invalidate()
     }
@@ -1163,8 +1194,17 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         // Draw Selection Overlay
-        if (currentMode != Mode.EYEDROPPER && !isInpaintMode) {
+        if (currentMode != Mode.EYEDROPPER && !isInpaintMode && currentMode != Mode.GRADATION) {
              selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+        }
+
+        // Draw Gradation Line
+        if (currentMode == Mode.GRADATION) {
+            val p1 = gradationStart
+            val p2 = gradationEnd
+            if (p1 != null && p2 != null) {
+                canvas.drawLine(p1.x, p1.y, p2.x, p2.y, gradationLinePaint)
+            }
         }
 
         canvas.restore()
@@ -1476,6 +1516,56 @@ class AstralCanvasView @JvmOverloads constructor(
         canvas.restore()
     }
 
+    private fun lineIntersectsLayer(p1: PointF, p2: PointF, layer: Layer): Boolean {
+        val inverse = Matrix()
+        val matrix = Matrix()
+        matrix.setTranslate(layer.x, layer.y)
+        matrix.preRotate(layer.rotation)
+        matrix.preScale(layer.scaleX, layer.scaleY)
+        if (!matrix.invert(inverse)) return false
+
+        val pts = floatArrayOf(p1.x, p1.y, p2.x, p2.y)
+        inverse.mapPoints(pts)
+
+        val lx1 = pts[0]
+        val ly1 = pts[1]
+        val lx2 = pts[2]
+        val ly2 = pts[3]
+
+        val halfW = layer.getWidth() / 2f
+        val halfH = layer.getHeight() / 2f
+
+        return lineIntersectsRect(lx1, ly1, lx2, ly2, -halfW, -halfH, halfW, halfH)
+    }
+
+    private fun lineIntersectsRect(x1: Float, y1: Float, x2: Float, y2: Float, left: Float, top: Float, right: Float, bottom: Float): Boolean {
+        // Liang-Barsky algorithm or simpler Cohen-Sutherland approach
+        // Even simpler: segment-rect intersection using min/max t
+        var tmin = 0f
+        var tmax = 1f
+        val dx = x2 - x1
+        val dy = y2 - y1
+
+        val p = floatArrayOf(-dx, dx, -dy, dy)
+        val q = floatArrayOf(x1 - left, right - x1, y1 - top, bottom - y1)
+
+        for (i in 0..3) {
+            if (p[i] == 0f) {
+                if (q[i] < 0) return false
+            } else {
+                val t = q[i] / p[i]
+                if (p[i] < 0) {
+                    if (t > tmax) return false
+                    if (t > tmin) tmin = t
+                } else {
+                    if (t < tmin) return false
+                    if (t < tmax) tmax = t
+                }
+            }
+        }
+        return tmin <= tmax
+    }
+
     private fun getDistance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x1 - x2
         val dy = y1 - y2
@@ -1720,6 +1810,49 @@ class AstralCanvasView @JvmOverloads constructor(
                          redoOps.clear()
                          currentInpaintPath.reset()
                     }
+                    invalidate()
+                }
+            }
+            return true
+        }
+
+        if (isGradationMode) {
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                currentMode = Mode.PAN_ZOOM
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.GRADATION
+                }
+                return true
+            }
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    gradationStart = PointF(cx, cy)
+                    gradationEnd = PointF(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    gradationEnd?.set(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP -> {
+                    val p1 = gradationStart
+                    val p2 = gradationEnd
+                    if (p1 != null && p2 != null && getDistance(p1.x, p1.y, p2.x, p2.y) > 10f) {
+                        val angle = getAngle(p1.x, p1.y, p2.x, p2.y).toInt()
+                        com.astral.typer.utils.UndoManager.saveState(layers)
+                        for (layer in layers) {
+                            if (layer is TextLayer && lineIntersectsLayer(p1, p2, layer)) {
+                                layer.gradientAngle = angle
+                                layer.isGradient = true
+                            }
+                        }
+                    }
+                    gradationStart = null
+                    gradationEnd = null
                     invalidate()
                 }
             }
