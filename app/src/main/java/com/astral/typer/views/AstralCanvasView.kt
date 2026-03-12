@@ -116,6 +116,7 @@ class AstralCanvasView @JvmOverloads constructor(
     // Mode Flags
     private var isBrushMode = false
     private var isGradationMode = false
+    private var isEraseLayerMode = false
     var pendingGradientStart: Int = Color.RED
     var pendingGradientEnd: Int = Color.BLUE
     var targetGradientText: Boolean = true
@@ -604,6 +605,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun setEraseLayerMode(enabled: Boolean) {
+        isEraseLayerMode = enabled
         if (enabled) {
             currentMode = Mode.ERASE_LAYER
             if (selectedLayer !is TextLayer) {
@@ -1421,7 +1423,7 @@ class AstralCanvasView @JvmOverloads constructor(
             canvas.drawRect(box, paint)
         }
 
-        if (currentMode == Mode.ERASE_LAYER) {
+        if (isEraseLayerMode) {
             canvas.restore()
             return
         }
@@ -1874,13 +1876,16 @@ class AstralCanvasView @JvmOverloads constructor(
             return true
         }
 
-        if (currentMode == Mode.ERASE_LAYER && selectedLayer is TextLayer) {
+        if (isEraseLayerMode && selectedLayer is TextLayer) {
              val layer = selectedLayer as TextLayer
-             if (pointerCount >= 2 || (event.actionMasked != MotionEvent.ACTION_DOWN && currentMode == Mode.PAN_ZOOM)) {
+             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                  currentMode = Mode.PAN_ZOOM
                  scaleDetector.onTouchEvent(event)
                  gestureDetector.onTouchEvent(event)
-                 if (event.actionMasked == MotionEvent.ACTION_UP) currentMode = Mode.ERASE_LAYER
+
+                 if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                     currentMode = Mode.ERASE_LAYER
+                 }
                  return true
              }
 
