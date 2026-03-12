@@ -3645,103 +3645,34 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
-        fun createControl(label: String, valueStr: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 8, 0, 8)
-            }
-            val tvLabel = TextView(this).apply {
-                text = label
-                setTextColor(Color.LTGRAY)
-                textSize = 14f
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            val btnMinus = TextView(this).apply {
-                text = "-"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onMinus() }
-            }
-            val tvValue = TextView(this).apply {
-                text = valueStr
-                setTextColor(Color.CYAN)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
-                tag = "VALUE_TEXT"
-            }
-            val btnPlus = TextView(this).apply {
-                text = "+"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onPlus() }
-            }
-            row.addView(tvLabel); row.addView(btnMinus); row.addView(tvValue); row.addView(btnPlus)
-            return row
-        }
-
         // Letter Spacing
-        val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing),
+        val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing), "LETTER_SPACING",
             onMinus = {
                 layer.letterSpacing -= 0.01f
                 canvasView.invalidate()
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
             },
             onPlus = {
                 layer.letterSpacing += 0.01f
                 canvasView.invalidate()
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
             }
         )
-        val tvLetterVal = letterSpacingRow.findViewWithTag<TextView>("VALUE_TEXT")
-        (letterSpacingRow as LinearLayout).let { row ->
-            (row.getChildAt(1) as TextView).setOnClickListener {
-                layer.letterSpacing -= 0.01f
-                canvasView.invalidate()
-                tvLetterVal?.text = String.format("%.2f", layer.letterSpacing)
-            }
-            (row.getChildAt(3) as TextView).setOnClickListener {
-                layer.letterSpacing += 0.01f
-                canvasView.invalidate()
-                tvLetterVal?.text = String.format("%.2f", layer.letterSpacing)
-            }
-        }
         layout.addView(letterSpacingRow)
 
         // Line Spacing
-        val lineSpacingRow = createControl("Line Spacing", "${layer.lineSpacing.toInt()}",
+        val lineSpacingRow = createControl("Line Spacing", "${layer.lineSpacing.toInt()}", "LINE_SPACING",
             onMinus = {
                 layer.lineSpacing -= 5f
                 canvasView.invalidate()
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
             },
             onPlus = {
                 layer.lineSpacing += 5f
                 canvasView.invalidate()
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
             }
         )
-        val tvLineVal = lineSpacingRow.findViewWithTag<TextView>("VALUE_TEXT")
-        (lineSpacingRow as LinearLayout).let { row ->
-            (row.getChildAt(1) as TextView).setOnClickListener {
-                layer.lineSpacing -= 5f
-                canvasView.invalidate()
-                tvLineVal?.text = "${layer.lineSpacing.toInt()}"
-            }
-            (row.getChildAt(3) as TextView).setOnClickListener {
-                layer.lineSpacing += 5f
-                canvasView.invalidate()
-                tvLineVal?.text = "${layer.lineSpacing.toInt()}"
-            }
-        }
         layout.addView(lineSpacingRow)
 
         container.addView(layout)
@@ -3977,65 +3908,67 @@ class EditorActivity : AppCompatActivity() {
         return layout
     }
 
+    private fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+
+        val tvLabel = TextView(this).apply {
+            text = label
+            setTextColor(Color.LTGRAY)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val btnMinus = TextView(this).apply {
+            this.tag = "MINUS_BTN"
+            text = "-"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(4).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+            setOnClickListener { onMinus() }
+        }
+
+        val tvValue = TextView(this).apply {
+            text = valueStr
+            this.tag = tag // Set Tag for Sync
+            setTextColor(Color.CYAN)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val btnPlus = TextView(this).apply {
+            this.tag = "PLUS_BTN"
+            text = "+"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(4).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+            setOnClickListener { onPlus() }
+        }
+
+        row.addView(tvLabel)
+        row.addView(btnMinus)
+        row.addView(tvValue)
+        row.addView(btnPlus)
+        return row
+    }
+
     private fun createSizeTab(layer: TextLayer): View {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 8, 16, 8)
-        }
-
-        fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 8, 0, 8)
-            }
-
-            val tvLabel = TextView(this).apply {
-                text = label
-                setTextColor(Color.LTGRAY)
-                textSize = 14f
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            }
-
-            val btnMinus = TextView(this).apply {
-                text = "-"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onMinus() }
-            }
-
-            val tvValue = TextView(this).apply {
-                text = valueStr
-                this.tag = tag // Set Tag for Sync
-                setTextColor(Color.CYAN)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
-
-            val btnPlus = TextView(this).apply {
-                text = "+"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onPlus() }
-            }
-
-            row.addView(tvLabel)
-            row.addView(btnMinus)
-            row.addView(tvValue)
-            row.addView(btnPlus)
-            return row
         }
 
         // Text Size
@@ -4043,24 +3976,24 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
             },
             onPlus = {
                 layer.fontSize += 1
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
             }
         )
         val tvSizeVal = textSizeRow.findViewWithTag<TextView>("VAL_TEXT_SIZE")
-        (textSizeRow as LinearLayout).let { row ->
-            (row.getChildAt(1) as TextView).setOnClickListener {
-                layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
-                canvasView.invalidate()
-                tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
-            }
-            (row.getChildAt(3) as TextView).setOnClickListener {
-                layer.fontSize += 1
-                canvasView.invalidate()
-                tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
-            }
+        textSizeRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
+            canvasView.invalidate()
+            tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+        }
+        textSizeRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            layer.fontSize += 1
+            canvasView.invalidate()
+            tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
         }
         layout.addView(textSizeRow)
 
@@ -4071,30 +4004,30 @@ class EditorActivity : AppCompatActivity() {
                 layer.scaleX = s
                 layer.scaleY = s
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_SCALE"))?.text = "${(layer.scale * 100).toInt()}%"
             },
             onPlus = {
                 val s = layer.scale + 0.01f
                 layer.scaleX = s
                 layer.scaleY = s
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_SCALE"))?.text = "${(layer.scale * 100).toInt()}%"
             }
         )
         val tvScaleVal = scaleRow.findViewWithTag<TextView>("VAL_BOX_SCALE")
-        (scaleRow as LinearLayout).let { row ->
-            (row.getChildAt(1) as TextView).setOnClickListener {
-                val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
-                layer.scaleX = s
-                layer.scaleY = s
-                canvasView.invalidate()
-                tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
-            }
-            (row.getChildAt(3) as TextView).setOnClickListener {
-                val s = layer.scale + 0.01f
-                layer.scaleX = s
-                layer.scaleY = s
-                canvasView.invalidate()
-                tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
-            }
+        scaleRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
+            layer.scaleX = s
+            layer.scaleY = s
+            canvasView.invalidate()
+            tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
+        }
+        scaleRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            val s = layer.scale + 0.01f
+            layer.scaleX = s
+            layer.scaleY = s
+            canvasView.invalidate()
+            tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
         }
         layout.addView(scaleRow)
 
@@ -4106,27 +4039,27 @@ class EditorActivity : AppCompatActivity() {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
             },
             onPlus = {
                  val w = (layer.boxWidth ?: layer.getWidth()) + 1f
                 layer.boxWidth = w
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
             }
         )
         val tvWidthVal = widthRow.findViewWithTag<TextView>("VAL_BOX_WIDTH")
-        (widthRow as LinearLayout).let { row ->
-            (row.getChildAt(1) as TextView).setOnClickListener {
-                val w = (layer.boxWidth ?: layer.getWidth()) - 1f
-                layer.boxWidth = w.coerceAtLeast(50f)
-                canvasView.invalidate()
-                tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
-            }
-            (row.getChildAt(3) as TextView).setOnClickListener {
-                val w = (layer.boxWidth ?: layer.getWidth()) + 1f
-                layer.boxWidth = w
-                canvasView.invalidate()
-                tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
-            }
+        widthRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            val w = (layer.boxWidth ?: layer.getWidth()) - 1f
+            layer.boxWidth = w.coerceAtLeast(50f)
+            canvasView.invalidate()
+            tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+        }
+        widthRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            val w = (layer.boxWidth ?: layer.getWidth()) + 1f
+            layer.boxWidth = w
+            canvasView.invalidate()
+            tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
         }
         layout.addView(widthRow)
 
@@ -4135,24 +4068,24 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.rotation -= 1f
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_ROTATE"))?.text = "${layer.rotation.toInt()}°"
             },
             onPlus = {
                 layer.rotation += 1f
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_ROTATE"))?.text = "${layer.rotation.toInt()}°"
             }
         )
         val tvRotateVal = rotateRow.findViewWithTag<TextView>("VAL_ROTATE")
-        (rotateRow as LinearLayout).let { row ->
-            (row.getChildAt(1) as TextView).setOnClickListener {
-                layer.rotation -= 1f
-                canvasView.invalidate()
-                tvRotateVal?.text = "${layer.rotation.toInt()}°"
-            }
-            (row.getChildAt(3) as TextView).setOnClickListener {
-                layer.rotation += 1f
-                canvasView.invalidate()
-                tvRotateVal?.text = "${layer.rotation.toInt()}°"
-            }
+        rotateRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            layer.rotation -= 1f
+            canvasView.invalidate()
+            tvRotateVal?.text = "${layer.rotation.toInt()}°"
+        }
+        rotateRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            layer.rotation += 1f
+            canvasView.invalidate()
+            tvRotateVal?.text = "${layer.rotation.toInt()}°"
         }
         layout.addView(rotateRow)
 
@@ -4449,6 +4382,9 @@ class EditorActivity : AppCompatActivity() {
                 if (!isActive) {
                     canvasView.pendingGradientStart = layer.gradientStartColor
                     canvasView.pendingGradientEnd = layer.gradientEndColor
+                    canvasView.targetGradientText = layer.isGradientText
+                    canvasView.targetGradientStroke = layer.isGradientStroke
+                    canvasView.targetGradientShadow = layer.isGradientShadow
                 }
                 showGradationControls()
             }
@@ -4473,9 +4409,15 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        togglesLayout.addView(createToggle("Text", layer.isGradientText) { b -> layer.isGradientText = b; canvasView.invalidate() })
-        togglesLayout.addView(createToggle("Stroke", layer.isGradientStroke) { b -> layer.isGradientStroke = b; canvasView.invalidate() })
-        togglesLayout.addView(createToggle("Shadow", layer.isGradientShadow) { b -> layer.isGradientShadow = b; canvasView.invalidate() })
+        togglesLayout.addView(createToggle("Text", if (isGradationMode) canvasView.targetGradientText else layer.isGradientText) { b ->
+            if (isGradationMode) canvasView.targetGradientText = b else { layer.isGradientText = b; canvasView.invalidate() }
+        })
+        togglesLayout.addView(createToggle("Stroke", if (isGradationMode) canvasView.targetGradientStroke else layer.isGradientStroke) { b ->
+            if (isGradationMode) canvasView.targetGradientStroke = b else { layer.isGradientStroke = b; canvasView.invalidate() }
+        })
+        togglesLayout.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layer.isGradientShadow) { b ->
+            if (isGradationMode) canvasView.targetGradientShadow = b else { layer.isGradientShadow = b; canvasView.invalidate() }
+        })
 
         mainLayout.addView(togglesLayout)
 
@@ -4592,6 +4534,14 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+            val tvValue = TextView(this).apply {
+                tag = "STROKE_WIDTH_VAL"
+                text = "${layer.strokeWidth.toInt()} pt"
+                setTextColor(Color.CYAN)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+
         val btnMinus = TextView(this).apply {
             text = "-"
             textSize = 18f
@@ -4605,15 +4555,8 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.strokeWidth = (layer.strokeWidth - 1).coerceAtLeast(0f)
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.strokeWidth.toInt()} pt"
+                    tvValue.text = "${layer.strokeWidth.toInt()} pt"
             }
-        }
-
-        val tvValue = TextView(this).apply {
-            text = "${layer.strokeWidth.toInt()} pt"
-            setTextColor(Color.CYAN)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val btnPlus = TextView(this).apply {
@@ -4629,7 +4572,7 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.strokeWidth += 1
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.strokeWidth.toInt()} pt"
+                    tvValue.text = "${layer.strokeWidth.toInt()} pt"
             }
         }
 
@@ -4683,6 +4626,14 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+        val tvValue = TextView(this).apply {
+            tag = "DBL_STROKE_WIDTH_VAL"
+            text = "${layer.doubleStrokeWidth.toInt()} pt"
+            setTextColor(Color.CYAN)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
         val btnMinus = TextView(this).apply {
             text = "-"
             textSize = 18f
@@ -4696,15 +4647,8 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.doubleStrokeWidth = (layer.doubleStrokeWidth - 1).coerceAtLeast(0f)
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.doubleStrokeWidth.toInt()} pt"
+                tvValue.text = "${layer.doubleStrokeWidth.toInt()} pt"
             }
-        }
-
-        val tvValue = TextView(this).apply {
-            text = "${layer.doubleStrokeWidth.toInt()} pt"
-            setTextColor(Color.CYAN)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val btnPlus = TextView(this).apply {
@@ -4720,7 +4664,7 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.doubleStrokeWidth += 1
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.doubleStrokeWidth.toInt()} pt"
+                tvValue.text = "${layer.doubleStrokeWidth.toInt()} pt"
             }
         }
 

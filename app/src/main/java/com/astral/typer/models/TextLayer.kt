@@ -851,7 +851,29 @@ class TextLayer(
         }
 
         if (!isMotionShadow && shadowRadius > 0) {
-            paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+            if (isGradient && isGradientShadow) {
+                paint.clearShadowLayer()
+                val originalShader = paint.shader
+                val originalColor = paint.color
+                val originalMaskFilter = paint.maskFilter
+
+                paint.shader = gradientShader
+                paint.color = Color.WHITE
+                if (shadowRadius > 0) {
+                    paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                }
+
+                canvas.save()
+                canvas.translate(shadowDx, shadowDy)
+                layout.draw(canvas)
+                canvas.restore()
+
+                paint.shader = originalShader
+                paint.color = originalColor
+                paint.maskFilter = originalMaskFilter
+            } else {
+                paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+            }
         } else {
             paint.clearShadowLayer()
         }
