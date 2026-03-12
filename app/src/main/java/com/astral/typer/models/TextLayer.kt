@@ -8,6 +8,7 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
@@ -57,6 +58,10 @@ class TextLayer(
     var isGradientText: Boolean = true
     var isGradientStroke: Boolean = false
     var isGradientShadow: Boolean = false
+
+    var isGlobalGradient: Boolean = false
+    var globalP1: PointF = PointF()
+    var globalP2: PointF = PointF()
 
     // Stroke
     var strokeColor: Int = Color.BLACK
@@ -206,6 +211,9 @@ class TextLayer(
         newLayer.isGradientText = this.isGradientText
         newLayer.isGradientStroke = this.isGradientStroke
         newLayer.isGradientShadow = this.isGradientShadow
+        newLayer.isGlobalGradient = this.isGlobalGradient
+        newLayer.globalP1 = PointF(this.globalP1.x, this.globalP1.y)
+        newLayer.globalP2 = PointF(this.globalP2.x, this.globalP2.y)
         newLayer.strokeColor = this.strokeColor
         newLayer.strokeWidth = this.strokeWidth
         newLayer.doubleStrokeColor = this.doubleStrokeColor
@@ -480,6 +488,23 @@ class TextLayer(
 
     private fun getGradientShader(w: Float, h: Float): Shader? {
         if (!isGradient) return null
+        if (isGlobalGradient) {
+            val inverse = Matrix()
+            val matrix = Matrix()
+            matrix.setTranslate(x, y)
+            matrix.preRotate(rotation)
+            matrix.preScale(scaleX, scaleY)
+            if (matrix.invert(inverse)) {
+                val pts = floatArrayOf(globalP1.x, globalP1.y, globalP2.x, globalP2.y)
+                inverse.mapPoints(pts)
+                // Points are now relative to center. Convert to top-left relative.
+                val x0 = pts[0] + w / 2f
+                val y0 = pts[1] + h / 2f
+                val x1 = pts[2] + w / 2f
+                val y1 = pts[3] + h / 2f
+                return LinearGradient(x0, y0, x1, y1, gradientStartColor, gradientEndColor, Shader.TileMode.CLAMP)
+            }
+        }
         return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor)
     }
 
@@ -826,7 +851,29 @@ class TextLayer(
         }
 
         if (!isMotionShadow && shadowRadius > 0) {
-            paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+            if (isGradient && isGradientShadow) {
+                paint.clearShadowLayer()
+                val originalShader = paint.shader
+                val originalColor = paint.color
+                val originalMaskFilter = paint.maskFilter
+
+                paint.shader = gradientShader
+                paint.color = Color.WHITE
+                if (shadowRadius > 0) {
+                    paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                }
+
+                canvas.save()
+                canvas.translate(shadowDx, shadowDy)
+                layout.draw(canvas)
+                canvas.restore()
+
+                paint.shader = originalShader
+                paint.color = originalColor
+                paint.maskFilter = originalMaskFilter
+            } else {
+                paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+            }
         } else {
             paint.clearShadowLayer()
         }

@@ -978,16 +978,37 @@ class EditorActivity : AppCompatActivity() {
         val isEffectActive = { effect: TextEffectType -> layer.currentEffect == effect || layer.secondaryEffect == effect }
 
         if (isEffectActive(TextEffectType.LONG_SHADOW)) {
-                settingsLayout.addView(createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
+                val s1 = createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
                     layer.longShadowLength = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Length: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.longShadowLength = p.toFloat()
+                        tv1?.text = "Length: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
-                settingsLayout.addView(createSlider("Angle: ${layer.longShadowAngle.toInt()}°", layer.longShadowAngle.toInt(), 360) {
+                settingsLayout.addView(s1)
+
+                val s2 = createSlider("Angle: ${layer.longShadowAngle.toInt()}°", layer.longShadowAngle.toInt(), 360) {
                     layer.longShadowAngle = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.longShadowAngle = p.toFloat()
+                        tv2?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s2)
                 val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.longShadowColor,
@@ -996,11 +1017,21 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.FIERY)) {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
+                val s1 = createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
                     layer.fieryIntensity = it / 100f
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.fieryIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.fieryColor,
@@ -1009,30 +1040,71 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.WAVY)) {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
+                val s1 = createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
                     layer.wavyIntensity = it / 100f
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.wavyIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
-                settingsLayout.addView(createSlider("Frequency: ${layer.wavyFrequency.toInt()}", layer.wavyFrequency.toInt(), 50) {
+                settingsLayout.addView(s1)
+
+                val s2 = createSlider("Frequency: ${layer.wavyFrequency.toInt()}", layer.wavyFrequency.toInt(), 50) {
                     layer.wavyFrequency = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Frequency: $it" }
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.wavyFrequency = p.toFloat()
+                        tv2?.text = "Frequency: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s2)
         }
         if (isEffectActive(TextEffectType.GAUSSIAN_BLUR)) {
-                settingsLayout.addView(createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
+                val s1 = createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
                     layer.blurRadius = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Blur Strength: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.blurRadius = p.toFloat()
+                        tv1?.text = "Blur Strength: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
-                settingsLayout.addView(createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
+                val s1 = createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
                     layer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Dot Size: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.halftoneDotSize = p.coerceAtLeast(1).toFloat()
+                        tv1?.text = "Dot Size: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.halftoneDotColor,
@@ -1090,18 +1162,38 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
                 settingsLayout.addView(scrollPalette)
 
-                settingsLayout.addView(createSlider("Angle: ${layer.multiGradientAngle.toInt()}°", layer.multiGradientAngle.toInt(), 360) {
+                val s1 = createSlider("Angle: ${layer.multiGradientAngle.toInt()}°", layer.multiGradientAngle.toInt(), 360) {
                     layer.multiGradientAngle = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.multiGradientAngle = p.toFloat()
+                        tv1?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.NEON)) {
-                settingsLayout.addView(createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
+                val s1 = createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
                     layer.neonRadius = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Glow Radius: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.neonRadius = p.coerceAtLeast(1).toFloat()
+                        tv1?.text = "Glow Radius: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(layer.neonColor,
@@ -1110,11 +1202,21 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
-                settingsLayout.addView(createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
+                val s1 = createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
                     layer.glitchIntensity = it / 100f
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Intensity: $it%" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.glitchIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Seed"
                     setTextColor(Color.WHITE)
@@ -1127,11 +1229,21 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(btnSeed)
         }
         if (isEffectActive(TextEffectType.PIXELATION)) {
-                settingsLayout.addView(createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
+                val s1 = createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
                     layer.pixelBlockSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Block Size: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.pixelBlockSize = p.coerceAtLeast(1).toFloat()
+                        tv1?.text = "Block Size: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION)) {
                 // Chromatic Palette Control
@@ -1222,11 +1334,21 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
                 settingsLayout.addView(scrollPalette)
 
-                settingsLayout.addView(createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
+                val s1 = createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
                     layer.chromaticShift = it.toFloat()
                     canvasView.invalidate()
-                    (settingsLayout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Shift: $it" }
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.chromaticShift = p.toFloat()
+                        tv1?.text = "Shift: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(s1)
         }
 
         mainLayout.addView(settingsLayout)
@@ -1395,20 +1517,51 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 16, 16, 16)
         }
 
-        layout.addView(createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
+        val s1 = createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
             canvasView.layerEraseSize = it.toFloat().coerceAtLeast(1f)
-            (layout.getChildAt(0) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Size: $it" }
+        }
+        val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                val value = p.coerceAtLeast(1)
+                canvasView.layerEraseSize = value.toFloat()
+                tv1?.text = "Size: $value"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s1)
 
-        layout.addView(createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
+        val s2 = createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
             canvasView.layerEraseOpacity = it
-            (layout.getChildAt(1) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: $it" }
+        }
+        val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                canvasView.layerEraseOpacity = p
+                tv2?.text = "Opacity: $p"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s2)
 
-        layout.addView(createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
+        val s3 = createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
             canvasView.layerEraseHardness = it.toFloat()
-            (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Hardness: $it%" }
+        }
+        val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                canvasView.layerEraseHardness = p.toFloat()
+                tv3?.text = "Hardness: $p%"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s3)
 
         container.addView(layout)
     }
@@ -2494,6 +2647,9 @@ class EditorActivity : AppCompatActivity() {
         if (currentMenuType == "ERASE") {
             canvasView.setEraseLayerMode(false)
         }
+        if (currentMenuType == "GRADATION") {
+            canvasView.setGradationMode(false)
+        }
 
         if (currentMenuType == "TYPER") {
             exitTyperMode()
@@ -2518,6 +2674,9 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "ERASE" && type != "ERASE") {
                 canvasView.setEraseLayerMode(false)
+            }
+            if (currentMenuType == "GRADATION" && type != "GRADATION") {
+                canvasView.setGradationMode(false)
             }
             // Enable prevent deselection for property menus
             if (type != "QUICK_EDIT") {
@@ -3486,78 +3645,32 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
-        fun createControl(label: String, valueStr: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 8, 0, 8)
-            }
-            val tvLabel = TextView(this).apply {
-                text = label
-                setTextColor(Color.LTGRAY)
-                textSize = 14f
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            val btnMinus = TextView(this).apply {
-                text = "-"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onMinus() }
-            }
-            val tvValue = TextView(this).apply {
-                text = valueStr
-                setTextColor(Color.CYAN)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
-            val btnPlus = TextView(this).apply {
-                text = "+"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onPlus() }
-            }
-            row.addView(tvLabel); row.addView(btnMinus); row.addView(tvValue); row.addView(btnPlus)
-            return row
-        }
-
         // Letter Spacing
-        val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing),
+        val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing), "LETTER_SPACING",
             onMinus = {
                 layer.letterSpacing -= 0.01f
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
             },
             onPlus = {
                 layer.letterSpacing += 0.01f
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = String.format("%.2f", layer.letterSpacing) }
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
             }
         )
         layout.addView(letterSpacingRow)
 
         // Line Spacing
-        val lineSpacingRow = createControl("Line Spacing", "${layer.lineSpacing.toInt()}",
+        val lineSpacingRow = createControl("Line Spacing", "${layer.lineSpacing.toInt()}", "LINE_SPACING",
             onMinus = {
                 layer.lineSpacing -= 5f
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.lineSpacing.toInt()}" }
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
             },
             onPlus = {
                 layer.lineSpacing += 5f
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.lineSpacing.toInt()}" }
+                (canvasView.parent as? View)?.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
             }
         )
         layout.addView(lineSpacingRow)
@@ -3795,65 +3908,67 @@ class EditorActivity : AppCompatActivity() {
         return layout
     }
 
+    private fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+
+        val tvLabel = TextView(this).apply {
+            text = label
+            setTextColor(Color.LTGRAY)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val btnMinus = TextView(this).apply {
+            this.tag = "MINUS_BTN"
+            text = "-"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(4).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+            setOnClickListener { onMinus() }
+        }
+
+        val tvValue = TextView(this).apply {
+            text = valueStr
+            this.tag = tag // Set Tag for Sync
+            setTextColor(Color.CYAN)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val btnPlus = TextView(this).apply {
+            this.tag = "PLUS_BTN"
+            text = "+"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(4).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+            setOnClickListener { onPlus() }
+        }
+
+        row.addView(tvLabel)
+        row.addView(btnMinus)
+        row.addView(tvValue)
+        row.addView(btnPlus)
+        return row
+    }
+
     private fun createSizeTab(layer: TextLayer): View {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 8, 16, 8)
-        }
-
-        fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 8, 0, 8)
-            }
-
-            val tvLabel = TextView(this).apply {
-                text = label
-                setTextColor(Color.LTGRAY)
-                textSize = 14f
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            }
-
-            val btnMinus = TextView(this).apply {
-                text = "-"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onMinus() }
-            }
-
-            val tvValue = TextView(this).apply {
-                text = valueStr
-                this.tag = tag // Set Tag for Sync
-                setTextColor(Color.CYAN)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
-
-            val btnPlus = TextView(this).apply {
-                text = "+"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-                setOnClickListener { onPlus() }
-            }
-
-            row.addView(tvLabel)
-            row.addView(btnMinus)
-            row.addView(tvValue)
-            row.addView(btnPlus)
-            return row
         }
 
         // Text Size
@@ -3861,14 +3976,25 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
             },
             onPlus = {
                 layer.fontSize += 1
                 canvasView.invalidate()
-                (layout.getChildAt(0) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.fontSize.toInt()} pt" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
             }
         )
+        val tvSizeVal = textSizeRow.findViewWithTag<TextView>("VAL_TEXT_SIZE")
+        textSizeRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
+            canvasView.invalidate()
+            tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+        }
+        textSizeRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            layer.fontSize += 1
+            canvasView.invalidate()
+            tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+        }
         layout.addView(textSizeRow)
 
         // Box Scale
@@ -3878,16 +4004,31 @@ class EditorActivity : AppCompatActivity() {
                 layer.scaleX = s
                 layer.scaleY = s
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${(layer.scale * 100).toInt()}%" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_SCALE"))?.text = "${(layer.scale * 100).toInt()}%"
             },
             onPlus = {
                 val s = layer.scale + 0.01f
                 layer.scaleX = s
                 layer.scaleY = s
                 canvasView.invalidate()
-                (layout.getChildAt(1) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${(layer.scale * 100).toInt()}%" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_SCALE"))?.text = "${(layer.scale * 100).toInt()}%"
             }
         )
+        val tvScaleVal = scaleRow.findViewWithTag<TextView>("VAL_BOX_SCALE")
+        scaleRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
+            layer.scaleX = s
+            layer.scaleY = s
+            canvasView.invalidate()
+            tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
+        }
+        scaleRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            val s = layer.scale + 0.01f
+            layer.scaleX = s
+            layer.scaleY = s
+            canvasView.invalidate()
+            tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
+        }
         layout.addView(scaleRow)
 
         // Box Width
@@ -3898,15 +4039,28 @@ class EditorActivity : AppCompatActivity() {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
                 canvasView.invalidate()
-                (layout.getChildAt(2) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.boxWidth!!.toInt()} pt" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
             },
             onPlus = {
                  val w = (layer.boxWidth ?: layer.getWidth()) + 1f
                 layer.boxWidth = w
                 canvasView.invalidate()
-                (layout.getChildAt(2) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.boxWidth!!.toInt()} pt" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
             }
         )
+        val tvWidthVal = widthRow.findViewWithTag<TextView>("VAL_BOX_WIDTH")
+        widthRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            val w = (layer.boxWidth ?: layer.getWidth()) - 1f
+            layer.boxWidth = w.coerceAtLeast(50f)
+            canvasView.invalidate()
+            tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+        }
+        widthRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            val w = (layer.boxWidth ?: layer.getWidth()) + 1f
+            layer.boxWidth = w
+            canvasView.invalidate()
+            tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+        }
         layout.addView(widthRow)
 
         // Rotate
@@ -3914,14 +4068,25 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.rotation -= 1f
                 canvasView.invalidate()
-                (layout.getChildAt(3) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.rotation.toInt()}°" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_ROTATE"))?.text = "${layer.rotation.toInt()}°"
             },
             onPlus = {
                 layer.rotation += 1f
                 canvasView.invalidate()
-                (layout.getChildAt(3) as LinearLayout).getChildAt(2).let { (it as TextView).text = "${layer.rotation.toInt()}°" }
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_ROTATE"))?.text = "${layer.rotation.toInt()}°"
             }
         )
+        val tvRotateVal = rotateRow.findViewWithTag<TextView>("VAL_ROTATE")
+        rotateRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            layer.rotation -= 1f
+            canvasView.invalidate()
+            tvRotateVal?.text = "${layer.rotation.toInt()}°"
+        }
+        rotateRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            layer.rotation += 1f
+            canvasView.invalidate()
+            tvRotateVal?.text = "${layer.rotation.toInt()}°"
+        }
         layout.addView(rotateRow)
 
         return layout
@@ -3929,10 +4094,15 @@ class EditorActivity : AppCompatActivity() {
 
     private fun createSlider(label: String, initial: Int, max: Int, onChange: (Int) -> Unit): View {
         val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0,8,0,8) }
-        val tv = TextView(this).apply { text = label; setTextColor(Color.WHITE) }
+        val tv = TextView(this).apply {
+            text = label
+            setTextColor(Color.WHITE)
+            tag = "SLIDER_LABEL"
+        }
         val sb = SeekBar(this).apply {
             this.max = max
             progress = initial
+            tag = "SLIDER_BAR"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) { onChange(p) }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
@@ -4184,6 +4354,7 @@ class EditorActivity : AppCompatActivity() {
     private fun showGradationControls() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val isGradationMode = canvasView.currentModeName() == "GRADATION"
         // Do not auto-apply gradient
         // layer.isGradient = true
         // canvasView.invalidate()
@@ -4193,6 +4364,32 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 16, 16, 16)
         }
+
+        // Enter Gradation Mode Button
+        val btnGradMode = android.widget.Button(this).apply {
+            text = if (canvasView.currentModeName() == "GRADATION") "Exit Gradation Mode" else "Enter Gradation Mode"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(if (canvasView.currentModeName() == "GRADATION") Color.CYAN else Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 16)
+            }
+            setOnClickListener {
+                val isActive = canvasView.currentModeName() == "GRADATION"
+                canvasView.setGradationMode(!isActive)
+                if (!isActive) {
+                    canvasView.pendingGradientStart = layer.gradientStartColor
+                    canvasView.pendingGradientEnd = layer.gradientEndColor
+                    canvasView.targetGradientText = layer.isGradientText
+                    canvasView.targetGradientStroke = layer.isGradientStroke
+                    canvasView.targetGradientShadow = layer.isGradientShadow
+                }
+                showGradationControls()
+            }
+        }
+        mainLayout.addView(btnGradMode)
 
         // Toggles for Text, Stroke, Shadow
         val togglesLayout = LinearLayout(this).apply {
@@ -4212,40 +4409,88 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        togglesLayout.addView(createToggle("Text", layer.isGradientText) { b -> layer.isGradientText = b; canvasView.invalidate() })
-        togglesLayout.addView(createToggle("Stroke", layer.isGradientStroke) { b -> layer.isGradientStroke = b; canvasView.invalidate() })
-        togglesLayout.addView(createToggle("Shadow", layer.isGradientShadow) { b -> layer.isGradientShadow = b; canvasView.invalidate() })
+        togglesLayout.addView(createToggle("Text", if (isGradationMode) canvasView.targetGradientText else layer.isGradientText) { b ->
+            if (isGradationMode) canvasView.targetGradientText = b else { layer.isGradientText = b; canvasView.invalidate() }
+        })
+        togglesLayout.addView(createToggle("Stroke", if (isGradationMode) canvasView.targetGradientStroke else layer.isGradientStroke) { b ->
+            if (isGradationMode) canvasView.targetGradientStroke = b else { layer.isGradientStroke = b; canvasView.invalidate() }
+        })
+        togglesLayout.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layer.isGradientShadow) { b ->
+            if (isGradationMode) canvasView.targetGradientShadow = b else { layer.isGradientShadow = b; canvasView.invalidate() }
+        })
 
         mainLayout.addView(togglesLayout)
 
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
-        mainLayout.addView(createColorScroll(layer.gradientStartColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else layer.gradientStartColor,
              { c ->
-                 layer.gradientStartColor = c
-                 if (!layer.isGradient) layer.isGradient = true
-                 canvasView.invalidate()
+                 if (isGradationMode) {
+                     canvasView.pendingGradientStart = c
+                 } else {
+                     layer.gradientStartColor = c
+                     if (!layer.isGradient) layer.isGradient = true
+                     canvasView.invalidate()
+                 }
              },
-             { showColorWheelDialogForProperty(layer.gradientStartColor) { c -> layer.gradientStartColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             {
+                 val current = if (isGradationMode) canvasView.pendingGradientStart else layer.gradientStartColor
+                 showColorWheelDialogForProperty(current) { c ->
+                     if (isGradationMode) {
+                         canvasView.pendingGradientStart = c
+                     } else {
+                         layer.gradientStartColor = c
+                         if (!layer.isGradient) layer.isGradient = true
+                         canvasView.invalidate()
+                     }
+                 }
+             }
         ))
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
-        mainLayout.addView(createColorScroll(layer.gradientEndColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else layer.gradientEndColor,
              { c ->
-                 layer.gradientEndColor = c
-                 if (!layer.isGradient) layer.isGradient = true
-                 canvasView.invalidate()
+                 if (isGradationMode) {
+                     canvasView.pendingGradientEnd = c
+                 } else {
+                     layer.gradientEndColor = c
+                     if (!layer.isGradient) layer.isGradient = true
+                     canvasView.invalidate()
+                 }
              },
-             { showColorWheelDialogForProperty(layer.gradientEndColor) { c -> layer.gradientEndColor = c; if (!layer.isGradient) layer.isGradient = true; canvasView.invalidate() } }
+             {
+                 val current = if (isGradationMode) canvasView.pendingGradientEnd else layer.gradientEndColor
+                 showColorWheelDialogForProperty(current) { c ->
+                     if (isGradationMode) {
+                         canvasView.pendingGradientEnd = c
+                     } else {
+                         layer.gradientEndColor = c
+                         if (!layer.isGradient) layer.isGradient = true
+                         canvasView.invalidate()
+                     }
+                 }
+             }
         ))
 
         // Angle
-        mainLayout.addView(createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
-             layer.gradientAngle = it
-             canvasView.invalidate()
-             (mainLayout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Gradient Angle: $it°" }
-        })
+        if (!isGradationMode) {
+            val angleSlider = createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
+                 layer.gradientAngle = it
+                 canvasView.invalidate()
+            }
+            val angleLabel = angleSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            angleSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    layer.gradientAngle = p
+                    angleLabel?.text = "Gradient Angle: $p°"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            mainLayout.addView(angleSlider)
+        }
 
         scroll.addView(mainLayout)
         container.addView(scroll)
@@ -4289,6 +4534,14 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+            val tvValue = TextView(this).apply {
+                tag = "STROKE_WIDTH_VAL"
+                text = "${layer.strokeWidth.toInt()} pt"
+                setTextColor(Color.CYAN)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+
         val btnMinus = TextView(this).apply {
             text = "-"
             textSize = 18f
@@ -4302,15 +4555,8 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.strokeWidth = (layer.strokeWidth - 1).coerceAtLeast(0f)
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.strokeWidth.toInt()} pt"
+                    tvValue.text = "${layer.strokeWidth.toInt()} pt"
             }
-        }
-
-        val tvValue = TextView(this).apply {
-            text = "${layer.strokeWidth.toInt()} pt"
-            setTextColor(Color.CYAN)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val btnPlus = TextView(this).apply {
@@ -4326,7 +4572,7 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.strokeWidth += 1
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.strokeWidth.toInt()} pt"
+                    tvValue.text = "${layer.strokeWidth.toInt()} pt"
             }
         }
 
@@ -4380,6 +4626,14 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+        val tvValue = TextView(this).apply {
+            tag = "DBL_STROKE_WIDTH_VAL"
+            text = "${layer.doubleStrokeWidth.toInt()} pt"
+            setTextColor(Color.CYAN)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
         val btnMinus = TextView(this).apply {
             text = "-"
             textSize = 18f
@@ -4393,15 +4647,8 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.doubleStrokeWidth = (layer.doubleStrokeWidth - 1).coerceAtLeast(0f)
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.doubleStrokeWidth.toInt()} pt"
+                tvValue.text = "${layer.doubleStrokeWidth.toInt()} pt"
             }
-        }
-
-        val tvValue = TextView(this).apply {
-            text = "${layer.doubleStrokeWidth.toInt()} pt"
-            setTextColor(Color.CYAN)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val btnPlus = TextView(this).apply {
@@ -4417,7 +4664,7 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 layer.doubleStrokeWidth += 1
                 canvasView.invalidate()
-                (row.getChildAt(2) as TextView).text = "${layer.doubleStrokeWidth.toInt()} pt"
+                tvValue.text = "${layer.doubleStrokeWidth.toInt()} pt"
             }
         }
 
@@ -4644,11 +4891,22 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(spinner)
 
         // 2. Global Opacity
-        layout.addView(createSlider("Opacity: ${(layer.opacity/2.55f).toInt()}%", layer.opacity, 255) {
+        val s1 = createSlider("Opacity: ${(layer.opacity/2.55f).toInt()}%", layer.opacity, 255) {
             layer.opacity = it
             canvasView.invalidate()
-            (layout.getChildAt(2) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Opacity: ${(it/2.55f).toInt()}%" }
+        }
+        val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacity = p
+                tv1?.text = "Opacity: ${(p/2.55f).toInt()}%"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s1)
 
         // 3. Gradient Opacity
         val toggleGrad = android.widget.CheckBox(this).apply {
@@ -4664,25 +4922,58 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(toggleGrad)
 
         // Start Alpha
-        layout.addView(createSlider("Left Alpha: ${(layer.opacityStart/2.55f).toInt()}%", layer.opacityStart, 255) {
+        val s2 = createSlider("Left Alpha: ${(layer.opacityStart/2.55f).toInt()}%", layer.opacityStart, 255) {
             layer.opacityStart = it
             canvasView.invalidate()
-             (layout.getChildAt(4) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Left Alpha: ${(it/2.55f).toInt()}%" }
+        }
+        val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacityStart = p
+                tv2?.text = "Left Alpha: ${(p/2.55f).toInt()}%"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s2)
 
         // End Alpha
-        layout.addView(createSlider("Right Alpha: ${(layer.opacityEnd/2.55f).toInt()}%", layer.opacityEnd, 255) {
+        val s3 = createSlider("Right Alpha: ${(layer.opacityEnd/2.55f).toInt()}%", layer.opacityEnd, 255) {
             layer.opacityEnd = it
             canvasView.invalidate()
-             (layout.getChildAt(5) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Right Alpha: ${(it/2.55f).toInt()}%" }
+        }
+        val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacityEnd = p
+                tv3?.text = "Right Alpha: ${(p/2.55f).toInt()}%"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s3)
 
         // Angle
-        layout.addView(createSlider("Angle: ${layer.opacityAngle}°", layer.opacityAngle, 360) {
+        val s4 = createSlider("Angle: ${layer.opacityAngle}°", layer.opacityAngle, 360) {
             layer.opacityAngle = it
             canvasView.invalidate()
-            (layout.getChildAt(6) as LinearLayout).getChildAt(0).let { tv -> (tv as TextView).text = "Angle: $it°" }
+        }
+        val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+        val sb4 = s4.findViewWithTag<SeekBar>("SLIDER_BAR")
+        sb4?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                layer.opacityAngle = p
+                tv4?.text = "Angle: $p°"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        layout.addView(s4)
 
         scroll.addView(layout)
         container.addView(scroll)
