@@ -78,6 +78,7 @@ class TextLayer(
     var warpRows: Int = 2
     var warpCols: Int = 2
     var warpMesh: FloatArray? = null
+    var warpMeshVersion: Int = 0
 
     @Transient
     var denseRenderMesh: FloatArray? = null
@@ -679,7 +680,7 @@ class TextLayer(
 
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
         val padding = calculatePadding()
-        val qualityScale = 2f
+        val qualityScale = 1.5f
         val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
 
@@ -780,10 +781,12 @@ class TextLayer(
     private var lastW: Float = -1f
     @Transient
     private var lastH: Float = -1f
+    @Transient
+    private var lastWarpMeshVersion: Int = -1
 
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
         val padding = calculatePadding()
-        val qualityScale = 2f
+        val qualityScale = 1.5f
         val bmpW = ceil((w + padding * 2) * qualityScale).toInt()
         val bmpH = ceil((h + padding * 2) * qualityScale).toInt()
 
@@ -799,7 +802,7 @@ class TextLayer(
             val denseCols = 20
             val denseRows = 20
 
-            if (cachedPaddedVerts == null || lastPadding != padding || lastW != w || lastH != h) {
+            if (cachedPaddedVerts == null || lastPadding != padding || lastW != w || lastH != h || lastWarpMeshVersion != warpMeshVersion) {
                 cachedPaddedVerts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
                 var idx = 0
                 val outPoint = FloatArray(2)
@@ -817,6 +820,7 @@ class TextLayer(
                 lastPadding = padding
                 lastW = w
                 lastH = h
+                lastWarpMeshVersion = warpMeshVersion
             }
 
             canvas.drawBitmapMesh(bitmap, denseCols, denseRows, cachedPaddedVerts!!, 0, null, 0, null)

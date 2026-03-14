@@ -2161,6 +2161,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          if (mesh != null && warpPointIndex != -1) {
                              mesh[warpPointIndex*2] = localPoint[0]
                              mesh[warpPointIndex*2+1] = localPoint[1]
+                             layer.warpMeshVersion++
                              layer.updateDenseWarpMesh()
                              invalidate()
                          }
