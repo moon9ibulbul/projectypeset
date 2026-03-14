@@ -78,6 +78,7 @@ class TextLayer(
     var warpRows: Int = 2
     var warpCols: Int = 2
     var warpMesh: FloatArray? = null
+    var warpMeshVersion: Int = 0
 
     @Transient
     var denseRenderMesh: FloatArray? = null
@@ -229,6 +230,7 @@ class TextLayer(
         newLayer.warpRows = this.warpRows
         newLayer.warpCols = this.warpCols
         newLayer.warpMesh = this.warpMesh?.clone()
+        newLayer.warpMeshVersion = this.warpMeshVersion
 
         newLayer.textureBitmap = this.textureBitmap
         newLayer.textureOffsetX = this.textureOffsetX
@@ -577,6 +579,20 @@ class TextLayer(
         return LinearGradient(x0, y0, x1, y1, multiGradientColors, positions, Shader.TileMode.CLAMP)
     }
 
+    private fun calculatePadding(): Float {
+        var p = 0f
+        if (shadowRadius > 0) p = kotlin.math.max(p, shadowRadius + kotlin.math.max(kotlin.math.abs(shadowDx), kotlin.math.abs(shadowDy)))
+        if (strokeWidth > 0) p = kotlin.math.max(p, strokeWidth + doubleStrokeWidth * 2)
+        if (currentEffect == TextEffectType.NEON || secondaryEffect == TextEffectType.NEON) p = kotlin.math.max(p, neonRadius)
+        if (currentEffect == TextEffectType.GAUSSIAN_BLUR || secondaryEffect == TextEffectType.GAUSSIAN_BLUR) p = kotlin.math.max(p, blurRadius)
+        if (currentEffect == TextEffectType.LONG_SHADOW || secondaryEffect == TextEffectType.LONG_SHADOW) p = kotlin.math.max(p, longShadowLength)
+        if (currentEffect == TextEffectType.CHROMATIC_ABERRATION || secondaryEffect == TextEffectType.CHROMATIC_ABERRATION) p = kotlin.math.max(p, chromaticShift)
+        if (currentEffect == TextEffectType.MOTION_BLUR || secondaryEffect == TextEffectType.MOTION_BLUR) p = kotlin.math.max(p, motionBlurLength)
+        if (currentEffect == TextEffectType.FIERY || secondaryEffect == TextEffectType.FIERY) p = kotlin.math.max(p, fieryIntensity * 40f)
+        if (currentEffect == TextEffectType.WAVY || secondaryEffect == TextEffectType.WAVY) p = kotlin.math.max(p, wavyIntensity * 20f)
+        return p + 50f // Extra safety margin
+    }
+
     override fun draw(canvas: Canvas) {
         if (!isVisible) return
         ensureLayout()
@@ -608,7 +624,36 @@ class TextLayer(
             layerPaint.xfermode = PorterDuffXfermode(mode)
         }
 
-        val saveCount = canvas.saveLayer(null, layerPaint)
+        val padding = calculatePadding()
+        val layerBounds = RectF(-w / 2f - padding, -h / 2f - padding, w / 2f + padding, h / 2f + padding)
+
+        if (isWarp && warpMesh != null) {
+            val mesh = warpMesh!!
+            var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+            val outPoint = FloatArray(2)
+            // Check corners of the padded area to be safe
+            for (u in listOf(-padding/w, 1f + padding/w)) {
+                for (v in listOf(-padding/h, 1f + padding/h)) {
+                    evaluateBezierSurface(u, v, outPoint)
+                    minX = kotlin.math.min(minX, outPoint[0]); minY = kotlin.math.min(minY, outPoint[1])
+                    maxX = kotlin.math.max(maxX, outPoint[0]); maxY = kotlin.math.max(maxY, outPoint[1])
+                }
+            }
+            // Also include mesh points
+            for (i in 0 until (mesh.size / 2)) {
+                minX = kotlin.math.min(minX, mesh[i * 2]); minY = kotlin.math.min(minY, mesh[i * 2 + 1])
+                maxX = kotlin.math.max(maxX, mesh[i * 2]); maxY = kotlin.math.max(maxY, mesh[i * 2 + 1])
+            }
+            layerBounds.union(minX - padding, minY - padding, maxX + padding, maxY + padding)
+        } else if (isPerspective && perspectivePoints != null) {
+            val pts = perspectivePoints!!
+            for (i in 0 until (pts.size / 2)) {
+                layerBounds.union(pts[i * 2] - padding, pts[i * 2 + 1] - padding, pts[i * 2] + padding, pts[i * 2 + 1] + padding)
+            }
+        }
+
+        val saveCount = canvas.saveLayer(layerBounds, layerPaint)
 
         if (isWarp && warpMesh != null) {
             drawWarped(canvas, layout, w, h, warpRows, warpCols, warpMesh!!)
@@ -638,6 +683,9 @@ class TextLayer(
             val size = Math.max(w, h) * 3
             maskPaint.shader = getOpacityGradientShader(w, h)
             canvas.drawRect(-size, -size, size, size, maskPaint)
+
+            // Expand layer bounds for opacity gradient
+            layerBounds.union(-size, -size, size, size)
         }
 
         canvas.restoreToCount(saveCount)
@@ -645,7 +693,8 @@ class TextLayer(
     }
 
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
-        val padding = 100
+        val padding = calculatePadding()
+        val qualityScale = 1.5f
         val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
 
@@ -653,18 +702,15 @@ class TextLayer(
         val meshH = 20
         val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
 
-        val bLeft = -w/2f - padding
-        val bTop = -h/2f - padding
-        val bRight = w/2f + padding
-        val bBottom = h/2f + padding
-
+        // Points in the padded source bitmap (top-left is -padding, -padding)
+        // We map the mesh of the padded bitmap through the perspective matrix
         var index = 0
         for (y in 0..meshH) {
             val fy = y.toFloat() / meshH
-            val py = bTop + (bBottom - bTop) * fy
+            val py = -padding + (h + padding * 2) * fy - h/2f
             for (x in 0..meshW) {
                 val fx = x.toFloat() / meshW
-                val px = bLeft + (bRight - bLeft) * fx
+                val px = -padding + (w + padding * 2) * fx - w/2f
 
                 val pts = floatArrayOf(px, py)
                 matrix.mapPoints(pts)
@@ -673,14 +719,18 @@ class TextLayer(
             }
         }
 
-        val bmpW = ceil(w + padding * 2).toInt()
-        val bmpH = ceil(h + padding * 2).toInt()
+        val bmpW = ceil((w + padding * 2) * qualityScale).toInt()
+        val bmpH = ceil((h + padding * 2) * qualityScale).toInt()
         if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val bitmap = try {
+                Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            } catch (e: OutOfMemoryError) { return }
             val c = Canvas(bitmap)
-            c.translate(padding.toFloat(), padding.toFloat())
+            c.scale(qualityScale, qualityScale)
+            c.translate(padding, padding)
             drawContent(c, layout, w, h)
             canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
+            bitmap.recycle()
         }
     }
 
@@ -688,19 +738,70 @@ class TextLayer(
         val mesh = warpMesh ?: return
         val rows = warpRows
         val cols = warpCols
+
+        // Clamp u,v for base surface calculation
+        val uc = u.coerceIn(0f, 1f)
+        val vc = v.coerceIn(0f, 1f)
+
         var x = 0f
         var y = 0f
 
         for (i in 0..rows) {
             for (j in 0..cols) {
-                val b_i = bernstein(rows, i, v)
-                val b_j = bernstein(cols, j, u)
+                val b_i = bernstein(rows, i, vc)
+                val b_j = bernstein(cols, j, uc)
                 val basis = b_i * b_j
                 val idx = (i * (cols + 1) + j) * 2
                 x += mesh[idx] * basis
                 y += mesh[idx + 1] * basis
             }
         }
+
+        // Stable Linear Extrapolation Logic for padding areas (u,v outside 0..1)
+        if (u < 0f || u > 1f || v < 0f || v > 1f) {
+            val eps = 0.01f
+
+            // Partial derivative with respect to u at (u_for_tangent, vc)
+            var dxdu = 0f; var dydu = 0f
+            val u_for_tangent = if (u < 0f) 0f else 1f
+            val u1 = u_for_tangent
+            val u0 = if (u_for_tangent == 0f) eps else 1f - eps
+            for (i in 0..rows) {
+                val b_i = bernstein(rows, i, vc)
+                for (j in 0..cols) {
+                    val b_j_1 = bernstein(cols, j, u1)
+                    val b_j_0 = bernstein(cols, j, u0)
+                    val d_basis = b_i * (b_j_1 - b_j_0) / (u1 - u0)
+                    val idx = (i * (cols + 1) + j) * 2
+                    dxdu += mesh[idx] * d_basis
+                    dydu += mesh[idx + 1] * d_basis
+                }
+            }
+
+            // Partial derivative with respect to v at (uc, v_for_tangent)
+            var dxdv = 0f; var dydv = 0f
+            val v_for_tangent = if (v < 0f) 0f else 1f
+            val v1 = v_for_tangent
+            val v0 = if (v_for_tangent == 0f) eps else 1f - eps
+            for (i in 0..rows) {
+                val b_i_1 = bernstein(rows, i, v1)
+                val b_i_0 = bernstein(rows, i, v0)
+                for (j in 0..cols) {
+                    val b_j = bernstein(cols, j, uc)
+                    val d_basis = (b_i_1 - b_i_0) / (v1 - v0) * b_j
+                    val idx = (i * (cols + 1) + j) * 2
+                    dxdv += mesh[idx] * d_basis
+                    dydv += mesh[idx + 1] * d_basis
+                }
+            }
+
+            if (u < 0f) { x += dxdu * u; y += dydu * u }
+            else if (u > 1f) { x += dxdu * (u - 1f); y += dydu * (u - 1f) }
+
+            if (v < 0f) { x += dxdv * v; y += dydv * v }
+            else if (v > 1f) { x += dxdv * (v - 1f); y += dydv * (v - 1f) }
+        }
+
         outPoint[0] = x
         outPoint[1] = y
     }
@@ -734,24 +835,58 @@ class TextLayer(
         }
     }
 
+    @Transient
+    private var cachedPaddedVerts: FloatArray? = null
+    @Transient
+    private var lastPadding: Float = -1f
+    @Transient
+    private var lastW: Float = -1f
+    @Transient
+    private var lastH: Float = -1f
+    @Transient
+    private var lastWarpMeshVersion: Int = -1
+
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
-        val bmpW = ceil(w).toInt()
-        val bmpH = ceil(h).toInt()
+        val padding = calculatePadding()
+        val qualityScale = 1.5f
+        val bmpW = ceil((w + padding * 2) * qualityScale).toInt()
+        val bmpH = ceil((h + padding * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val bitmap = try {
+                Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            } catch (e: OutOfMemoryError) { return }
             val c = Canvas(bitmap)
+            c.scale(qualityScale, qualityScale)
+            c.translate(padding, padding)
             drawContent(c, layout, w, h)
 
-            if (denseRenderMesh == null) {
-                updateDenseWarpMesh()
+            val denseCols = 20
+            val denseRows = 20
+
+            if (cachedPaddedVerts == null || lastPadding != padding || lastW != w || lastH != h || lastWarpMeshVersion != warpMeshVersion) {
+                cachedPaddedVerts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
+                var idx = 0
+                val outPoint = FloatArray(2)
+                for (i in 0..denseRows) {
+                    val vRatio = i.toFloat() / denseRows
+                    val vExt = vRatio * ((h + padding * 2) / h) - (padding / h)
+                    for (j in 0..denseCols) {
+                        val uRatio = j.toFloat() / denseCols
+                        val uExt = uRatio * ((w + padding * 2) / w) - (padding / w)
+                        evaluateBezierSurface(uExt, vExt, outPoint)
+                        cachedPaddedVerts!![idx++] = outPoint[0]
+                        cachedPaddedVerts!![idx++] = outPoint[1]
+                    }
+                }
+                lastPadding = padding
+                lastW = w
+                lastH = h
+                lastWarpMeshVersion = warpMeshVersion
             }
 
-            if (denseRenderMesh != null) {
-                canvas.drawBitmapMesh(bitmap, 20, 20, denseRenderMesh!!, 0, null, 0, null)
-            } else {
-                canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
-            }
+            canvas.drawBitmapMesh(bitmap, denseCols, denseRows, cachedPaddedVerts!!, 0, null, 0, null)
+            bitmap.recycle()
         }
     }
 

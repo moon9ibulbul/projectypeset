@@ -3078,7 +3078,7 @@ class EditorActivity : AppCompatActivity() {
 
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            weightSum = 7f // 7 items
+            weightSum = 9f // 9 items
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -3132,7 +3132,17 @@ class EditorActivity : AppCompatActivity() {
             canvasView.invalidate()
         }
 
-        // 5. Overflow (Dots)
+        // 5. Bold
+        addIcon(R.drawable.ic_format_bold) {
+            applySpanToSelection(StyleSpan(Typeface.BOLD))
+        }
+
+        // 6. Italic
+        addIcon(R.drawable.ic_format_italic) {
+            applySpanToSelection(StyleSpan(Typeface.ITALIC))
+        }
+
+        // 7. Overflow (Dots)
         addIcon(R.drawable.ic_more_vert) { view ->
             val popup = android.widget.PopupMenu(this, view)
             popup.menu.add("UPPERCASE")
@@ -3156,14 +3166,14 @@ class EditorActivity : AppCompatActivity() {
             popup.show()
         }
 
-        // 6. Shape Toggle (Oval/Rect)
+        // 8. Shape Toggle (Oval/Rect)
         addIcon(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square) { view ->
             layer.isOval = !layer.isOval
             (view as android.widget.ImageView).setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
             canvasView.invalidate()
         }
 
-        // 7. Done (Check)
+        // 9. Done (Check)
         addIcon(R.drawable.ic_check) {
             hidePropertyDetail()
             showPropertiesMenu()
