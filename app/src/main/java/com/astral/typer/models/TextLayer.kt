@@ -577,6 +577,20 @@ class TextLayer(
         return LinearGradient(x0, y0, x1, y1, multiGradientColors, positions, Shader.TileMode.CLAMP)
     }
 
+    private fun calculatePadding(): Float {
+        var p = 0f
+        if (shadowRadius > 0) p = kotlin.math.max(p, shadowRadius + kotlin.math.max(kotlin.math.abs(shadowDx), kotlin.math.abs(shadowDy)))
+        if (strokeWidth > 0) p = kotlin.math.max(p, strokeWidth + doubleStrokeWidth * 2)
+        if (currentEffect == TextEffectType.NEON || secondaryEffect == TextEffectType.NEON) p = kotlin.math.max(p, neonRadius)
+        if (currentEffect == TextEffectType.GAUSSIAN_BLUR || secondaryEffect == TextEffectType.GAUSSIAN_BLUR) p = kotlin.math.max(p, blurRadius)
+        if (currentEffect == TextEffectType.LONG_SHADOW || secondaryEffect == TextEffectType.LONG_SHADOW) p = kotlin.math.max(p, longShadowLength)
+        if (currentEffect == TextEffectType.CHROMATIC_ABERRATION || secondaryEffect == TextEffectType.CHROMATIC_ABERRATION) p = kotlin.math.max(p, chromaticShift)
+        if (currentEffect == TextEffectType.MOTION_BLUR || secondaryEffect == TextEffectType.MOTION_BLUR) p = kotlin.math.max(p, motionBlurLength)
+        if (currentEffect == TextEffectType.FIERY || secondaryEffect == TextEffectType.FIERY) p = kotlin.math.max(p, fieryIntensity * 40f)
+        if (currentEffect == TextEffectType.WAVY || secondaryEffect == TextEffectType.WAVY) p = kotlin.math.max(p, wavyIntensity * 20f)
+        return p + 50f // Extra safety margin
+    }
+
     override fun draw(canvas: Canvas) {
         if (!isVisible) return
         ensureLayout()
@@ -608,7 +622,26 @@ class TextLayer(
             layerPaint.xfermode = PorterDuffXfermode(mode)
         }
 
-        val saveCount = canvas.saveLayer(null, layerPaint)
+        val padding = calculatePadding()
+        val layerBounds = RectF(-w / 2f - padding, -h / 2f - padding, w / 2f + padding, h / 2f + padding)
+
+        if (isWarp && warpMesh != null) {
+            val mesh = warpMesh!!
+            var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+            for (i in 0 until (mesh.size / 2)) {
+                minX = kotlin.math.min(minX, mesh[i * 2]); minY = kotlin.math.min(minY, mesh[i * 2 + 1])
+                maxX = kotlin.math.max(maxX, mesh[i * 2]); maxY = kotlin.math.max(maxY, mesh[i * 2 + 1])
+            }
+            layerBounds.union(minX - padding, minY - padding, maxX + padding, maxY + padding)
+        } else if (isPerspective && perspectivePoints != null) {
+            val pts = perspectivePoints!!
+            for (i in 0 until (pts.size / 2)) {
+                layerBounds.union(pts[i * 2] - padding, pts[i * 2 + 1] - padding, pts[i * 2] + padding, pts[i * 2 + 1] + padding)
+            }
+        }
+
+        val saveCount = canvas.saveLayer(layerBounds, layerPaint)
 
         if (isWarp && warpMesh != null) {
             drawWarped(canvas, layout, w, h, warpRows, warpCols, warpMesh!!)
@@ -681,6 +714,7 @@ class TextLayer(
             c.translate(padding.toFloat(), padding.toFloat())
             drawContent(c, layout, w, h)
             canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
+            bitmap.recycle()
         }
     }
 
@@ -735,23 +769,42 @@ class TextLayer(
     }
 
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
-        val bmpW = ceil(w).toInt()
-        val bmpH = ceil(h).toInt()
+        val padding = calculatePadding()
+        val bmpW = ceil(w + padding * 2).toInt()
+        val bmpH = ceil(h + padding * 2).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val bitmap = try {
+                Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            } catch (e: OutOfMemoryError) {
+                return
+            }
             val c = Canvas(bitmap)
+            c.translate(padding, padding)
             drawContent(c, layout, w, h)
 
-            if (denseRenderMesh == null) {
-                updateDenseWarpMesh()
+            val denseCols = 20
+            val denseRows = 20
+            val verts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
+            var idx = 0
+            val outPoint = FloatArray(2)
+
+            for (i in 0..denseRows) {
+                val vRatio = i.toFloat() / denseRows
+                // Map 0..1 to extended u,v to cover padding
+                val vExt = vRatio * ((h + padding * 2) / h) - (padding / h)
+                for (j in 0..denseCols) {
+                    val uRatio = j.toFloat() / denseCols
+                    val uExt = uRatio * ((w + padding * 2) / w) - (padding / w)
+
+                    evaluateBezierSurface(uExt, vExt, outPoint)
+                    verts[idx++] = outPoint[0]
+                    verts[idx++] = outPoint[1]
+                }
             }
 
-            if (denseRenderMesh != null) {
-                canvas.drawBitmapMesh(bitmap, 20, 20, denseRenderMesh!!, 0, null, 0, null)
-            } else {
-                canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
-            }
+            canvas.drawBitmapMesh(bitmap, denseCols, denseRows, verts, 0, null, 0, null)
+            bitmap.recycle()
         }
     }
 
