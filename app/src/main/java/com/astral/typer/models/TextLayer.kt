@@ -230,6 +230,7 @@ class TextLayer(
         newLayer.warpRows = this.warpRows
         newLayer.warpCols = this.warpCols
         newLayer.warpMesh = this.warpMesh?.clone()
+        newLayer.warpMeshVersion = this.warpMeshVersion
 
         newLayer.textureBitmap = this.textureBitmap
         newLayer.textureOffsetX = this.textureOffsetX
@@ -630,6 +631,16 @@ class TextLayer(
             val mesh = warpMesh!!
             var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE
             var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+            val outPoint = FloatArray(2)
+            // Check corners of the padded area to be safe
+            for (u in listOf(-padding/w, 1f + padding/w)) {
+                for (v in listOf(-padding/h, 1f + padding/h)) {
+                    evaluateBezierSurface(u, v, outPoint)
+                    minX = kotlin.math.min(minX, outPoint[0]); minY = kotlin.math.min(minY, outPoint[1])
+                    maxX = kotlin.math.max(maxX, outPoint[0]); maxY = kotlin.math.max(maxY, outPoint[1])
+                }
+            }
+            // Also include mesh points
             for (i in 0 until (mesh.size / 2)) {
                 minX = kotlin.math.min(minX, mesh[i * 2]); minY = kotlin.math.min(minY, mesh[i * 2 + 1])
                 maxX = kotlin.math.max(maxX, mesh[i * 2]); maxY = kotlin.math.max(maxY, mesh[i * 2 + 1])
@@ -672,6 +683,9 @@ class TextLayer(
             val size = Math.max(w, h) * 3
             maskPaint.shader = getOpacityGradientShader(w, h)
             canvas.drawRect(-size, -size, size, size, maskPaint)
+
+            // Expand layer bounds for opacity gradient
+            layerBounds.union(-size, -size, size, size)
         }
 
         canvas.restoreToCount(saveCount)
@@ -688,18 +702,15 @@ class TextLayer(
         val meshH = 20
         val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
 
-        val bLeft = -w/2f - padding
-        val bTop = -h/2f - padding
-        val bRight = w/2f + padding
-        val bBottom = h/2f + padding
-
+        // Points in the padded source bitmap (top-left is -padding, -padding)
+        // We map the mesh of the padded bitmap through the perspective matrix
         var index = 0
         for (y in 0..meshH) {
             val fy = y.toFloat() / meshH
-            val py = bTop + (bBottom - bTop) * fy
+            val py = -padding + (h + padding * 2) * fy - h/2f
             for (x in 0..meshW) {
                 val fx = x.toFloat() / meshW
-                val px = bLeft + (bRight - bLeft) * fx
+                val px = -padding + (w + padding * 2) * fx - w/2f
 
                 val pts = floatArrayOf(px, py)
                 matrix.mapPoints(pts)
@@ -727,19 +738,70 @@ class TextLayer(
         val mesh = warpMesh ?: return
         val rows = warpRows
         val cols = warpCols
+
+        // Clamp u,v for base surface calculation
+        val uc = u.coerceIn(0f, 1f)
+        val vc = v.coerceIn(0f, 1f)
+
         var x = 0f
         var y = 0f
 
         for (i in 0..rows) {
             for (j in 0..cols) {
-                val b_i = bernstein(rows, i, v)
-                val b_j = bernstein(cols, j, u)
+                val b_i = bernstein(rows, i, vc)
+                val b_j = bernstein(cols, j, uc)
                 val basis = b_i * b_j
                 val idx = (i * (cols + 1) + j) * 2
                 x += mesh[idx] * basis
                 y += mesh[idx + 1] * basis
             }
         }
+
+        // Stable Linear Extrapolation Logic for padding areas (u,v outside 0..1)
+        if (u < 0f || u > 1f || v < 0f || v > 1f) {
+            val eps = 0.01f
+
+            // Partial derivative with respect to u at (u_for_tangent, vc)
+            var dxdu = 0f; var dydu = 0f
+            val u_for_tangent = if (u < 0f) 0f else 1f
+            val u1 = u_for_tangent
+            val u0 = if (u_for_tangent == 0f) eps else 1f - eps
+            for (i in 0..rows) {
+                val b_i = bernstein(rows, i, vc)
+                for (j in 0..cols) {
+                    val b_j_1 = bernstein(cols, j, u1)
+                    val b_j_0 = bernstein(cols, j, u0)
+                    val d_basis = b_i * (b_j_1 - b_j_0) / (u1 - u0)
+                    val idx = (i * (cols + 1) + j) * 2
+                    dxdu += mesh[idx] * d_basis
+                    dydu += mesh[idx + 1] * d_basis
+                }
+            }
+
+            // Partial derivative with respect to v at (uc, v_for_tangent)
+            var dxdv = 0f; var dydv = 0f
+            val v_for_tangent = if (v < 0f) 0f else 1f
+            val v1 = v_for_tangent
+            val v0 = if (v_for_tangent == 0f) eps else 1f - eps
+            for (i in 0..rows) {
+                val b_i_1 = bernstein(rows, i, v1)
+                val b_i_0 = bernstein(rows, i, v0)
+                for (j in 0..cols) {
+                    val b_j = bernstein(cols, j, uc)
+                    val d_basis = (b_i_1 - b_i_0) / (v1 - v0) * b_j
+                    val idx = (i * (cols + 1) + j) * 2
+                    dxdv += mesh[idx] * d_basis
+                    dydv += mesh[idx + 1] * d_basis
+                }
+            }
+
+            if (u < 0f) { x += dxdu * u; y += dydu * u }
+            else if (u > 1f) { x += dxdu * (u - 1f); y += dydu * (u - 1f) }
+
+            if (v < 0f) { x += dxdv * v; y += dydv * v }
+            else if (v > 1f) { x += dxdv * (v - 1f); y += dydv * (v - 1f) }
+        }
+
         outPoint[0] = x
         outPoint[1] = y
     }
