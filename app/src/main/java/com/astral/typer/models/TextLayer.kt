@@ -709,7 +709,11 @@ class TextLayer(
         val bmpW = ceil(w + padding * 2).toInt()
         val bmpH = ceil(h + padding * 2).toInt()
         if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val bitmap = try {
+                Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            } catch (e: OutOfMemoryError) {
+                return
+            }
             val c = Canvas(bitmap)
             c.translate(padding.toFloat(), padding.toFloat())
             drawContent(c, layout, w, h)
@@ -783,27 +787,34 @@ class TextLayer(
             c.translate(padding, padding)
             drawContent(c, layout, w, h)
 
-            val denseCols = 20
-            val denseRows = 20
-            val verts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
-            var idx = 0
-            val outPoint = FloatArray(2)
-
-            for (i in 0..denseRows) {
-                val vRatio = i.toFloat() / denseRows
-                // Map 0..1 to extended u,v to cover padding
-                val vExt = vRatio * ((h + padding * 2) / h) - (padding / h)
-                for (j in 0..denseCols) {
-                    val uRatio = j.toFloat() / denseCols
-                    val uExt = uRatio * ((w + padding * 2) / w) - (padding / w)
-
-                    evaluateBezierSurface(uExt, vExt, outPoint)
-                    verts[idx++] = outPoint[0]
-                    verts[idx++] = outPoint[1]
-                }
+            if (denseRenderMesh == null) {
+                updateDenseWarpMesh()
             }
 
-            canvas.drawBitmapMesh(bitmap, denseCols, denseRows, verts, 0, null, 0, null)
+            if (denseRenderMesh != null) {
+                val denseCols = 20
+                val denseRows = 20
+                val verts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
+                var idx = 0
+                val outPoint = FloatArray(2)
+
+                for (i in 0..denseRows) {
+                    val vRatio = i.toFloat() / denseRows
+                    // Map 0..1 to extended u,v to cover padding
+                    val vExt = vRatio * ((h + padding * 2) / h) - (padding / h)
+                    for (j in 0..denseCols) {
+                        val uRatio = j.toFloat() / denseCols
+                        val uExt = uRatio * ((w + padding * 2) / w) - (padding / w)
+
+                        evaluateBezierSurface(uExt, vExt, outPoint)
+                        verts[idx++] = outPoint[0]
+                        verts[idx++] = outPoint[1]
+                    }
+                }
+                canvas.drawBitmapMesh(bitmap, denseCols, denseRows, verts, 0, null, 0, null)
+            } else {
+                canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
+            }
             bitmap.recycle()
         }
     }

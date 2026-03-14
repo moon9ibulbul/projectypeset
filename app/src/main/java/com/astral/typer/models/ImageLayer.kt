@@ -55,12 +55,7 @@ class ImageLayer(
             paint.xfermode = PorterDuffXfermode(mode)
         }
 
-        val layerBounds = RectF(left, top, left + w, top + h)
-        if (isOpacityGradient) {
-            val size = Math.max(w, h) * 2
-            layerBounds.union(-size, -size, size, size)
-        }
-        val saveCount = canvas.saveLayer(layerBounds, paint)
+        val saveCount = canvas.saveLayer(null, paint)
 
         val dest = RectF(left, top, left + w, top + h)
         canvas.drawBitmap(bitmap, null, dest, null)
