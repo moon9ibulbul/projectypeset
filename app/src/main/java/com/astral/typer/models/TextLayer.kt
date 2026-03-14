@@ -678,7 +678,8 @@ class TextLayer(
     }
 
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
-        val padding = 100
+        val padding = calculatePadding()
+        val qualityScale = 2f
         val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
 
@@ -706,16 +707,15 @@ class TextLayer(
             }
         }
 
-        val bmpW = ceil(w + padding * 2).toInt()
-        val bmpH = ceil(h + padding * 2).toInt()
+        val bmpW = ceil((w + padding * 2) * qualityScale).toInt()
+        val bmpH = ceil((h + padding * 2) * qualityScale).toInt()
         if (bmpW > 0 && bmpH > 0) {
             val bitmap = try {
                 Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-            } catch (e: OutOfMemoryError) {
-                return
-            }
+            } catch (e: OutOfMemoryError) { return }
             val c = Canvas(bitmap)
-            c.translate(padding.toFloat(), padding.toFloat())
+            c.scale(qualityScale, qualityScale)
+            c.translate(padding, padding)
             drawContent(c, layout, w, h)
             canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
             bitmap.recycle()
@@ -772,49 +772,54 @@ class TextLayer(
         }
     }
 
+    @Transient
+    private var cachedPaddedVerts: FloatArray? = null
+    @Transient
+    private var lastPadding: Float = -1f
+    @Transient
+    private var lastW: Float = -1f
+    @Transient
+    private var lastH: Float = -1f
+
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
         val padding = calculatePadding()
-        val bmpW = ceil(w + padding * 2).toInt()
-        val bmpH = ceil(h + padding * 2).toInt()
+        val qualityScale = 2f
+        val bmpW = ceil((w + padding * 2) * qualityScale).toInt()
+        val bmpH = ceil((h + padding * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
             val bitmap = try {
                 Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-            } catch (e: OutOfMemoryError) {
-                return
-            }
+            } catch (e: OutOfMemoryError) { return }
             val c = Canvas(bitmap)
+            c.scale(qualityScale, qualityScale)
             c.translate(padding, padding)
             drawContent(c, layout, w, h)
 
-            if (denseRenderMesh == null) {
-                updateDenseWarpMesh()
-            }
+            val denseCols = 20
+            val denseRows = 20
 
-            if (denseRenderMesh != null) {
-                val denseCols = 20
-                val denseRows = 20
-                val verts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
+            if (cachedPaddedVerts == null || lastPadding != padding || lastW != w || lastH != h) {
+                cachedPaddedVerts = FloatArray((denseCols + 1) * (denseRows + 1) * 2)
                 var idx = 0
                 val outPoint = FloatArray(2)
-
                 for (i in 0..denseRows) {
                     val vRatio = i.toFloat() / denseRows
-                    // Map 0..1 to extended u,v to cover padding
                     val vExt = vRatio * ((h + padding * 2) / h) - (padding / h)
                     for (j in 0..denseCols) {
                         val uRatio = j.toFloat() / denseCols
                         val uExt = uRatio * ((w + padding * 2) / w) - (padding / w)
-
                         evaluateBezierSurface(uExt, vExt, outPoint)
-                        verts[idx++] = outPoint[0]
-                        verts[idx++] = outPoint[1]
+                        cachedPaddedVerts!![idx++] = outPoint[0]
+                        cachedPaddedVerts!![idx++] = outPoint[1]
                     }
                 }
-                canvas.drawBitmapMesh(bitmap, denseCols, denseRows, verts, 0, null, 0, null)
-            } else {
-                canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
+                lastPadding = padding
+                lastW = w
+                lastH = h
             }
+
+            canvas.drawBitmapMesh(bitmap, denseCols, denseRows, cachedPaddedVerts!!, 0, null, 0, null)
             bitmap.recycle()
         }
     }
