@@ -636,7 +636,8 @@ class TextLayer(
         val saveCount = canvas.saveLayer(null, layerPaint)
 
         if (isWarp && warpMesh != null) {
-            drawWarped(canvas, layout, w, h, warpRows, warpCols, warpMesh!!)
+            val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+            drawWarped(canvas, layout, w, h, warpRows, warpCols, warpMesh!!, qualityScale)
         } else if (isPerspective && perspectivePoints != null) {
              drawPerspective(canvas, layout, w, h)
         } else {
@@ -667,44 +668,13 @@ class TextLayer(
     }
 
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
-        val pad = calculatePadding()
-        val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
+        val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
-
-        val meshW = 20
-        val meshH = 20
-        val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
-
-        val bLeft = -w/2f - pad
-        val bTop = -h/2f - pad
-        val bRight = w/2f + pad
-        val bBottom = h/2f + pad
-
-        var index = 0
-        for (y in 0..meshH) {
-            val fy = y.toFloat() / meshH
-            val py = bTop + (bBottom - bTop) * fy
-            for (x in 0..meshW) {
-                val fx = x.toFloat() / meshW
-                val px = bLeft + (bRight - bLeft) * fx
-
-                val pts = floatArrayOf(px, py)
-                matrix.mapPoints(pts)
-                verts[index++] = pts[0]
-                verts[index++] = pts[1]
-            }
-        }
-
-        val bmpW = ceil(w + pad * 2).toInt()
-        val bmpH = ceil(h + pad * 2).toInt()
-        if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-            val c = Canvas(bitmap)
-            c.translate(pad, pad)
-            drawContent(c, layout, w, h)
-            canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
-            bitmap.recycle()
-        }
+        canvas.save()
+        canvas.concat(matrix)
+        canvas.translate(-w / 2f, -h / 2f)
+        drawContent(canvas, layout, w, h)
+        canvas.restore()
     }
 
     fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
@@ -757,14 +727,15 @@ class TextLayer(
         }
     }
 
-    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
+    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
         val pad = calculatePadding()
-        val bmpW = ceil(w + pad * 2).toInt()
-        val bmpH = ceil(h + pad * 2).toInt()
+        val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+        val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
             val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
             val c = Canvas(bitmap)
+            c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
             drawContent(c, layout, w, h)
 
@@ -782,7 +753,13 @@ class TextLayer(
                     paddedVerts[idx++] = outPoint[1]
                 }
             }
-            canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, null)
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, paint)
+            } else {
+                canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, null)
+            }
             bitmap.recycle()
         }
     }
