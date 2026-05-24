@@ -376,6 +376,31 @@ class TextLayer(
         return cachedLayout?.height?.toFloat() ?: 0f
     }
 
+    fun calculatePadding(): Float {
+        var p = strokeWidth + doubleStrokeWidth
+        p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
+        if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
+
+        var effectExpansion = 0f
+        val checkEffect = { effect: TextEffectType ->
+            when(effect) {
+                TextEffectType.GAUSSIAN_BLUR -> effectExpansion = Math.max(effectExpansion, blurRadius * 2.5f)
+                TextEffectType.MOTION_BLUR -> effectExpansion = Math.max(effectExpansion, motionBlurLength)
+                TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
+                TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
+                TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
+                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 20f + 20f)
+                TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 10f + 10f)
+                else -> {}
+            }
+        }
+        checkEffect(currentEffect)
+        checkEffect(secondaryEffect)
+
+        return (p + effectExpansion + 20f).coerceAtLeast(0f)
+    }
+
     private fun ensureLayout() {
         textPaint.textSize = fontSize
         textPaint.color = color
@@ -618,11 +643,8 @@ class TextLayer(
              // If fixedHeight is set, we need to clip the content area
              if (fixedHeight != null && fixedHeight!! > 0) {
                  canvas.save()
-                 // Clip rect is centered at 0,0 in local coordinates (before translation by dx,dy)
-                 // Wait, dx/dy translate to top-left.
-                 // We want to clip to the Box area.
-                 // Box area is (-w/2, -h/2, w/2, h/2)
-                 canvas.clipRect(-w/2f, -h/2f, w/2f, h/2f)
+                 val pad = calculatePadding()
+                 canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
                  canvas.translate(dx, dy)
                  drawContent(canvas, layout, w, h)
                  canvas.restore()
@@ -645,7 +667,7 @@ class TextLayer(
     }
 
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
-        val padding = 100
+        val pad = calculatePadding()
         val srcRect = RectF(-w/2f, -h/2f, w/2f, h/2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
 
@@ -653,10 +675,10 @@ class TextLayer(
         val meshH = 20
         val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
 
-        val bLeft = -w/2f - padding
-        val bTop = -h/2f - padding
-        val bRight = w/2f + padding
-        val bBottom = h/2f + padding
+        val bLeft = -w/2f - pad
+        val bTop = -h/2f - pad
+        val bRight = w/2f + pad
+        val bBottom = h/2f + pad
 
         var index = 0
         for (y in 0..meshH) {
@@ -673,14 +695,15 @@ class TextLayer(
             }
         }
 
-        val bmpW = ceil(w + padding * 2).toInt()
-        val bmpH = ceil(h + padding * 2).toInt()
+        val bmpW = ceil(w + pad * 2).toInt()
+        val bmpH = ceil(h + pad * 2).toInt()
         if (bmpW > 0 && bmpH > 0) {
             val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
             val c = Canvas(bitmap)
-            c.translate(padding.toFloat(), padding.toFloat())
+            c.translate(pad, pad)
             drawContent(c, layout, w, h)
             canvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
+            bitmap.recycle()
         }
     }
 
@@ -735,23 +758,32 @@ class TextLayer(
     }
 
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray) {
-        val bmpW = ceil(w).toInt()
-        val bmpH = ceil(h).toInt()
+        val pad = calculatePadding()
+        val bmpW = ceil(w + pad * 2).toInt()
+        val bmpH = ceil(h + pad * 2).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
             val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
             val c = Canvas(bitmap)
+            c.translate(pad, pad)
             drawContent(c, layout, w, h)
 
-            if (denseRenderMesh == null) {
-                updateDenseWarpMesh()
+            val meshW = 20
+            val meshH = 20
+            val paddedVerts = FloatArray((meshW + 1) * (meshH + 1) * 2)
+            val outPoint = FloatArray(2)
+            var idx = 0
+            for (i in 0..meshH) {
+                val v = (i.toFloat() / meshH) * ((h + pad * 2) / h) - (pad / h)
+                for (j in 0..meshW) {
+                    val u = (j.toFloat() / meshW) * ((w + pad * 2) / w) - (pad / w)
+                    evaluateBezierSurface(u, v, outPoint)
+                    paddedVerts[idx++] = outPoint[0]
+                    paddedVerts[idx++] = outPoint[1]
+                }
             }
-
-            if (denseRenderMesh != null) {
-                canvas.drawBitmapMesh(bitmap, 20, 20, denseRenderMesh!!, 0, null, 0, null)
-            } else {
-                canvas.drawBitmapMesh(bitmap, cols, rows, mesh, 0, null, 0, null)
-            }
+            canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, null)
+            bitmap.recycle()
         }
     }
 
@@ -759,126 +791,157 @@ class TextLayer(
         val paint = layout.paint
         val gradientShader = getGradientShader(w, h)
 
-        if (isMotionShadow && motionShadowDistance > 0) {
-            paint.style = Paint.Style.FILL
-            paint.shader = if (isGradient && isGradientShadow) gradientShader else null
+        var silhouetteColor: Int? = null
 
+        val drawShadows = { targetCanvas: Canvas ->
+            val originalShader = paint.shader
+            val originalColor = paint.color
+            val originalStyle = paint.style
+            val originalStrokeWidth = paint.strokeWidth
+            val originalMaskFilter = paint.maskFilter
             val originalAlpha = paint.alpha
-            val effectiveDistance = motionShadowDistance
-            val iterations = kotlin.math.max(30, effectiveDistance.toInt())
-            val angleRad = Math.toRadians(motionShadowAngle.toDouble())
-            val cos = Math.cos(angleRad).toFloat()
-            val sin = Math.sin(angleRad).toFloat()
-            val maxBlur = 4f
-            val initialShadowAlpha = 30f
 
-            paint.color = shadowColor
+            // 1. Motion Shadow
+            if (isMotionShadow && motionShadowDistance > 0) {
+                paint.style = Paint.Style.FILL
+                paint.shader = if (isGradient && isGradientShadow) gradientShader else null
+                paint.color = shadowColor
 
-            for (i in 1..iterations) {
-                val t = i / iterations.toFloat()
-                val d = t * effectiveDistance
+                val effectiveDistance = motionShadowDistance
+                val iterations = kotlin.math.max(30, effectiveDistance.toInt())
+                val angleRad = Math.toRadians(motionShadowAngle.toDouble())
+                val cos = Math.cos(angleRad).toFloat()
+                val sin = Math.sin(angleRad).toFloat()
+                val maxBlur = 4f
+                val initialShadowAlpha = 30f
 
-                paint.alpha = (initialShadowAlpha * (1f - t)).toInt().coerceIn(0, 255)
-
-                val blur = t * maxBlur
-                if (blur > 0.5f) {
-                    paint.maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
-                } else {
-                    paint.maskFilter = null
+                for (i in 1..iterations) {
+                    val t = i / iterations.toFloat()
+                    val d = t * effectiveDistance
+                    paint.alpha = (initialShadowAlpha * (1f - t)).toInt().coerceIn(0, 255)
+                    val blur = t * maxBlur
+                    if (blur > 0.5f) {
+                        paint.maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                    } else {
+                        paint.maskFilter = null
+                    }
+                    val dx = d * cos
+                    val dy = d * sin
+                    targetCanvas.save()
+                    targetCanvas.translate(dx, dy)
+                    layout.draw(targetCanvas)
+                    targetCanvas.restore()
+                    targetCanvas.save()
+                    targetCanvas.translate(-dx, -dy)
+                    layout.draw(targetCanvas)
+                    targetCanvas.restore()
                 }
-
-                val dx = d * cos
-                val dy = d * sin
-
-                canvas.save()
-                canvas.translate(dx, dy)
-                layout.draw(canvas)
-                canvas.restore()
-
-                canvas.save()
-                canvas.translate(-dx, -dy)
-                layout.draw(canvas)
-                canvas.restore()
+                paint.maskFilter = null
+                paint.alpha = originalAlpha
             }
-            paint.maskFilter = null
-            paint.alpha = originalAlpha
-            paint.color = color
-        }
 
-        if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
-            paint.shader = null
-            paint.color = doubleStrokeColor
-            paint.clearShadowLayer()
-            layout.draw(canvas)
-        }
-
-        if (strokeWidth > 0f) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = strokeWidth
-            if (isGradient && isGradientStroke) {
-                paint.shader = gradientShader
-                paint.color = Color.WHITE
-            } else {
-                paint.shader = null
-                paint.color = strokeColor
-            }
-            paint.clearShadowLayer()
-            layout.draw(canvas)
-        }
-
-        paint.style = Paint.Style.FILL
-        paint.strokeWidth = 0f
-
-        val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
-        if (hasMultiGradient) {
-            paint.shader = getMultiGradientShader(w, h)
-            paint.color = Color.WHITE
-        } else if (isGradient && isGradientText) {
-            paint.shader = gradientShader
-            paint.color = Color.WHITE
-        } else if (textureBitmap != null) {
-             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-             val matrix = Matrix()
-             matrix.postTranslate(textureOffsetX, textureOffsetY)
-             shader.setLocalMatrix(matrix)
-             paint.shader = shader
-             paint.color = Color.WHITE
-        } else {
-            paint.shader = null
-            paint.color = color
-        }
-
-        if (!isMotionShadow && shadowRadius > 0) {
-            if (isGradient && isGradientShadow) {
-                paint.clearShadowLayer()
-                val originalShader = paint.shader
-                val originalColor = paint.color
-                val originalMaskFilter = paint.maskFilter
-
-                paint.shader = gradientShader
-                paint.color = Color.WHITE
-                if (shadowRadius > 0) {
+            // 2. Standard Shadow
+            if (!isMotionShadow && shadowRadius > 0) {
+                if (isGradient && isGradientShadow) {
+                    paint.shader = gradientShader
+                    paint.color = Color.WHITE
                     paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                    targetCanvas.save()
+                    targetCanvas.translate(shadowDx, shadowDy)
+                    layout.draw(targetCanvas)
+                    targetCanvas.restore()
+                } else {
+                    paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+                    layout.draw(targetCanvas)
+                    paint.clearShadowLayer()
                 }
-
-                canvas.save()
-                canvas.translate(shadowDx, shadowDy)
-                layout.draw(canvas)
-                canvas.restore()
-
-                paint.shader = originalShader
-                paint.color = originalColor
-                paint.maskFilter = originalMaskFilter
-            } else {
-                paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
             }
-        } else {
-            paint.clearShadowLayer()
+
+            // Restore
+            paint.shader = originalShader
+            paint.color = originalColor
+            paint.style = originalStyle
+            paint.strokeWidth = originalStrokeWidth
+            paint.maskFilter = originalMaskFilter
+            paint.alpha = originalAlpha
         }
 
-        val drawBase = { innerCanvas: Canvas -> layout.draw(innerCanvas) }
+        val drawMain = { targetCanvas: Canvas ->
+            val originalShader = paint.shader
+            val originalColor = paint.color
+            val originalStyle = paint.style
+            val originalStrokeWidth = paint.strokeWidth
+            val originalMaskFilter = paint.maskFilter
+            val originalAlpha = paint.alpha
+
+            // 1. Double Stroke
+            if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
+                paint.shader = null
+                paint.color = silhouetteColor ?: doubleStrokeColor
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
+            }
+
+            // 2. Stroke
+            if (strokeWidth > 0f) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = strokeWidth
+                if (silhouetteColor != null) {
+                    paint.shader = null
+                    paint.color = silhouetteColor!!
+                } else if (isGradient && isGradientStroke) {
+                    paint.shader = gradientShader
+                    paint.color = Color.WHITE
+                } else {
+                    paint.shader = null
+                    paint.color = strokeColor
+                }
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
+            }
+
+            // 3. Fill
+            paint.style = Paint.Style.FILL
+            paint.strokeWidth = 0f
+            if (silhouetteColor != null) {
+                paint.shader = null
+                paint.color = silhouetteColor!!
+            } else {
+                val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
+                if (hasMultiGradient) {
+                    paint.shader = getMultiGradientShader(w, h)
+                    paint.color = Color.WHITE
+                } else if (isGradient && isGradientText) {
+                    paint.shader = gradientShader
+                    paint.color = Color.WHITE
+                } else if (textureBitmap != null) {
+                    val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                    val matrix = Matrix()
+                    matrix.postTranslate(textureOffsetX, textureOffsetY)
+                    shader.setLocalMatrix(matrix)
+                    paint.shader = shader
+                    paint.color = Color.WHITE
+                } else {
+                    paint.shader = null
+                    paint.color = color
+                }
+            }
+            paint.clearShadowLayer()
+            layout.draw(targetCanvas)
+
+            // Restore
+            paint.shader = originalShader
+            paint.color = originalColor
+            paint.style = originalStyle
+            paint.strokeWidth = originalStrokeWidth
+            paint.maskFilter = originalMaskFilter
+            paint.alpha = originalAlpha
+        }
+
+        drawShadows(canvas)
+        val drawBase = { innerCanvas: Canvas -> drawMain(innerCanvas) }
 
         // Setup effects chain
         val activeEffects = mutableListOf<TextEffectType>()
@@ -891,40 +954,50 @@ class TextLayer(
                     val originalXfermode = paint.xfermode
                     val originalColor = paint.color
                     val originalShader = paint.shader
+                    val prevSilhouette = silhouetteColor
 
                     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
                     paint.shader = null
 
                     // Left Layer
-                    paint.color = chromaticColors[0]
+                    silhouetteColor = chromaticColors[0]
                     targetCanvas.save()
                     targetCanvas.translate(-chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
                     // Right Layer
-                    paint.color = chromaticColors[1]
+                    silhouetteColor = chromaticColors[1]
                     targetCanvas.save()
                     targetCanvas.translate(chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
                     // Center Layer
-                    paint.color = chromaticColors[2]
+                    silhouetteColor = chromaticColors[2]
                     drawInner(targetCanvas)
+
+                    silhouetteColor = prevSilhouette
 
                     paint.xfermode = originalXfermode
                     paint.color = originalColor
                     paint.shader = originalShader
                 }
                 TextEffectType.PIXELATION -> {
+                    val pad = calculatePadding()
                     val safeBlockSize = pixelBlockSize.coerceAtLeast(1f)
                     val scaleFactor = 1f / safeBlockSize
 
-                    val scaledW = (w * scaleFactor).toInt().coerceAtLeast(1)
-                    val scaledH = (h * scaleFactor).toInt().coerceAtLeast(1)
+                    val scaledW = ((w + pad * 2) * scaleFactor).toInt().coerceAtLeast(1)
+                    val scaledH = ((h + pad * 2) * scaleFactor).toInt().coerceAtLeast(1)
 
-                    val currentHash = text.hashCode() + w.toInt() + h.toInt() + color + fontSize.toInt() + safeBlockSize.toInt()
+                    val currentHash = listOf(
+                        text.toString(), w, h, color, fontSize, safeBlockSize,
+                        strokeWidth, strokeColor, doubleStrokeWidth, doubleStrokeColor,
+                        shadowRadius, shadowColor, shadowDx, shadowDy,
+                        isGradient, isGradientStroke, isGradientShadow, isGradientText,
+                        currentEffect, secondaryEffect, letterSpacing, lineSpacing, typeface, pad
+                    ).hashCode()
 
                     if (cachedPixelBitmap == null || cachedPixelBitmap!!.width != scaledW || cachedPixelBitmap!!.height != scaledH || cachedPixelHash != currentHash) {
                         cachedPixelBitmap?.recycle()
@@ -932,6 +1005,7 @@ class TextLayer(
                         val tempBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
                         val tempCanvas = Canvas(tempBitmap)
                         tempCanvas.scale(scaleFactor, scaleFactor)
+                        tempCanvas.translate(pad, pad)
                         drawInner(tempCanvas)
 
                         cachedPixelBitmap = tempBitmap
@@ -941,25 +1015,26 @@ class TextLayer(
                     if (cachedPixelBitmap != null && !cachedPixelBitmap!!.isRecycled) {
                         val pixelPaint = Paint()
                         pixelPaint.isFilterBitmap = false
-                        val destRect = RectF(0f, 0f, w, h)
+                        val destRect = RectF(-pad, -pad, w + pad, h + pad)
                         targetCanvas.drawBitmap(cachedPixelBitmap!!, null, destRect, pixelPaint)
                     }
                 }
                 TextEffectType.GLITCH -> {
+                    val pad = calculatePadding()
                     val random = Random(effectSeed)
                     val slices = mutableListOf<Pair<RectF, Float>>()
 
-                    var currentY = 0f
+                    var currentY = -pad
                     // Max strip height: say 15% of total height, min height 2%
                     val maxStripHeight = h * 0.15f
                     val minStripHeight = h * 0.02f
 
-                    while (currentY < h) {
+                    while (currentY < h + pad) {
                         // Determine random strip height
                         var stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
                         if (stripHeight < 1f) stripHeight = 1f // Prevent infinite loop on extremely small layers
 
-                        val bottom = kotlin.math.min(currentY + stripHeight, h)
+                        val bottom = kotlin.math.min(currentY + stripHeight, h + pad)
 
                         // Decide if this slice should shift (50% chance)
                         val xOffset = if (random.nextFloat() < 0.5f) {
@@ -968,7 +1043,7 @@ class TextLayer(
                             0f
                         }
 
-                        slices.add(Pair(RectF(0f, currentY, w, bottom), xOffset))
+                        slices.add(Pair(RectF(-pad, currentY, w + pad, bottom), xOffset))
 
                         // Guard against floating point precision stagnation
                         if (bottom <= currentY) {
@@ -994,15 +1069,16 @@ class TextLayer(
                     val originalColor = paint.color
                     val originalStyle = paint.style
                     val originalMaskFilter = paint.maskFilter
+                    val prevSilhouette = silhouetteColor
 
                     paint.style = Paint.Style.FILL
-                    paint.color = if (neonColor != Color.CYAN) neonColor else color
+                    silhouetteColor = if (neonColor != Color.CYAN) neonColor else color
                     paint.maskFilter = BlurMaskFilter(neonRadius.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
 
                     drawInner(targetCanvas)
 
                     paint.maskFilter = null
-                    paint.color = originalColor
+                    silhouetteColor = prevSilhouette
                     drawInner(targetCanvas)
 
                     paint.color = originalColor
@@ -1011,7 +1087,8 @@ class TextLayer(
                 }
                 TextEffectType.LONG_SHADOW -> {
                     val originalColor = paint.color
-                    paint.color = longShadowColor
+                    val prevSilhouette = silhouetteColor
+                    silhouetteColor = longShadowColor
                     val shadowLen = longShadowLength.toInt().coerceAtLeast(1)
                     val rad = Math.toRadians(longShadowAngle.toDouble())
                     val xStep = cos(rad).toFloat()
@@ -1024,17 +1101,19 @@ class TextLayer(
                         targetCanvas.restore()
                     }
 
-                    paint.color = color
+                    silhouetteColor = prevSilhouette
                     drawInner(targetCanvas)
                     paint.color = originalColor
                 }
                 TextEffectType.FIERY -> {
+                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("FieryNode")
-                            node.setPosition(0, 0, w.toInt(), h.toInt())
+                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
                             val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(pad, pad)
                             drawInner(recordingCanvas)
                             node.endRecording()
 
@@ -1047,19 +1126,24 @@ class TextLayer(
                             shader.setFloatUniform("color", r, g, b)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
                             targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
                             useRenderEffect = true
                         } catch(e: Exception) {}
                     }
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
                 TextEffectType.WAVY -> {
+                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("WavyNode")
-                            node.setPosition(0, 0, w.toInt(), h.toInt())
+                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
                             val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(pad, pad)
                             drawInner(recordingCanvas)
                             node.endRecording()
 
@@ -1069,7 +1153,10 @@ class TextLayer(
                             shader.setFloatUniform("frequency", wavyFrequency)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
                             targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
                             useRenderEffect = true
                         } catch(e: Exception) {}
                     }
@@ -1100,24 +1187,27 @@ class TextLayer(
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
                 TextEffectType.GAUSSIAN_BLUR -> {
+                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("GaussianBlurNode")
-                            val wInt = w.toInt().coerceAtLeast(1)
-                            val hInt = h.toInt().coerceAtLeast(1)
-                            node.setPosition(0, 0, wInt, hInt)
+                            val wFull = (w + pad * 2).toInt().coerceAtLeast(1)
+                            val hFull = (h + pad * 2).toInt().coerceAtLeast(1)
+                            node.setPosition(0, 0, wFull, hFull)
 
                             val recordingCanvas = node.beginRecording()
-                            recordingCanvas.translate(-layout.width / 2f, -layout.height / 2f)
-                            recordingCanvas.translate(w/2f, h/2f)
+                            recordingCanvas.translate(pad, pad)
                             drawInner(recordingCanvas)
                             node.endRecording()
 
                             val r = blurRadius.coerceAtLeast(0.1f)
                             node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
 
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
                             targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
@@ -1132,15 +1222,17 @@ class TextLayer(
                     }
                 }
                 TextEffectType.MOTION_BLUR -> {
+                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("MotionBlurNode")
-                            val wInt = w.toInt().coerceAtLeast(1)
-                            val hInt = h.toInt().coerceAtLeast(1)
-                            node.setPosition(0, 0, wInt, hInt)
+                            val wFull = (w + pad * 2).toInt().coerceAtLeast(1)
+                            val hFull = (h + pad * 2).toInt().coerceAtLeast(1)
+                            node.setPosition(0, 0, wFull, hFull)
 
                             val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(pad, pad)
                             drawInner(recordingCanvas)
                             node.endRecording()
 
@@ -1150,7 +1242,10 @@ class TextLayer(
                             shader.setFloatUniform("length", motionBlurLength)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
                             targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
