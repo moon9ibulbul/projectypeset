@@ -915,7 +915,6 @@ class AstralCanvasView @JvmOverloads constructor(
             onLayerSelectedListener?.onLayerSelected(layer)
             isPerspectiveMode = false
             exitCutMode()
-            (layer as? TextLayer)?.isPerspective = false
             invalidate()
         }
     }
@@ -1377,21 +1376,21 @@ class AstralCanvasView @JvmOverloads constructor(
              return
         }
 
-        if (isPerspectiveMode && layer is TextLayer) {
-            val pts = layer.perspectivePoints
-            if (pts != null && pts.size >= 8) {
-                paint.style = Paint.Style.STROKE
-                paint.color = Color.CYAN
-                paint.strokeWidth = 2f
-                val path = Path()
-                path.moveTo(pts[0], pts[1])
-                path.lineTo(pts[2], pts[3])
-                path.lineTo(pts[4], pts[5])
-                path.lineTo(pts[6], pts[7])
-                path.close()
-                canvas.drawPath(path, paint)
+        if (layer is TextLayer && layer.isPerspective && layer.perspectivePoints != null) {
+            val pts = layer.perspectivePoints!!
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.CYAN
+            paint.strokeWidth = 2f
+            val path = Path()
+            path.moveTo(pts[0], pts[1])
+            path.lineTo(pts[2], pts[3])
+            path.lineTo(pts[4], pts[5])
+            path.lineTo(pts[6], pts[7])
+            path.close()
+            canvas.drawPath(path, paint)
 
-                val handleRadius = 20f / ((layer.scaleX + layer.scaleY)/2f)
+            if (isPerspectiveMode) {
+                val handleRadius = 20f / ((layer.scaleX + layer.scaleY) / 2f)
                 handlePaint.color = Color.CYAN
 
                 canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
@@ -1400,8 +1399,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
             }
 
-            canvas.restore()
-            return
+            // If not in perspective mode, we still show the quad but also show standard icons
+            // unless we want to hide them. The user said it should behave like a bounding box.
+            // If we don't return here, it will continue to draw icons and the blue rectangle.
+            // Let's hide the blue rectangle but keep the icons if not in perspective mode.
         }
 
         val halfW = layer.getWidth() / 2f
@@ -1417,7 +1418,9 @@ class AstralCanvasView @JvmOverloads constructor(
         paint.strokeWidth = 3f / avgScale
         val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
 
-        if (layer is TextLayer && layer.isOval) {
+        if (layer is TextLayer && layer.isPerspective) {
+            // Already drew the perspective quad above
+        } else if (layer is TextLayer && layer.isOval) {
             canvas.drawOval(box, paint)
         } else {
             canvas.drawRect(box, paint)
@@ -2083,10 +2086,6 @@ class AstralCanvasView @JvmOverloads constructor(
                         if (layer is TextLayer && getDistance(lx, ly, halfW + handleOffset, 0f) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
                             currentMode = Mode.BOX_WIDTH
-                            layer.isWarp = false
-                            layer.isPerspective = false
-                            layer.warpMesh = null
-                            layer.perspectivePoints = null
 
                             initialBoxWidth = layer.getWidth()
                             centerX = layer.x

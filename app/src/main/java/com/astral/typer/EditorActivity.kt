@@ -72,6 +72,7 @@ class EditorActivity : AppCompatActivity() {
     private var typerTextLines: List<String> = emptyList()
     private var typerPopup: android.widget.PopupWindow? = null
     private var loadingDialog: android.app.Dialog? = null
+    private var isProjectLoadedSuccessfully = true
 
     private val importTxtLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -147,6 +148,7 @@ class EditorActivity : AppCompatActivity() {
         if (projectPath != null) {
              val file = java.io.File(projectPath)
              currentProjectName = file.nameWithoutExtension
+             isProjectLoadedSuccessfully = false
              // Load Async
              lifecycleScope.launch(Dispatchers.IO) {
                  val result = ProjectManager.loadProject(this@EditorActivity, file)
@@ -154,6 +156,7 @@ class EditorActivity : AppCompatActivity() {
                      when (result) {
                          is ProjectManager.LoadResult.Success -> {
                              loadProjectData(result.projectData, result.images)
+                             isProjectLoadedSuccessfully = true
                          }
                          is ProjectManager.LoadResult.MissingAssets -> {
                              // Show warning
@@ -165,6 +168,7 @@ class EditorActivity : AppCompatActivity() {
                                      // Proceed loading, but the layers will use default font since we can't load the custom one
                                      // In loadProjectData, we can handle logic to set default if font fails to load (which it already does essentially, but we want to be explicit)
                                      loadProjectData(result.projectData, result.images)
+                                     isProjectLoadedSuccessfully = true
                                  }
                                  .setNegativeButton("Cancel") { _, _ ->
                                      finish()
@@ -302,23 +306,25 @@ class EditorActivity : AppCompatActivity() {
         val thumbH = (h * (thumbW.toFloat() / w)).toInt()
         val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
 
-        ProjectManager.isSaving = true
-        Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
+        if (isProjectLoadedSuccessfully) {
+            ProjectManager.isSaving = true
+            Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
 
-        lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
-            try {
-                ProjectManager.saveProject(
-                    this@EditorActivity,
-                    layersToSave,
-                    w,
-                    h,
-                    Color.WHITE,
-                    bgBitmap,
-                    "autosave",
-                    thumbnail
-                )
-            } finally {
-                ProjectManager.isSaving = false
+            lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+                try {
+                    ProjectManager.saveProject(
+                        this@EditorActivity,
+                        layersToSave,
+                        w,
+                        h,
+                        Color.WHITE,
+                        bgBitmap,
+                        "autosave",
+                        thumbnail
+                    )
+                } finally {
+                    ProjectManager.isSaving = false
+                }
             }
         }
     }
