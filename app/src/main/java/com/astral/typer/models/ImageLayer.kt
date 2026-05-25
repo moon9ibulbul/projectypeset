@@ -55,7 +55,7 @@ class ImageLayer(
             paint.xfermode = PorterDuffXfermode(mode)
         }
 
-        val saveCount = canvas.saveLayer(null, paint)
+        val saveCount = canvas.saveLayer(RectF(left, top, left + w, top + h), paint)
 
         val dest = RectF(left, top, left + w, top + h)
         canvas.drawBitmap(bitmap, null, dest, null)
