@@ -114,7 +114,6 @@ class AstralCanvasView @JvmOverloads constructor(
     // private var isMaskDirty = true
 
     // Mode Flags
-    private var isBrushMode = false
     private var isGradationMode = false
     private var isEraseLayerMode = false
     var pendingGradientStart: Int = Color.RED
@@ -122,36 +121,6 @@ class AstralCanvasView @JvmOverloads constructor(
     var targetGradientText: Boolean = true
     var targetGradientStroke: Boolean = false
     var targetGradientShadow: Boolean = false
-
-    enum class DrawPathMode {
-        FREE, LINE, RECT, OVAL, LASSO
-    }
-
-    enum class DrawLineStyle {
-        SOLID, DASHED, DOTTED, ZIGZAG
-    }
-
-    data class BrushStroke(
-        val path: Path,
-        val color: Int,
-        val width: Float,
-        val softness: Float,
-        val alpha: Int,
-        val pathMode: DrawPathMode,
-        val lineStyle: DrawLineStyle,
-        val isEraser: Boolean
-    )
-    private val brushOps = mutableListOf<BrushStroke>()
-    private val redoBrushOps = mutableListOf<BrushStroke>()
-    private var currentBrushPath = Path()
-
-    var brushDrawColor: Int = Color.BLACK
-    var brushDrawSize: Float = 50f
-    var brushDrawSoftness: Float = 0f
-    var brushDrawAlpha: Int = 255
-    var brushDrawPathMode: DrawPathMode = DrawPathMode.FREE
-    var brushDrawLineStyle: DrawLineStyle = DrawLineStyle.SOLID
-    var isBrushEraser: Boolean = false
 
     var brushSize = 50f
         set(value) {
@@ -301,36 +270,6 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setBrushMode(enabled: Boolean) {
-        isBrushMode = enabled
-        if (enabled) {
-            selectLayer(null)
-            currentMode = Mode.BRUSH
-        } else {
-            if (currentMode == Mode.BRUSH) currentMode = Mode.NONE
-        }
-        invalidate()
-    }
-
-    fun undoBrushStroke(): Boolean {
-        if (brushOps.isNotEmpty()) {
-            val last = brushOps.removeAt(brushOps.size - 1)
-            redoBrushOps.add(last)
-            invalidate()
-            return true
-        }
-        return false
-    }
-
-    fun redoBrushStroke(): Boolean {
-        if (redoBrushOps.isNotEmpty()) {
-            val last = redoBrushOps.removeAt(redoBrushOps.size - 1)
-            brushOps.add(last)
-            invalidate()
-            return true
-        }
-        return false
-    }
 
     fun enterCutMode() {
         if (selectedLayer is ImageLayer) {
@@ -453,63 +392,6 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    fun getBrushBitmap(): android.graphics.Bitmap? {
-        if (brushOps.isEmpty()) return null
-
-        try {
-            val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-
-            val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-
-            fun applyLineStyle(paint: Paint, style: DrawLineStyle, width: Float) {
-                when (style) {
-                    DrawLineStyle.SOLID -> paint.pathEffect = null
-                    DrawLineStyle.DASHED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width * 3, width * 3), 0f)
-                    DrawLineStyle.DOTTED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width, width * 2), 0f)
-                    DrawLineStyle.ZIGZAG -> {
-                        val zigZagPath = Path().apply {
-                            moveTo(0f, 0f)
-                            lineTo(width, width)
-                            lineTo(width * 2, 0f)
-                        }
-                        paint.pathEffect = android.graphics.PathDashPathEffect(zigZagPath, width * 2, 0f, android.graphics.PathDashPathEffect.Style.MORPH)
-                    }
-                }
-            }
-
-            for (stroke in brushOps) {
-                if (stroke.isEraser) {
-                    brushPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                    brushPaint.color = Color.TRANSPARENT
-                    brushPaint.alpha = 255
-                } else {
-                    brushPaint.xfermode = null
-                    brushPaint.color = stroke.color
-                    brushPaint.alpha = stroke.alpha
-                }
-
-                brushPaint.strokeWidth = stroke.width
-
-                if (stroke.softness > 0f) {
-                    brushPaint.maskFilter = android.graphics.BlurMaskFilter(stroke.softness, android.graphics.BlurMaskFilter.Blur.NORMAL)
-                } else {
-                    brushPaint.maskFilter = null
-                }
-                applyLineStyle(brushPaint, stroke.lineStyle, stroke.width)
-
-                canvas.drawPath(stroke.path, brushPaint)
-            }
-            return bitmap
-        } catch (e: OutOfMemoryError) {
-            android.util.Log.e("AstralCanvasView", "OOM generating brush bitmap")
-            return null
-        }
-    }
 
     /**
      * Extracts a specific region of the background image as a single Bitmap.
@@ -746,7 +628,6 @@ class AstralCanvasView @JvmOverloads constructor(
         CUT_DRAG_BR,
         CUT_DRAG_BL,
         TYPER,
-        BRUSH,
         GRADATION
     }
 
@@ -1045,95 +926,6 @@ class AstralCanvasView @JvmOverloads constructor(
         // Draw Layers
         drawScene(canvas)
 
-        // Draw Brush Strokes
-        if (isBrushMode || brushOps.isNotEmpty()) {
-            val brushBounds = RectF()
-            var maxStroke = 0f
-            for (stroke in brushOps) {
-                val tempBounds = RectF()
-                stroke.path.computeBounds(tempBounds, true)
-                brushBounds.union(tempBounds)
-                maxStroke = max(maxStroke, stroke.width + stroke.softness * 2)
-            }
-            if (isBrushMode && !currentBrushPath.isEmpty) {
-                val tempBounds = RectF()
-                currentBrushPath.computeBounds(tempBounds, true)
-                brushBounds.union(tempBounds)
-                maxStroke = max(maxStroke, brushDrawSize + brushDrawSoftness * 2)
-            }
-            brushBounds.inset(-maxStroke, -maxStroke)
-
-            val saveCount = canvas.saveLayer(brushBounds, null)
-            val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-
-            fun applyLineStyle(paint: Paint, style: DrawLineStyle, width: Float) {
-                when (style) {
-                    DrawLineStyle.SOLID -> paint.pathEffect = null
-                    DrawLineStyle.DASHED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width * 3, width * 3), 0f)
-                    DrawLineStyle.DOTTED -> paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(width, width * 2), 0f)
-                    DrawLineStyle.ZIGZAG -> {
-                        val zigZagPath = Path().apply {
-                            moveTo(0f, 0f)
-                            lineTo(width, width)
-                            lineTo(width * 2, 0f)
-                        }
-                        paint.pathEffect = android.graphics.PathDashPathEffect(zigZagPath, width * 2, 0f, android.graphics.PathDashPathEffect.Style.MORPH)
-                    }
-                }
-            }
-
-            // Draw stored operations
-            for (stroke in brushOps) {
-                if (stroke.isEraser) {
-                    brushPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                    brushPaint.color = Color.TRANSPARENT
-                    brushPaint.alpha = 255
-                } else {
-                    brushPaint.xfermode = null
-                    brushPaint.color = stroke.color
-                    brushPaint.alpha = stroke.alpha
-                }
-
-                brushPaint.strokeWidth = stroke.width
-
-                if (stroke.softness > 0f) {
-                    brushPaint.maskFilter = android.graphics.BlurMaskFilter(stroke.softness, android.graphics.BlurMaskFilter.Blur.NORMAL)
-                } else {
-                    brushPaint.maskFilter = null
-                }
-                applyLineStyle(brushPaint, stroke.lineStyle, stroke.width)
-
-                canvas.drawPath(stroke.path, brushPaint)
-            }
-
-            // Draw current brush path
-            if (isBrushMode && !currentBrushPath.isEmpty) {
-                if (isBrushEraser) {
-                    brushPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                    brushPaint.color = Color.TRANSPARENT
-                    brushPaint.alpha = 255
-                } else {
-                    brushPaint.xfermode = null
-                    brushPaint.color = brushDrawColor
-                    brushPaint.alpha = brushDrawAlpha
-                }
-                brushPaint.strokeWidth = brushDrawSize
-
-                if (brushDrawSoftness > 0f) {
-                    brushPaint.maskFilter = android.graphics.BlurMaskFilter(brushDrawSoftness, android.graphics.BlurMaskFilter.Blur.NORMAL)
-                } else {
-                    brushPaint.maskFilter = null
-                }
-                applyLineStyle(brushPaint, brushDrawLineStyle, brushDrawSize)
-
-                canvas.drawPath(currentBrushPath, brushPaint)
-            }
-            canvas.restoreToCount(saveCount)
-        }
 
         // Draw Detected Bubbles (Bottom Layer overlay)
         if (isTyperActive && detectedBubbles != null) {
@@ -1426,12 +1218,11 @@ class AstralCanvasView @JvmOverloads constructor(
                 canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint)
                 canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint)
                 canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
-            }
 
-            // If not in perspective mode, we still show the quad but also show standard icons
-            // unless we want to hide them. The user said it should behave like a bounding box.
-            // If we don't return here, it will continue to draw icons and the blue rectangle.
-            // Let's hide the blue rectangle but keep the icons if not in perspective mode.
+                // Return early to hide standard icons in perspective mode
+                canvas.restore()
+                return
+            }
         }
 
         val halfW = layer.getWidth() / 2f
@@ -1442,17 +1233,17 @@ class AstralCanvasView @JvmOverloads constructor(
         val localIconScale = geometry.scale
         val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
 
-        paint.style = Paint.Style.STROKE
-        paint.color = Color.BLUE
-        paint.strokeWidth = 3f / avgScale
-        val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
+        if (!(layer is TextLayer && (layer.isPerspective || layer.isWarp))) {
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.BLUE
+            paint.strokeWidth = 3f / avgScale
+            val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
 
-        if (layer is TextLayer && layer.isPerspective) {
-            // Already drew the perspective quad above
-        } else if (layer is TextLayer && layer.isOval) {
-            canvas.drawOval(box, paint)
-        } else {
-            canvas.drawRect(box, paint)
+            if (layer is TextLayer && layer.isOval) {
+                canvas.drawOval(box, paint)
+            } else {
+                canvas.drawRect(box, paint)
+            }
         }
 
         if (isEraseLayerMode) {
@@ -1734,83 +1525,6 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
-        if (isBrushMode) {
-            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
-                if (!currentBrushPath.isEmpty) {
-                    currentBrushPath.reset()
-                    invalidate()
-                }
-                currentMode = Mode.PAN_ZOOM
-                scaleDetector.onTouchEvent(event)
-                gestureDetector.onTouchEvent(event)
-
-                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                    currentMode = Mode.BRUSH
-                }
-                return true
-            }
-
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    currentBrushPath.reset()
-                    startTouchX = cx
-                    startTouchY = cy
-                    if (brushDrawPathMode == DrawPathMode.FREE || brushDrawPathMode == DrawPathMode.LASSO) {
-                        currentBrushPath.moveTo(cx, cy)
-                    }
-                    invalidate()
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (event.pointerCount == 1) {
-                        when (brushDrawPathMode) {
-                            DrawPathMode.FREE, DrawPathMode.LASSO -> {
-                                currentBrushPath.lineTo(cx, cy)
-                            }
-                            DrawPathMode.LINE -> {
-                                currentBrushPath.reset()
-                                currentBrushPath.moveTo(startTouchX, startTouchY)
-                                currentBrushPath.lineTo(cx, cy)
-                            }
-                            DrawPathMode.RECT -> {
-                                currentBrushPath.reset()
-                                val rect = RectF(
-                                    minOf(startTouchX, cx), minOf(startTouchY, cy),
-                                    maxOf(startTouchX, cx), maxOf(startTouchY, cy)
-                                )
-                                currentBrushPath.addRect(rect, Path.Direction.CW)
-                            }
-                            DrawPathMode.OVAL -> {
-                                currentBrushPath.reset()
-                                val rect = RectF(
-                                    minOf(startTouchX, cx), minOf(startTouchY, cy),
-                                    maxOf(startTouchX, cx), maxOf(startTouchY, cy)
-                                )
-                                currentBrushPath.addOval(rect, Path.Direction.CW)
-                            }
-                        }
-                        invalidate()
-                    }
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (!currentBrushPath.isEmpty) {
-                        if (brushDrawPathMode == DrawPathMode.LASSO) {
-                            currentBrushPath.close()
-                        }
-                        val pathCopy = Path(currentBrushPath)
-                        brushOps.add(BrushStroke(
-                            pathCopy, brushDrawColor, brushDrawSize,
-                            brushDrawSoftness, brushDrawAlpha,
-                            brushDrawPathMode, brushDrawLineStyle,
-                            isBrushEraser
-                        ))
-                        redoBrushOps.clear()
-                        currentBrushPath.reset()
-                        invalidate()
-                    }
-                }
-            }
-            return true
-        }
 
         if (isInpaintMode) {
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
