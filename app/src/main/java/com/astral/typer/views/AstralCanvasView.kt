@@ -1272,16 +1272,18 @@ class AstralCanvasView @JvmOverloads constructor(
 
         val isTyperHand = isTyperActive && currentTyperTool == TyperTool.HAND
 
-        drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
-        drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
-        drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
-        if (!isTyperHand) {
-            drawIconHandle(-halfW - handleOffset, 0f, pathStretchH, Color.DKGRAY)
-            drawIconHandle(0f, halfH + handleOffset, pathStretchV, Color.DKGRAY)
-        }
+        if (!(layer is TextLayer && (layer.isPerspective || layer.isWarp))) {
+            drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
+            drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
+            drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
+            if (!isTyperHand) {
+                drawIconHandle(-halfW - handleOffset, 0f, pathStretchH, Color.DKGRAY)
+                drawIconHandle(0f, halfH + handleOffset, pathStretchV, Color.DKGRAY)
+            }
 
-        if (layer is TextLayer) {
-             drawIconHandle(halfW + handleOffset, 0f, pathBoxWidth, Color.MAGENTA)
+            if (layer is TextLayer) {
+                drawIconHandle(halfW + handleOffset, 0f, pathBoxWidth, Color.MAGENTA)
+            }
         }
 
         if (currentMode == Mode.RESIZE_LAYER && layer is TextLayer && this.selectedLayer == layer) {

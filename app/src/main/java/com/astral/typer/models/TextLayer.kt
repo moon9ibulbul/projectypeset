@@ -634,14 +634,49 @@ class TextLayer(
         }
 
         val pad = calculatePadding()
-        val bounds = RectF(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
+        val ch = getContentHeight()
+        val hScale = if (h > 0) ch / h else 1f
+
+        val bounds = if (isWarp && warpMesh != null) {
+            val b = RectF()
+            val steps = 10
+            val out = FloatArray(2)
+            for (i in 0..steps) {
+                val v = (i / steps.toFloat()) * hScale
+                for (j in 0..steps) {
+                    val u = j / steps.toFloat()
+                    evaluateBezierSurface(u, v, out)
+                    if (i == 0 && j == 0) b.set(out[0], out[1], out[0], out[1]) else b.union(out[0], out[1])
+                }
+            }
+            b.inset(-pad - 50f, -pad - 50f)
+            b
+        } else if (isPerspective && perspectivePoints != null) {
+            val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
+            val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
+            val b = RectF()
+            val pts = floatArrayOf(
+                -w / 2f, -h / 2f,
+                w / 2f, -h / 2f,
+                w / 2f, -h / 2f + ch,
+                -w / 2f, -h / 2f + ch
+            )
+            matrix.mapPoints(pts)
+            for (i in 0 until 4) {
+                if (i == 0) b.set(pts[i * 2], pts[i * 2 + 1], pts[i * 2], pts[i * 2 + 1]) else b.union(pts[i * 2], pts[i * 2 + 1])
+            }
+            b.inset(-pad - 50f, -pad - 50f)
+            b
+        } else {
+            RectF(-w / 2f - pad, -h / 2f - pad, w / 2f + pad, h / 2f + pad)
+        }
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         if (isWarp && warpMesh != null) {
             val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            drawWarped(canvas, layout, w, h, warpRows, warpCols, warpMesh!!, qualityScale)
+            drawWarped(canvas, layout, w, h, ch, warpRows, warpCols, warpMesh!!, qualityScale)
         } else if (isPerspective && perspectivePoints != null) {
-             drawPerspective(canvas, layout, w, h)
+             drawPerspective(canvas, layout, w, h, ch)
         } else {
              // If fixedHeight is set, we need to clip the content area
              if (fixedHeight != null && fixedHeight!! > 0) {
@@ -669,13 +704,13 @@ class TextLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
+    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         canvas.save()
         canvas.concat(matrix)
         canvas.translate(-w / 2f, -h / 2f)
-        drawContent(canvas, layout, w, h)
+        drawContent(canvas, layout, w, ch)
         canvas.restore()
     }
 
@@ -729,17 +764,17 @@ class TextLayer(
         }
     }
 
-    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
+    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
         val pad = calculatePadding()
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
-        val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
+        val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
             val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
             val c = Canvas(bitmap)
             c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
-            drawContent(c, layout, w, h)
+            drawContent(c, layout, w, ch)
 
             val meshW = 20
             val meshH = 20
@@ -747,7 +782,7 @@ class TextLayer(
             val outPoint = FloatArray(2)
             var idx = 0
             for (i in 0..meshH) {
-                val v = (i.toFloat() / meshH) * ((h + pad * 2) / h) - (pad / h)
+                val v = ((i.toFloat() / meshH) * ((ch + pad * 2) / ch) - (pad / ch)) * (ch / h)
                 for (j in 0..meshW) {
                     val u = (j.toFloat() / meshW) * ((w + pad * 2) / w) - (pad / w)
                     evaluateBezierSurface(u, v, outPoint)
