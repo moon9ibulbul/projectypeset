@@ -516,7 +516,8 @@ class AstralCanvasView @JvmOverloads constructor(
     private data class HandleGeometry(val radius: Float, val offset: Float, val scale: Float)
 
     private fun getHandleGeometry(layer: Layer): HandleGeometry {
-        val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
+        val viewScale = getCurrentViewScale()
+        val avgScale = ((abs(layer.scaleX) + abs(layer.scaleY)) / 2f) * viewScale
         val screenW = layer.getWidth() * abs(layer.scaleX)
         val screenH = layer.getHeight() * abs(layer.scaleY)
         val minScreenDim = kotlin.math.min(screenW, screenH)
@@ -741,6 +742,14 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private val viewMatrix = Matrix()
     private val invertedMatrix = Matrix()
+
+    private fun getCurrentViewScale(): Float {
+        val values = FloatArray(9)
+        viewMatrix.getValues(values)
+        val scaleX = values[Matrix.MSCALE_X]
+        val skewY = values[Matrix.MSKEW_Y]
+        return kotlin.math.sqrt(scaleX * scaleX + skewY * skewY)
+    }
 
     private val scaleDetector = ScaleGestureDetector(context, ScaleListener())
     private val gestureDetector = GestureDetector(context, GestureListener())
@@ -1120,9 +1129,10 @@ class AstralCanvasView @JvmOverloads constructor(
 
         if (cutPoints != null && layer is ImageLayer) {
              val pts = cutPoints!!
+             val viewScale = getCurrentViewScale()
              paint.style = Paint.Style.STROKE
              paint.color = Color.MAGENTA
-             paint.strokeWidth = 2f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
+             paint.strokeWidth = 2f / (((abs(layer.scaleX) + abs(layer.scaleY))/2f) * viewScale)
              val path = Path()
              path.moveTo(pts[0], pts[1])
              path.lineTo(pts[2], pts[3])
@@ -1131,7 +1141,7 @@ class AstralCanvasView @JvmOverloads constructor(
              path.close()
              canvas.drawPath(path, paint)
 
-             val handleRadius = 20f / ((abs(layer.scaleX) + abs(layer.scaleY))/2f)
+             val handleRadius = 20f / (((abs(layer.scaleX) + abs(layer.scaleY))/2f) * viewScale)
              handlePaint.color = Color.MAGENTA
 
              canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
@@ -1147,10 +1157,11 @@ class AstralCanvasView @JvmOverloads constructor(
              val mesh = layer.warpMesh
              val rows = layer.warpRows
              val cols = layer.warpCols
+             val viewScale = getCurrentViewScale()
              if (mesh != null) {
                  paint.style = Paint.Style.STROKE
                  paint.color = Color.CYAN
-                 paint.strokeWidth = 2f
+                 paint.strokeWidth = 2f / viewScale
 
                  val denseSteps = 20
                  val outPoint = FloatArray(2)
@@ -1187,7 +1198,7 @@ class AstralCanvasView @JvmOverloads constructor(
                      canvas.drawPath(path, paint)
                  }
 
-                 val handleRadius = 15f / ((layer.scaleX + layer.scaleY)/2f)
+                 val handleRadius = 15f / (((abs(layer.scaleX) + abs(layer.scaleY))/2f) * viewScale)
                  handlePaint.color = Color.YELLOW
                  for (i in 0 until (mesh.size / 2)) {
                      canvas.drawCircle(mesh[i*2], mesh[i*2+1], handleRadius, handlePaint)
@@ -1199,9 +1210,10 @@ class AstralCanvasView @JvmOverloads constructor(
 
         if (layer is TextLayer && layer.isPerspective && layer.perspectivePoints != null) {
             val pts = layer.perspectivePoints!!
+            val viewScale = getCurrentViewScale()
             paint.style = Paint.Style.STROKE
             paint.color = Color.CYAN
-            paint.strokeWidth = 2f
+            paint.strokeWidth = 2f / viewScale
             val path = Path()
             path.moveTo(pts[0], pts[1])
             path.lineTo(pts[2], pts[3])
@@ -1211,7 +1223,7 @@ class AstralCanvasView @JvmOverloads constructor(
             canvas.drawPath(path, paint)
 
             if (isPerspectiveMode) {
-                val handleRadius = 20f / ((layer.scaleX + layer.scaleY) / 2f)
+                val handleRadius = 20f / (((abs(layer.scaleX) + abs(layer.scaleY)) / 2f) * viewScale)
                 handlePaint.color = Color.CYAN
 
                 canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
@@ -1236,7 +1248,8 @@ class AstralCanvasView @JvmOverloads constructor(
         if (!(layer is TextLayer && ((layer.isPerspective && isPerspectiveMode) || (layer.isWarp && isWarpToolActive)))) {
             paint.style = Paint.Style.STROKE
             paint.color = Color.BLUE
-            paint.strokeWidth = 3f / avgScale
+            val viewScale = getCurrentViewScale()
+            paint.strokeWidth = 3f / (avgScale * viewScale)
             val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
 
             if (layer is TextLayer && layer.isOval) {
