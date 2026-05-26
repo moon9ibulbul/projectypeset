@@ -633,7 +633,9 @@ class TextLayer(
             layerPaint.xfermode = PorterDuffXfermode(mode)
         }
 
-        val saveCount = canvas.saveLayer(null, layerPaint)
+        val pad = calculatePadding()
+        val bounds = RectF(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
+        val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         if (isWarp && warpMesh != null) {
             val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)

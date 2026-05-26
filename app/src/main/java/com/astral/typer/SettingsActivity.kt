@@ -27,6 +27,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var cbStyle: CheckBox
     private lateinit var cbFavorite: CheckBox
     private lateinit var cbMyFont: CheckBox
+    private lateinit var cbAutosave: CheckBox
 
     // Export Launcher
     private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -48,6 +49,13 @@ class SettingsActivity : AppCompatActivity() {
         cbStyle = findViewById(R.id.cbStyle)
         cbFavorite = findViewById(R.id.cbFavorite)
         cbMyFont = findViewById(R.id.cbMyFont)
+        cbAutosave = findViewById(R.id.cbAutosave)
+
+        val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+        cbAutosave.isChecked = settingsPrefs.getBoolean("enable_autosave", true)
+        cbAutosave.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("enable_autosave", isChecked).apply()
+        }
 
         val btnExport = findViewById<Button>(R.id.btnExport)
         val btnImport = findViewById<Button>(R.id.btnImport)

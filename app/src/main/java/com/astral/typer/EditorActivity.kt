@@ -285,6 +285,10 @@ class EditorActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         // Auto Save
+        val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+        val enableAutosave = settingsPrefs.getBoolean("enable_autosave", true)
+        if (!enableAutosave) return
+
         // Capture data on Main Thread
         val layersToSave = canvasView.getLayers().toMutableList()
         val brushBitmap = canvasView.getBrushBitmap()

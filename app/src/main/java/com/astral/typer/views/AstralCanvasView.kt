@@ -1047,7 +1047,23 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Brush Strokes
         if (isBrushMode || brushOps.isNotEmpty()) {
-            val saveCount = canvas.saveLayer(null, null)
+            val brushBounds = RectF()
+            var maxStroke = 0f
+            for (stroke in brushOps) {
+                val tempBounds = RectF()
+                stroke.path.computeBounds(tempBounds, true)
+                brushBounds.union(tempBounds)
+                maxStroke = max(maxStroke, stroke.width + stroke.softness * 2)
+            }
+            if (isBrushMode && !currentBrushPath.isEmpty) {
+                val tempBounds = RectF()
+                currentBrushPath.computeBounds(tempBounds, true)
+                brushBounds.union(tempBounds)
+                maxStroke = max(maxStroke, brushDrawSize + brushDrawSoftness * 2)
+            }
+            brushBounds.inset(-maxStroke, -maxStroke)
+
+            val saveCount = canvas.saveLayer(brushBounds, null)
             val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
@@ -1145,7 +1161,20 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Inpaint Path (Vector optimized, no cache bitmap)
         if (isInpaintMode) {
-            val saveCount = canvas.saveLayer(null, null)
+            val inpaintBounds = RectF()
+            for (op in inpaintOps) {
+                val tempBounds = RectF()
+                op.first.computeBounds(tempBounds, true)
+                inpaintBounds.union(tempBounds)
+            }
+            if (!currentInpaintPath.isEmpty) {
+                val tempBounds = RectF()
+                currentInpaintPath.computeBounds(tempBounds, true)
+                inpaintBounds.union(tempBounds)
+            }
+            inpaintBounds.inset(-brushSize, -brushSize)
+
+            val saveCount = canvas.saveLayer(inpaintBounds, null)
 
             // Draw Paths directly
             val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
