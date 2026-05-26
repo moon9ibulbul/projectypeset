@@ -1233,7 +1233,7 @@ class AstralCanvasView @JvmOverloads constructor(
         val localIconScale = geometry.scale
         val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
 
-        if (!(layer is TextLayer && (layer.isPerspective || layer.isWarp))) {
+        if (!(layer is TextLayer && ((layer.isPerspective && isPerspectiveMode) || (layer.isWarp && isWarpToolActive)))) {
             paint.style = Paint.Style.STROKE
             paint.color = Color.BLUE
             paint.strokeWidth = 3f / avgScale
@@ -1272,7 +1272,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
         val isTyperHand = isTyperActive && currentTyperTool == TyperTool.HAND
 
-        if (!(layer is TextLayer && (layer.isPerspective || layer.isWarp))) {
+        if (!(layer is TextLayer && ((layer.isPerspective && isPerspectiveMode) || (layer.isWarp && isWarpToolActive)))) {
             drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
             drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
             drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)

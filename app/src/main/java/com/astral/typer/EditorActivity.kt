@@ -2266,6 +2266,16 @@ class EditorActivity : AppCompatActivity() {
                         layer.letterSpacing = style.letterSpacing
                         layer.lineSpacing = style.lineSpacing
 
+                        layer.isPerspective = style.isPerspective
+                        layer.perspectivePoints = style.perspectivePoints?.clone()
+                        layer.isWarp = style.isWarp
+                        layer.warpRows = style.warpRows
+                        layer.warpCols = style.warpCols
+                        layer.warpMesh = style.warpMesh?.clone()
+                        if (layer.isWarp) {
+                            layer.updateDenseWarpMesh()
+                        }
+
                         // Formatting
                         layer.textAlign = style.textAlign
                         layer.isJustified = style.isJustified

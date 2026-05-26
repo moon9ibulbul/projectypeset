@@ -94,7 +94,7 @@ object StyleManager {
                 val type = object : TypeToken<List<StyleModel>>() {}.type
                 val list: List<StyleModel> = Gson().fromJson(json, type)
                 savedStyles.clear()
-                savedStyles.addAll(list.map { fromModel(it) })
+                savedStyles.addAll(list.map { fromModel(context, it) })
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -141,7 +141,16 @@ object StyleManager {
         val isBold: Boolean = false,
         val isItalic: Boolean = false,
         val isUnderline: Boolean = false,
-        val isStrike: Boolean = false
+        val isStrike: Boolean = false,
+
+        // Perspective
+        val isPerspective: Boolean = false,
+        val perspectivePoints: FloatArray? = null,
+        // Warp
+        val isWarp: Boolean = false,
+        val warpRows: Int = 2,
+        val warpCols: Int = 2,
+        val warpMesh: FloatArray? = null
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -162,13 +171,27 @@ object StyleManager {
             l.isMotionShadow, l.motionShadowAngle, l.motionShadowDistance,
             l.blendMode, l.isOpacityGradient, l.opacityStart, l.opacityEnd, l.opacityAngle,
             l.textAlign.ordinal, l.isJustified,
-            isBold, isItalic, isUnderline, isStrike
+            isBold, isItalic, isUnderline, isStrike,
+            l.isPerspective, l.perspectivePoints,
+            l.isWarp, l.warpRows, l.warpCols, l.warpMesh
         )
     }
 
-    private fun fromModel(m: StyleModel): TextLayer {
+    private fun fromModel(context: Context, m: StyleModel): TextLayer {
         val l = TextLayer("Abc")
         l.name = m.name
+
+        // Resolve Typeface from fontPath to ensure custom fonts are loaded
+        if (!m.fontPath.isNullOrEmpty()) {
+            val stdFonts = FontManager.getStandardFonts(context)
+            val customFonts = FontManager.getCustomFonts(context)
+            val found = stdFonts.find { it.name == m.fontPath }
+                ?: customFonts.find { it.path == m.fontPath }
+
+            if (found != null) {
+                l.typeface = found.typeface
+            }
+        }
         l.color = m.color
         l.fontSize = m.fontSize
         l.fontPath = m.fontPath
@@ -204,6 +227,13 @@ object StyleManager {
         l.opacityStart = m.opacityStart
         l.opacityEnd = m.opacityEnd
         l.opacityAngle = m.opacityAngle
+
+        l.isPerspective = m.isPerspective
+        l.perspectivePoints = m.perspectivePoints
+        l.isWarp = m.isWarp
+        l.warpRows = m.warpRows
+        l.warpCols = m.warpCols
+        l.warpMesh = m.warpMesh
 
         // Formatting
         if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {
@@ -257,9 +287,6 @@ object StyleManager {
         previewLayer.rotation = 0f
         previewLayer.scaleX = 1f
         previewLayer.scaleY = 1f
-
-        // Disable perspective for preview simplicity
-        previewLayer.isPerspective = false
 
         previewLayer.draw(canvas)
 
