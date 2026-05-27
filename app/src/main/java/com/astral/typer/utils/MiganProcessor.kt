@@ -271,7 +271,13 @@ class MiganProcessor(private val context: Context) {
         val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
         val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
 
-        val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+        // MIGAN usually requires the image to be masked (set to 0) in the area to be inpainted
+        val maskedCropImage = cropImage.copy(Bitmap.Config.ARGB_8888, true)
+        val maskCanvas = Canvas(maskedCropImage)
+        val clearPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+        maskCanvas.drawBitmap(cropMask, 0f, 0f, clearPaint)
+
+        val inputImage = Bitmap.createScaledBitmap(maskedCropImage, TRAINED_SIZE, TRAINED_SIZE, true)
         val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
 
         var tensorImg: OnnxTensor? = null
@@ -282,7 +288,14 @@ class MiganProcessor(private val context: Context) {
             tensorImg = bitmapToOnnxTensor(env, inputImage)
             tensorMask = bitmapToMaskTensor(env, inputMask)
 
-            val inputs = mapOf("image" to tensorImg, "mask" to tensorMask)
+            // Dynamic names detection
+            val inputNames = session.inputNames.toList()
+            val imageInputName = inputNames.find { it.contains("image", ignoreCase = true) } ?: inputNames[0]
+            val maskInputName = inputNames.find { it.contains("mask", ignoreCase = true) } ?: inputNames.getOrNull(1) ?: "mask"
+
+            val inputs = mutableMapOf<String, OnnxTensor>()
+            inputs[imageInputName] = tensorImg
+            inputs[maskInputName] = tensorMask
 
             resultOrt = session.run(inputs)
             val outputTensor = resultOrt[0] as OnnxTensor
@@ -315,6 +328,11 @@ class MiganProcessor(private val context: Context) {
                 resultOrt?.close()
                 tensorImg?.close()
                 tensorMask?.close()
+                maskedCropImage.recycle()
+                cropImage.recycle()
+                cropMask.recycle()
+                inputImage.recycle()
+                inputMask.recycle()
             } catch (e: Exception) { /* ignore */ }
         }
     }
