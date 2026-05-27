@@ -27,8 +27,8 @@ class MiganProcessor(private val context: Context) {
 
     companion object {
         private const val TRAINED_SIZE = 512
-        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/migan_pipeline_v2.onnx"
-        private const val MODEL_FILENAME = "migan_pipeline_v2.onnx"
+        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/migan.onnx"
+        private const val MODEL_FILENAME = "migan.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
