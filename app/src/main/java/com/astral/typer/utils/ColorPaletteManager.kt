@@ -31,7 +31,7 @@ object ColorPaletteManager {
         // Avoid duplicates at the start? Or allow them? Usually unique is better.
         // But user might want to re-add to move to end.
         if (!colors.contains(color)) {
-            colors.add(color)
+            colors.add(0, color)
             saveColors(context, colors)
         }
     }

@@ -3980,6 +3980,26 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
+        // Eyedropper Button
+        val btnEyedropper = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu_eyedropper)
+            setColorFilter(Color.WHITE)
+            setPadding(24, 16, 24, 16)
+            background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 16, 0)
+            }
+            setOnClickListener {
+                canvasView.setEyedropperMode(true)
+                canvasView.onColorPickedListener = { color ->
+                    onColorPicked(color)
+                    Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
+                }
+                Toast.makeText(context, "Tap canvas to pick", Toast.LENGTH_SHORT).show()
+            }
+        }
+        list.addView(btnEyedropper)
+
         // Palette Button
         val btnPalette = android.widget.ImageView(this).apply {
             setImageResource(R.drawable.ic_menu_palette)
