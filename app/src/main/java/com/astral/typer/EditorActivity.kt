@@ -1550,34 +1550,6 @@ class EditorActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}
         })
-
-        // RAW Panel Controls
-        sidebarBinding.btnLoadRaw.setOnClickListener {
-            loadRawLauncher.launch("image/*")
-        }
-
-        val rawModes = arrayOf("Load on top Canvas", "Load Beside Canvas")
-        val rawAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, rawModes)
-        rawAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        sidebarBinding.spinnerRawMode.adapter = rawAdapter
-
-        sidebarBinding.spinnerRawMode.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
-                canvasView.rawPanelMode = if (pos == 0) AstralCanvasView.RawPanelMode.ON_TOP else AstralCanvasView.RawPanelMode.BESIDE
-                canvasView.invalidate()
-            }
-            override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
-        }
-
-        sidebarBinding.seekBarRawOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                canvasView.rawPanelOpacity = p
-                sidebarBinding.tvRawOpacityLabel.text = "RAW Opacity: ${(p / 2.55f).toInt()}%"
-                canvasView.invalidate()
-            }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
         layout.addView(s1)
 
         val s2 = createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
@@ -1654,6 +1626,34 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.seekBarQuality.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                 sidebarBinding.tvQualityLabel.text = "Quality: $p%"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+
+        // RAW Panel Controls
+        sidebarBinding.btnLoadRaw.setOnClickListener {
+            loadRawLauncher.launch("image/*")
+        }
+
+        val rawModes = arrayOf("Load on top Canvas", "Load Beside Canvas")
+        val rawAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, rawModes)
+        rawAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        sidebarBinding.spinnerRawMode.adapter = rawAdapter
+
+        sidebarBinding.spinnerRawMode.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
+                canvasView.rawPanelMode = if (pos == 0) AstralCanvasView.RawPanelMode.ON_TOP else AstralCanvasView.RawPanelMode.BESIDE
+                canvasView.invalidate()
+            }
+            override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+        }
+
+        sidebarBinding.seekBarRawOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                canvasView.rawPanelOpacity = p
+                sidebarBinding.tvRawOpacityLabel.text = "RAW Opacity: ${(p / 2.55f).toInt()}%"
+                canvasView.invalidate()
             }
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}
