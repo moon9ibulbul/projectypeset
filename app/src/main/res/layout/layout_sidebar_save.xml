@@ -45,7 +45,54 @@
                 android:id="@+id/btnSaveFileOption"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Save as File (Export)"/>
+                android:text="Save as File (Export)"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
+                android:id="@+id/btnLoadRaw"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Load RAW"/>
+
+            <LinearLayout
+                android:id="@+id/layoutRawControls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="RAW Mode"
+                    android:textColor="@color/white"
+                    android:layout_marginBottom="8dp"/>
+
+                <Spinner
+                    android:id="@+id/spinnerRawMode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@color/white"
+                    android:layout_marginBottom="16dp"/>
+
+                <TextView
+                    android:id="@+id/tvRawOpacityLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="RAW Opacity: 100%"
+                    android:textColor="@color/white"
+                    android:layout_marginBottom="8dp"/>
+
+                <SeekBar
+                    android:id="@+id/seekBarRawOpacity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="255"
+                    android:progress="255"
+                    android:layout_marginBottom="16dp"/>
+
+            </LinearLayout>
 
         </LinearLayout>
 
