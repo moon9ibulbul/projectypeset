@@ -40,12 +40,6 @@ object StyleManager {
         newStyle.text = SpannableStringBuilder("Abc")
         newStyle.boxWidth = null
 
-        // Reset transformations to prevent thumbnail distortion
-        newStyle.isWarp = false
-        newStyle.isPerspective = false
-        newStyle.warpMesh = null
-        newStyle.perspectivePoints = null
-
         // Ensure we capture the formatting spans from the original layer into the "Abc" text
         // Actually, layer.clone() copies text spans. But we just replaced text with "Abc".
         // We need to re-apply the formatting flags to "Abc" so the preview looks correct.
