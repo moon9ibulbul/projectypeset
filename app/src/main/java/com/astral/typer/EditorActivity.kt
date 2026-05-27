@@ -27,6 +27,7 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.astral.typer.databinding.ActivityEditorBinding
@@ -82,6 +83,23 @@ class EditorActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 Toast.makeText(this, "Failed to load text", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private val loadRawLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                contentResolver.openInputStream(it)?.use { inputStream ->
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                    if (bitmap != null) {
+                        canvasView.setRawPanelImage(bitmap)
+                        sidebarBinding.layoutRawControls.visibility = View.VISIBLE
+                        Toast.makeText(this, "RAW Panel Loaded!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to load RAW panel", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -230,6 +248,21 @@ class EditorActivity : AppCompatActivity() {
 
         // Initialize StyleManager to load saved styles
         StyleManager.init(this)
+
+        // Handle Back Press
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                android.app.AlertDialog.Builder(this@EditorActivity)
+                    .setTitle("Confirmation")
+                    .setMessage("Do you want to go back to main menu?")
+                    .setPositiveButton("Yes") { _, _ ->
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                    .setNegativeButton("No", null)
+                    .show()
+            }
+        })
 
         // Listeners
         setupCanvasListeners()
@@ -1513,6 +1546,34 @@ class EditorActivity : AppCompatActivity() {
                 val value = p.coerceAtLeast(1)
                 canvasView.layerEraseSize = value.toFloat()
                 tv1?.text = "Size: $value"
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+
+        // RAW Panel Controls
+        sidebarBinding.btnLoadRaw.setOnClickListener {
+            loadRawLauncher.launch("image/*")
+        }
+
+        val rawModes = arrayOf("Load on top Canvas", "Load Beside Canvas")
+        val rawAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, rawModes)
+        rawAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        sidebarBinding.spinnerRawMode.adapter = rawAdapter
+
+        sidebarBinding.spinnerRawMode.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
+                canvasView.rawPanelMode = if (pos == 0) AstralCanvasView.RawPanelMode.ON_TOP else AstralCanvasView.RawPanelMode.BESIDE
+                canvasView.invalidate()
+            }
+            override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+        }
+
+        sidebarBinding.seekBarRawOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                canvasView.rawPanelOpacity = p
+                sidebarBinding.tvRawOpacityLabel.text = "RAW Opacity: ${(p / 2.55f).toInt()}%"
+                canvasView.invalidate()
             }
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}

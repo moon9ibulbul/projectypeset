@@ -83,6 +83,12 @@ class AstralCanvasView @JvmOverloads constructor(
     // Cut Mode
     private var cutPoints: FloatArray? = null
 
+    // RAW Panel
+    enum class RawPanelMode { ON_TOP, BESIDE }
+    private var rawPanelBitmap: android.graphics.Bitmap? = null
+    var rawPanelOpacity: Int = 255
+    var rawPanelMode: RawPanelMode = RawPanelMode.ON_TOP
+
     // Layer Erase Settings
     var layerEraseSize = 50f
     var layerEraseOpacity = 255
@@ -710,6 +716,19 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun getPixelColor(x: Float, y: Float): Int {
+        rawPanelBitmap?.let { rawBmp ->
+            if (rawPanelMode == RawPanelMode.ON_TOP) {
+                if (x >= 0 && x < rawBmp.width && y >= 0 && y < rawBmp.height) {
+                    return rawBmp.getPixel(x.toInt(), y.toInt())
+                }
+            } else {
+                val rx = x - canvasWidth
+                if (rx >= 0 && rx < rawBmp.width && y >= 0 && y < rawBmp.height) {
+                    return rawBmp.getPixel(rx.toInt(), y.toInt())
+                }
+            }
+        }
+
         if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight) return Color.WHITE
         val bmp = renderToBitmap()
         val pixel = bmp.getPixel(x.toInt(), y.toInt())
@@ -797,6 +816,11 @@ class AstralCanvasView @JvmOverloads constructor(
         }
         layers.add(layer)
         selectLayer(layer)
+    }
+
+    fun setRawPanelImage(bitmap: android.graphics.Bitmap?) {
+        rawPanelBitmap = bitmap
+        invalidate()
     }
 
     fun selectLayer(layer: Layer?) {
@@ -935,6 +959,16 @@ class AstralCanvasView @JvmOverloads constructor(
         // Draw Layers
         drawScene(canvas)
 
+        // Draw RAW Panel
+        rawPanelBitmap?.let {
+            val rawPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            rawPaint.alpha = rawPanelOpacity
+            if (rawPanelMode == RawPanelMode.ON_TOP) {
+                canvas.drawBitmap(it, 0f, 0f, rawPaint)
+            } else {
+                canvas.drawBitmap(it, canvasWidth.toFloat(), 0f, rawPaint)
+            }
+        }
 
         // Draw Detected Bubbles (Bottom Layer overlay)
         if (isTyperActive && detectedBubbles != null) {
@@ -1097,6 +1131,17 @@ class AstralCanvasView @JvmOverloads constructor(
 
              for (layer in layers) {
                  layer.draw(canvas)
+             }
+
+             // Draw RAW Panel in Magnifying Glass
+             rawPanelBitmap?.let {
+                 val rawPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                 rawPaint.alpha = rawPanelOpacity
+                 if (rawPanelMode == RawPanelMode.ON_TOP) {
+                     canvas.drawBitmap(it, 0f, 0f, rawPaint)
+                 } else {
+                     canvas.drawBitmap(it, canvasWidth.toFloat(), 0f, rawPaint)
+                 }
              }
 
              canvas.restore()
