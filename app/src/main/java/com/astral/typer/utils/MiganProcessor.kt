@@ -271,13 +271,7 @@ class MiganProcessor(private val context: Context) {
         val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
         val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
 
-        // MIGAN usually requires the image to be masked (set to 0) in the area to be inpainted
-        val maskedCropImage = cropImage.copy(Bitmap.Config.ARGB_8888, true)
-        val maskCanvas = Canvas(maskedCropImage)
-        val clearPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-        maskCanvas.drawBitmap(cropMask, 0f, 0f, clearPaint)
-
-        val inputImage = Bitmap.createScaledBitmap(maskedCropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+        val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
         val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
 
         var tensorImg: OnnxTensor? = null
@@ -285,7 +279,7 @@ class MiganProcessor(private val context: Context) {
         var resultOrt: OrtSession.Result? = null
 
         try {
-            tensorImg = bitmapToOnnxTensor(env, inputImage)
+            tensorImg = bitmapToOnnxTensor(env, inputImage, inputMask)
             tensorMask = bitmapToMaskTensor(env, inputMask)
 
             // Dynamic names detection
@@ -328,7 +322,6 @@ class MiganProcessor(private val context: Context) {
                 resultOrt?.close()
                 tensorImg?.close()
                 tensorMask?.close()
-                maskedCropImage.recycle()
                 cropImage.recycle()
                 cropMask.recycle()
                 inputImage.recycle()
@@ -417,7 +410,8 @@ class MiganProcessor(private val context: Context) {
         for (i in pixels.indices) {
             val p = pixels[i]
             val alpha = (p shr 24) and 0xFF
-            data[i] = if (alpha > 0) 1f else 0f
+            // MI-GAN documentation: 255 (1.0) denotes known region, 0 (0.0) denotes masked region.
+            data[i] = if (alpha > 0) 0f else 1f
         }
 
         return OnnxTensor.createTensor(
@@ -427,11 +421,14 @@ class MiganProcessor(private val context: Context) {
         )
     }
 
-    private fun bitmapToOnnxTensor(env: OrtEnvironment, bitmap: Bitmap): OnnxTensor {
+    private fun bitmapToOnnxTensor(env: OrtEnvironment, bitmap: Bitmap, mask: Bitmap): OnnxTensor {
         val w = bitmap.width
         val h = bitmap.height
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val maskPixels = IntArray(w * h)
+        mask.getPixels(maskPixels, 0, w, 0, 0, w, h)
 
         val size = 3 * w * h
         val data = FloatArray(size)
@@ -439,9 +436,19 @@ class MiganProcessor(private val context: Context) {
 
         for (i in 0 until channelSize) {
             val p = pixels[i]
-            val r = ((p shr 16) and 0xFF) / 255f
-            val g = ((p shr 8) and 0xFF) / 255f
-            val b = (p and 0xFF) / 255f
+            val m = maskPixels[i]
+            val isMasked = (m ushr 24) > 0
+
+            // Normalize to [-1, 1] and set masked area to 0.0 as per MI-GAN training
+            var r = ((p shr 16) and 0xFF) / 127.5f - 1f
+            var g = ((p shr 8) and 0xFF) / 127.5f - 1f
+            var b = (p and 0xFF) / 127.5f - 1f
+
+            if (isMasked) {
+                r = 0f
+                g = 0f
+                b = 0f
+            }
 
             data[i] = r
             data[channelSize + i] = g
@@ -465,12 +472,11 @@ class MiganProcessor(private val context: Context) {
         val size = width * height
         val pixels = IntArray(size)
 
-        val amp = 255
-
         for (i in 0 until size) {
-            val r = (data[i] * amp).toInt().coerceIn(0, 255)
-            val g = (data[size + i] * amp).toInt().coerceIn(0, 255)
-            val b = (data[2 * size + i] * amp).toInt().coerceIn(0, 255)
+            // Denormalize from [-1, 1] to [0, 255]
+            val r = ((data[i] + 1f) * 127.5f).toInt().coerceIn(0, 255)
+            val g = ((data[size + i] + 1f) * 127.5f).toInt().coerceIn(0, 255)
+            val b = ((data[2 * size + i] + 1f) * 127.5f).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
