@@ -18,6 +18,7 @@ import java.util.zip.ZipOutputStream
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.astral.typer.utils.LaMaProcessor
+import com.astral.typer.utils.MiganProcessor
 import com.astral.typer.utils.BubbleDetectorProcessor
 
 class SettingsActivity : AppCompatActivity() {
@@ -66,6 +67,11 @@ class SettingsActivity : AppCompatActivity() {
         val pbModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbModelDownload)
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
 
+        // Model Views (MIGAN)
+        val tvMiganModelStatus = findViewById<TextView>(R.id.tvMiganModelStatus)
+        val pbMiganModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbMiganModelDownload)
+        val btnDownloadMiganModel = findViewById<Button>(R.id.btnDownloadMiganModel)
+
         // Model Views (Bubble Detector)
         val tvTyperModelStatus = findViewById<TextView>(R.id.tvTyperModelStatus)
         val pbTyperModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperModelDownload)
@@ -73,6 +79,8 @@ class SettingsActivity : AppCompatActivity() {
 
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
+        // Init MIGAN Processor Logic
+        val miganProcessor = MiganProcessor(this)
         // Init Bubble Processor
         val bubbleProcessor = BubbleDetectorProcessor(this)
 
@@ -85,6 +93,16 @@ class SettingsActivity : AppCompatActivity() {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
                 btnDownloadModel.isEnabled = true
+            }
+
+            if (miganProcessor.isModelAvailable()) {
+                tvMiganModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadMiganModel.text = "Redownload"
+                btnDownloadMiganModel.isEnabled = true
+            } else {
+                tvMiganModelStatus.text = "Status: Not Downloaded"
+                btnDownloadMiganModel.text = "Download Model"
+                btnDownloadMiganModel.isEnabled = true
             }
 
             if (bubbleProcessor.isModelAvailable()) {
@@ -122,6 +140,31 @@ class SettingsActivity : AppCompatActivity() {
                  }
                  pbModelDownload.visibility = android.view.View.GONE
              }
+        }
+
+        btnDownloadMiganModel.setOnClickListener {
+            btnDownloadMiganModel.isEnabled = false
+            pbMiganModelDownload.visibility = android.view.View.VISIBLE
+            tvMiganModelStatus.text = "Status: Downloading..."
+
+            lifecycleScope.launch {
+                val success = miganProcessor.downloadModel { progress ->
+                    runOnUiThread {
+                        pbMiganModelDownload.progress = (progress * 100).toInt()
+                        tvMiganModelStatus.text = "Status: Downloading ${(progress * 100).toInt()}%"
+                    }
+                }
+
+                if (success) {
+                    updateModelStatus()
+                    Toast.makeText(this@SettingsActivity, "Download Complete", Toast.LENGTH_SHORT).show()
+                } else {
+                    tvMiganModelStatus.text = "Status: Download Failed"
+                    btnDownloadMiganModel.isEnabled = true
+                    Toast.makeText(this@SettingsActivity, "Download Failed", Toast.LENGTH_SHORT).show()
+                }
+                pbMiganModelDownload.visibility = android.view.View.GONE
+            }
         }
 
         btnDownloadTyperModel.setOnClickListener {

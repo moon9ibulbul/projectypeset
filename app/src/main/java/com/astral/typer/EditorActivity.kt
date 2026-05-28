@@ -1911,10 +1911,12 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // --- Engine Selector (If LaMa Available) ---
-        // Check LaMa availability
+        // --- Engine Selector (If LaMa or MIGAN Available) ---
+        // Check availability
         val lamaProcessor = com.astral.typer.utils.LaMaProcessor(this)
-        if (lamaProcessor.isModelAvailable()) {
+        val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
+
+        if (lamaProcessor.isModelAvailable() || miganProcessor.isModelAvailable()) {
             val engineLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -1923,7 +1925,10 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            val modes = arrayOf("OpenCV (Telea)", "LaMa (AI)")
+            val modes = mutableListOf("OpenCV (Telea)")
+            if (lamaProcessor.isModelAvailable()) modes.add("LaMa (AI)")
+            if (miganProcessor.isModelAvailable()) modes.add("MIGAN (AI)")
+
             val spinner = android.widget.Spinner(this)
             val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -1935,10 +1940,11 @@ class EditorActivity : AppCompatActivity() {
 
             spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
-                    if (pos == 0) {
-                        inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
-                    } else {
-                        inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                    val selectedMode = modes[pos]
+                    when {
+                        selectedMode.contains("OpenCV") -> inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+                        selectedMode.contains("LaMa") -> inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                        selectedMode.contains("MIGAN") -> inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
                     }
                 }
                 override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
