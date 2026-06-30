@@ -119,6 +119,7 @@ class TextLayer(
     // Motion Blur
     var motionBlurLength: Float = 0f
     var motionBlurAngle: Int = 0
+    var isMotionBlurOneWay: Boolean = false
 
     // Halftone
     var halftoneDotSize: Float = 10f
@@ -251,6 +252,7 @@ class TextLayer(
         newLayer.longShadowAngle = this.longShadowAngle
         newLayer.motionBlurLength = this.motionBlurLength
         newLayer.motionBlurAngle = this.motionBlurAngle
+        newLayer.isMotionBlurOneWay = this.isMotionBlurOneWay
         newLayer.halftoneDotSize = this.halftoneDotSize
         newLayer.halftoneDotColor = this.halftoneDotColor
         newLayer.halftoneThreshold = this.halftoneThreshold
@@ -1254,6 +1256,7 @@ class TextLayer(
                             val rad = Math.toRadians(motionBlurAngle.toDouble())
                             shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat())
                             shader.setFloatUniform("length", motionBlurLength)
+                            shader.setFloatUniform("oneWay", if (isMotionBlurOneWay) 1.0f else 0.0f)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -1367,6 +1370,7 @@ class TextLayer(
             uniform shader content;
             uniform float2 direction;
             uniform float length;
+            uniform float oneWay;
 
             float rand(float2 co) {
                 return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
@@ -1375,11 +1379,16 @@ class TextLayer(
             half4 main(float2 coord) {
                 half4 color = half4(0);
                 float total = 0.0;
-                float noise = (rand(coord) - 0.5) * 0.1;
+                float noise = (rand(coord) - 0.5) * (1.0 / 30.0);
 
-                for (float i = 0.0; i <= 50.0; i += 1.0) {
-                    float t = i / 50.0;
-                    float offset = (t - 0.5 + noise) * length;
+                for (float i = 0.0; i <= 30.0; i += 1.0) {
+                    float t = i / 30.0;
+                    float offset;
+                    if (oneWay > 0.5) {
+                        offset = (t + noise) * length;
+                    } else {
+                        offset = (t - 0.5 + noise) * length;
+                    }
                     color += content.eval(coord + direction * offset);
                     total += 1.0;
                 }
