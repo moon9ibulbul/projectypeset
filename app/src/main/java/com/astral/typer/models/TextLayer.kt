@@ -157,6 +157,10 @@ class TextLayer(
     var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt()) // Classic Rainbow
     var multiGradientAngle: Float = 0f
 
+    // Radial Blur
+    var radialBlurInnerRadius: Float = 0f
+    var radialBlurMotionStrength: Float = 0f
+
     // Shape
     var isOval: Boolean = false
 
@@ -281,6 +285,9 @@ class TextLayer(
         newLayer.multiGradientColors = this.multiGradientColors.clone()
         newLayer.multiGradientAngle = this.multiGradientAngle
 
+        newLayer.radialBlurInnerRadius = this.radialBlurInnerRadius
+        newLayer.radialBlurMotionStrength = this.radialBlurMotionStrength
+
         newLayer.x = this.x
         newLayer.y = this.y
         newLayer.rotation = this.rotation
@@ -396,6 +403,7 @@ class TextLayer(
                 TextEffectType.MOTION_BLUR -> effectExpansion = Math.max(effectExpansion, motionBlurLength)
                 TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
+                TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 20f + 20f)
@@ -1352,6 +1360,37 @@ class TextLayer(
                         paint.maskFilter = originalMask
                     }
                 }
+                TextEffectType.RADIAL_BLUR -> {
+                    val pad = calculatePadding()
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("RadialBlurNode")
+                            val wFull = (w + pad * 2).toInt().coerceAtLeast(1)
+                            val hFull = (h + pad * 2).toInt().coerceAtLeast(1)
+                            node.setPosition(0, 0, wFull, hFull)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(pad, pad)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(RADIAL_BLUR_SHADER)
+                            shader.setFloatUniform("center", w / 2f + pad, h / 2f + pad)
+                            shader.setFloatUniform("innerRadius", radialBlurInnerRadius)
+                            shader.setFloatUniform("motionStrength", radialBlurMotionStrength)
+                            shader.setFloatUniform("size", w + pad * 2, h + pad * 2)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) drawInner(targetCanvas)
+                }
                 TextEffectType.HALFTONE -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -1539,6 +1578,65 @@ class TextLayer(
             half4 main(float2 coord) {
                 float offset = sin(coord.y * 0.05 * frequency + time * 5.0) * intensity * 10.0;
                 return content.eval(coord + float2(offset, 0));
+            }
+        """
+
+        const val RADIAL_BLUR_SHADER = """
+            uniform shader content;
+            uniform float2 center;
+            uniform float innerRadius;
+            uniform float motionStrength;
+            uniform float2 size;
+
+            half4 main(float2 coord) {
+                float dist = distance(coord, center);
+
+                // Smooth transition: 0 blur inside innerRadius, increasing over 50px
+                float blurAmount = smoothstep(innerRadius, innerRadius + 50.0, dist);
+
+                if (blurAmount <= 0.0) {
+                    return content.eval(coord);
+                }
+
+                half4 color = half4(0);
+                float totalWeight = 0.0;
+
+                float angleRad = radians(motionStrength);
+
+                // Samples along the arc (Clockwise and Counter-Clockwise)
+                // If motionStrength is 0, angleRad is 0, effectively no spin.
+                // We add a base zoom blur if motionStrength is small to satisfy "regular radial blur"
+
+                float zoomBase = (1.0 - clamp(motionStrength / 30.0, 0.0, 1.0)) * 0.03;
+
+                for (float i = -10.0; i <= 10.0; i += 1.0) {
+                    float t = i / 10.0;
+                    float currentAngle = t * angleRad;
+
+                    float s = sin(currentAngle);
+                    float c = cos(currentAngle);
+
+                    float2 rel = coord - center;
+                    float2 rotatedRel = float2(
+                        rel.x * c - rel.y * s,
+                        rel.x * s + rel.y * c
+                    );
+
+                    // Zoom component: 1.0 is no zoom, >1.0 is zoom in
+                    // We apply more zoom at the edges
+                    float zoom = 1.0 + (t * zoomBase * blurAmount);
+
+                    float2 sampledCoord = center + rotatedRel * zoom;
+
+                    half4 sampleColor = content.eval(sampledCoord);
+
+                    // Fade weight for smoother motion trail
+                    float weight = 1.0 - abs(t) * 0.3;
+                    color += sampleColor * weight;
+                    totalWeight += weight;
+                }
+
+                return color / totalWeight;
             }
         """
 

@@ -124,6 +124,10 @@ object StyleManager {
         val isUnderline: Boolean = false,
         val isStrike: Boolean = false,
 
+        // Radial Blur
+        val radialBlurInnerRadius: Float = 0f,
+        val radialBlurMotionStrength: Float = 0f,
+
         // Perspective
         val isPerspective: Boolean = false,
         val perspectivePoints: FloatArray? = null,
@@ -153,6 +157,7 @@ object StyleManager {
             l.blendMode, l.isOpacityGradient, l.opacityStart, l.opacityEnd, l.opacityAngle,
             l.textAlign.ordinal, l.isJustified,
             isBold, isItalic, isUnderline, isStrike,
+            l.radialBlurInnerRadius, l.radialBlurMotionStrength,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh
         )
@@ -208,6 +213,9 @@ object StyleManager {
         l.opacityStart = m.opacityStart
         l.opacityEnd = m.opacityEnd
         l.opacityAngle = m.opacityAngle
+
+        l.radialBlurInnerRadius = m.radialBlurInnerRadius
+        l.radialBlurMotionStrength = m.radialBlurMotionStrength
 
         l.isPerspective = m.isPerspective
         l.perspectivePoints = m.perspectivePoints
