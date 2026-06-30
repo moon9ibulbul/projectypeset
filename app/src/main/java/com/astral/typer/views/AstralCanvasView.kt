@@ -523,18 +523,26 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun getHandleGeometry(layer: Layer): HandleGeometry {
         val viewScale = getCurrentViewScale()
-        val avgScale = ((abs(layer.scaleX) + abs(layer.scaleY)) / 2f) * viewScale
-        val screenW = layer.getWidth() * abs(layer.scaleX)
-        val screenH = layer.getHeight() * abs(layer.scaleY)
-        val minScreenDim = kotlin.math.min(screenW, screenH)
+        val avgLayerScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
+        val totalScale = avgLayerScale * viewScale
 
-        val targetVisualRadius = if (minScreenDim < 150f) {
-            kotlin.math.max(10f, minScreenDim / 5f)
+        // Screen dimensions of the layer
+        val screenW = layer.getWidth() * totalScale
+        val screenH = layer.getHeight() * totalScale
+        val minScreenDim = min(screenW, screenH)
+
+        // Calculate a base radius that shrinks for very small layers, but has a minimum for usability
+        val adaptiveRadius = if (minScreenDim < 150f) {
+            max(15f, minScreenDim / 5f) // Increased min from 10 to 15
         } else {
             HANDLE_RADIUS
         }
 
-        val localRadius = targetVisualRadius / avgScale
+        // Ensure the handle is always large enough to be seen and tapped regardless of zoom
+        val minScreenRadius = 24f
+        val targetScreenRadius = max(adaptiveRadius, minScreenRadius)
+
+        val localRadius = targetScreenRadius / totalScale
         val localIconScale = localRadius / 15f
         val handleOffset = localRadius * 1.5f
 
@@ -856,12 +864,23 @@ class AstralCanvasView @JvmOverloads constructor(
 
         backgroundRect.set(0f, 0f, width.toFloat(), height.toFloat())
 
+        for (tile in backgroundTiles) {
+            tile.bitmap.recycle()
+        }
+        backgroundTiles.clear()
+
+        rawPanelBitmap?.recycle()
+        rawPanelBitmap = null
+
         post {
              centerCanvas()
         }
     }
 
     fun setBackgroundImage(bitmap: android.graphics.Bitmap) {
+        for (tile in backgroundTiles) {
+            tile.bitmap.recycle()
+        }
         backgroundTiles.clear()
 
         val w = bitmap.width

@@ -88,7 +88,24 @@ object ProjectManager {
 
         // Effect
         val currentEffect: String? = null, val secondaryEffect: String? = null, val effectSeed: Long? = null,
-        val chromaticColors: List<Int>? = null
+        val chromaticColors: List<Int>? = null,
+        val blurRadius: Float? = null,
+        val longShadowLength: Float? = null, val longShadowColor: Int? = null, val longShadowAngle: Float? = null,
+        val motionBlurLength: Float? = null, val motionBlurAngle: Int? = null,
+        val halftoneDotSize: Float? = null, val halftoneDotColor: Int? = null, val halftoneThreshold: Float? = null,
+        val neonRadius: Float? = null, val neonColor: Int? = null,
+        val glitchIntensity: Float? = null,
+        val pixelBlockSize: Float? = null,
+        val chromaticShift: Float? = null,
+        val fieryColor: Int? = null, val fieryIntensity: Float? = null,
+        val wavyIntensity: Float? = null, val wavyFrequency: Float? = null,
+        val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
+        val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null,
+        val isOval: Boolean? = null,
+        val fixedHeight: Float? = null,
+        val isGlobalGradient: Boolean? = null,
+        val globalP1X: Float? = null, val globalP1Y: Float? = null,
+        val globalP2X: Float? = null, val globalP2Y: Float? = null
     )
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -202,7 +219,24 @@ object ProjectManager {
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
                         eraseMaskPath = erasePath,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed,
-                        chromaticColors = layer.chromaticColors.toList()
+                        chromaticColors = layer.chromaticColors.toList(),
+                        blurRadius = layer.blurRadius,
+                        longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
+                        motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
+                        halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
+                        neonRadius = layer.neonRadius, neonColor = layer.neonColor,
+                        glitchIntensity = layer.glitchIntensity,
+                        pixelBlockSize = layer.pixelBlockSize,
+                        chromaticShift = layer.chromaticShift,
+                        fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity,
+                        wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
+                        particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
+                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
+                        isOval = layer.isOval,
+                        fixedHeight = layer.fixedHeight,
+                        isGlobalGradient = layer.isGlobalGradient,
+                        globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y,
+                        globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
 
                 } else if (layer is ImageLayer) {
@@ -478,6 +512,39 @@ object ProjectManager {
             }
             model.effectSeed?.let { layer.effectSeed = it }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
+
+            model.blurRadius?.let { layer.blurRadius = it }
+            model.longShadowLength?.let { layer.longShadowLength = it }
+            model.longShadowColor?.let { layer.longShadowColor = it }
+            model.longShadowAngle?.let { layer.longShadowAngle = it }
+            model.motionBlurLength?.let { layer.motionBlurLength = it }
+            model.motionBlurAngle?.let { layer.motionBlurAngle = it }
+            model.halftoneDotSize?.let { layer.halftoneDotSize = it }
+            model.halftoneDotColor?.let { layer.halftoneDotColor = it }
+            model.halftoneThreshold?.let { layer.halftoneThreshold = it }
+            model.neonRadius?.let { layer.neonRadius = it }
+            model.neonColor?.let { layer.neonColor = it }
+            model.glitchIntensity?.let { layer.glitchIntensity = it }
+            model.pixelBlockSize?.let { layer.pixelBlockSize = it }
+            model.chromaticShift?.let { layer.chromaticShift = it }
+            model.fieryColor?.let { layer.fieryColor = it }
+            model.fieryIntensity?.let { layer.fieryIntensity = it }
+            model.wavyIntensity?.let { layer.wavyIntensity = it }
+            model.wavyFrequency?.let { layer.wavyFrequency = it }
+            model.particleSize?.let { layer.particleSize = it }
+            model.particleSpread?.let { layer.particleSpread = it }
+            model.particleDissolveAngle?.let { layer.particleDissolveAngle = it }
+            model.multiGradientColors?.let { layer.multiGradientColors = it.toIntArray() }
+            model.multiGradientAngle?.let { layer.multiGradientAngle = it }
+            model.isOval?.let { layer.isOval = it }
+            model.fixedHeight?.let { layer.fixedHeight = it }
+            model.isGlobalGradient?.let { layer.isGlobalGradient = it }
+            if (model.globalP1X != null && model.globalP1Y != null) {
+                layer.globalP1.set(model.globalP1X, model.globalP1Y)
+            }
+            if (model.globalP2X != null && model.globalP2Y != null) {
+                layer.globalP2.set(model.globalP2X, model.globalP2Y)
+            }
 
             applyCommonProperties(layer, model)
             return layer

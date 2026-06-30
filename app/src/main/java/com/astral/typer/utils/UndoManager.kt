@@ -19,7 +19,20 @@ object UndoManager {
 
         history.push(snapshot)
         if (history.size > MAX_HISTORY) {
-            history.removeAt(0)
+            val removed = history.removeAt(0)
+            removed.forEach { layer ->
+                if (layer is TextLayer) {
+                    layer.eraseMask?.recycle()
+                }
+            }
+        }
+
+        redoStack.forEach { layersList ->
+            layersList.forEach { layer ->
+                if (layer is TextLayer) {
+                    layer.eraseMask?.recycle()
+                }
+            }
         }
         redoStack.clear()
     }
@@ -28,8 +41,10 @@ object UndoManager {
         val snapshot = bitmap.copy(bitmap.config, true)
         bitmapHistory.push(snapshot)
         if (bitmapHistory.size > MAX_BITMAP_HISTORY) {
-            bitmapHistory.removeAt(0)
+            val removed = bitmapHistory.removeAt(0)
+            removed.recycle()
         }
+        bitmapRedoStack.forEach { it.recycle() }
         bitmapRedoStack.clear()
     }
 
@@ -61,6 +76,23 @@ object UndoManager {
         bitmapRedoStack.forEach { it.recycle() }
         bitmapHistory.clear()
         bitmapRedoStack.clear()
+
+        // Also recycle eraseMasks in TextLayers within history
+        history.forEach { layers ->
+            layers.forEach { layer ->
+                if (layer is TextLayer) {
+                    layer.eraseMask?.recycle()
+                }
+            }
+        }
+        redoStack.forEach { layers ->
+            layers.forEach { layer ->
+                if (layer is TextLayer) {
+                    layer.eraseMask?.recycle()
+                }
+            }
+        }
+
         history.clear()
         redoStack.clear()
     }

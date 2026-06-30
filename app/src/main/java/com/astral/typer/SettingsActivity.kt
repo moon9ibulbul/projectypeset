@@ -52,7 +52,7 @@ class SettingsActivity : AppCompatActivity() {
         cbAutosave = findViewById(R.id.cbAutosave)
 
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
-        cbAutosave.isChecked = settingsPrefs.getBoolean("enable_autosave", true)
+        cbAutosave.isChecked = settingsPrefs.getBoolean("enable_autosave", false)
         cbAutosave.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("enable_autosave", isChecked).apply()
         }
