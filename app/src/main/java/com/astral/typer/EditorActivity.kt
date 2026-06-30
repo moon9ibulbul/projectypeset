@@ -2245,19 +2245,88 @@ class EditorActivity : AppCompatActivity() {
     }
 
     // --- STYLE MENU ---
+    private fun applyStyleToLayer(layer: TextLayer, style: StyleManager.StyleModel) {
+        com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+
+        layer.color = style.color
+        layer.fontSize = style.fontSize
+        layer.fontPath = style.fontPath
+
+        var fontResolved = false
+        if (style.fontPath != null) {
+            val found = FontManager.getStandardFonts(this).find { it.name == style.fontPath }
+                ?: FontManager.getCustomFonts(this).find { it.path == style.fontPath }
+
+            if (found != null) {
+                layer.typeface = found.typeface
+                fontResolved = true
+            }
+        }
+
+        if (!fontResolved) {
+            layer.typeface = Typeface.DEFAULT
+        }
+        layer.opacity = style.opacity
+        layer.shadowColor = style.shadowColor
+        layer.shadowRadius = style.shadowRadius
+        layer.shadowDx = style.shadowDx
+        layer.shadowDy = style.shadowDy
+        layer.isMotionShadow = style.isMotionShadow
+        layer.motionShadowAngle = style.motionAngle
+        layer.motionShadowDistance = style.motionDist
+        layer.isGradient = style.isGradient
+        layer.gradientStartColor = style.gradientStart
+        layer.gradientEndColor = style.gradientEnd
+        layer.gradientAngle = style.gradientAngle
+        layer.isGradientText = style.isGradientText
+        layer.isGradientStroke = style.isGradientStroke
+        layer.isGradientShadow = style.isGradientShadow
+        layer.strokeColor = style.strokeColor
+        layer.strokeWidth = style.strokeWidth
+        layer.doubleStrokeColor = style.doubleStrokeColor
+        layer.doubleStrokeWidth = style.doubleStrokeWidth
+        // Spacing
+        layer.letterSpacing = style.letterSpacing
+        layer.lineSpacing = style.lineSpacing
+
+        layer.isPerspective = style.isPerspective
+        layer.perspectivePoints = style.perspectivePoints?.clone()
+        layer.isWarp = style.isWarp
+        layer.warpRows = style.warpRows
+        layer.warpCols = style.warpCols
+        layer.warpMesh = style.warpMesh?.clone()
+        if (layer.isWarp) {
+            layer.updateDenseWarpMesh()
+        }
+
+        // Formatting
+        if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size) {
+            layer.textAlign = Layout.Alignment.values()[style.textAlign]
+        }
+        layer.isJustified = style.isJustified
+
+        // Apply formatting spans from style
+        val text = layer.text
+        // Remove existing formatting spans
+        val existingStyle = text.getSpans(0, text.length, StyleSpan::class.java)
+        for (s in existingStyle) text.removeSpan(s)
+        val existingUnder = text.getSpans(0, text.length, UnderlineSpan::class.java)
+        for (s in existingUnder) text.removeSpan(s)
+        val existingStrike = text.getSpans(0, text.length, StrikethroughSpan::class.java)
+        for (s in existingStrike) text.removeSpan(s)
+
+        // Apply new spans to the WHOLE text
+        if (style.isBold) text.setSpan(StyleSpan(Typeface.BOLD), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (style.isItalic) text.setSpan(StyleSpan(Typeface.ITALIC), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (style.isUnderline) text.setSpan(UnderlineSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (style.isStrike) text.setSpan(StrikethroughSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+        canvasView.invalidate()
+    }
+
     private fun showStyleMenu() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer
-
-        val scroll = ScrollView(this)
-        // 3 Column Grid
-        val grid = GridLayout(this).apply {
-            columnCount = 3
-            setPadding(16,16,16,16)
-        }
-
-        // Saved Styles
-        val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
 
         // Add "Save Current Style" button
         if (layer != null) {
@@ -2278,124 +2347,44 @@ class EditorActivity : AppCompatActivity() {
             container.addView(btnSaveStyle)
         }
 
+        val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
         if (saved.isEmpty()) {
-            grid.addView(TextView(this).apply { text = "No Saved Styles"; setTextColor(Color.GRAY) })
-        }
-
-        for ((index, style) in saved.withIndex()) {
-            // Container for item
-            val itemContainer = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+            container.addView(TextView(this).apply {
+                text = "No Saved Styles"
+                setTextColor(Color.GRAY)
                 gravity = Gravity.CENTER
-                layoutParams = GridLayout.LayoutParams().apply {
-                    width = dpToPx(100)
-                    height = ViewGroup.LayoutParams.WRAP_CONTENT
-                    setMargins(8, 8, 8, 8)
-                }
-                background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(8).toFloat()
-                    setStroke(2, Color.LTGRAY)
-                }
-                setOnClickListener {
+                setPadding(0, 32, 0, 0)
+            })
+        } else {
+            val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
+                layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@EditorActivity, 3)
+                setPadding(8, 8, 8, 8)
+            }
+            container.addView(recyclerView)
+
+            recyclerView.adapter = StyleAdapter(this, lifecycleScope, saved,
+                onApply = { style ->
                     if (layer != null) {
-                        // Apply style properties
-                        com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
-
-                        layer.color = style.color
-                        layer.fontSize = style.fontSize
-                        layer.fontPath = style.fontPath
-                        // Resolve typeface if fontPath exists?
-                        // StyleManager just holds data. Editor needs to load font.
-                        var fontResolved = false
-                        if (style.fontPath != null) {
-                             val found = FontManager.getStandardFonts(this@EditorActivity).find { it.name == style.fontPath }
-                                 ?: FontManager.getCustomFonts(this@EditorActivity).find { it.path == style.fontPath }
-
-                             if (found != null) {
-                                 layer.typeface = found.typeface
-                                 fontResolved = true
-                             }
-                        }
-
-                        if (!fontResolved) {
-                            layer.typeface = style.typeface
-                        }
-                        layer.opacity = style.opacity
-                        layer.shadowColor = style.shadowColor
-                        layer.shadowRadius = style.shadowRadius
-                        layer.shadowDx = style.shadowDx
-                        layer.shadowDy = style.shadowDy
-                        layer.isMotionShadow = style.isMotionShadow
-                        layer.motionShadowAngle = style.motionShadowAngle
-                        layer.motionShadowDistance = style.motionShadowDistance
-                        layer.isGradient = style.isGradient
-                        layer.gradientStartColor = style.gradientStartColor
-                        layer.gradientEndColor = style.gradientEndColor
-                        layer.gradientAngle = style.gradientAngle
-                        layer.isGradientText = style.isGradientText
-                        layer.isGradientStroke = style.isGradientStroke
-                        layer.isGradientShadow = style.isGradientShadow
-                        layer.strokeColor = style.strokeColor
-                        layer.strokeWidth = style.strokeWidth
-                        layer.doubleStrokeColor = style.doubleStrokeColor
-                        layer.doubleStrokeWidth = style.doubleStrokeWidth
-                        // Spacing
-                        layer.letterSpacing = style.letterSpacing
-                        layer.lineSpacing = style.lineSpacing
-
-                        layer.isPerspective = style.isPerspective
-                        layer.perspectivePoints = style.perspectivePoints?.clone()
-                        layer.isWarp = style.isWarp
-                        layer.warpRows = style.warpRows
-                        layer.warpCols = style.warpCols
-                        layer.warpMesh = style.warpMesh?.clone()
-                        if (layer.isWarp) {
-                            layer.updateDenseWarpMesh()
-                        }
-
-                        // Formatting
-                        layer.textAlign = style.textAlign
-                        layer.isJustified = style.isJustified
-
-                        // Apply formatting spans from style
-                        val text = layer.text
-                        // Remove existing formatting spans
-                        val existingStyle = text.getSpans(0, text.length, StyleSpan::class.java)
-                        for (s in existingStyle) text.removeSpan(s)
-                        val existingUnder = text.getSpans(0, text.length, UnderlineSpan::class.java)
-                        for (s in existingUnder) text.removeSpan(s)
-                        val existingStrike = text.getSpans(0, text.length, StrikethroughSpan::class.java)
-                        for (s in existingStrike) text.removeSpan(s)
-
-                        // Apply new spans
-                        val styleSpans = style.text.getSpans(0, style.text.length, Object::class.java)
-                        for (span in styleSpans) {
-                            if (span is StyleSpan) text.setSpan(StyleSpan(span.style), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            if (span is UnderlineSpan) text.setSpan(UnderlineSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            if (span is StrikethroughSpan) text.setSpan(StrikethroughSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        }
-
-                        canvasView.invalidate()
-                        Toast.makeText(context, "Style Applied", Toast.LENGTH_SHORT).show()
+                        applyStyleToLayer(layer, style)
+                        Toast.makeText(this, "Style Applied", Toast.LENGTH_SHORT).show()
                     }
-                }
-                setOnLongClickListener {
-                    val popup = android.widget.PopupMenu(this@EditorActivity, it)
+                },
+                onLongClick = { view, index, style ->
+                    val popup = android.widget.PopupMenu(this, view)
                     popup.menu.add("Rename")
                     popup.menu.add("Delete")
                     popup.setOnMenuItemClickListener { item ->
                         when(item.title) {
                             "Rename" -> {
-                                val input = EditText(this@EditorActivity)
+                                val input = EditText(this)
                                 input.setText(style.name)
-                                android.app.AlertDialog.Builder(this@EditorActivity)
+                                android.app.AlertDialog.Builder(this)
                                     .setTitle("Rename Style")
                                     .setView(input)
                                     .setPositiveButton("OK") { _, _ ->
                                         val newName = input.text.toString()
                                         if (newName.isNotBlank()) {
-                                            StyleManager.renameStyle(this@EditorActivity, index, newName)
+                                            StyleManager.renameStyle(this, index, newName)
                                             showStyleMenu() // Refresh
                                         }
                                     }
@@ -2404,7 +2393,7 @@ class EditorActivity : AppCompatActivity() {
                                 true
                             }
                             "Delete" -> {
-                                StyleManager.deleteStyle(this@EditorActivity, index)
+                                StyleManager.deleteStyle(this, index)
                                 showStyleMenu() // Refresh
                                 true
                             }
@@ -2412,36 +2401,9 @@ class EditorActivity : AppCompatActivity() {
                         }
                     }
                     popup.show()
-                    true
                 }
-            }
-
-            // Preview Image
-            val bmp = StyleManager.getPreview(style)
-            val img = android.widget.ImageView(this).apply {
-                setImageBitmap(bmp)
-                layoutParams = LinearLayout.LayoutParams(dpToPx(80), dpToPx(80)).apply {
-                    setMargins(0, 10, 0, 0)
-                }
-                scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
-            }
-            itemContainer.addView(img)
-
-            // Label
-            val tv = TextView(this).apply {
-                text = style.name.ifEmpty { "Style ${index+1}" }
-                setTextColor(Color.WHITE)
-                textSize = 12f
-                gravity = Gravity.CENTER
-                setPadding(0, 4, 0, 8)
-            }
-            itemContainer.addView(tv)
-
-            grid.addView(itemContainer)
+            )
         }
-
-        scroll.addView(grid)
-        container.addView(scroll)
     }
 
     private fun showInsertMenu() {
@@ -2652,7 +2614,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Init Adapter (Use stored lines)
-        val styleModels = styles.map { StyleManager.toModel(it) }
+        val styleModels = styles
         typerAdapter = TyperTextAdapter(this, typerTextLines, styleModels) { _, _ ->
             // Selection updated
         }
@@ -2764,7 +2726,7 @@ class EditorActivity : AppCompatActivity() {
 
     private fun updateTyperList(lines: List<String>) {
         typerTextLines = lines
-        val styles = StyleManager.getSavedStyles().map { StyleManager.toModel(it) }
+        val styles = StyleManager.getSavedStyles()
         typerAdapter = TyperTextAdapter(this, typerTextLines, styles) { _, _ -> }
 
         if (typerPopup != null && typerPopup!!.isShowing) {

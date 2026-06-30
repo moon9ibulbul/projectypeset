@@ -14,6 +14,9 @@ object FontManager {
     private const val KEY_FAVORITES = "favorite_fonts"
     private const val BUNDLED_FONTS_ZIP = "fontpack.zip"
 
+    private var cachedStandardFonts: List<FontItem>? = null
+    private var cachedCustomFonts: List<FontItem>? = null
+
     data class FontItem(
         val name: String,
         val path: String?, // Null for system, "std_cache:xxx" for bundled, absolute path for custom
@@ -23,6 +26,8 @@ object FontManager {
     )
 
     fun getStandardFonts(context: Context): List<FontItem> {
+        cachedStandardFonts?.let { return it }
+
         val list = mutableListOf<FontItem>()
         // System Fonts
         list.add(FontItem("Default", null, Typeface.DEFAULT))
@@ -58,6 +63,7 @@ object FontManager {
         val favorites = getFavorites(context)
         list.forEach { it.isFavorite = favorites.contains(it.name) } // Use Name for standard fonts favorites
 
+        cachedStandardFonts = list
         return list
     }
 
@@ -96,6 +102,8 @@ object FontManager {
     }
 
     fun getCustomFonts(context: Context): List<FontItem> {
+        cachedCustomFonts?.let { return it }
+
         val list = mutableListOf<FontItem>()
         val dir = File(context.filesDir, FONTS_DIR)
         if (!dir.exists()) dir.mkdirs()
@@ -119,7 +127,13 @@ object FontManager {
                 }
             }
         }
+        cachedCustomFonts = list
         return list
+    }
+
+    fun refreshCache() {
+        cachedStandardFonts = null
+        cachedCustomFonts = null
     }
 
     fun getFavoriteFonts(context: Context): List<FontItem> {
@@ -173,6 +187,7 @@ object FontManager {
                     saveFontFile(context, input, name)
                 }
             }
+            refreshCache()
             return true
         } catch (e: Exception) {
             e.printStackTrace()
