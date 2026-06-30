@@ -12,15 +12,14 @@ import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
 import android.content.Context
 import com.astral.typer.models.TextLayer
+import com.astral.typer.models.TextEffectType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 object StyleManager {
-    private val savedStyles = mutableListOf<TextLayer>()
-    var clipboardStyle: TextLayer? = null
+    private val savedStyles = mutableListOf<StyleModel>()
+    var clipboardStyle: StyleModel? = null
 
-    // Previews Cache (optional, but good for performance)
-    private val stylePreviews = mutableMapOf<TextLayer, Bitmap>()
     private const val PREFS_NAME = "style_prefs"
     private const val KEY_STYLES = "saved_styles"
 
@@ -31,58 +30,40 @@ object StyleManager {
     }
 
     fun copyStyle(layer: TextLayer) {
-        clipboardStyle = layer.clone() as TextLayer
+        clipboardStyle = toModel(layer)
     }
 
     fun saveStyle(context: Context, layer: TextLayer) {
-        val newStyle = layer.clone() as TextLayer
-        // Reset position properties to make it generic
-        newStyle.text = SpannableStringBuilder("Abc")
-        newStyle.boxWidth = null
+        val model = toModel(layer)
+        // Ensure generic preview name/text if needed?
+        // The original code reset text to "Abc".
+        val genericModel = model.copy(name = model.name)
 
-        // Ensure we capture the formatting spans from the original layer into the "Abc" text
-        // Actually, layer.clone() copies text spans. But we just replaced text with "Abc".
-        // We need to re-apply the formatting flags to "Abc" so the preview looks correct.
-        // And when saving to model, we extract flags.
-
-        // Check flags from original layer
-        val isBold = layer.text.getSpans(0, layer.text.length, StyleSpan::class.java).any { it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC } || layer.typeface.isBold
-        val isItalic = layer.text.getSpans(0, layer.text.length, StyleSpan::class.java).any { it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC } || layer.typeface.isItalic
-        val isUnderline = layer.text.getSpans(0, layer.text.length, UnderlineSpan::class.java).isNotEmpty()
-        val isStrike = layer.text.getSpans(0, layer.text.length, StrikethroughSpan::class.java).isNotEmpty()
-
-        if (isBold) newStyle.text.setSpan(StyleSpan(Typeface.BOLD), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        if (isItalic) newStyle.text.setSpan(StyleSpan(Typeface.ITALIC), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        if (isUnderline) newStyle.text.setSpan(UnderlineSpan(), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        if (isStrike) newStyle.text.setSpan(StrikethroughSpan(), 0, newStyle.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-
-        savedStyles.add(newStyle)
+        savedStyles.add(genericModel)
         persistStyles(context)
     }
 
-    fun getSavedStyles(): List<TextLayer> {
+    fun getSavedStyles(): List<StyleModel> {
         return savedStyles
     }
 
     fun deleteStyle(context: Context, index: Int) {
         if (index in 0 until savedStyles.size) {
-            val removed = savedStyles.removeAt(index)
-            stylePreviews.remove(removed)
+            savedStyles.removeAt(index)
             persistStyles(context)
         }
     }
 
     fun renameStyle(context: Context, index: Int, newName: String) {
         if (index in 0 until savedStyles.size) {
-            savedStyles[index].name = newName
+            savedStyles[index] = savedStyles[index].copy(name = newName)
             persistStyles(context)
         }
     }
 
     private fun persistStyles(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val list = savedStyles.map { toModel(it) }
-        val json = Gson().toJson(list)
+        val json = Gson().toJson(savedStyles)
         prefs.edit().putString(KEY_STYLES, json).apply()
     }
 
@@ -94,7 +75,7 @@ object StyleManager {
                 val type = object : TypeToken<List<StyleModel>>() {}.type
                 val list: List<StyleModel> = Gson().fromJson(json, type)
                 savedStyles.clear()
-                savedStyles.addAll(list.map { fromModel(context, it) })
+                savedStyles.addAll(list)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -177,7 +158,7 @@ object StyleManager {
         )
     }
 
-    private fun fromModel(context: Context, m: StyleModel): TextLayer {
+    fun fromModel(context: Context, m: StyleModel): TextLayer {
         val l = TextLayer("Abc")
         l.name = m.name
 
@@ -249,37 +230,24 @@ object StyleManager {
         return l
     }
 
-    fun getPreview(layer: TextLayer): Bitmap {
-        if (stylePreviews.containsKey(layer)) {
-            return stylePreviews[layer]!!
-        }
-
+    fun getPreview(context: Context, model: StyleModel): Bitmap {
         // Generate Preview
         val w = 150
         val h = 150
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // Draw checkered background? Or just dark gray
+        // Draw dark gray background
         canvas.drawColor(Color.DKGRAY)
 
-        val previewLayer = layer.clone() as TextLayer
-        // Ensure preview text has formatting spans
-        // Cloning copies spans, so if layer has spans on "Abc", they are preserved.
+        val previewLayer = fromModel(context, model)
         previewLayer.text = SpannableStringBuilder("Abc")
 
-        // Re-apply spans based on layer properties (since we reset text to Abc)
-        // Wait, if layer text was already "Abc" with spans, good.
-        // But if layer was "Hello World" with spans, clone copies Hello World.
-        // Then we set text = "Abc" -> spans lost.
-        // We need to re-apply spans from the source layer (or check if source has them).
-
-        // However, this getPreview is called usually after fromModel or saveStyle (which sets text to Abc and adds spans).
-        // So previewLayer is likely already correct.
-        // Just in case, let's copy spans from input layer if it is "Abc"
-        if (layer.text.toString() == "Abc") {
-            previewLayer.text = SpannableStringBuilder(layer.text)
-        }
+        // Re-apply spans to "Abc"
+        if (model.isBold) previewLayer.text.setSpan(StyleSpan(Typeface.BOLD), 0, previewLayer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (model.isItalic) previewLayer.text.setSpan(StyleSpan(Typeface.ITALIC), 0, previewLayer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (model.isUnderline) previewLayer.text.setSpan(UnderlineSpan(), 0, previewLayer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (model.isStrike) previewLayer.text.setSpan(StrikethroughSpan(), 0, previewLayer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
 
         previewLayer.fontSize = 60f
         previewLayer.x = w/2f
@@ -290,7 +258,6 @@ object StyleManager {
 
         previewLayer.draw(canvas)
 
-        stylePreviews[layer] = bmp
         return bmp
     }
 }
