@@ -1389,7 +1389,75 @@ class TextLayer(
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
-                    if (!useRenderEffect) drawInner(targetCanvas)
+                    if (!useRenderEffect) {
+                        // Software Fallback for Warp/Perspective or older devices
+                        val bmpW = ceil(w + pad * 2).toInt()
+                        val bmpH = ceil(h + pad * 2).toInt()
+                        if (bmpW > 0 && bmpH > 0) {
+                            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val c = Canvas(bitmap)
+                            c.translate(pad, pad)
+                            drawInner(c)
+
+                            val center = PointF(bmpW / 2f, bmpH / 2f)
+                            val motionRad = Math.toRadians(radialBlurMotionStrength.toDouble())
+                            val zoomBase = (1.0 - (radialBlurMotionStrength / 180.0).coerceIn(0.0, 1.0)) * 0.03
+
+                            val fbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
+
+                            // Multi-pass iterative rendering for software fallback
+                            // 1. Draw sharp version
+                            targetCanvas.drawBitmap(bitmap, 0f, 0f, fbPaint)
+
+                            // 2. Prepare Blur Layer
+                            val blurBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val blurCanvas = Canvas(blurBitmap)
+                            val iterations = 8
+                            val itPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+                            for (i in -iterations..iterations) {
+                                if (i == 0) continue
+                                val t = i / iterations.toFloat()
+                                val angle = t * motionRad
+                                val zoom = 1.0 + (t * zoomBase)
+
+                                val m = Matrix()
+                                m.postTranslate(-center.x, -center.y)
+                                m.postScale(zoom.toFloat(), zoom.toFloat())
+                                m.postRotate(Math.toDegrees(angle).toFloat())
+                                m.postTranslate(center.x, center.y)
+
+                                val weight = (1.0 - Math.abs(t) * 0.3) / (iterations * 2)
+                                itPaint.alpha = (weight * 255).toInt().coerceIn(1, 255)
+                                blurCanvas.drawBitmap(bitmap, m, itPaint)
+                            }
+
+                            // 3. Mask the center of the blur layer
+                            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                            val transitionWidth = Math.max(80f, radialBlurInnerRadius * 0.4f)
+                            val grad = android.graphics.RadialGradient(
+                                center.x, center.y, radialBlurInnerRadius + transitionWidth,
+                                intArrayOf(Color.BLACK, Color.TRANSPARENT),
+                                floatArrayOf(radialBlurInnerRadius / (radialBlurInnerRadius + transitionWidth), 1f),
+                                Shader.TileMode.CLAMP
+                            )
+                            maskPaint.shader = grad
+                            blurCanvas.drawCircle(center.x, center.y, radialBlurInnerRadius + transitionWidth, maskPaint)
+
+                            // 4. Composite
+                            targetCanvas.drawBitmap(blurBitmap, 0f, 0f, null)
+
+                            targetCanvas.restore()
+                            bitmap.recycle()
+                            blurBitmap.recycle()
+                        } else {
+                            drawInner(targetCanvas)
+                        }
+                    }
                 }
                 TextEffectType.HALFTONE -> {
                     var useRenderEffect = false
@@ -1591,8 +1659,10 @@ class TextLayer(
             half4 main(float2 coord) {
                 float dist = distance(coord, center);
 
-                // Smooth transition: 0 blur inside innerRadius, increasing over 50px
-                float blurAmount = smoothstep(innerRadius, innerRadius + 50.0, dist);
+                // Smooth transition: 0 blur inside innerRadius
+                // Increased transition zone for better smoothness at larger radii
+                float transitionWidth = max(80.0, innerRadius * 0.4);
+                float blurAmount = smoothstep(innerRadius, innerRadius + transitionWidth, dist);
 
                 if (blurAmount <= 0.0) {
                     return content.eval(coord);
