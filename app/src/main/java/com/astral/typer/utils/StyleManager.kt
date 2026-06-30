@@ -150,7 +150,12 @@ object StyleManager {
         val isWarp: Boolean = false,
         val warpRows: Int = 2,
         val warpCols: Int = 2,
-        val warpMesh: FloatArray? = null
+        val warpMesh: FloatArray? = null,
+
+        // Motion Blur
+        val motionBlurLength: Float = 0f,
+        val motionBlurAngle: Int = 0,
+        val isMotionBlurOneWay: Boolean = false
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -173,7 +178,8 @@ object StyleManager {
             l.textAlign.ordinal, l.isJustified,
             isBold, isItalic, isUnderline, isStrike,
             l.isPerspective, l.perspectivePoints,
-            l.isWarp, l.warpRows, l.warpCols, l.warpMesh
+            l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
+            l.motionBlurLength, l.motionBlurAngle, l.isMotionBlurOneWay
         )
     }
 
@@ -234,6 +240,10 @@ object StyleManager {
         l.warpRows = m.warpRows
         l.warpCols = m.warpCols
         l.warpMesh = m.warpMesh
+
+        l.motionBlurLength = m.motionBlurLength
+        l.motionBlurAngle = m.motionBlurAngle
+        l.isMotionBlurOneWay = m.isMotionBlurOneWay
 
         // Formatting
         if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {

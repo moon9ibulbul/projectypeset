@@ -88,7 +88,8 @@ object ProjectManager {
 
         // Effect
         val currentEffect: String? = null, val secondaryEffect: String? = null, val effectSeed: Long? = null,
-        val chromaticColors: List<Int>? = null
+        val chromaticColors: List<Int>? = null,
+        val motionBlurLength: Float? = null, val motionBlurAngle: Int? = null, val isMotionBlurOneWay: Boolean? = null
     )
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -202,7 +203,8 @@ object ProjectManager {
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
                         eraseMaskPath = erasePath,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed,
-                        chromaticColors = layer.chromaticColors.toList()
+                        chromaticColors = layer.chromaticColors.toList(),
+                        motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle, isMotionBlurOneWay = layer.isMotionBlurOneWay
                     ))
 
                 } else if (layer is ImageLayer) {
@@ -477,6 +479,9 @@ object ProjectManager {
             }
             model.effectSeed?.let { layer.effectSeed = it }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
+            model.motionBlurLength?.let { layer.motionBlurLength = it }
+            model.motionBlurAngle?.let { layer.motionBlurAngle = it }
+            model.isMotionBlurOneWay?.let { layer.isMotionBlurOneWay = it }
 
             applyCommonProperties(layer, model)
             return layer

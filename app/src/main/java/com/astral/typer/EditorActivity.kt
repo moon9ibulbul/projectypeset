@@ -974,6 +974,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Pixelation", TextEffectType.PIXELATION)
         addEffectCard("Neon", TextEffectType.NEON)
         addEffectCard("Long Shadow", TextEffectType.LONG_SHADOW)
+        addEffectCard("Motion Blur", TextEffectType.MOTION_BLUR)
         addEffectCard("Fiery", TextEffectType.FIERY)
         addEffectCard("Wavy", TextEffectType.WAVY)
         addEffectCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR)
@@ -1107,6 +1108,51 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s1)
+        }
+        if (isEffectActive(TextEffectType.MOTION_BLUR)) {
+                val s1 = createSlider("Intensitas Blur: ${layer.motionBlurLength.toInt()}", layer.motionBlurLength.toInt(), 100) {
+                    layer.motionBlurLength = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.motionBlurLength = p.toFloat()
+                        tv1?.text = "Intensitas Blur: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                val s2 = createSlider("Arah Blur: ${layer.motionBlurAngle}°", layer.motionBlurAngle, 360) {
+                    layer.motionBlurAngle = it
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.motionBlurAngle = p
+                        tv2?.text = "Arah Blur: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                val cbOneWay = android.widget.CheckBox(this).apply {
+                    text = "Blur Satu Arah"
+                    isChecked = layer.isMotionBlurOneWay
+                    setTextColor(Color.WHITE)
+                    buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                    setOnCheckedChangeListener { _, isChecked ->
+                        layer.isMotionBlurOneWay = isChecked
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(cbOneWay)
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
                 val s1 = createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
