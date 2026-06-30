@@ -47,6 +47,7 @@ class TextLayer(
 
     // Motion Shadow
     var isMotionShadow: Boolean = false
+    var isMotionShadowIncludeStroke: Boolean = false
     var motionShadowAngle: Int = 0
     var motionShadowDistance: Float = 0f
 
@@ -201,6 +202,7 @@ class TextLayer(
         newLayer.shadowDx = this.shadowDx
         newLayer.shadowDy = this.shadowDy
         newLayer.isMotionShadow = this.isMotionShadow
+        newLayer.isMotionShadowIncludeStroke = this.isMotionShadowIncludeStroke
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
 
@@ -832,7 +834,8 @@ class TextLayer(
                 for (i in 1..iterations) {
                     val t = i / iterations.toFloat()
                     val d = t * effectiveDistance
-                    paint.alpha = (initialShadowAlpha * (1f - t)).toInt().coerceIn(0, 255)
+                    val iterationAlpha = (initialShadowAlpha * (1f - t)).toInt().coerceIn(0, 255)
+                    paint.alpha = iterationAlpha
                     val blur = t * maxBlur
                     if (blur > 0.5f) {
                         paint.maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
@@ -841,13 +844,25 @@ class TextLayer(
                     }
                     val dx = d * cos
                     val dy = d * sin
+
+                    val drawIteration = { canvas: Canvas ->
+                        if (isMotionShadowIncludeStroke) {
+                            silhouetteColor = (shadowColor and 0x00FFFFFF) or (iterationAlpha shl 24)
+                            drawMain(canvas)
+                            silhouetteColor = null
+                        } else {
+                            layout.draw(canvas)
+                        }
+                    }
+
                     targetCanvas.save()
                     targetCanvas.translate(dx, dy)
-                    layout.draw(targetCanvas)
+                    drawIteration(targetCanvas)
                     targetCanvas.restore()
+
                     targetCanvas.save()
                     targetCanvas.translate(-dx, -dy)
-                    layout.draw(targetCanvas)
+                    drawIteration(targetCanvas)
                     targetCanvas.restore()
                 }
                 paint.maskFilter = null
@@ -1174,7 +1189,40 @@ class TextLayer(
                             useRenderEffect = true
                         } catch(e: Exception) {}
                     }
-                    if (!useRenderEffect) drawInner(targetCanvas)
+                    if (!useRenderEffect) {
+                        val bmpW = ceil(w + pad * 2).toInt()
+                        val bmpH = ceil(h + pad * 2).toInt()
+                        if (bmpW > 0 && bmpH > 0) {
+                            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val c = Canvas(bitmap)
+                            c.translate(pad, pad)
+                            drawInner(c)
+
+                            val meshW = 20
+                            val meshH = 20
+                            val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
+                            val time = (System.currentTimeMillis() % 100000) / 1000f
+                            var idx = 0
+                            for (i in 0..meshH) {
+                                val v = i.toFloat() / meshH
+                                val y = v * bmpH
+                                val offset = sin(y * 0.05 * wavyFrequency + time * 5.0).toFloat() * wavyIntensity * 10.0f
+                                for (j in 0..meshW) {
+                                    val u = j.toFloat() / meshW
+                                    val x = u * bmpW
+                                    verts[idx++] = x + offset
+                                    verts[idx++] = y
+                                }
+                            }
+                            targetCanvas.save()
+                            targetCanvas.translate(-pad, -pad)
+                            targetCanvas.drawBitmapMesh(bitmap, meshW, meshH, verts, 0, null, 0, null)
+                            targetCanvas.restore()
+                            bitmap.recycle()
+                        } else {
+                            drawInner(targetCanvas)
+                        }
+                    }
                 }
                 TextEffectType.PARTICLE_DISSOLVE -> {
                     var useRenderEffect = false

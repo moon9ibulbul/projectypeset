@@ -4166,6 +4166,18 @@ class EditorActivity : AppCompatActivity() {
             }
             layout.addView(sbDist)
 
+            // Include Stroke Checkbox
+            val cbIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {
+                text = "Include stroke"
+                setTextColor(Color.WHITE)
+                isChecked = layer.isMotionShadowIncludeStroke
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                setOnCheckedChangeListener { _, isChecked ->
+                    layer.isMotionShadowIncludeStroke = isChecked
+                    canvasView.invalidate()
+                }
+            }
+            layout.addView(cbIncludeStroke)
 
             addView(layout)
         }
