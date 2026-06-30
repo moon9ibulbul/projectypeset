@@ -1179,6 +1179,11 @@ class EditorActivity : AppCompatActivity() {
         }
         if (isEffectActive(TextEffectType.MULTI_GRADIENT)) {
                 // Multi Gradient Control
+                val paletteLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 8, 0, 8)
+                }
+
                 val scrollPalette = HorizontalScrollView(this).apply {
                     isHorizontalScrollBarEnabled = false
                 }
@@ -1307,6 +1312,11 @@ class EditorActivity : AppCompatActivity() {
         }
         if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION)) {
                 // Chromatic Palette Control
+                val paletteLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 8, 0, 8)
+                }
+
                 val scrollPalette = HorizontalScrollView(this).apply {
                     isHorizontalScrollBarEnabled = false
                 }

@@ -1408,21 +1408,31 @@ class TextLayer(
                             targetCanvas.save()
                             targetCanvas.translate(-pad, -pad)
 
-                            // Multi-pass iterative rendering for software fallback
-                            // 1. Draw sharp version
-                            targetCanvas.drawBitmap(bitmap, 0f, 0f, fbPaint)
+                            // Multi-pass iterative rendering for software fallback (Warp/Perspective)
+                            // We need to blend multiple blurred copies to avoid "ghosting" artifacts
 
-                            // 2. Prepare Blur Layer
+                            // 1. Create a pre-blurred source to smooth out iterations
+                            val preBlurredBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val preBlurCanvas = Canvas(preBlurredBmp)
+                            val preBlurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                // Add a light blur to the source to smear iterations together
+                                maskFilter = BlurMaskFilter(5f, BlurMaskFilter.Blur.NORMAL)
+                            }
+                            preBlurCanvas.drawBitmap(bitmap, 0f, 0f, preBlurPaint)
+
+                            // 2. Iterative Drawing
                             val blurBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
                             val blurCanvas = Canvas(blurBitmap)
-                            val iterations = 8
+                            val iterations = 15 // Increased iterations for smoothness
                             val itPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
+                            // Boost zoomBase slightly for software fallback to make it more noticeable
+                            val effectiveZoomBase = zoomBase * 1.5
+
                             for (i in -iterations..iterations) {
-                                if (i == 0) continue
                                 val t = i / iterations.toFloat()
                                 val angle = t * motionRad
-                                val zoom = 1.0 + (t * zoomBase)
+                                val zoom = 1.0 + (t * effectiveZoomBase)
 
                                 val m = Matrix()
                                 m.postTranslate(-center.x, -center.y)
@@ -1430,26 +1440,46 @@ class TextLayer(
                                 m.postRotate(Math.toDegrees(angle).toFloat())
                                 m.postTranslate(center.x, center.y)
 
-                                val weight = (1.0 - Math.abs(t) * 0.3) / (iterations * 2)
+                                // Exponential falloff for weights to favor the center
+                                val weight = (1.0 - Math.abs(t) * 0.5) / (iterations * 1.5)
                                 itPaint.alpha = (weight * 255).toInt().coerceIn(1, 255)
-                                blurCanvas.drawBitmap(bitmap, m, itPaint)
+                                blurCanvas.drawBitmap(preBlurredBmp, m, itPaint)
                             }
 
-                            // 3. Mask the center of the blur layer
+                            // 3. Prepare Final Composite
+                            val finalBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val finalCanvas = Canvas(finalBitmap)
+
+                            // a. Draw Blurred Base
+                            finalCanvas.drawBitmap(blurBitmap, 0f, 0f, null)
+
+                            // b. Draw Sharp Center using masking
                             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
                             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+
+                            val sharpBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                            val sharpCanvas = Canvas(sharpBitmap)
+
                             val transitionWidth = Math.max(80f, radialBlurInnerRadius * 0.4f)
                             val grad = android.graphics.RadialGradient(
                                 center.x, center.y, radialBlurInnerRadius + transitionWidth,
-                                intArrayOf(Color.BLACK, Color.TRANSPARENT),
+                                intArrayOf(Color.TRANSPARENT, Color.BLACK),
                                 floatArrayOf(radialBlurInnerRadius / (radialBlurInnerRadius + transitionWidth), 1f),
                                 Shader.TileMode.CLAMP
                             )
                             maskPaint.shader = grad
-                            blurCanvas.drawCircle(center.x, center.y, radialBlurInnerRadius + transitionWidth, maskPaint)
+                            sharpCanvas.drawCircle(center.x, center.y, radialBlurInnerRadius + transitionWidth, maskPaint)
 
-                            // 4. Composite
-                            targetCanvas.drawBitmap(blurBitmap, 0f, 0f, null)
+                            finalCanvas.drawBitmap(sharpBitmap, 0f, 0f, null)
+
+                            // 4. Output to target
+                            targetCanvas.drawBitmap(finalBitmap, 0f, 0f, fbPaint)
+
+                            // Cleanup
+                            preBlurredBmp.recycle()
+                            blurBitmap.recycle()
+                            finalBitmap.recycle()
+                            sharpBitmap.recycle()
 
                             targetCanvas.restore()
                             bitmap.recycle()
@@ -1681,7 +1711,8 @@ class TextLayer(
 
                 for (float i = -10.0; i <= 10.0; i += 1.0) {
                     float t = i / 10.0;
-                    float currentAngle = t * angleRad;
+                    // Rotation should also scale with blurAmount for smooth transition
+                    float currentAngle = t * angleRad * blurAmount;
 
                     float s = sin(currentAngle);
                     float c = cos(currentAngle);
