@@ -96,7 +96,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecentProjects() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val projects = ProjectManager.getRecentProjects(this@MainActivity)
+            val allProjects = ProjectManager.getRecentProjects(this@MainActivity)
+            val projects = allProjects.take(5)
             withContext(Dispatchers.Main) {
                 val showSavingCard = ProjectManager.isSaving
 

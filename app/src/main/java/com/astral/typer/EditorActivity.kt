@@ -137,6 +137,9 @@ class EditorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Clear Undo history from previous sessions if any
+        com.astral.typer.utils.UndoManager.clearMemory()
+
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -317,7 +320,7 @@ class EditorActivity : AppCompatActivity() {
         super.onPause()
         // Auto Save
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
-        val enableAutosave = settingsPrefs.getBoolean("enable_autosave", true)
+        val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
         if (!enableAutosave) return
 
         // Capture data on Main Thread
@@ -350,8 +353,17 @@ class EditorActivity : AppCompatActivity() {
                     )
                 } finally {
                     ProjectManager.isSaving = false
+                    // Recycle temporary bitmaps
+                    bgBitmap?.recycle()
+                    bmp.recycle()
+                    thumbnail.recycle()
                 }
             }
+        } else {
+            // Even if not saved, we should recycle the temporary bitmaps
+            bgBitmap?.recycle()
+            bmp.recycle()
+            thumbnail.recycle()
         }
     }
 
@@ -1801,6 +1813,11 @@ class EditorActivity : AppCompatActivity() {
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                // Recycle temporary bitmaps
+                bgBitmap?.recycle()
+                bmp.recycle()
+                thumbnail.recycle()
             }
 
             withContext(Dispatchers.Main) {
