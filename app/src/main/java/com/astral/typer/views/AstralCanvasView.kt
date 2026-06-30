@@ -1805,7 +1805,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                     }
 
-                    if (!isPerspectiveMode) {
+                    if (!isPerspectiveMode && !isWarpToolActive) {
                         val halfW = layer.getWidth() / 2f
                         val halfH = layer.getHeight() / 2f
 
