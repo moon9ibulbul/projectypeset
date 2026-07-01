@@ -44,16 +44,14 @@ object PatternManager {
         }
     }
 
-    fun getPatternBitmap(context: Context, assetPath: String, color: Int, size: Int = 100): Bitmap? {
-        val cacheKey = "$assetPath-${Integer.toHexString(color)}-$size"
+    fun getPatternBitmap(context: Context, assetPath: String, color: Int): Bitmap? {
+        val cacheKey = "$assetPath-${Integer.toHexString(color)}"
         val cached = bitmapCache.get(cacheKey)
         if (cached != null && !cached.isRecycled) return cached
 
         val svgString = loadSvgAsString(context, assetPath) ?: return null
 
         // Color Manipulation
-        // Based on the repository, patterns often use #fff for background and #000 or #aaa for lines.
-        // We want background to be transparent and lines to be the selected color.
         val hexColor = String.format("#%06X", 0xFFFFFF and color)
 
         val manipulatedSvg = svgString
@@ -71,11 +69,11 @@ object PatternManager {
         return try {
             val svg = SVG.getFromString(manipulatedSvg)
 
-            // Set size for rendering
-            svg.documentWidth = size.toFloat()
-            svg.documentHeight = size.toFloat()
+            // Use intrinsic dimensions if available, otherwise default to 20x20 for patterns
+            val w = if (svg.documentWidth > 0) svg.documentWidth.toInt() else 20
+            val h = if (svg.documentHeight > 0) svg.documentHeight.toInt() else 20
 
-            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             svg.renderToCanvas(canvas)
 
@@ -85,6 +83,26 @@ object PatternManager {
             e.printStackTrace()
             null
         }
+    }
+
+    fun getPatternSampleBitmap(context: Context, assetPath: String, color: Int, size: Int = 150): Bitmap? {
+        val cacheKey = "sample-$assetPath-${Integer.toHexString(color)}-$size"
+        val cached = bitmapCache.get(cacheKey)
+        if (cached != null && !cached.isRecycled) return cached
+
+        val patternBmp = getPatternBitmap(context, assetPath, color) ?: return null
+
+        val sampleBmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sampleBmp)
+
+        // Fill with pattern
+        val shader = android.graphics.BitmapShader(patternBmp, android.graphics.Shader.TileMode.REPEAT, android.graphics.Shader.TileMode.REPEAT)
+        val paint = android.graphics.Paint()
+        paint.shader = shader
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
+
+        bitmapCache.put(cacheKey, sampleBmp)
+        return sampleBmp
     }
 
     fun clearCache() {

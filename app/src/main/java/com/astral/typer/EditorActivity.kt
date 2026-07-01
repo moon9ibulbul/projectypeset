@@ -1489,15 +1489,18 @@ class EditorActivity : AppCompatActivity() {
                     { showColorWheelDialogForProperty(layer.patternColor) { c -> layer.patternColor = c; canvasView.invalidate() } }
                 ))
 
-                // Alpha
-                settingsLayout.addView(createSlider("Intensity: ${(layer.patternAlpha / 2.55f).toInt()}%", layer.patternAlpha, 255) {
-                    layer.patternAlpha = it
+                // Intensity (Repurposed to control Scale/Density)
+                // Range 0% - 100%. Map to Scale 5.0x down to 0.1x
+                val initialIntensity = ((5.0f - layer.patternScale) / 4.9f * 100).toInt().coerceIn(0, 100)
+                settingsLayout.addView(createSlider("Intensity: $initialIntensity%", initialIntensity, 100) {
+                    val scale = 5.0f - (it / 100f * 4.9f)
+                    layer.patternScale = scale
                     canvasView.invalidate()
                 })
 
-                // Scale
-                settingsLayout.addView(createSlider("Scale: ${(layer.patternScale * 100).toInt()}%", (layer.patternScale * 50).toInt(), 500) {
-                    layer.patternScale = it / 50f
+                // Opacity
+                settingsLayout.addView(createSlider("Opacity: ${(layer.patternAlpha / 2.55f).toInt()}%", layer.patternAlpha, 255) {
+                    layer.patternAlpha = it
                     canvasView.invalidate()
                 })
 
