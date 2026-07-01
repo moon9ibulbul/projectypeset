@@ -691,14 +691,20 @@ class EditorActivity : AppCompatActivity() {
             addImageLauncher.launch("image/*")
         }
 
+        binding.btnInsertShape.setOnClickListener {
+            showShapePicker()
+        }
+
         // Top Bar Add Button
         binding.btnAdd.setOnClickListener { view ->
             val popup = android.widget.PopupMenu(this, view)
             popup.menu.add("Text")
             popup.menu.add("Image")
+            popup.menu.add("Shape")
             popup.setOnMenuItemClickListener {
                  if (it.title == "Text") canvasView.addTextLayer("Double Tap to Edit")
                  else if (it.title == "Image") addImageLauncher.launch("image/*")
+                 else if (it.title == "Shape") showShapePicker()
                  true
             }
             popup.show()
@@ -834,7 +840,18 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showEffectMenu() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer()
+        if (layer == null) return
+
+        // Handle ShapeLayer or TextLayer
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
+
+        val getEffect = { if (layerAsText != null) layerAsText.currentEffect else layerAsShape!!.currentEffect }
+        val getSecondaryEffect = { if (layerAsText != null) layerAsText.secondaryEffect else layerAsShape!!.secondaryEffect }
+        val setEffect = { e: TextEffectType -> if (layerAsText != null) layerAsText.currentEffect = e else layerAsShape!!.currentEffect = e }
+        val setSecondaryEffect = { e: TextEffectType -> if (layerAsText != null) layerAsText.secondaryEffect = e else layerAsShape!!.secondaryEffect = e }
 
         // Wrap everything in a ScrollView to ensure sliders are visible on small screens/landscape
         val mainScroll = ScrollView(this).apply {
@@ -901,18 +918,21 @@ class EditorActivity : AppCompatActivity() {
             // Generate Preview
             val previewBitmap = android.graphics.Bitmap.createBitmap(dpToPx(100), dpToPx(60), android.graphics.Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(previewBitmap)
-            val dummyLayer = TextLayer("Abc").apply {
-                fontSize = dpToPx(30).toFloat()
-                color = Color.WHITE
-                currentEffect = effectType
-                if (effectType == TextEffectType.LONG_SHADOW) {
-                     shadowColor = Color.DKGRAY // Needs shadow color for long shadow
+            val dummyLayer = if (layerAsShape != null) {
+                com.astral.typer.models.ShapeLayer(layerAsShape.shapeName).apply {
+                    color = Color.WHITE; currentEffect = effectType
+                    if (effectType == TextEffectType.LONG_SHADOW) shadowColor = Color.DKGRAY
+                }
+            } else {
+                TextLayer("Abc").apply {
+                    fontSize = dpToPx(30).toFloat(); color = Color.WHITE; currentEffect = effectType
+                    if (effectType == TextEffectType.LONG_SHADOW) shadowColor = Color.DKGRAY
                 }
             }
             // Center the dummy layer on the preview canvas
             dummyLayer.x = dpToPx(50).toFloat()
             dummyLayer.y = dpToPx(30).toFloat()
-            dummyLayer.draw(canvas)
+            if (dummyLayer is TextLayer) dummyLayer.draw(canvas) else (dummyLayer as com.astral.typer.models.ShapeLayer).draw(canvas)
 
             val imgPreview = android.widget.ImageView(this).apply {
                 setImageBitmap(previewBitmap)
@@ -936,46 +956,51 @@ class EditorActivity : AppCompatActivity() {
 
         val handleEffectToggle = { effect: TextEffectType, isToggleOff: Boolean ->
             if (effect == TextEffectType.NONE) {
-                layer.currentEffect = TextEffectType.NONE
-                layer.secondaryEffect = TextEffectType.NONE
+                setEffect(TextEffectType.NONE); setSecondaryEffect(TextEffectType.NONE)
             } else if (isToggleOff) {
-                if (layer.currentEffect == effect) layer.currentEffect = TextEffectType.NONE
-                if (layer.secondaryEffect == effect) layer.secondaryEffect = TextEffectType.NONE
+                if (getEffect() == effect) setEffect(TextEffectType.NONE)
+                if (getSecondaryEffect() == effect) setSecondaryEffect(TextEffectType.NONE)
             } else {
-                if (layer.currentEffect == TextEffectType.NONE) {
-                    layer.currentEffect = effect
-                } else if (layer.secondaryEffect == TextEffectType.NONE && layer.currentEffect != effect) {
-                    layer.secondaryEffect = effect
-                } else if (layer.currentEffect != effect && layer.secondaryEffect != effect) {
-                    // Replace the first effect if both are full
-                    layer.currentEffect = layer.secondaryEffect
-                    layer.secondaryEffect = effect
+                if (getEffect() == TextEffectType.NONE) setEffect(effect)
+                else if (getSecondaryEffect() == TextEffectType.NONE && getEffect() != effect) setSecondaryEffect(effect)
+                else if (getEffect() != effect && getSecondaryEffect() != effect) {
+                    setEffect(getSecondaryEffect()); setSecondaryEffect(effect)
                 }
             }
 
             // Defaults
-            if (effect == TextEffectType.CHROMATIC_ABERRATION && layer.chromaticShift == 0f) layer.chromaticShift = 5f
-            if (effect == TextEffectType.GLITCH && layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
-            if (effect == TextEffectType.PIXELATION && layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
-            if (effect == TextEffectType.NEON && layer.neonRadius == 0f) layer.neonRadius = 30f
-            if (effect == TextEffectType.LONG_SHADOW && layer.longShadowLength == 0f) layer.longShadowLength = 30f
-            if (effect == TextEffectType.GAUSSIAN_BLUR && layer.blurRadius == 0f) layer.blurRadius = 10f
-            if (effect == TextEffectType.HALFTONE && layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
+            if (layer is TextLayer) {
+                if (effect == TextEffectType.CHROMATIC_ABERRATION && layer.chromaticShift == 0f) layer.chromaticShift = 5f
+                if (effect == TextEffectType.GLITCH && layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
+                if (effect == TextEffectType.PIXELATION && layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
+                if (effect == TextEffectType.NEON && layer.neonRadius == 0f) layer.neonRadius = 30f
+                if (effect == TextEffectType.LONG_SHADOW && layer.longShadowLength == 0f) layer.longShadowLength = 30f
+                if (effect == TextEffectType.GAUSSIAN_BLUR && layer.blurRadius == 0f) layer.blurRadius = 10f
+                if (effect == TextEffectType.HALFTONE && layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
+            } else if (layer is com.astral.typer.models.ShapeLayer) {
+                if (effect == TextEffectType.CHROMATIC_ABERRATION && layer.chromaticShift == 0f) layer.chromaticShift = 5f
+                if (effect == TextEffectType.GLITCH && layer.glitchIntensity == 0f) layer.glitchIntensity = 1.0f
+                if (effect == TextEffectType.PIXELATION && layer.pixelBlockSize == 0f) layer.pixelBlockSize = 10f
+                if (effect == TextEffectType.NEON && layer.neonRadius == 0f) layer.neonRadius = 30f
+                if (effect == TextEffectType.LONG_SHADOW && layer.longShadowLength == 0f) layer.longShadowLength = 30f
+                if (effect == TextEffectType.GAUSSIAN_BLUR && layer.blurRadius == 0f) layer.blurRadius = 10f
+                if (effect == TextEffectType.HALFTONE && layer.halftoneDotSize == 0f) layer.halftoneDotSize = 10f
+            }
 
             canvasView.invalidate()
             showEffectMenu()
         }
 
         fun addEffectCard(title: String, effect: TextEffectType) {
-            val isPrimary = layer.currentEffect == effect
-            val isSecondary = layer.secondaryEffect == effect
+            val isPrimary = getEffect() == effect
+            val isSecondary = getSecondaryEffect() == effect
             cardsLayout.addView(createCard(title, effect, isPrimary, isSecondary,
                 onClick = { handleEffectToggle(effect, false) },
                 onDoubleClick = { handleEffectToggle(effect, true) }
             ))
         }
 
-        val noEffectActive = layer.currentEffect == TextEffectType.NONE && layer.secondaryEffect == TextEffectType.NONE
+        val noEffectActive = getEffect() == TextEffectType.NONE && getSecondaryEffect() == TextEffectType.NONE
         cardsLayout.addView(createCard("None", TextEffectType.NONE, noEffectActive, false,
             onClick = { handleEffectToggle(TextEffectType.NONE, false) },
             onDoubleClick = { }
@@ -1007,17 +1032,18 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Helper to check if effect is active
-        val isEffectActive = { effect: TextEffectType -> layer.currentEffect == effect || layer.secondaryEffect == effect }
+        val isEffectActive = { effect: TextEffectType -> getEffect() == effect || getSecondaryEffect() == effect }
 
         if (isEffectActive(TextEffectType.LONG_SHADOW)) {
-                val s1 = createSlider("Length: ${layer.longShadowLength.toInt()}", layer.longShadowLength.toInt(), 100) {
-                    layer.longShadowLength = it.toFloat()
+                val currentLen = if (layerAsText != null) layerAsText.longShadowLength else layerAsShape!!.longShadowLength
+                val s1 = createSlider("Length: ${currentLen.toInt()}", currentLen.toInt(), 100) {
+                    if (layerAsText != null) layerAsText.longShadowLength = it.toFloat() else layerAsShape!!.longShadowLength = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.longShadowLength = p.toFloat()
+                        if (layerAsText != null) layerAsText.longShadowLength = p.toFloat() else layerAsShape!!.longShadowLength = p.toFloat()
                         tv1?.text = "Length: $p"
                         canvasView.invalidate()
                     }
@@ -1026,14 +1052,15 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(s1)
 
-                val s2 = createSlider("Angle: ${layer.longShadowAngle.toInt()}°", layer.longShadowAngle.toInt(), 360) {
-                    layer.longShadowAngle = it.toFloat()
+                val currentAngle = if (layerAsText != null) layerAsText.longShadowAngle else layerAsShape!!.longShadowAngle
+                val s2 = createSlider("Angle: ${currentAngle.toInt()}°", currentAngle.toInt(), 360) {
+                    if (layerAsText != null) layerAsText.longShadowAngle = it.toFloat() else layerAsShape!!.longShadowAngle = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
                 s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.longShadowAngle = p.toFloat()
+                        if (layerAsText != null) layerAsText.longShadowAngle = p.toFloat() else layerAsShape!!.longShadowAngle = p.toFloat()
                         tv2?.text = "Angle: $p°"
                         canvasView.invalidate()
                     }
@@ -1043,20 +1070,22 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s2)
                 val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                settingsLayout.addView(createColorScroll(layer.longShadowColor,
-                    { c -> layer.longShadowColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(layer.longShadowColor) { c -> layer.longShadowColor = c; canvasView.invalidate() } }
+                val currentShadowColor = if (layerAsText != null) layerAsText.longShadowColor else layerAsShape!!.longShadowColor
+                settingsLayout.addView(createColorScroll(currentShadowColor,
+                    { c -> if (layerAsText != null) layerAsText.longShadowColor = c else layerAsShape!!.longShadowColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(currentShadowColor) { c -> if (layerAsText != null) layerAsText.longShadowColor = c else layerAsShape!!.longShadowColor = c; canvasView.invalidate() } }
                 ))
         }
         if (isEffectActive(TextEffectType.FIERY)) {
-                val s1 = createSlider("Intensity: ${(layer.fieryIntensity * 100).toInt()}%", (layer.fieryIntensity * 100).toInt(), 100) {
-                    layer.fieryIntensity = it / 100f
+                val currentFieryInt = if (layerAsText != null) layerAsText.fieryIntensity else layerAsShape!!.fieryIntensity
+                val s1 = createSlider("Intensity: ${(currentFieryInt * 100).toInt()}%", (currentFieryInt * 100).toInt(), 100) {
+                    if (layerAsText != null) layerAsText.fieryIntensity = it / 100f else layerAsShape!!.fieryIntensity = it / 100f
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.fieryIntensity = p / 100f
+                        if (layerAsText != null) layerAsText.fieryIntensity = p / 100f else layerAsShape!!.fieryIntensity = p / 100f
                         tv1?.text = "Intensity: $p%"
                         canvasView.invalidate()
                     }
@@ -1066,20 +1095,22 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                settingsLayout.addView(createColorScroll(layer.fieryColor,
-                    { c -> layer.fieryColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(layer.fieryColor) { c -> layer.fieryColor = c; canvasView.invalidate() } }
+                val currentFieryColor = if (layerAsText != null) layerAsText.fieryColor else layerAsShape!!.fieryColor
+                settingsLayout.addView(createColorScroll(currentFieryColor,
+                    { c -> if (layerAsText != null) layerAsText.fieryColor = c else layerAsShape!!.fieryColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(currentFieryColor) { c -> if (layerAsText != null) layerAsText.fieryColor = c else layerAsShape!!.fieryColor = c; canvasView.invalidate() } }
                 ))
         }
         if (isEffectActive(TextEffectType.WAVY)) {
-                val s1 = createSlider("Intensity: ${(layer.wavyIntensity * 100).toInt()}%", (layer.wavyIntensity * 100).toInt(), 100) {
-                    layer.wavyIntensity = it / 100f
+                val currentWavyInt = if (layerAsText != null) layerAsText.wavyIntensity else layerAsShape!!.wavyIntensity
+                val s1 = createSlider("Intensity: ${(currentWavyInt * 100).toInt()}%", (currentWavyInt * 100).toInt(), 100) {
+                    if (layerAsText != null) layerAsText.wavyIntensity = it / 100f else layerAsShape!!.wavyIntensity = it / 100f
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.wavyIntensity = p / 100f
+                        if (layerAsText != null) layerAsText.wavyIntensity = p / 100f else layerAsShape!!.wavyIntensity = p / 100f
                         tv1?.text = "Intensity: $p%"
                         canvasView.invalidate()
                     }
@@ -1088,14 +1119,15 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(s1)
 
-                val s2 = createSlider("Frequency: ${layer.wavyFrequency.toInt()}", layer.wavyFrequency.toInt(), 50) {
-                    layer.wavyFrequency = it.toFloat()
+                val currentFreq = if (layerAsText != null) layerAsText.wavyFrequency else layerAsShape!!.wavyFrequency
+                val s2 = createSlider("Frequency: ${currentFreq.toInt()}", currentFreq.toInt(), 50) {
+                    if (layerAsText != null) layerAsText.wavyFrequency = it.toFloat() else layerAsShape!!.wavyFrequency = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
                 s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.wavyFrequency = p.toFloat()
+                        if (layerAsText != null) layerAsText.wavyFrequency = p.toFloat() else layerAsShape!!.wavyFrequency = p.toFloat()
                         tv2?.text = "Frequency: $p"
                         canvasView.invalidate()
                     }
@@ -1105,14 +1137,15 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s2)
         }
         if (isEffectActive(TextEffectType.RADIAL_BLUR)) {
-                val s1 = createSlider("Clear Area: ${layer.radialBlurInnerRadius.toInt()}", layer.radialBlurInnerRadius.toInt(), 500) {
-                    layer.radialBlurInnerRadius = it.toFloat()
+                val currentInner = if (layerAsText != null) layerAsText.radialBlurInnerRadius else layerAsShape!!.radialBlurInnerRadius
+                val s1 = createSlider("Clear Area: ${currentInner.toInt()}", currentInner.toInt(), 500) {
+                    if (layerAsText != null) layerAsText.radialBlurInnerRadius = it.toFloat() else layerAsShape!!.radialBlurInnerRadius = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.radialBlurInnerRadius = p.toFloat()
+                        if (layerAsText != null) layerAsText.radialBlurInnerRadius = p.toFloat() else layerAsShape!!.radialBlurInnerRadius = p.toFloat()
                         tv1?.text = "Clear Area: $p"
                         canvasView.invalidate()
                     }
@@ -1121,14 +1154,15 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(s1)
 
-                val s2 = createSlider("Motion Strength: ${layer.radialBlurMotionStrength.toInt()}", layer.radialBlurMotionStrength.toInt(), 180) {
-                    layer.radialBlurMotionStrength = it.toFloat()
+                val currentMotion = if (layerAsText != null) layerAsText.radialBlurMotionStrength else layerAsShape!!.radialBlurMotionStrength
+                val s2 = createSlider("Motion Strength: ${currentMotion.toInt()}", currentMotion.toInt(), 180) {
+                    if (layerAsText != null) layerAsText.radialBlurMotionStrength = it.toFloat() else layerAsShape!!.radialBlurMotionStrength = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
                 s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.radialBlurMotionStrength = p.toFloat()
+                        if (layerAsText != null) layerAsText.radialBlurMotionStrength = p.toFloat() else layerAsShape!!.radialBlurMotionStrength = p.toFloat()
                         tv2?.text = "Motion Strength: $p"
                         canvasView.invalidate()
                     }
@@ -1138,14 +1172,15 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s2)
         }
         if (isEffectActive(TextEffectType.GAUSSIAN_BLUR)) {
-                val s1 = createSlider("Blur Strength: ${layer.blurRadius.toInt()}", layer.blurRadius.toInt(), 50) {
-                    layer.blurRadius = it.toFloat()
+                val currentBlur = if (layerAsText != null) layerAsText.blurRadius else layerAsShape!!.blurRadius
+                val s1 = createSlider("Blur Strength: ${currentBlur.toInt()}", currentBlur.toInt(), 50) {
+                    if (layerAsText != null) layerAsText.blurRadius = it.toFloat() else layerAsShape!!.blurRadius = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.blurRadius = p.toFloat()
+                        if (layerAsText != null) layerAsText.blurRadius = p.toFloat() else layerAsShape!!.blurRadius = p.toFloat()
                         tv1?.text = "Blur Strength: $p"
                         canvasView.invalidate()
                     }
@@ -1155,14 +1190,15 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
-                val s1 = createSlider("Dot Size: ${layer.halftoneDotSize.toInt()}", layer.halftoneDotSize.toInt().coerceIn(1, 50), 50) {
-                    layer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
+                val currentDotSize = if (layerAsText != null) layerAsText.halftoneDotSize else layerAsShape!!.halftoneDotSize
+                val s1 = createSlider("Dot Size: ${currentDotSize.toInt()}", currentDotSize.toInt().coerceIn(1, 50), 50) {
+                    if (layerAsText != null) layerAsText.halftoneDotSize = it.coerceAtLeast(1).toFloat() else layerAsShape!!.halftoneDotSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.halftoneDotSize = p.coerceAtLeast(1).toFloat()
+                        if (layerAsText != null) layerAsText.halftoneDotSize = p.coerceAtLeast(1).toFloat() else layerAsShape!!.halftoneDotSize = p.coerceAtLeast(1).toFloat()
                         tv1?.text = "Dot Size: $p"
                         canvasView.invalidate()
                     }
@@ -1172,9 +1208,10 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                settingsLayout.addView(createColorScroll(layer.halftoneDotColor,
-                    { c -> layer.halftoneDotColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(layer.halftoneDotColor) { c -> layer.halftoneDotColor = c; canvasView.invalidate() } }
+                val currentDotColor = if (layerAsText != null) layerAsText.halftoneDotColor else layerAsShape!!.halftoneDotColor
+                settingsLayout.addView(createColorScroll(currentDotColor,
+                    { c -> if (layerAsText != null) layerAsText.halftoneDotColor = c else layerAsShape!!.halftoneDotColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(currentDotColor) { c -> if (layerAsText != null) layerAsText.halftoneDotColor = c else layerAsShape!!.halftoneDotColor = c; canvasView.invalidate() } }
                 ))
         }
         if (isEffectActive(TextEffectType.MULTI_GRADIENT)) {
@@ -1217,7 +1254,7 @@ class EditorActivity : AppCompatActivity() {
                             setMargins(4,0,4,0)
                         }
                         setOnClickListener {
-                            layer.multiGradientColors = p.colors
+                            if (layerAsText != null) layerAsText.multiGradientColors = p.colors else layerAsShape!!.multiGradientColors = p.colors
                             canvasView.invalidate()
                         }
                     }
@@ -1227,14 +1264,15 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
                 settingsLayout.addView(scrollPalette)
 
-                val s1 = createSlider("Angle: ${layer.multiGradientAngle.toInt()}°", layer.multiGradientAngle.toInt(), 360) {
-                    layer.multiGradientAngle = it.toFloat()
+                val currentMGAngle = if (layerAsText != null) layerAsText.multiGradientAngle else layerAsShape!!.multiGradientAngle
+                val s1 = createSlider("Angle: ${currentMGAngle.toInt()}°", currentMGAngle.toInt(), 360) {
+                    if (layerAsText != null) layerAsText.multiGradientAngle = it.toFloat() else layerAsShape!!.multiGradientAngle = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.multiGradientAngle = p.toFloat()
+                        if (layerAsText != null) layerAsText.multiGradientAngle = p.toFloat() else layerAsShape!!.multiGradientAngle = p.toFloat()
                         tv1?.text = "Angle: $p°"
                         canvasView.invalidate()
                     }
@@ -1244,14 +1282,15 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.NEON)) {
-                val s1 = createSlider("Glow Radius: ${layer.neonRadius.toInt()}", layer.neonRadius.toInt(), 100) {
-                    layer.neonRadius = it.coerceAtLeast(1).toFloat()
+                val currentNeonRadius = if (layerAsText != null) layerAsText.neonRadius else layerAsShape!!.neonRadius
+                val s1 = createSlider("Glow Radius: ${currentNeonRadius.toInt()}", currentNeonRadius.toInt(), 100) {
+                    if (layerAsText != null) layerAsText.neonRadius = it.coerceAtLeast(1).toFloat() else layerAsShape!!.neonRadius = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.neonRadius = p.coerceAtLeast(1).toFloat()
+                        if (layerAsText != null) layerAsText.neonRadius = p.coerceAtLeast(1).toFloat() else layerAsShape!!.neonRadius = p.coerceAtLeast(1).toFloat()
                         tv1?.text = "Glow Radius: $p"
                         canvasView.invalidate()
                     }
@@ -1261,20 +1300,22 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                settingsLayout.addView(createColorScroll(layer.neonColor,
-                    { c -> layer.neonColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(layer.neonColor) { c -> layer.neonColor = c; canvasView.invalidate() } }
+                val currentNeonColor = if (layerAsText != null) layerAsText.neonColor else layerAsShape!!.neonColor
+                settingsLayout.addView(createColorScroll(currentNeonColor,
+                    { c -> if (layerAsText != null) layerAsText.neonColor = c else layerAsShape!!.neonColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(currentNeonColor) { c -> if (layerAsText != null) layerAsText.neonColor = c else layerAsShape!!.neonColor = c; canvasView.invalidate() } }
                 ))
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
-                val s1 = createSlider("Intensity: ${(layer.glitchIntensity * 100).toInt()}%", (layer.glitchIntensity * 100).toInt(), 200) {
-                    layer.glitchIntensity = it / 100f
+                val currentGlitchInt = if (layerAsText != null) layerAsText.glitchIntensity else layerAsShape!!.glitchIntensity
+                val s1 = createSlider("Intensity: ${(currentGlitchInt * 100).toInt()}%", (currentGlitchInt * 100).toInt(), 200) {
+                    if (layerAsText != null) layerAsText.glitchIntensity = it / 100f else layerAsShape!!.glitchIntensity = it / 100f
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.glitchIntensity = p / 100f
+                        if (layerAsText != null) layerAsText.glitchIntensity = p / 100f else layerAsShape!!.glitchIntensity = p / 100f
                         tv1?.text = "Intensity: $p%"
                         canvasView.invalidate()
                     }
@@ -1287,21 +1328,22 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
-                        layer.effectSeed = System.currentTimeMillis()
+                        if (layerAsText != null) layerAsText.effectSeed = System.currentTimeMillis() else layerAsShape!!.effectSeed = System.currentTimeMillis()
                         canvasView.invalidate()
                     }
                 }
                 settingsLayout.addView(btnSeed)
         }
         if (isEffectActive(TextEffectType.PIXELATION)) {
-                val s1 = createSlider("Block Size: ${layer.pixelBlockSize.toInt()}", layer.pixelBlockSize.toInt().coerceIn(1, 50), 50) {
-                    layer.pixelBlockSize = it.coerceAtLeast(1).toFloat()
+                val currentPixelSize = if (layerAsText != null) layerAsText.pixelBlockSize else layerAsShape!!.pixelBlockSize
+                val s1 = createSlider("Block Size: ${currentPixelSize.toInt()}", currentPixelSize.toInt().coerceIn(1, 50), 50) {
+                    if (layerAsText != null) layerAsText.pixelBlockSize = it.coerceAtLeast(1).toFloat() else layerAsShape!!.pixelBlockSize = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.pixelBlockSize = p.coerceAtLeast(1).toFloat()
+                        if (layerAsText != null) layerAsText.pixelBlockSize = p.coerceAtLeast(1).toFloat() else layerAsShape!!.pixelBlockSize = p.coerceAtLeast(1).toFloat()
                         tv1?.text = "Block Size: $p"
                         canvasView.invalidate()
                     }
@@ -1352,7 +1394,7 @@ class EditorActivity : AppCompatActivity() {
                             setMargins(4,0,4,0)
                         }
                         setOnClickListener {
-                            layer.chromaticColors = p.colors
+                            if (layerAsText != null) layerAsText.chromaticColors = p.colors else layerAsShape!!.chromaticColors = p.colors
                             canvasView.invalidate()
                         }
                     }
@@ -1378,14 +1420,15 @@ class EditorActivity : AppCompatActivity() {
                         layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).apply {
                             setMargins(4, 0, 4, 0)
                         }
+                        val currentColor = if (layerAsText != null) layerAsText.chromaticColors[i] else layerAsShape!!.chromaticColors[i]
                         background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
-                            setColor(layer.chromaticColors[i])
+                            setColor(currentColor)
                             setStroke(dpToPx(1), Color.WHITE)
                         }
                         setOnClickListener { btn ->
-                            showColorWheelDialogForProperty(layer.chromaticColors[i]) { pickedColor ->
-                                layer.chromaticColors[i] = pickedColor
+                            showColorWheelDialogForProperty(currentColor) { pickedColor ->
+                                if (layerAsText != null) layerAsText.chromaticColors[i] = pickedColor else layerAsShape!!.chromaticColors[i] = pickedColor
                                 (btn.background as GradientDrawable).setColor(pickedColor)
                                 canvasView.invalidate()
                             }
@@ -1399,14 +1442,15 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
                 settingsLayout.addView(scrollPalette)
 
-                val s1 = createSlider("Shift: ${layer.chromaticShift.toInt()}", layer.chromaticShift.toInt(), 50) {
-                    layer.chromaticShift = it.toFloat()
+                val currentShift = if (layerAsText != null) layerAsText.chromaticShift else layerAsShape!!.chromaticShift
+                val s1 = createSlider("Shift: ${currentShift.toInt()}", currentShift.toInt(), 50) {
+                    if (layerAsText != null) layerAsText.chromaticShift = it.toFloat() else layerAsShape!!.chromaticShift = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.chromaticShift = p.toFloat()
+                        if (layerAsText != null) layerAsText.chromaticShift = p.toFloat() else layerAsShape!!.chromaticShift = p.toFloat()
                         tv1?.text = "Shift: $p"
                         canvasView.invalidate()
                     }
@@ -1421,7 +1465,10 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showTextureMenu() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1470,7 +1517,10 @@ class EditorActivity : AppCompatActivity() {
         btnRow.addView(btnBrowse)
         layout.addView(btnRow)
 
-        if (layer.textureBitmap != null || layer.patternName != null) {
+        val layerTextureBitmap = if (layerAsText != null) layerAsText.textureBitmap else layerAsShape!!.textureBitmap
+        val layerPatternName = if (layerAsText != null) layerAsText.patternName else layerAsShape!!.patternName
+
+        if (layerTextureBitmap != null || layerPatternName != null) {
             val settingsScroll = ScrollView(this).apply {
                 isVerticalScrollBarEnabled = false
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -1481,32 +1531,36 @@ class EditorActivity : AppCompatActivity() {
             }
             settingsScroll.addView(settingsLayout)
 
-            if (layer.patternName != null) {
+            if (layerPatternName != null) {
+                val currentPatternColor = if (layerAsText != null) layerAsText.patternColor else layerAsShape!!.patternColor
+                val currentPatternScale = if (layerAsText != null) layerAsText.patternScale else layerAsShape!!.patternScale
+                val currentPatternAlpha = if (layerAsText != null) layerAsText.patternAlpha else layerAsShape!!.patternAlpha
+                val currentPatternRotation = if (layerAsText != null) layerAsText.patternRotation else layerAsShape!!.patternRotation
+
                 // Color
                 settingsLayout.addView(TextView(this).apply { text = "Pattern Color"; setTextColor(Color.LTGRAY) })
-                settingsLayout.addView(createColorScroll(layer.patternColor,
-                    { c -> layer.patternColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(layer.patternColor) { c -> layer.patternColor = c; canvasView.invalidate() } }
+                settingsLayout.addView(createColorScroll(currentPatternColor,
+                    { c -> if (layerAsText != null) layerAsText.patternColor = c else layerAsShape!!.patternColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(currentPatternColor) { c -> if (layerAsText != null) layerAsText.patternColor = c else layerAsShape!!.patternColor = c; canvasView.invalidate() } }
                 ))
 
-                // Intensity (Repurposed to control Scale/Density)
-                // Range 0% - 100%. Map to Scale 5.0x down to 0.1x
-                val initialIntensity = ((5.0f - layer.patternScale) / 4.9f * 100).toInt().coerceIn(0, 100)
+                // Intensity
+                val initialIntensity = ((5.0f - currentPatternScale) / 4.9f * 100).toInt().coerceIn(0, 100)
                 settingsLayout.addView(createSlider("Intensity: $initialIntensity%", initialIntensity, 100) {
                     val scale = 5.0f - (it / 100f * 4.9f)
-                    layer.patternScale = scale
+                    if (layerAsText != null) layerAsText.patternScale = scale else layerAsShape!!.patternScale = scale
                     canvasView.invalidate()
                 })
 
                 // Opacity
-                settingsLayout.addView(createSlider("Opacity: ${(layer.patternAlpha / 2.55f).toInt()}%", layer.patternAlpha, 255) {
-                    layer.patternAlpha = it
+                settingsLayout.addView(createSlider("Opacity: ${(currentPatternAlpha / 2.55f).toInt()}%", currentPatternAlpha, 255) {
+                    if (layerAsText != null) layerAsText.patternAlpha = it else layerAsShape!!.patternAlpha = it
                     canvasView.invalidate()
                 })
 
                 // Rotation
-                settingsLayout.addView(createSlider("Rotation: ${layer.patternRotation.toInt()}°", layer.patternRotation.toInt(), 360) {
-                    layer.patternRotation = it.toFloat()
+                settingsLayout.addView(createSlider("Rotation: ${currentPatternRotation.toInt()}°", currentPatternRotation.toInt(), 360) {
+                    if (layerAsText != null) layerAsText.patternRotation = it.toFloat() else layerAsShape!!.patternRotation = it.toFloat()
                     canvasView.invalidate()
                 })
 
@@ -1515,7 +1569,7 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply { setColor(Color.parseColor("#880000")); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
-                        layer.patternName = null
+                        if (layerAsText != null) layerAsText.patternName = null else layerAsShape!!.patternName = null
                         canvasView.invalidate()
                         showTextureMenu()
                     }
@@ -1525,7 +1579,7 @@ class EditorActivity : AppCompatActivity() {
 
             // Offset Controls (Arrows)
             val controlsLabel = TextView(this).apply {
-                text = if (layer.patternName != null) "Shift Pattern" else "Shift Texture"
+                text = if (layerPatternName != null) "Shift Pattern" else "Shift Texture"
                 setTextColor(Color.LTGRAY)
                 setPadding(0, 16, 0, 8)
             }
@@ -1555,8 +1609,8 @@ class EditorActivity : AppCompatActivity() {
                         setMargins(2,2,2,2)
                     }
                     setOnClickListener {
-                        layer.textureOffsetX += dx
-                        layer.textureOffsetY += dy
+                        if (layerAsText != null) { layerAsText.textureOffsetX += dx; layerAsText.textureOffsetY += dy }
+                        else { layerAsShape!!.textureOffsetX += dx; layerAsShape!!.textureOffsetY += dy }
                         canvasView.invalidate()
                     }
                 }
@@ -1574,8 +1628,8 @@ class EditorActivity : AppCompatActivity() {
                 setTextColor(Color.WHITE)
                 layoutParams = GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40); setMargins(2,2,2,2) }
                 setOnClickListener {
-                    layer.textureOffsetX = 0f
-                    layer.textureOffsetY = 0f
+                    if (layerAsText != null) { layerAsText.textureOffsetX = 0f; layerAsText.textureOffsetY = 0f }
+                    else { layerAsShape!!.textureOffsetX = 0f; layerAsShape!!.textureOffsetY = 0f }
                     canvasView.invalidate()
                 }
             }
@@ -1595,7 +1649,10 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showPatternBrowser() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1628,12 +1685,17 @@ class EditorActivity : AppCompatActivity() {
         }
 
         val patterns = com.astral.typer.utils.PatternManager.listPatterns(this)
-        recyclerView.adapter = PatternAdapter(lifecycleScope, patterns, layer.patternName) { selected ->
-            layer.patternName = selected
-            // Defaults
-            if (layer.patternAlpha == 0) layer.patternAlpha = 255
-            if (layer.patternScale == 0f) layer.patternScale = 1.0f
-
+        val currentPatternName = if (layerAsText != null) layerAsText.patternName else layerAsShape!!.patternName
+        recyclerView.adapter = PatternAdapter(lifecycleScope, patterns, currentPatternName) { selected ->
+            if (layerAsText != null) {
+                layerAsText.patternName = selected
+                if (layerAsText.patternAlpha == 0) layerAsText.patternAlpha = 255
+                if (layerAsText.patternScale == 0f) layerAsText.patternScale = 1.0f
+            } else if (layerAsShape != null) {
+                layerAsShape.patternName = selected
+                if (layerAsShape.patternAlpha == 0) layerAsShape.patternAlpha = 255
+                if (layerAsShape.patternScale == 0f) layerAsShape.patternScale = 1.0f
+            }
             canvasView.invalidate()
             showTextureMenu()
         }
@@ -1697,13 +1759,13 @@ class EditorActivity : AppCompatActivity() {
             try {
                 val inputStream = contentResolver.openInputStream(it)
                 val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
-                val layer = canvasView.getSelectedLayer() as? TextLayer
+                val layer = canvasView.getSelectedLayer()
                 if (bitmap != null && layer != null) {
-                     layer.textureBitmap = bitmap
-                     layer.textureOffsetX = 0f
-                     layer.textureOffsetY = 0f
-                     // Disable Gradient and Color (Texture overrides)
-                     layer.isGradient = false
+                     if (layer is TextLayer) {
+                         layer.textureBitmap = bitmap; layer.textureOffsetX = 0f; layer.textureOffsetY = 0f; layer.isGradient = false
+                     } else if (layer is com.astral.typer.models.ShapeLayer) {
+                         layer.textureBitmap = bitmap; layer.textureOffsetX = 0f; layer.textureOffsetY = 0f; layer.isGradient = false
+                     }
                      canvasView.invalidate()
                      showTextureMenu() // Refresh to show controls
                      Toast.makeText(this, "Texture Applied", Toast.LENGTH_SHORT).show()
@@ -1716,7 +1778,8 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showEraseMenu() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer()
+        if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer) return
 
         canvasView.setEraseLayerMode(true)
 
@@ -2590,10 +2653,74 @@ class EditorActivity : AppCompatActivity() {
         binding.menuProperties.visibility = View.GONE
     }
 
+    private fun showShapePicker() {
+        val dialog = android.app.AlertDialog.Builder(this)
+        dialog.setTitle("Pick a Shape")
+
+        val shapes = assets.list("shapes")?.filter { it.endsWith(".svg") } ?: emptyList()
+        if (shapes.isEmpty()) {
+            Toast.makeText(this, "No shapes found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val grid = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@EditorActivity, 3)
+            setPadding(16, 16, 16, 16)
+        }
+
+        val alertDialog = dialog.setView(grid).create()
+
+        grid.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): androidx.recyclerview.widget.RecyclerView.ViewHolder {
+                val iv = android.widget.ImageView(this@EditorActivity).apply {
+                    layoutParams = ViewGroup.LayoutParams(dpToPx(80), dpToPx(80))
+                    setPadding(16, 16, 16, 16)
+                    scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                }
+                return object : androidx.recyclerview.widget.RecyclerView.ViewHolder(iv) {}
+            }
+            override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
+                val shape = shapes[position]
+                val iv = holder.itemView as android.widget.ImageView
+                try {
+                    val stream = assets.open("shapes/$shape")
+                    val svg = com.caverock.androidsvg.SVG.getFromInputStream(stream)
+                    stream.close()
+                    val bmp = android.graphics.Bitmap.createBitmap(dpToPx(80), dpToPx(80), android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bmp)
+                    svg.renderToCanvas(canvas)
+                    iv.setImageBitmap(bmp)
+                } catch(e: Exception) {}
+                iv.setOnClickListener {
+                    canvasView.addShapeLayer("shapes/$shape")
+                    alertDialog.dismiss()
+                }
+            }
+            override fun getItemCount() = shapes.size
+        }
+
+        alertDialog.show()
+    }
+
     private fun showPropertiesMenu() {
         binding.bottomMenuContainer.visibility = View.VISIBLE
         binding.menuInsert.visibility = View.GONE
         binding.menuProperties.visibility = View.VISIBLE
+
+        val layer = canvasView.getSelectedLayer()
+        if (layer is com.astral.typer.models.ShapeLayer) {
+            binding.btnPropQuickEdit.visibility = View.GONE
+            binding.btnPropStyle.visibility = View.GONE
+            binding.btnPropFont.visibility = View.GONE
+            binding.btnPropFormat.visibility = View.GONE
+            binding.btnPropSpacing.visibility = View.GONE
+        } else {
+            binding.btnPropQuickEdit.visibility = View.VISIBLE
+            binding.btnPropStyle.visibility = View.VISIBLE
+            binding.btnPropFont.visibility = View.VISIBLE
+            binding.btnPropFormat.visibility = View.VISIBLE
+            binding.btnPropSpacing.visibility = View.VISIBLE
+        }
     }
 
     private fun dpToPx(dp: Int): Int {
@@ -3459,9 +3586,12 @@ class EditorActivity : AppCompatActivity() {
     // --- COLOR MENU ---
     private fun showColorPicker() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer) return
 
-        container.addView(createInputView(layer, false))
+        if (layer is TextLayer) {
+            container.addView(createInputView(layer, false))
+        }
 
         val scroll = HorizontalScrollView(this).apply {
              isHorizontalScrollBarEnabled = false
@@ -3491,8 +3621,11 @@ class EditorActivity : AppCompatActivity() {
                             applySpanToSelection(ForegroundColorSpan(color))
                       } else {
                             // Apply Color and Disable Gradient
-                            layer.color = color
-                            layer.isGradient = false
+                            if (layer is TextLayer) {
+                                layer.color = color; layer.isGradient = false
+                            } else if (layer is com.astral.typer.models.ShapeLayer) {
+                                layer.color = color; layer.isGradient = false
+                            }
                             canvasView.invalidate()
                       }
                       Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
@@ -3514,14 +3647,18 @@ class EditorActivity : AppCompatActivity() {
                 setMargins(0, 0, 16, 0)
             }
             setOnClickListener {
-                ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layer.color) { color ->
+                val layerColor = if (layer is TextLayer) layer.color else if (layer is com.astral.typer.models.ShapeLayer) layer.color else Color.BLACK
+                ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layerColor) { color ->
                     val et = activeEditText
                     if (et != null && et.selectionStart != et.selectionEnd) {
                         applySpanToSelection(ForegroundColorSpan(color))
                     } else {
                         // Apply Color and Disable Gradient
-                        layer.color = color
-                        layer.isGradient = false
+                        if (layer is TextLayer) {
+                            layer.color = color; layer.isGradient = false
+                        } else if (layer is com.astral.typer.models.ShapeLayer) {
+                            layer.color = color; layer.isGradient = false
+                        }
                         canvasView.invalidate()
                     }
                 }
@@ -3537,17 +3674,23 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     applySpanToSelection(ForegroundColorSpan(color))
                 } else {
-                    if (layer.color == color && !layer.isGradient) {
-                        // Already active and solid. Do nothing or toggle?
+                    val layerColor = if (layer is TextLayer) layer.color else if (layer is com.astral.typer.models.ShapeLayer) layer.color else 0
+                    val layerIsGradient = if (layer is TextLayer) layer.isGradient else if (layer is com.astral.typer.models.ShapeLayer) layer.isGradient else false
+
+                    if (layerColor == color && !layerIsGradient) {
+                        // Already active and solid.
                     } else {
-                        layer.color = color
-                        layer.isGradient = false
+                        if (layer is TextLayer) {
+                            layer.color = color; layer.isGradient = false
+                        } else if (layer is com.astral.typer.models.ShapeLayer) {
+                            layer.color = color; layer.isGradient = false
+                        }
                         canvasView.invalidate()
                     }
                 }
             },
             null, // No add button here? Or keep it? The helper has logic for saved colors internally.
-            layer.color // Selected color
+            if (layer is TextLayer) layer.color else if (layer is com.astral.typer.models.ShapeLayer) layer.color else Color.BLACK // Selected color
         )
         list.addView(paletteView)
 
@@ -4180,7 +4323,10 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showShadowControls() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
 
         // Tabs
         val tabsLayout = LinearLayout(this).apply {
@@ -4207,29 +4353,41 @@ class EditorActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16,8,16,8)
             }
+            val currentShadowColor = if (layerAsText != null) layerAsText.shadowColor else layerAsShape!!.shadowColor
+            val currentShadowRadius = if (layerAsText != null) layerAsText.shadowRadius else layerAsShape!!.shadowRadius
+            val currentShadowDx = if (layerAsText != null) layerAsText.shadowDx else layerAsShape!!.shadowDx
+            val currentShadowDy = if (layerAsText != null) layerAsText.shadowDy else layerAsShape!!.shadowDy
+
             // Color
-            layout.addView(createColorScroll(layer.shadowColor,
+            layout.addView(createColorScroll(currentShadowColor,
                 { c ->
-                    if (layer.shadowColor == c && layer.shadowRadius > 0) {
-                        // Toggle Off Shadow?
-                        layer.shadowRadius = 0f
-                    } else {
-                        layer.shadowColor = c
-                        if (layer.shadowRadius == 0f) layer.shadowRadius = 10f // Enable if was disabled
+                    if (layerAsText != null) {
+                        if (layerAsText.shadowColor == c && layerAsText.shadowRadius > 0) layerAsText.shadowRadius = 0f
+                        else { layerAsText.shadowColor = c; if (layerAsText.shadowRadius == 0f) layerAsText.shadowRadius = 10f }
+                    } else if (layerAsShape != null) {
+                        if (layerAsShape.shadowColor == c && layerAsShape.shadowRadius > 0) layerAsShape.shadowRadius = 0f
+                        else { layerAsShape.shadowColor = c; if (layerAsShape.shadowRadius == 0f) layerAsShape.shadowRadius = 10f }
                     }
                     canvasView.invalidate()
                 },
-                { showColorWheelDialogForProperty(layer.shadowColor) { c -> layer.shadowColor = c; if(layer.shadowRadius==0f) layer.shadowRadius=10f; canvasView.invalidate() } }
+                { showColorWheelDialogForProperty(currentShadowColor) { c ->
+                    if (layerAsText != null) { layerAsText.shadowColor = c; if(layerAsText.shadowRadius==0f) layerAsText.shadowRadius=10f }
+                    else if (layerAsShape != null) { layerAsShape.shadowColor = c; if(layerAsShape.shadowRadius==0f) layerAsShape.shadowRadius=10f }
+                    canvasView.invalidate() }
+                }
             ))
 
-            layout.addView(createSlider("Blur Radius", layer.shadowRadius.toInt(), 50) {
-                layer.shadowRadius = it.toFloat(); canvasView.invalidate()
+            layout.addView(createSlider("Blur Radius", currentShadowRadius.toInt(), 50) {
+                if (layerAsText != null) layerAsText.shadowRadius = it.toFloat() else layerAsShape!!.shadowRadius = it.toFloat()
+                canvasView.invalidate()
             })
-            layout.addView(createSlider("DX", (layer.shadowDx + 50).toInt(), 100) {
-                layer.shadowDx = (it - 50).toFloat(); canvasView.invalidate()
+            layout.addView(createSlider("DX", (currentShadowDx + 50).toInt(), 100) {
+                if (layerAsText != null) layerAsText.shadowDx = (it - 50).toFloat() else layerAsShape!!.shadowDx = (it - 50).toFloat()
+                canvasView.invalidate()
             })
-            layout.addView(createSlider("DY", (layer.shadowDy + 50).toInt(), 100) {
-                layer.shadowDy = (it - 50).toFloat(); canvasView.invalidate()
+            layout.addView(createSlider("DY", (currentShadowDy + 50).toInt(), 100) {
+                if (layerAsText != null) layerAsText.shadowDy = (it - 50).toFloat() else layerAsShape!!.shadowDy = (it - 50).toFloat()
+                canvasView.invalidate()
             })
             val btnCenter = android.widget.Button(this@EditorActivity).apply {
                 text = "Center"
@@ -4245,8 +4403,8 @@ class EditorActivity : AppCompatActivity() {
                     setMargins(0, 16, 0, 16)
                 }
                 setOnClickListener {
-                    layer.shadowDx = 0f
-                    layer.shadowDy = 0f
+                    if (layerAsText != null) { layerAsText.shadowDx = 0f; layerAsText.shadowDy = 0f }
+                    else if (layerAsShape != null) { layerAsShape.shadowDx = 0f; layerAsShape.shadowDy = 0f }
                     canvasView.invalidate()
                     // Re-render the menu to update sliders
                     showShadowControls()
@@ -4263,34 +4421,43 @@ class EditorActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16,8,16,8)
             }
+            val currentMShadowColor = if (layerAsText != null) layerAsText.shadowColor else layerAsShape!!.shadowColor
+            val currentMShadowDist = if (layerAsText != null) layerAsText.motionShadowDistance else layerAsShape!!.motionShadowDistance
+            val currentMShadowAngle = if (layerAsText != null) layerAsText.motionShadowAngle else layerAsShape!!.motionShadowAngle
+            val currentMShadowStroke = if (layerAsText != null) layerAsText.isMotionShadowIncludeStroke else layerAsShape!!.isMotionShadowIncludeStroke
 
              // Color
-            layout.addView(createColorScroll(layer.shadowColor,
+            layout.addView(createColorScroll(currentMShadowColor,
                 { c ->
-                    if (layer.shadowColor == c && layer.motionShadowDistance > 0) {
-                        layer.motionShadowDistance = 0f // Toggle off
-                    } else {
-                        layer.shadowColor = c
-                        if (layer.motionShadowDistance == 0f) layer.motionShadowDistance = 20f
+                    if (layerAsText != null) {
+                        if (layerAsText.shadowColor == c && layerAsText.motionShadowDistance > 0) layerAsText.motionShadowDistance = 0f
+                        else { layerAsText.shadowColor = c; if (layerAsText.motionShadowDistance == 0f) layerAsText.motionShadowDistance = 20f }
+                    } else if (layerAsShape != null) {
+                        if (layerAsShape.shadowColor == c && layerAsShape.motionShadowDistance > 0) layerAsShape.motionShadowDistance = 0f
+                        else { layerAsShape.shadowColor = c; if (layerAsShape.motionShadowDistance == 0f) layerAsShape.motionShadowDistance = 20f }
                     }
                     canvasView.invalidate()
                 },
-                { showColorWheelDialogForProperty(layer.shadowColor) { c -> layer.shadowColor = c; if(layer.motionShadowDistance==0f) layer.motionShadowDistance=20f; canvasView.invalidate() } }
+                { showColorWheelDialogForProperty(currentMShadowColor) { c ->
+                    if (layerAsText != null) { layerAsText.shadowColor = c; if(layerAsText.motionShadowDistance==0f) layerAsText.motionShadowDistance=20f }
+                    else if (layerAsShape != null) { layerAsShape.shadowColor = c; if(layerAsShape.motionShadowDistance==0f) layerAsShape.motionShadowDistance=20f }
+                    canvasView.invalidate() }
+                }
             ))
 
             // Angle
             val angleLabel = TextView(this@EditorActivity).apply {
-                text = "Blur Angle: ${layer.motionShadowAngle}°"
+                text = "Blur Angle: ${currentMShadowAngle}°"
                 setTextColor(Color.WHITE)
             }
             layout.addView(angleLabel)
 
             val sbAngle = SeekBar(this@EditorActivity).apply {
                 max = 360
-                progress = layer.motionShadowAngle
+                progress = currentMShadowAngle
                 setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener{
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.motionShadowAngle = p
+                        if (layerAsText != null) layerAsText.motionShadowAngle = p else layerAsShape!!.motionShadowAngle = p
                         angleLabel.text = "Blur Angle: $p°"
                         canvasView.invalidate()
                     }
@@ -4302,7 +4469,7 @@ class EditorActivity : AppCompatActivity() {
 
             // Distance
             val distLabel = TextView(this@EditorActivity).apply {
-                text = "Blur Distance: ${layer.motionShadowDistance.toInt()}"
+                text = "Blur Distance: ${currentMShadowDist.toInt()}"
                 setTextColor(Color.WHITE)
                 setPadding(0,16,0,0)
             }
@@ -4310,10 +4477,10 @@ class EditorActivity : AppCompatActivity() {
 
             val sbDist = SeekBar(this@EditorActivity).apply {
                 max = 200
-                progress = layer.motionShadowDistance.toInt()
+                progress = currentMShadowDist.toInt()
                 setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener{
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.motionShadowDistance = p.toFloat()
+                        if (layerAsText != null) layerAsText.motionShadowDistance = p.toFloat() else layerAsShape!!.motionShadowDistance = p.toFloat()
                         distLabel.text = "Blur Distance: $p"
                         canvasView.invalidate()
                     }
@@ -4327,10 +4494,10 @@ class EditorActivity : AppCompatActivity() {
             val cbIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {
                 text = "Include stroke"
                 setTextColor(Color.WHITE)
-                isChecked = layer.isMotionShadowIncludeStroke
+                isChecked = currentMShadowStroke
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
                 setOnCheckedChangeListener { _, isChecked ->
-                    layer.isMotionShadowIncludeStroke = isChecked
+                    if (layerAsText != null) layerAsText.isMotionShadowIncludeStroke = isChecked else layerAsShape!!.isMotionShadowIncludeStroke = isChecked
                     canvasView.invalidate()
                 }
             }
@@ -4343,7 +4510,7 @@ class EditorActivity : AppCompatActivity() {
             contentContainer.removeAllViews()
             contentContainer.addView(if (isDrop) dropShadowView else motionShadowView)
 
-            layer.isMotionShadow = !isDrop
+            if (layerAsText != null) layerAsText.isMotionShadow = !isDrop else layerAsShape!!.isMotionShadow = !isDrop
             canvasView.invalidate()
         }
 
@@ -4376,7 +4543,10 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showGradationControls() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
         val isGradationMode = canvasView.currentModeName() == "GRADATION"
         // Do not auto-apply gradient
         // layer.isGradient = true
@@ -4403,11 +4573,11 @@ class EditorActivity : AppCompatActivity() {
                 val isActive = canvasView.currentModeName() == "GRADATION"
                 canvasView.setGradationMode(!isActive)
                 if (!isActive) {
-                    canvasView.pendingGradientStart = layer.gradientStartColor
-                    canvasView.pendingGradientEnd = layer.gradientEndColor
-                    canvasView.targetGradientText = layer.isGradientText
-                    canvasView.targetGradientStroke = layer.isGradientStroke
-                    canvasView.targetGradientShadow = layer.isGradientShadow
+                    canvasView.pendingGradientStart = if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor
+                    canvasView.pendingGradientEnd = if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor
+                    canvasView.targetGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
+                    canvasView.targetGradientStroke = if (layerAsText != null) layerAsText.isGradientStroke else layerAsShape!!.isGradientStroke
+                    canvasView.targetGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
                 }
                 showGradationControls()
             }
@@ -4432,38 +4602,43 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        togglesLayout.addView(createToggle("Text", if (isGradationMode) canvasView.targetGradientText else layer.isGradientText) { b ->
-            if (isGradationMode) canvasView.targetGradientText = b else { layer.isGradientText = b; canvasView.invalidate() }
+        val layerIsGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
+        val layerIsGradientStroke = if (layerAsText != null) layerAsText.isGradientStroke else layerAsShape!!.isGradientStroke
+        val layerIsGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
+
+        togglesLayout.addView(createToggle(if (layerAsShape != null) "Fill" else "Text", if (isGradationMode) canvasView.targetGradientText else layerIsGradientText) { b ->
+            if (isGradationMode) canvasView.targetGradientText = b else { if (layerAsText != null) layerAsText.isGradientText = b else layerAsShape!!.isGradientText = b; canvasView.invalidate() }
         })
-        togglesLayout.addView(createToggle("Stroke", if (isGradationMode) canvasView.targetGradientStroke else layer.isGradientStroke) { b ->
-            if (isGradationMode) canvasView.targetGradientStroke = b else { layer.isGradientStroke = b; canvasView.invalidate() }
+        togglesLayout.addView(createToggle("Stroke", if (isGradationMode) canvasView.targetGradientStroke else layerIsGradientStroke) { b ->
+            if (isGradationMode) canvasView.targetGradientStroke = b else { if (layerAsText != null) layerAsText.isGradientStroke = b else layerAsShape!!.isGradientStroke = b; canvasView.invalidate() }
         })
-        togglesLayout.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layer.isGradientShadow) { b ->
-            if (isGradationMode) canvasView.targetGradientShadow = b else { layer.isGradientShadow = b; canvasView.invalidate() }
+        togglesLayout.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layerIsGradientShadow) { b ->
+            if (isGradationMode) canvasView.targetGradientShadow = b else { if (layerAsText != null) layerAsText.isGradientShadow = b else layerAsShape!!.isGradientShadow = b; canvasView.invalidate() }
         })
 
         mainLayout.addView(togglesLayout)
 
         // Start Color
+        val layerGradStartColor = if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
-        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else layer.gradientStartColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else layerGradStartColor,
              { c ->
                  if (isGradationMode) {
                      canvasView.pendingGradientStart = c
                  } else {
-                     layer.gradientStartColor = c
-                     if (!layer.isGradient) layer.isGradient = true
+                     if (layerAsText != null) { layerAsText.gradientStartColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
+                     else if (layerAsShape != null) { layerAsShape.gradientStartColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                      canvasView.invalidate()
                  }
              },
              {
-                 val current = if (isGradationMode) canvasView.pendingGradientStart else layer.gradientStartColor
+                 val current = if (isGradationMode) canvasView.pendingGradientStart else layerGradStartColor
                  showColorWheelDialogForProperty(current) { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientStart = c
                      } else {
-                         layer.gradientStartColor = c
-                         if (!layer.isGradient) layer.isGradient = true
+                         if (layerAsText != null) { layerAsText.gradientStartColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
+                         else if (layerAsShape != null) { layerAsShape.gradientStartColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                          canvasView.invalidate()
                      }
                  }
@@ -4471,25 +4646,26 @@ class EditorActivity : AppCompatActivity() {
         ))
 
         // End Color
+        val layerGradEndColor = if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
-        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else layer.gradientEndColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else layerGradEndColor,
              { c ->
                  if (isGradationMode) {
                      canvasView.pendingGradientEnd = c
                  } else {
-                     layer.gradientEndColor = c
-                     if (!layer.isGradient) layer.isGradient = true
+                     if (layerAsText != null) { layerAsText.gradientEndColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
+                     else if (layerAsShape != null) { layerAsShape.gradientEndColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                      canvasView.invalidate()
                  }
              },
              {
-                 val current = if (isGradationMode) canvasView.pendingGradientEnd else layer.gradientEndColor
+                 val current = if (isGradationMode) canvasView.pendingGradientEnd else layerGradEndColor
                  showColorWheelDialogForProperty(current) { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientEnd = c
                      } else {
-                         layer.gradientEndColor = c
-                         if (!layer.isGradient) layer.isGradient = true
+                         if (layerAsText != null) { layerAsText.gradientEndColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
+                         else if (layerAsShape != null) { layerAsShape.gradientEndColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                          canvasView.invalidate()
                      }
                  }
@@ -4498,14 +4674,15 @@ class EditorActivity : AppCompatActivity() {
 
         // Angle
         if (!isGradationMode) {
-            val angleSlider = createSlider("Gradient Angle: ${layer.gradientAngle}°", layer.gradientAngle, 360) {
-                 layer.gradientAngle = it
+            val currentGradAngle = if (layerAsText != null) layerAsText.gradientAngle else layerAsShape!!.gradientAngle
+            val angleSlider = createSlider("Gradient Angle: ${currentGradAngle}°", currentGradAngle, 360) {
+                 if (layerAsText != null) layerAsText.gradientAngle = it else layerAsShape!!.gradientAngle = it
                  canvasView.invalidate()
             }
             val angleLabel = angleSlider.findViewWithTag<TextView>("SLIDER_LABEL")
             angleSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    layer.gradientAngle = p
+                    if (layerAsText != null) layerAsText.gradientAngle = p else layerAsShape!!.gradientAngle = p
                     angleLabel?.text = "Gradient Angle: $p°"
                     canvasView.invalidate()
                 }
@@ -4521,7 +4698,10 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showStrokeMenu() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
 
         val mainLayout = LinearLayout(this).apply {
              orientation = LinearLayout.VERTICAL
@@ -4529,17 +4709,23 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Color List (Moved to Top)
-        val colorList = createColorScroll(layer.strokeColor,
+        val currentStrokeColor = if (layerAsText != null) layerAsText.strokeColor else layerAsShape!!.strokeColor
+        val colorList = createColorScroll(currentStrokeColor,
              { c ->
-                 if (layer.strokeColor == c && layer.strokeWidth > 0) {
-                     layer.strokeWidth = 0f
-                 } else {
-                     layer.strokeColor = c
-                     if (layer.strokeWidth == 0f) layer.strokeWidth = 5f
+                 if (layerAsText != null) {
+                     if (layerAsText.strokeColor == c && layerAsText.strokeWidth > 0) layerAsText.strokeWidth = 0f
+                     else { layerAsText.strokeColor = c; if (layerAsText.strokeWidth == 0f) layerAsText.strokeWidth = 5f }
+                 } else if (layerAsShape != null) {
+                     if (layerAsShape.strokeColor == c && layerAsShape.strokeWidth > 0) layerAsShape.strokeWidth = 0f
+                     else { layerAsShape.strokeColor = c; if (layerAsShape.strokeWidth == 0f) layerAsShape.strokeWidth = 5f }
                  }
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer.strokeColor) { c -> layer.strokeColor = c; if(layer.strokeWidth==0f) layer.strokeWidth=5f; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(currentStrokeColor) { c ->
+                 if (layerAsText != null) { layerAsText.strokeColor = c; if(layerAsText.strokeWidth==0f) layerAsText.strokeWidth=5f }
+                 else if (layerAsShape != null) { layerAsShape.strokeColor = c; if(layerAsShape.strokeWidth==0f) layerAsShape.strokeWidth=5f }
+                 canvasView.invalidate() }
+             }
         )
         mainLayout.addView(colorList)
 
@@ -4557,9 +4743,10 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+            val currentStrokeWidth = if (layerAsText != null) layerAsText.strokeWidth else layerAsShape!!.strokeWidth
             val tvValue = TextView(this).apply {
                 tag = "STROKE_WIDTH_VAL"
-                text = "${layer.strokeWidth.toInt()} pt"
+                text = "${currentStrokeWidth.toInt()} pt"
                 setTextColor(Color.CYAN)
                 gravity = Gravity.CENTER
                 layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -4576,9 +4763,14 @@ class EditorActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
             setOnClickListener {
-                layer.strokeWidth = (layer.strokeWidth - 1).coerceAtLeast(0f)
+                if (layerAsText != null) {
+                    layerAsText.strokeWidth = (layerAsText.strokeWidth - 1).coerceAtLeast(0f)
+                    tvValue.text = "${layerAsText.strokeWidth.toInt()} pt"
+                } else if (layerAsShape != null) {
+                    layerAsShape.strokeWidth = (layerAsShape.strokeWidth - 1).coerceAtLeast(0f)
+                    tvValue.text = "${layerAsShape.strokeWidth.toInt()} pt"
+                }
                 canvasView.invalidate()
-                    tvValue.text = "${layer.strokeWidth.toInt()} pt"
             }
         }
 
@@ -4593,9 +4785,14 @@ class EditorActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
             setOnClickListener {
-                layer.strokeWidth += 1
+                if (layerAsText != null) {
+                    layerAsText.strokeWidth += 1
+                    tvValue.text = "${layerAsText.strokeWidth.toInt()} pt"
+                } else if (layerAsShape != null) {
+                    layerAsShape.strokeWidth += 1
+                    tvValue.text = "${layerAsShape.strokeWidth.toInt()} pt"
+                }
                 canvasView.invalidate()
-                    tvValue.text = "${layer.strokeWidth.toInt()} pt"
             }
         }
 
@@ -4609,8 +4806,13 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun showDoubleStrokeMenu() {
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
-        if (layer.strokeWidth <= 0f) {
+        val layer = canvasView.getSelectedLayer() ?: return
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
+        if (layerAsText == null && layerAsShape == null) return
+
+        val sw = if (layerAsText != null) layerAsText.strokeWidth else layerAsShape!!.strokeWidth
+        if (sw <= 0f) {
              Toast.makeText(this, "Enable Stroke first!", Toast.LENGTH_SHORT).show()
         }
 
@@ -4621,17 +4823,23 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Color List (Moved to Top)
-        val colorList = createColorScroll(layer.doubleStrokeColor,
+        val currentDStrokeColor = if (layerAsText != null) layerAsText.doubleStrokeColor else layerAsShape!!.doubleStrokeColor
+        val colorList = createColorScroll(currentDStrokeColor,
              { c ->
-                 if (layer.doubleStrokeColor == c && layer.doubleStrokeWidth > 0) {
-                     layer.doubleStrokeWidth = 0f
-                 } else {
-                     layer.doubleStrokeColor = c
-                     if (layer.doubleStrokeWidth == 0f) layer.doubleStrokeWidth = 5f
+                 if (layerAsText != null) {
+                     if (layerAsText.doubleStrokeColor == c && layerAsText.doubleStrokeWidth > 0) layerAsText.doubleStrokeWidth = 0f
+                     else { layerAsText.doubleStrokeColor = c; if (layerAsText.doubleStrokeWidth == 0f) layerAsText.doubleStrokeWidth = 5f }
+                 } else if (layerAsShape != null) {
+                     if (layerAsShape.doubleStrokeColor == c && layerAsShape.doubleStrokeWidth > 0) layerAsShape.doubleStrokeWidth = 0f
+                     else { layerAsShape.doubleStrokeColor = c; if (layerAsShape.doubleStrokeWidth == 0f) layerAsShape.doubleStrokeWidth = 5f }
                  }
                  canvasView.invalidate()
              },
-             { showColorWheelDialogForProperty(layer.doubleStrokeColor) { c -> layer.doubleStrokeColor = c; if(layer.doubleStrokeWidth==0f) layer.doubleStrokeWidth=5f; canvasView.invalidate() } }
+             { showColorWheelDialogForProperty(currentDStrokeColor) { c ->
+                 if (layerAsText != null) { layerAsText.doubleStrokeColor = c; if(layerAsText.doubleStrokeWidth==0f) layerAsText.doubleStrokeWidth=5f }
+                 else if (layerAsShape != null) { layerAsShape.doubleStrokeColor = c; if(layerAsShape.doubleStrokeWidth==0f) layerAsShape.doubleStrokeWidth=5f }
+                 canvasView.invalidate() }
+             }
         )
         mainLayout.addView(colorList)
 
@@ -4649,9 +4857,10 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
+        val currentDStrokeWidth = if (layerAsText != null) layerAsText.doubleStrokeWidth else layerAsShape!!.doubleStrokeWidth
         val tvValue = TextView(this).apply {
             tag = "DBL_STROKE_WIDTH_VAL"
-            text = "${layer.doubleStrokeWidth.toInt()} pt"
+            text = "${currentDStrokeWidth.toInt()} pt"
             setTextColor(Color.CYAN)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -4668,9 +4877,14 @@ class EditorActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
             setOnClickListener {
-                layer.doubleStrokeWidth = (layer.doubleStrokeWidth - 1).coerceAtLeast(0f)
+                if (layerAsText != null) {
+                    layerAsText.doubleStrokeWidth = (layerAsText.doubleStrokeWidth - 1).coerceAtLeast(0f)
+                    tvValue.text = "${layerAsText.doubleStrokeWidth.toInt()} pt"
+                } else if (layerAsShape != null) {
+                    layerAsShape.doubleStrokeWidth = (layerAsShape.doubleStrokeWidth - 1).coerceAtLeast(0f)
+                    tvValue.text = "${layerAsShape.doubleStrokeWidth.toInt()} pt"
+                }
                 canvasView.invalidate()
-                tvValue.text = "${layer.doubleStrokeWidth.toInt()} pt"
             }
         }
 
@@ -4685,9 +4899,14 @@ class EditorActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
             setOnClickListener {
-                layer.doubleStrokeWidth += 1
+                if (layerAsText != null) {
+                    layerAsText.doubleStrokeWidth += 1
+                    tvValue.text = "${layerAsText.doubleStrokeWidth.toInt()} pt"
+                } else if (layerAsShape != null) {
+                    layerAsShape.doubleStrokeWidth += 1
+                    tvValue.text = "${layerAsShape.doubleStrokeWidth.toInt()} pt"
+                }
                 canvasView.invalidate()
-                tvValue.text = "${layer.doubleStrokeWidth.toInt()} pt"
             }
         }
 
@@ -4723,7 +4942,8 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showWarpMenu() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+        val layer = canvasView.getSelectedLayer() ?: return
+        if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer) return
 
         toggleWarpMode(true)
 
@@ -4764,14 +4984,19 @@ class EditorActivity : AppCompatActivity() {
             return sub
         }
 
-        row.addView(createCounter("Rows", layer.warpRows, 1) {
-            initWarpMesh(layer, it, layer.warpCols)
+        val layerWRows = if (layer is TextLayer) layer.warpRows else (layer as? com.astral.typer.models.ShapeLayer)?.warpRows ?: 2
+        val layerWCols = if (layer is TextLayer) layer.warpCols else (layer as? com.astral.typer.models.ShapeLayer)?.warpCols ?: 2
+
+        row.addView(createCounter("Rows", layerWRows, 1) {
+            if (layer is TextLayer) initWarpMesh(layer, it, layer.warpCols)
+            else (layer as? com.astral.typer.models.ShapeLayer)?.let { sl -> initWarpMesh(sl, it, sl.warpCols) }
             canvasView.invalidate()
             showWarpMenu() // Refresh UI
         })
 
-        row.addView(createCounter("Cols", layer.warpCols, 1) {
-            initWarpMesh(layer, layer.warpRows, it)
+        row.addView(createCounter("Cols", layerWCols, 1) {
+            if (layer is TextLayer) initWarpMesh(layer, layer.warpRows, it)
+            else (layer as? com.astral.typer.models.ShapeLayer)?.let { sl -> initWarpMesh(sl, sl.warpRows, it) }
             canvasView.invalidate()
             showWarpMenu() // Refresh UI
         })
@@ -4787,7 +5012,8 @@ class EditorActivity : AppCompatActivity() {
                 cornerRadius = dpToPx(8).toFloat()
             }
             setOnClickListener {
-                initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                if (layer is TextLayer) initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                else (layer as? com.astral.typer.models.ShapeLayer)?.let { sl -> initWarpMesh(sl, sl.warpRows, sl.warpCols) }
                 canvasView.invalidate()
             }
         }
@@ -4797,45 +5023,39 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun toggleWarpMode(enabled: Boolean) {
-        val layer = canvasView.getSelectedLayer() as? TextLayer
-        if (layer != null) {
-            // We set isWarp to true when entering, but WE DO NOT disable it when exiting,
-            // to persist the effect (rendering).
-            // We only control the Interaction Tool (Grid visibility/dragging).
-
+        val layer = canvasView.getSelectedLayer()
+        if (layer is TextLayer || layer is com.astral.typer.models.ShapeLayer) {
             if (enabled) {
-                layer.isWarp = true
-                if (layer.warpMesh == null) {
-                    initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                if (layer is TextLayer) {
+                    layer.isWarp = true; if (layer.warpMesh == null) initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                } else if (layer is com.astral.typer.models.ShapeLayer) {
+                    layer.isWarp = true; if (layer.warpMesh == null) initWarpMesh(layer, layer.warpRows, layer.warpCols)
                 }
             }
-            // Notify Canvas to show/hide tool handles
             canvasView.setWarpToolActive(enabled)
         }
     }
 
-    private fun initWarpMesh(layer: TextLayer, rows: Int, cols: Int) {
-         val w = layer.getWidth()
-         val h = layer.getHeight()
-         val count = (rows + 1) * (cols + 1)
-         val mesh = FloatArray(count * 2)
-
-         // Init grid centered at 0,0 relative to layer
-         var index = 0
+    private fun initWarpMesh(layer: Layer, rows: Int, cols: Int) {
+         val w = layer.getWidth(); val h = layer.getHeight()
+         val count = (rows + 1) * (cols + 1); val mesh = FloatArray(count * 2); var index = 0
          for (r in 0..rows) {
              val y = -h/2f + (h * r / rows.toFloat())
              for (c in 0..cols) {
                  val x = -w/2f + (w * c / cols.toFloat())
-                 mesh[index++] = x
-                 mesh[index++] = y
+                 mesh[index++] = x; mesh[index++] = y
              }
          }
-         layer.warpMesh = mesh
-         layer.warpRows = rows
-         layer.warpCols = cols
+         if (layer is TextLayer) {
+             layer.warpMesh = mesh; layer.warpRows = rows; layer.warpCols = cols
+         } else if (layer is com.astral.typer.models.ShapeLayer) {
+             layer.warpMesh = mesh; layer.warpRows = rows; layer.warpCols = cols
+         }
     }
 
     private fun showPerspectiveMenu() {
+        val layer = canvasView.getSelectedLayer()
+        if (layer == null || (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer)) return
         togglePerspectiveMode(true)
         val container = prepareContainer()
 
@@ -4860,18 +5080,12 @@ class EditorActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
             setOnClickListener {
-                val layer = canvasView.getSelectedLayer() as? TextLayer
-                if (layer != null) {
-                    layer.perspectivePoints = null
-                    // Re-init points to reset visual
-                    val w = layer.getWidth()
-                    val h = layer.getHeight()
-                    layer.perspectivePoints = floatArrayOf(
-                        -w/2f, -h/2f, // TL
-                        w/2f, -h/2f,  // TR
-                        w/2f, h/2f,   // BR
-                        -w/2f, h/2f   // BL
-                    )
+                val layer = canvasView.getSelectedLayer()
+                if (layer is TextLayer || layer is com.astral.typer.models.ShapeLayer) {
+                    val w = layer.getWidth(); val h = layer.getHeight()
+                    val pts = floatArrayOf(-w/2f, -h/2f, w/2f, -h/2f, w/2f, h/2f, -w/2f, h/2f)
+                    if (layer is TextLayer) layer.perspectivePoints = pts
+                    else (layer as com.astral.typer.models.ShapeLayer).perspectivePoints = pts
                     canvasView.invalidate()
                     Toast.makeText(this@EditorActivity, "Perspective Reset", Toast.LENGTH_SHORT).show()
                 }
@@ -4885,6 +5099,9 @@ class EditorActivity : AppCompatActivity() {
     private fun showOpacityMenu() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() ?: return
+
+        val layerAsText = layer as? TextLayer
+        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
 
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(16,16,16,16) }
@@ -4932,28 +5149,30 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(s1)
 
         // 3. Gradient Opacity
+        val layerIsOpGrad = if (layerAsText != null) layerAsText.isOpacityGradient else if (layerAsShape != null) layerAsShape.isOpacityGradient else false
         val toggleGrad = android.widget.CheckBox(this).apply {
             text = "Gradient Opacity"
-            isChecked = layer.isOpacityGradient
+            isChecked = layerIsOpGrad
             setTextColor(Color.WHITE)
             buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
             setOnCheckedChangeListener { _, b ->
-                layer.isOpacityGradient = b
+                if (layerAsText != null) layerAsText.isOpacityGradient = b else if (layerAsShape != null) layerAsShape.isOpacityGradient = b
                 canvasView.invalidate()
             }
         }
         layout.addView(toggleGrad)
 
         // Start Alpha
-        val s2 = createSlider("Left Alpha: ${(layer.opacityStart/2.55f).toInt()}%", layer.opacityStart, 255) {
-            layer.opacityStart = it
+        val layerOpStart = if (layerAsText != null) layerAsText.opacityStart else if (layerAsShape != null) layerAsShape.opacityStart else 255
+        val s2 = createSlider("Left Alpha: ${(layerOpStart/2.55f).toInt()}%", layerOpStart, 255) {
+            if (layerAsText != null) layerAsText.opacityStart = it else if (layerAsShape != null) layerAsShape.opacityStart = it
             canvasView.invalidate()
         }
         val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
         val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
         sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                layer.opacityStart = p
+                if (layerAsText != null) layerAsText.opacityStart = p else if (layerAsShape != null) layerAsShape.opacityStart = p
                 tv2?.text = "Left Alpha: ${(p/2.55f).toInt()}%"
                 canvasView.invalidate()
             }
@@ -4963,15 +5182,16 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(s2)
 
         // End Alpha
-        val s3 = createSlider("Right Alpha: ${(layer.opacityEnd/2.55f).toInt()}%", layer.opacityEnd, 255) {
-            layer.opacityEnd = it
+        val layerOpEnd = if (layerAsText != null) layerAsText.opacityEnd else if (layerAsShape != null) layerAsShape.opacityEnd else 0
+        val s3 = createSlider("Right Alpha: ${(layerOpEnd/2.55f).toInt()}%", layerOpEnd, 255) {
+            if (layerAsText != null) layerAsText.opacityEnd = it else if (layerAsShape != null) layerAsShape.opacityEnd = it
             canvasView.invalidate()
         }
         val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
         val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
         sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                layer.opacityEnd = p
+                if (layerAsText != null) layerAsText.opacityEnd = p else if (layerAsShape != null) layerAsShape.opacityEnd = p
                 tv3?.text = "Right Alpha: ${(p/2.55f).toInt()}%"
                 canvasView.invalidate()
             }
@@ -4981,15 +5201,16 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(s3)
 
         // Angle
-        val s4 = createSlider("Angle: ${layer.opacityAngle}°", layer.opacityAngle, 360) {
-            layer.opacityAngle = it
+        val layerOpAngle = if (layerAsText != null) layerAsText.opacityAngle else if (layerAsShape != null) layerAsShape.opacityAngle else 0
+        val s4 = createSlider("Angle: ${layerOpAngle}°", layerOpAngle, 360) {
+            if (layerAsText != null) layerAsText.opacityAngle = it else if (layerAsShape != null) layerAsShape.opacityAngle = it
             canvasView.invalidate()
         }
         val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
         val sb4 = s4.findViewWithTag<SeekBar>("SLIDER_BAR")
         sb4?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                layer.opacityAngle = p
+                if (layerAsText != null) layerAsText.opacityAngle = p else if (layerAsShape != null) layerAsShape.opacityAngle = p
                 tv4?.text = "Angle: $p°"
                 canvasView.invalidate()
             }

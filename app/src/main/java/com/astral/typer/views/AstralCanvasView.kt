@@ -809,6 +809,17 @@ class AstralCanvasView @JvmOverloads constructor(
         selectLayer(layer)
     }
 
+    fun addShapeLayer(shapeName: String) {
+        val center = getViewportCenter()
+        val layer = com.astral.typer.models.ShapeLayer(shapeName).apply {
+            x = center[0]
+            y = center[1]
+            color = Color.BLACK
+        }
+        layers.add(layer)
+        selectLayer(layer)
+    }
+
     fun addImageLayer(bitmap: android.graphics.Bitmap, path: String? = null) {
         var scale = 1f
         if (bitmap.width > canvasWidth * 0.8f) {
@@ -1217,87 +1228,78 @@ class AstralCanvasView @JvmOverloads constructor(
              return
         }
 
-        if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
-             val mesh = layer.warpMesh
-             val rows = layer.warpRows
-             val cols = layer.warpCols
-             val viewScale = getCurrentViewScale()
-             if (mesh != null) {
-                 paint.style = Paint.Style.STROKE
-                 paint.color = Color.CYAN
-                 paint.strokeWidth = 2f / viewScale
+        val isWarpActive = if (layer is TextLayer) layer.isWarp else if (layer is com.astral.typer.models.ShapeLayer) layer.isWarp else false
+        val isPerspectiveActive = if (layer is TextLayer) layer.isPerspective else if (layer is com.astral.typer.models.ShapeLayer) layer.isPerspective else false
 
-                 val denseSteps = 20
-                 val outPoint = FloatArray(2)
+        if (isWarpActive && isWarpToolActive) {
+            val mesh = if (layer is TextLayer) layer.warpMesh else (layer as? com.astral.typer.models.ShapeLayer)?.warpMesh
+            val rows = if (layer is TextLayer) layer.warpRows else (layer as? com.astral.typer.models.ShapeLayer)?.warpRows ?: 2
+            val cols = if (layer is TextLayer) layer.warpCols else (layer as? com.astral.typer.models.ShapeLayer)?.warpCols ?: 2
+            val viewScale = getCurrentViewScale()
+            if (mesh != null) {
+                paint.style = Paint.Style.STROKE
+                paint.color = Color.CYAN
+                paint.strokeWidth = 2f / viewScale
 
-                 // Draw smooth curves for rows
-                 for (r in 0..rows) {
-                     val path = Path()
-                     val v = r.toFloat() / rows
+                val denseSteps = 20
+                val outPoint = FloatArray(2)
 
-                     layer.evaluateBezierSurface(0f, v, outPoint)
-                     path.moveTo(outPoint[0], outPoint[1])
+                fun eval(u: Float, v: Float, out: FloatArray) {
+                    if (layer is TextLayer) layer.evaluateBezierSurface(u, v, out)
+                    else (layer as? com.astral.typer.models.ShapeLayer)?.evaluateBezierSurface(u, v, out)
+                }
 
-                     for (step in 1..denseSteps) {
-                         val u = step.toFloat() / denseSteps
-                         layer.evaluateBezierSurface(u, v, outPoint)
-                         path.lineTo(outPoint[0], outPoint[1])
-                     }
-                     canvas.drawPath(path, paint)
-                 }
-
-                 // Draw smooth curves for cols
-                 for (c in 0..cols) {
-                     val path = Path()
-                     val u = c.toFloat() / cols
-
-                     layer.evaluateBezierSurface(u, 0f, outPoint)
-                     path.moveTo(outPoint[0], outPoint[1])
-
-                     for (step in 1..denseSteps) {
-                         val v = step.toFloat() / denseSteps
-                         layer.evaluateBezierSurface(u, v, outPoint)
-                         path.lineTo(outPoint[0], outPoint[1])
-                     }
-                     canvas.drawPath(path, paint)
-                 }
-
-                 val handleRadius = 15f / (((abs(layer.scaleX) + abs(layer.scaleY))/2f) * viewScale)
-                 handlePaint.color = Color.YELLOW
-                 for (i in 0 until (mesh.size / 2)) {
-                     canvas.drawCircle(mesh[i*2], mesh[i*2+1], handleRadius, handlePaint)
-                 }
-             }
-             canvas.restore()
-             return
+                for (r in 0..rows) {
+                    val path = Path()
+                    val v = r.toFloat() / rows
+                    eval(0f, v, outPoint)
+                    path.moveTo(outPoint[0], outPoint[1])
+                    for (step in 1..denseSteps) {
+                        eval(step.toFloat() / denseSteps, v, outPoint)
+                        path.lineTo(outPoint[0], outPoint[1])
+                    }
+                    canvas.drawPath(path, paint)
+                }
+                for (c in 0..cols) {
+                    val path = Path()
+                    val u = c.toFloat() / cols
+                    eval(u, 0f, outPoint)
+                    path.moveTo(outPoint[0], outPoint[1])
+                    for (step in 1..denseSteps) {
+                        eval(u, step.toFloat() / denseSteps, outPoint)
+                        path.lineTo(outPoint[0], outPoint[1])
+                    }
+                    canvas.drawPath(path, paint)
+                }
+                val handleRadius = 15f / (((abs(layer.scaleX) + abs(layer.scaleY))/2f) * viewScale)
+                handlePaint.color = Color.YELLOW
+                for (i in 0 until (mesh.size / 2)) canvas.drawCircle(mesh[i*2], mesh[i*2+1], handleRadius, handlePaint)
+            }
+            canvas.restore()
+            return
         }
 
-        if (layer is TextLayer && layer.isPerspective && layer.perspectivePoints != null) {
-            val pts = layer.perspectivePoints!!
-            val viewScale = getCurrentViewScale()
-            paint.style = Paint.Style.STROKE
-            paint.color = Color.CYAN
-            paint.strokeWidth = 2f / viewScale
-            val path = Path()
-            path.moveTo(pts[0], pts[1])
-            path.lineTo(pts[2], pts[3])
-            path.lineTo(pts[4], pts[5])
-            path.lineTo(pts[6], pts[7])
-            path.close()
-            canvas.drawPath(path, paint)
+        if (isPerspectiveActive && (layer is TextLayer || layer is com.astral.typer.models.ShapeLayer)) {
+            val pts = if (layer is TextLayer) layer.perspectivePoints else (layer as? com.astral.typer.models.ShapeLayer)?.perspectivePoints
+            if (pts != null) {
+                val viewScale = getCurrentViewScale()
+                paint.style = Paint.Style.STROKE
+                paint.color = Color.CYAN
+                paint.strokeWidth = 2f / viewScale
+                val path = Path()
+                path.moveTo(pts[0], pts[1]); path.lineTo(pts[2], pts[3]); path.lineTo(pts[4], pts[5]); path.lineTo(pts[6], pts[7]); path.close()
+                canvas.drawPath(path, paint)
 
-            if (isPerspectiveMode) {
-                val handleRadius = 20f / (((abs(layer.scaleX) + abs(layer.scaleY)) / 2f) * viewScale)
-                handlePaint.color = Color.CYAN
-
-                canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
-                canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint)
-                canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint)
-                canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
-
-                // Return early to hide standard icons in perspective mode
-                canvas.restore()
-                return
+                if (isPerspectiveMode) {
+                    val handleRadius = 20f / (((abs(layer.scaleX) + abs(layer.scaleY)) / 2f) * viewScale)
+                    handlePaint.color = Color.CYAN
+                    canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
+                    canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint)
+                    canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint)
+                    canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
+                    canvas.restore()
+                    return
+                }
             }
         }
 
@@ -1309,14 +1311,17 @@ class AstralCanvasView @JvmOverloads constructor(
         val localIconScale = geometry.scale
         val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
 
-        if (!(layer is TextLayer && ((layer.isPerspective && isPerspectiveMode) || (layer.isWarp && isWarpToolActive)))) {
+        val isSpecialMode = (layer is TextLayer && (layer.isPerspective && isPerspectiveMode || layer.isWarp && isWarpToolActive)) ||
+                (layer is com.astral.typer.models.ShapeLayer && (layer.isPerspective && isPerspectiveMode || layer.isWarp && isWarpToolActive))
+
+        if (!isSpecialMode) {
             paint.style = Paint.Style.STROKE
             paint.color = Color.BLUE
             val viewScale = getCurrentViewScale()
             paint.strokeWidth = 3f / (avgScale * viewScale)
             val box = RectF(-halfW - 10, -halfH - 10, halfW + 10, halfH + 10)
 
-            if (layer is TextLayer && layer.isOval) {
+            if ((layer is TextLayer && layer.isOval)) {
                 canvas.drawOval(box, paint)
             } else {
                 canvas.drawRect(box, paint)
@@ -1349,7 +1354,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
         val isTyperHand = isTyperActive && currentTyperTool == TyperTool.HAND
 
-        if (!(layer is TextLayer && ((layer.isPerspective && isPerspectiveMode) || (layer.isWarp && isWarpToolActive)))) {
+        if (!isSpecialMode) {
             drawIconHandle(-halfW - handleOffset, -halfH - handleOffset, pathDelete, Color.RED)
             drawIconHandle(halfW + handleOffset, -halfH - handleOffset, pathRotate, Color.GREEN)
             drawIconHandle(halfW + handleOffset, halfH + handleOffset, pathResize, Color.BLUE)
@@ -1675,111 +1680,87 @@ class AstralCanvasView @JvmOverloads constructor(
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
-
-                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                    currentMode = Mode.GRADATION
-                }
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) currentMode = Mode.GRADATION
                 return true
             }
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    gradationStart = PointF(cx, cy)
-                    gradationEnd = PointF(cx, cy)
-                    invalidate()
+                    gradationStart = PointF(cx, cy); gradationEnd = PointF(cx, cy); invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    gradationEnd?.set(cx, cy)
-                    invalidate()
+                    gradationEnd?.set(cx, cy); invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
-                    val p1 = gradationStart
-                    val p2 = gradationEnd
+                    val p1 = gradationStart; val p2 = gradationEnd
                     if (p1 != null && p2 != null && getDistance(p1.x, p1.y, p2.x, p2.y) > 10f) {
                         val angle = getAngle(p1.x, p1.y, p2.x, p2.y).toInt()
                         com.astral.typer.utils.UndoManager.saveState(layers)
                         for (layer in layers) {
-                            if (layer is TextLayer && lineIntersectsLayer(p1, p2, layer)) {
-                                layer.gradientAngle = angle
-                                layer.isGradient = true
-                                layer.isGlobalGradient = true
-                                layer.globalP1.set(p1.x, p1.y)
-                                layer.globalP2.set(p2.x, p2.y)
-                                layer.gradientStartColor = pendingGradientStart
-                                layer.gradientEndColor = pendingGradientEnd
-
-                                // Apply global targets
-                                layer.isGradientText = targetGradientText
-                                layer.isGradientStroke = targetGradientStroke
-                                layer.isGradientShadow = targetGradientShadow
+                            if (lineIntersectsLayer(p1, p2, layer)) {
+                                if (layer is TextLayer) {
+                                    layer.gradientAngle = angle; layer.isGradient = true; layer.isGlobalGradient = true
+                                    layer.globalP1.set(p1.x, p1.y); layer.globalP2.set(p2.x, p2.y)
+                                    layer.gradientStartColor = pendingGradientStart; layer.gradientEndColor = pendingGradientEnd
+                                    layer.isGradientText = targetGradientText; layer.isGradientStroke = targetGradientStroke; layer.isGradientShadow = targetGradientShadow
+                                } else if (layer is com.astral.typer.models.ShapeLayer) {
+                                    layer.gradientAngle = angle; layer.isGradient = true; layer.isGlobalGradient = true
+                                    layer.globalP1.set(p1.x, p1.y); layer.globalP2.set(p2.x, p2.y)
+                                    layer.gradientStartColor = pendingGradientStart; layer.gradientEndColor = pendingGradientEnd
+                                    layer.isGradientText = targetGradientText; layer.isGradientStroke = targetGradientStroke; layer.isGradientShadow = targetGradientShadow
+                                }
                             }
                         }
                     }
-                    gradationStart = null
-                    gradationEnd = null
-                    invalidate()
+                    gradationStart = null; gradationEnd = null; invalidate()
                 }
             }
             return true
         }
 
-        if (isEraseLayerMode && selectedLayer is TextLayer) {
-             val layer = selectedLayer as TextLayer
-             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
-                 currentMode = Mode.PAN_ZOOM
-                 scaleDetector.onTouchEvent(event)
-                 gestureDetector.onTouchEvent(event)
-
-                 if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                     currentMode = Mode.ERASE_LAYER
-                 }
-                 return true
-             }
-
-             val localPoint = floatArrayOf(cx, cy)
-             val globalToLocal = Matrix()
-             globalToLocal.postTranslate(-layer.x, -layer.y)
-             globalToLocal.postRotate(-layer.rotation)
-             globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
-             globalToLocal.mapPoints(localPoint)
-             val lx = localPoint[0]
-             val ly = localPoint[1]
-
-             val w = layer.getWidth().toInt().coerceAtLeast(1)
-             val h = layer.getHeight().toInt().coerceAtLeast(1)
-             val maskX = lx + w/2f
-             val maskY = ly + h/2f
-
-             when(event.actionMasked) {
-                 MotionEvent.ACTION_DOWN -> {
-                     currentLayerErasePath.reset()
-                     currentLayerErasePath.moveTo(maskX, maskY)
-                     if (layer.eraseMask == null) {
-                         layer.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-                     }
-                     layer.activeErasePath = currentLayerErasePath
-                     layer.activeEraseSize = layerEraseSize
-                     layer.activeEraseOpacity = layerEraseOpacity
-                     layer.activeEraseHardness = layerEraseHardness
-                 }
-                 MotionEvent.ACTION_MOVE -> {
-                     currentLayerErasePath.lineTo(maskX, maskY)
-                     layer.activeErasePath = currentLayerErasePath
-                     layer.activeEraseSize = layerEraseSize
-                     layer.activeEraseOpacity = layerEraseOpacity
-                     layer.activeEraseHardness = layerEraseHardness
-                     invalidate()
-                 }
-                 MotionEvent.ACTION_UP -> {
-                     layer.activeErasePath = null
-                     if (!currentLayerErasePath.isEmpty) {
-                         layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
-                         currentLayerErasePath.reset()
-                     }
-                     invalidate()
-                 }
-             }
-             return true
+        if (isEraseLayerMode && (selectedLayer is TextLayer || selectedLayer is com.astral.typer.models.ShapeLayer)) {
+            val layer = selectedLayer!!
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                currentMode = Mode.PAN_ZOOM; scaleDetector.onTouchEvent(event); gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) currentMode = Mode.ERASE_LAYER
+                return true
+            }
+            val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
+            globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
+            val w = layer.getWidth().toInt().coerceAtLeast(1); val h = layer.getHeight().toInt().coerceAtLeast(1)
+            val maskX = localPoint[0] + w/2f; val maskY = localPoint[1] + h/2f
+            when(event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    currentLayerErasePath.reset(); currentLayerErasePath.moveTo(maskX, maskY)
+                    if (layer is TextLayer) {
+                        if (layer.eraseMask == null) layer.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                        layer.activeErasePath = currentLayerErasePath; layer.activeEraseSize = layerEraseSize; layer.activeEraseOpacity = layerEraseOpacity; layer.activeEraseHardness = layerEraseHardness
+                    } else if (layer is com.astral.typer.models.ShapeLayer) {
+                        if (layer.eraseMask == null) layer.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                        layer.activeErasePath = currentLayerErasePath; layer.activeEraseSize = layerEraseSize; layer.activeEraseOpacity = layerEraseOpacity; layer.activeEraseHardness = layerEraseHardness
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    currentLayerErasePath.lineTo(maskX, maskY)
+                    if (layer is TextLayer) {
+                        layer.activeErasePath = currentLayerErasePath; layer.activeEraseSize = layerEraseSize; layer.activeEraseOpacity = layerEraseOpacity; layer.activeEraseHardness = layerEraseHardness
+                    } else if (layer is com.astral.typer.models.ShapeLayer) {
+                        layer.activeErasePath = currentLayerErasePath; layer.activeEraseSize = layerEraseSize; layer.activeEraseOpacity = layerEraseOpacity; layer.activeEraseHardness = layerEraseHardness
+                    }
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (layer is TextLayer) {
+                        layer.activeErasePath = null
+                        if (!currentLayerErasePath.isEmpty) { layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness); currentLayerErasePath.reset() }
+                    } else if (layer is com.astral.typer.models.ShapeLayer) {
+                        layer.activeErasePath = null
+                        if (!currentLayerErasePath.isEmpty) { layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness); currentLayerErasePath.reset() }
+                    }
+                    invalidate()
+                }
+            }
+            return true
         }
 
         when (event.actionMasked) {
@@ -1812,31 +1793,24 @@ class AstralCanvasView @JvmOverloads constructor(
                         return true
                     }
 
-                    if (layer is TextLayer && layer.isWarp && isWarpToolActive) {
-                         val mesh = layer.warpMesh
+                    val isWarpActive = if (layer is TextLayer) layer.isWarp else if (layer is com.astral.typer.models.ShapeLayer) layer.isWarp else false
+                    val isPerspectiveActive = if (layer is TextLayer) layer.isPerspective else if (layer is com.astral.typer.models.ShapeLayer) layer.isPerspective else false
+
+                    if (isWarpActive && isWarpToolActive) {
+                         val mesh = if (layer is TextLayer) layer.warpMesh else (layer as? com.astral.typer.models.ShapeLayer)?.warpMesh
                          if (mesh != null) {
                              val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
-                             var bestIdx = -1
-                             var minD = Float.MAX_VALUE
-
+                             var bestIdx = -1; var minD = Float.MAX_VALUE
                              for (i in 0 until (mesh.size / 2)) {
                                  val d = getDistance(lx, ly, mesh[i*2], mesh[i*2+1])
-                                 if (d < hitRadius && d < minD) {
-                                     minD = d
-                                     bestIdx = i
-                                 }
+                                 if (d < hitRadius && d < minD) { minD = d; bestIdx = i }
                              }
-
-                             if (bestIdx != -1) {
-                                 warpPointIndex = bestIdx
-                                 currentMode = Mode.WARP_DRAG
-                                 return true
-                             }
+                             if (bestIdx != -1) { warpPointIndex = bestIdx; currentMode = Mode.WARP_DRAG; return true }
                          }
                     }
 
-                    if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
-                         val pts = layer.perspectivePoints
+                    if (isPerspectiveMode && isPerspectiveActive) {
+                         val pts = if (layer is TextLayer) layer.perspectivePoints else (layer as? com.astral.typer.models.ShapeLayer)?.perspectivePoints
                          if (pts != null) {
                              val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
                              if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TL; return true }
@@ -1927,15 +1901,14 @@ class AstralCanvasView @JvmOverloads constructor(
                             startY = ly
                             return true
                         }
-                        if (layer is TextLayer && getDistance(lx, ly, halfW + handleOffset, 0f) <= hitRadius) {
+                        if ((layer is TextLayer || layer is com.astral.typer.models.ShapeLayer) && getDistance(lx, ly, halfW + handleOffset, 0f) <= hitRadius) {
                             com.astral.typer.utils.UndoManager.saveState(layers)
-                            currentMode = Mode.BOX_WIDTH
-
-                            initialBoxWidth = layer.getWidth()
-                            centerX = layer.x
-                            centerY = layer.y
-                            startDist = lx
-                            return true
+                            if (layer is TextLayer) {
+                                currentMode = Mode.BOX_WIDTH; initialBoxWidth = layer.getWidth(); centerX = layer.x; centerY = layer.y; startDist = lx; return true
+                            } else {
+                                // ShapeLayer box width? User didn't ask but for consistency:
+                                // return true
+                            }
                         }
                     }
                 }
@@ -1992,19 +1965,13 @@ class AstralCanvasView @JvmOverloads constructor(
                 if (selectedLayer != null) {
                     val layer = selectedLayer!!
 
-                    if (currentMode == Mode.WARP_DRAG && layer is TextLayer) {
-                         val localPoint = floatArrayOf(cx, cy)
-                         val globalToLocal = Matrix()
-                         globalToLocal.postTranslate(-layer.x, -layer.y)
-                         globalToLocal.postRotate(-layer.rotation)
-                         globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
-                         globalToLocal.mapPoints(localPoint)
-
-                         val mesh = layer.warpMesh
+                    if (currentMode == Mode.WARP_DRAG && (layer is TextLayer || layer is com.astral.typer.models.ShapeLayer)) {
+                         val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
+                         globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
+                         val mesh = if (layer is TextLayer) layer.warpMesh else (layer as? com.astral.typer.models.ShapeLayer)?.warpMesh
                          if (mesh != null && warpPointIndex != -1) {
-                             mesh[warpPointIndex*2] = localPoint[0]
-                             mesh[warpPointIndex*2+1] = localPoint[1]
-                             layer.updateDenseWarpMesh()
+                             mesh[warpPointIndex*2] = localPoint[0]; mesh[warpPointIndex*2+1] = localPoint[1]
+                             if (layer is TextLayer) layer.updateDenseWarpMesh() else (layer as? com.astral.typer.models.ShapeLayer)?.updateDenseWarpMesh()
                              invalidate()
                          }
                          return true
@@ -2068,18 +2035,13 @@ class AstralCanvasView @JvmOverloads constructor(
                         return true
                     }
 
-                    if (isPerspectiveMode && layer is TextLayer && layer.perspectivePoints != null) {
-                         val localPoint = floatArrayOf(cx, cy)
-                         val globalToLocal = Matrix()
-                         globalToLocal.postTranslate(-layer.x, -layer.y)
-                         globalToLocal.postRotate(-layer.rotation)
-                         globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
-                         globalToLocal.mapPoints(localPoint)
-
-                         val lx = localPoint[0]
-                         val ly = localPoint[1]
-
-                         val pts = layer.perspectivePoints!!
+                    val isPerspectiveActive = if (layer is TextLayer) layer.isPerspective else if (layer is com.astral.typer.models.ShapeLayer) layer.isPerspective else false
+                    if (isPerspectiveMode && isPerspectiveActive) {
+                         val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
+                         globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
+                         val pts = if (layer is TextLayer) layer.perspectivePoints else (layer as? com.astral.typer.models.ShapeLayer)?.perspectivePoints
+                         if (pts != null) {
+                             val lx = localPoint[0]; val ly = localPoint[1]
 
                          when(currentMode) {
                              Mode.PERSPECTIVE_DRAG_TL -> { pts[0] = lx; pts[1] = ly }
@@ -2095,6 +2057,7 @@ class AstralCanvasView @JvmOverloads constructor(
                                  lastTouchY = cy
                              }
                              else -> {}
+                         }
                          }
                          invalidate()
                          return true

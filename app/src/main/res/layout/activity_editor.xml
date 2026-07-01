@@ -165,6 +165,14 @@
                  style="@style/Widget.MaterialComponents.Button.TextButton"
                  android:textColor="@color/white"/>
 
+            <Button
+                android:id="@+id/btnInsertShape"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Shape"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:textColor="@color/white"/>
+
         </LinearLayout>
 
         <!-- Properties Menu (Hidden by default) -->
