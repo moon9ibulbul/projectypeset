@@ -24,10 +24,12 @@ class RectangularColorPickerView @JvmOverloads constructor(
 
     private val rectBox = RectF()
     private val rectHue = RectF()
+    private val rectAlpha = RectF()
 
     private var hue = 0f // 0..360
     private var sat = 1f // 0..1
     private var `val` = 1f // 0..1
+    private var alphaVal = 1f // 0..1
 
     var onColorChangedListener: ((Int) -> Unit)? = null
 
@@ -37,6 +39,7 @@ class RectangularColorPickerView @JvmOverloads constructor(
         hue = hsv[0]
         sat = hsv[1]
         `val` = hsv[2]
+        alphaVal = Color.alpha(color) / 255f
         invalidate()
     }
 
@@ -49,11 +52,12 @@ class RectangularColorPickerView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        val hueWidth = 80f
+        val sliderWidth = 60f
         val padding = 20f
 
-        rectHue.set(w - hueWidth - padding, padding, w - padding, h - padding)
-        rectBox.set(padding, padding, w - hueWidth - padding * 2, h - padding)
+        rectAlpha.set(w - sliderWidth - padding, padding, w - padding, h - padding)
+        rectHue.set(w - 2 * sliderWidth - 2 * padding, padding, w - sliderWidth - 2 * padding, h - padding)
+        rectBox.set(padding, padding, w - 2 * sliderWidth - 3 * padding, h - padding)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -73,7 +77,22 @@ class RectangularColorPickerView @JvmOverloads constructor(
         val hueY = rectHue.top + (rectHue.height() * (hue / 360f))
         canvas.drawRect(rectHue.left - 4, hueY - 5, rectHue.right + 4, hueY + 5, selectorPaint)
 
-        // 2. Draw Sat/Val Box
+        // 2. Draw Alpha Slider
+        val opaqueColor = Color.HSVToColor(floatArrayOf(hue, sat, `val`))
+        val transparentColor = opaqueColor and 0x00FFFFFF
+        val alphaShader = LinearGradient(
+            rectAlpha.centerX(), rectAlpha.top, rectAlpha.centerX(), rectAlpha.bottom,
+            opaqueColor, transparentColor, Shader.TileMode.CLAMP
+        )
+        paint.shader = alphaShader
+        canvas.drawRect(rectAlpha, paint)
+        canvas.drawRect(rectAlpha, borderPaint)
+
+        // Draw Alpha Selector
+        val alphaY = rectAlpha.top + (rectAlpha.height() * (1f - alphaVal))
+        canvas.drawRect(rectAlpha.left - 4, alphaY - 5, rectAlpha.right + 4, alphaY + 5, selectorPaint)
+
+        // 3. Draw Sat/Val Box
         // Layer 1: Saturation (Left: White -> Right: Hue Color)
         val hueColor = Color.HSVToColor(floatArrayOf(hue, 1f, 1f))
         val satShader = LinearGradient(
@@ -105,7 +124,12 @@ class RectangularColorPickerView @JvmOverloads constructor(
 
         when (event.action) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                if (x >= rectHue.left - 30) { // Hit test with padding
+                if (x >= rectAlpha.left - 20) {
+                    // Alpha Interaction
+                    var a = (y - rectAlpha.top) / rectAlpha.height()
+                    alphaVal = 1f - a.coerceIn(0f, 1f)
+                    invalidate()
+                } else if (x >= rectHue.left - 20) {
                     // Hue Interaction
                     var h = (y - rectHue.top) / rectHue.height()
                     h = h.coerceIn(0f, 1f)
@@ -120,7 +144,8 @@ class RectangularColorPickerView @JvmOverloads constructor(
                     invalidate()
                 }
 
-                val color = Color.HSVToColor(floatArrayOf(hue, sat, `val`))
+                val baseColor = Color.HSVToColor(floatArrayOf(hue, sat, `val`))
+                val color = (baseColor and 0x00FFFFFF) or ((alphaVal * 255).toInt() shl 24)
                 onColorChangedListener?.invoke(color)
             }
         }
