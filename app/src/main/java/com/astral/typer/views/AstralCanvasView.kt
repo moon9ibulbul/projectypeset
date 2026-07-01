@@ -1384,6 +1384,28 @@ class AstralCanvasView @JvmOverloads constructor(
              canvas.restore()
         }
 
+        if (currentMode == Mode.ROTATE_LAYER && this.selectedLayer == layer) {
+             canvas.save()
+             // Move to top-right handle position (Rotate Handle)
+             canvas.translate(halfW + handleOffset, -halfH - handleOffset)
+             canvas.scale(1 / layer.scaleX, 1 / layer.scaleY)
+             canvas.rotate(-layer.rotation)
+
+             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                 color = Color.WHITE
+                 textSize = 40f
+                 setShadowLayer(5f, 0f, 0f, Color.BLACK)
+                 textAlign = Paint.Align.LEFT
+             }
+             // Normalize rotation to 0-359 for display
+             var displayRot = layer.rotation % 360
+             if (displayRot < 0) displayRot += 360
+             val rotateText = "${displayRot.toInt()}°"
+
+             canvas.drawText(rotateText, 30f, -10f, textPaint)
+             canvas.restore()
+        }
+
         if (!isTyperHand) {
             val topY = -halfH - handleOffset * 2.5f
             val iconSpacing = geometry.radius * 2.5f
