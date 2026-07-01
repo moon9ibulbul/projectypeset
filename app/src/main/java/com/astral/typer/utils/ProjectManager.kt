@@ -83,6 +83,13 @@ object ProjectManager {
         // Texture
         val texturePath: String? = null, val textureOffsetX: Float? = null, val textureOffsetY: Float? = null,
 
+        // Built-in Pattern
+        val patternName: String? = null,
+        val patternColor: Int? = null,
+        val patternAlpha: Int? = null,
+        val patternScale: Float? = null,
+        val patternRotation: Float? = null,
+
         // Erase
         val eraseMaskPath: String? = null,
 
@@ -218,6 +225,11 @@ object ProjectManager {
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
 
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
+                        patternName = layer.patternName,
+                        patternColor = layer.patternColor,
+                        patternAlpha = layer.patternAlpha,
+                        patternScale = layer.patternScale,
+                        patternRotation = layer.patternRotation,
                         eraseMaskPath = erasePath,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed,
                         chromaticColors = layer.chromaticColors.toList(),
@@ -501,6 +513,12 @@ object ProjectManager {
                 layer.textureOffsetX = model.textureOffsetX ?: 0f
                 layer.textureOffsetY = model.textureOffsetY ?: 0f
             }
+
+            model.patternName?.let { layer.patternName = it }
+            model.patternColor?.let { layer.patternColor = it }
+            model.patternAlpha?.let { layer.patternAlpha = it }
+            model.patternScale?.let { layer.patternScale = it }
+            model.patternRotation?.let { layer.patternRotation = it }
 
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)

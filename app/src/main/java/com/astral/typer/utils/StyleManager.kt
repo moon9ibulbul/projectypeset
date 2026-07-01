@@ -135,7 +135,14 @@ object StyleManager {
         val isWarp: Boolean = false,
         val warpRows: Int = 2,
         val warpCols: Int = 2,
-        val warpMesh: FloatArray? = null
+        val warpMesh: FloatArray? = null,
+
+        // Built-in Pattern
+        val patternName: String? = null,
+        val patternColor: Int? = Color.BLACK,
+        val patternAlpha: Int? = 255,
+        val patternScale: Float? = 1.0f,
+        val patternRotation: Float? = 0f
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -159,7 +166,8 @@ object StyleManager {
             isBold, isItalic, isUnderline, isStrike,
             l.radialBlurInnerRadius, l.radialBlurMotionStrength,
             l.isPerspective, l.perspectivePoints,
-            l.isWarp, l.warpRows, l.warpCols, l.warpMesh
+            l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
+            l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
         )
     }
 
@@ -223,6 +231,12 @@ object StyleManager {
         l.warpRows = m.warpRows
         l.warpCols = m.warpCols
         l.warpMesh = m.warpMesh
+
+        m.patternName?.let { l.patternName = it }
+        m.patternColor?.let { l.patternColor = it }
+        m.patternAlpha?.let { l.patternAlpha = it }
+        m.patternScale?.let { l.patternScale = it }
+        m.patternRotation?.let { l.patternRotation = it }
 
         // Formatting
         if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {

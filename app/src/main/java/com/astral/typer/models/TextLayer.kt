@@ -88,6 +88,13 @@ class TextLayer(
     var textureOffsetX: Float = 0f
     var textureOffsetY: Float = 0f
 
+    // Built-in Pattern
+    var patternName: String? = null // Asset path
+    var patternColor: Int = Color.BLACK
+    var patternAlpha: Int = 255
+    var patternScale: Float = 1.0f
+    var patternRotation: Float = 0f
+
     // Erase
     var eraseMask: Bitmap? = null
 
@@ -179,6 +186,14 @@ class TextLayer(
     @Transient
     private var cachedWavyHash: Int = 0
 
+    // Caching for Pattern Shader
+    @Transient
+    private var cachedPatternShader: Shader? = null
+    @Transient
+    private var cachedPatternHash: Int = 0
+    @Transient
+    private var cachedPatternXfermode: PorterDuffXfermode? = null
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -245,6 +260,12 @@ class TextLayer(
         newLayer.textureBitmap = this.textureBitmap
         newLayer.textureOffsetX = this.textureOffsetX
         newLayer.textureOffsetY = this.textureOffsetY
+
+        newLayer.patternName = this.patternName
+        newLayer.patternColor = this.patternColor
+        newLayer.patternAlpha = this.patternAlpha
+        newLayer.patternScale = this.patternScale
+        newLayer.patternRotation = this.patternRotation
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
@@ -430,7 +451,7 @@ class TextLayer(
             textPaint.clearShadowLayer()
         }
 
-        // Texture Application
+        // Texture Application (Legacy)
         if (textureBitmap != null) {
             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
             val matrix = Matrix()
@@ -874,9 +895,13 @@ class TextLayer(
             if (silhouetteColor != null) {
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor!!)
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
             } else if (isDrawingShadowPass) {
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
                 paint.color = modulateColor(shadowColor)
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
             } else {
                 val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
                 if (hasMultiGradient) {
@@ -896,9 +921,46 @@ class TextLayer(
                     paint.shader = null
                     paint.color = color
                 }
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
+
+                // 4. Built-in Pattern Overlay
+                if (patternName != null) {
+                    val context = com.astral.typer.TyperApplication.instance
+                    if (context != null) {
+                        val currentPatternHash = listOf(patternName, patternColor, patternScale, patternRotation, patternAlpha, textureOffsetX, textureOffsetY).hashCode()
+
+                        if (cachedPatternShader == null || cachedPatternHash != currentPatternHash) {
+                            val patternBmp = com.astral.typer.utils.PatternManager.getPatternBitmap(context, patternName!!, patternColor)
+                            if (patternBmp != null) {
+                                val shader = android.graphics.BitmapShader(patternBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                val matrix = Matrix()
+                                matrix.postScale(patternScale, patternScale)
+                                matrix.postRotate(patternRotation, patternBmp.width * patternScale / 2f, patternBmp.height * patternScale / 2f)
+                                matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                shader.setLocalMatrix(matrix)
+                                cachedPatternShader = shader
+                                cachedPatternHash = currentPatternHash
+                                cachedPatternXfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                            } else {
+                                cachedPatternShader = null
+                            }
+                        }
+
+                        if (cachedPatternShader != null) {
+                            paint.shader = cachedPatternShader
+                            paint.color = Color.WHITE
+                            paint.alpha = patternAlpha
+                            paint.xfermode = cachedPatternXfermode
+                            layout.draw(targetCanvas)
+
+                            // Restore
+                            paint.xfermode = null
+                            paint.alpha = originalAlpha
+                        }
+                    }
+                }
             }
-            paint.clearShadowLayer()
-            layout.draw(targetCanvas)
 
             // Restore
             paint.shader = originalShader
