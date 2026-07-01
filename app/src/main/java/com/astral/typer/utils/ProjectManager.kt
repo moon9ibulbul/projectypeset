@@ -101,6 +101,7 @@ object ProjectManager {
         val wavyIntensity: Float? = null, val wavyFrequency: Float? = null,
         val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
         val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null,
+        val radialBlurInnerRadius: Float? = null, val radialBlurMotionStrength: Float? = null,
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -232,6 +233,7 @@ object ProjectManager {
                         wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
+                        radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -536,6 +538,8 @@ object ProjectManager {
             model.particleDissolveAngle?.let { layer.particleDissolveAngle = it }
             model.multiGradientColors?.let { layer.multiGradientColors = it.toIntArray() }
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
+            model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
+            model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }

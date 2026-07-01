@@ -13,5 +13,6 @@ enum class TextEffectType {
     FIERY,
     WAVY,
     PARTICLE_DISSOLVE,
-    MULTI_GRADIENT
+    MULTI_GRADIENT,
+    RADIAL_BLUR
 }

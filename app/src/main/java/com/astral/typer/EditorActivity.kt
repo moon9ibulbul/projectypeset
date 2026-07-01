@@ -989,6 +989,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Fiery", TextEffectType.FIERY)
         addEffectCard("Wavy", TextEffectType.WAVY)
         addEffectCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR)
+        addEffectCard("Radial Blur", TextEffectType.RADIAL_BLUR)
         addEffectCard("Halftone", TextEffectType.HALFTONE)
         addEffectCard("Multi Gradient", TextEffectType.MULTI_GRADIENT)
 
@@ -1096,6 +1097,39 @@ class EditorActivity : AppCompatActivity() {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         layer.wavyFrequency = p.toFloat()
                         tv2?.text = "Frequency: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+        }
+        if (isEffectActive(TextEffectType.RADIAL_BLUR)) {
+                val s1 = createSlider("Clear Area: ${layer.radialBlurInnerRadius.toInt()}", layer.radialBlurInnerRadius.toInt(), 500) {
+                    layer.radialBlurInnerRadius = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.radialBlurInnerRadius = p.toFloat()
+                        tv1?.text = "Clear Area: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                val s2 = createSlider("Motion Strength: ${layer.radialBlurMotionStrength.toInt()}", layer.radialBlurMotionStrength.toInt(), 180) {
+                    layer.radialBlurMotionStrength = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.radialBlurMotionStrength = p.toFloat()
+                        tv2?.text = "Motion Strength: $p"
                         canvasView.invalidate()
                     }
                     override fun onStartTrackingTouch(s: SeekBar?) {}
