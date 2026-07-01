@@ -1425,32 +1425,118 @@ class EditorActivity : AppCompatActivity() {
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            setPadding(16, 16, 16, 16)
+            setPadding(16, 8, 16, 8)
+        }
+
+        val btnRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            weightSum = 2f
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         // Import Button
         val btnImport = android.widget.Button(this).apply {
-            text = "Import Texture"
+            text = "Import"
             setTextColor(Color.WHITE)
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
             }
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(0, 0, 8, 0)
+            }
             setOnClickListener {
                 importTextureLauncher.launch("image/*")
             }
         }
-        layout.addView(btnImport)
+        btnRow.addView(btnImport)
 
-        if (layer.textureBitmap != null) {
+        // Browse Button
+        val btnBrowse = android.widget.Button(this).apply {
+            text = "Browse"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(Color.DKGRAY)
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(8, 0, 0, 0)
+            }
+            setOnClickListener {
+                showPatternBrowser()
+            }
+        }
+        btnRow.addView(btnBrowse)
+        layout.addView(btnRow)
+
+        if (layer.textureBitmap != null || layer.patternName != null) {
+            val settingsScroll = ScrollView(this).apply {
+                isVerticalScrollBarEnabled = false
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+            }
+            val settingsLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 16, 0, 0)
+            }
+            settingsScroll.addView(settingsLayout)
+
+            if (layer.patternName != null) {
+                // Color
+                settingsLayout.addView(TextView(this).apply { text = "Pattern Color"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(createColorScroll(layer.patternColor,
+                    { c -> layer.patternColor = c; canvasView.invalidate() },
+                    { showColorWheelDialogForProperty(layer.patternColor) { c -> layer.patternColor = c; canvasView.invalidate() } }
+                ))
+
+                // Intensity (Repurposed to control Scale/Density)
+                // Range 0% - 100%. Map to Scale 5.0x down to 0.1x
+                val initialIntensity = ((5.0f - layer.patternScale) / 4.9f * 100).toInt().coerceIn(0, 100)
+                settingsLayout.addView(createSlider("Intensity: $initialIntensity%", initialIntensity, 100) {
+                    val scale = 5.0f - (it / 100f * 4.9f)
+                    layer.patternScale = scale
+                    canvasView.invalidate()
+                })
+
+                // Opacity
+                settingsLayout.addView(createSlider("Opacity: ${(layer.patternAlpha / 2.55f).toInt()}%", layer.patternAlpha, 255) {
+                    layer.patternAlpha = it
+                    canvasView.invalidate()
+                })
+
+                // Rotation
+                settingsLayout.addView(createSlider("Rotation: ${layer.patternRotation.toInt()}°", layer.patternRotation.toInt(), 360) {
+                    layer.patternRotation = it.toFloat()
+                    canvasView.invalidate()
+                })
+
+                val btnClear = android.widget.Button(this).apply {
+                    text = "Clear Pattern"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.parseColor("#880000")); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        layer.patternName = null
+                        canvasView.invalidate()
+                        showTextureMenu()
+                    }
+                }
+                settingsLayout.addView(btnClear)
+            }
+
+            // Offset Controls (Arrows)
+            val controlsLabel = TextView(this).apply {
+                text = if (layer.patternName != null) "Shift Pattern" else "Shift Texture"
+                setTextColor(Color.LTGRAY)
+                setPadding(0, 16, 0, 8)
+            }
+            settingsLayout.addView(controlsLabel)
+
             val controls = GridLayout(this).apply {
                 columnCount = 3
                 rowCount = 3
                 alignmentMode = GridLayout.ALIGN_BOUNDS
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = dpToPx(16)
+                    gravity = Gravity.CENTER_HORIZONTAL
                 }
             }
 
@@ -1477,23 +1563,81 @@ class EditorActivity : AppCompatActivity() {
             }
 
             // Grid Layout for Arrows
-            // Row 0
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty TL
-            controls.addView(createArrow("▲", 0f, -10f)) // Up
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty TR
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) })
+            controls.addView(createArrow("▲", 0f, -10f))
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) })
 
-            // Row 1
-            controls.addView(createArrow("◄", -10f, 0f)) // Left
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Center (Maybe Reset?)
-            controls.addView(createArrow("►", 10f, 0f)) // Right
+            controls.addView(createArrow("◄", -10f, 0f))
+            val btnReset = android.widget.Button(this).apply {
+                text = "R"
+                background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                setTextColor(Color.WHITE)
+                layoutParams = GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40); setMargins(2,2,2,2) }
+                setOnClickListener {
+                    layer.textureOffsetX = 0f
+                    layer.textureOffsetY = 0f
+                    canvasView.invalidate()
+                }
+            }
+            controls.addView(btnReset)
+            controls.addView(createArrow("►", 10f, 0f))
 
-            // Row 2
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty BL
-            controls.addView(createArrow("▼", 0f, 10f)) // Down
-            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) }) // Empty BR
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) })
+            controls.addView(createArrow("▼", 0f, 10f))
+            controls.addView(View(this), GridLayout.LayoutParams().apply { width = dpToPx(30); height = dpToPx(30) })
 
-            layout.addView(controls)
+            settingsLayout.addView(controls)
+            layout.addView(settingsScroll)
         }
+
+        container.addView(layout)
+    }
+
+    private fun showPatternBrowser() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? TextLayer ?: return
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+
+        val titleBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(16, 8, 16, 8)
+        }
+        val btnBack = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_close)
+            setColorFilter(Color.WHITE)
+            setOnClickListener { showTextureMenu() }
+        }
+        val tvTitle = TextView(this).apply {
+            text = "Browse Patterns"
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setPadding(16, 0, 0, 0)
+        }
+        titleBar.addView(btnBack)
+        titleBar.addView(tvTitle)
+        layout.addView(titleBar)
+
+        val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@EditorActivity, 4)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+
+        val patterns = com.astral.typer.utils.PatternManager.listPatterns(this)
+        recyclerView.adapter = PatternAdapter(lifecycleScope, patterns, layer.patternName) { selected ->
+            layer.patternName = selected
+            // Defaults
+            if (layer.patternAlpha == 0) layer.patternAlpha = 255
+            if (layer.patternScale == 0f) layer.patternScale = 1.0f
+
+            canvasView.invalidate()
+            showTextureMenu()
+        }
+        layout.addView(recyclerView)
 
         container.addView(layout)
     }
