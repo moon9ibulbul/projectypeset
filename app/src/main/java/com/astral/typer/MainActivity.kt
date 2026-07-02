@@ -87,6 +87,115 @@ class MainActivity : AppCompatActivity() {
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+
+        val action = intent.action
+        val type = intent.type
+
+        if (Intent.ACTION_SEND == action && type != null) {
+            (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))?.let { uri ->
+                handleUri(uri)
+            }
+        } else if (Intent.ACTION_VIEW == action) {
+            intent.data?.let { uri ->
+                handleUri(uri)
+            }
+        }
+    }
+
+    private fun handleUri(uri: Uri) {
+        val fileName = getFileName(uri).lowercase()
+        val mimeType = contentResolver.getType(uri)
+
+        when {
+            mimeType?.startsWith("image/") == true -> {
+                openEditorWithImage(uri)
+            }
+            fileName.endsWith(".atd") -> {
+                openProjectFromUri(uri)
+            }
+            fileName.endsWith(".ttf") || fileName.endsWith(".otf") || fileName.endsWith(".zip") ||
+                    mimeType == "font/ttf" || mimeType == "font/otf" ||
+                    mimeType == "application/zip" || mimeType == "application/x-zip-compressed" -> {
+                importFontFromUri(uri)
+            }
+            else -> {
+                // Try to open as image if mime type is null but it might be an image
+                if (mimeType == null && (fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".webp"))) {
+                    openEditorWithImage(uri)
+                } else {
+                    Toast.makeText(this, "Unsupported file type", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun openProjectFromUri(uri: Uri) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = contentResolver.openInputStream(uri)
+                val tempFile = File(cacheDir, "temp_open_intent.atd")
+                tempFile.outputStream().use { out ->
+                    inputStream?.copyTo(out)
+                }
+                withContext(Dispatchers.Main) {
+                    openProject(tempFile)
+                }
+            } catch(e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Failed to open project file", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun importFontFromUri(uri: Uri) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val success = com.astral.typer.utils.FontManager.importFont(this@MainActivity, uri)
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    Toast.makeText(this@MainActivity, "Font imported successfully", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "Failed to import font", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun getFileName(uri: Uri): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor = contentResolver.query(uri, null, null, null, null)
+            try {
+                if (cursor != null && cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0) {
+                        result = cursor.getString(index)
+                    }
+                }
+            } finally {
+                cursor?.close()
+            }
+        }
+        if (result == null) {
+            val path = uri.path
+            if (path != null) {
+                val cut = path.lastIndexOf('/')
+                result = if (cut != -1) path.substring(cut + 1) else path
+            }
+        }
+        return result ?: ""
     }
 
     override fun onResume() {
