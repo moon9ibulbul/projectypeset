@@ -47,6 +47,9 @@ object ProjectManager {
         val opacity: Int, val blendMode: String,
         val isOpacityGradient: Boolean, val opacityStart: Int, val opacityEnd: Int, val opacityAngle: Int,
 
+        // Shape Layer
+        val shapeName: String? = null,
+
         // Image Layer
         val imagePath: String? = null,
 
@@ -253,6 +256,49 @@ object ProjectManager {
                         globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
 
+                } else if (layer is com.astral.typer.models.ShapeLayer) {
+                    var texPath: String? = null
+                    if (layer.textureBitmap != null) {
+                        val name = "shape_tex_$index.png"
+                        saveBitmap(layer.textureBitmap!!, File(imagesDir, name))
+                        texPath = "images/$name"
+                    }
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "shape_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+                    layerModels.add(LayerModel(
+                        type = "SHAPE",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+                        shapeName = layer.shapeName, color = layer.color,
+                        shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
+                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+                        strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
+                        doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
+                        isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
+                        isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
+                        texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
+                        patternName = layer.patternName, patternColor = layer.patternColor, patternAlpha = layer.patternAlpha, patternScale = layer.patternScale, patternRotation = layer.patternRotation,
+                        eraseMaskPath = erasePath,
+                        currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, effectSeed = layer.effectSeed,
+                        chromaticColors = layer.chromaticColors.toList(), blurRadius = layer.blurRadius,
+                        longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
+                        motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
+                        halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
+                        neonRadius = layer.neonRadius, neonColor = layer.neonColor, glitchIntensity = layer.glitchIntensity, pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
+                        fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
+                        particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
+                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
+                        radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
+                    ))
                 } else if (layer is ImageLayer) {
                     val imgName = "layer_$index.png"
                     saveBitmap(layer.bitmap, File(imagesDir, imgName))
@@ -560,6 +606,89 @@ object ProjectManager {
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
+            model.isGlobalGradient?.let { layer.isGlobalGradient = it }
+            if (model.globalP1X != null && model.globalP1Y != null) {
+                layer.globalP1.set(model.globalP1X, model.globalP1Y)
+            }
+            if (model.globalP2X != null && model.globalP2Y != null) {
+                layer.globalP2.set(model.globalP2X, model.globalP2Y)
+            }
+
+            applyCommonProperties(layer, model)
+            return layer
+        } else if (model.type == "SHAPE" && model.shapeName != null) {
+            val layer = com.astral.typer.models.ShapeLayer(model.shapeName, model.color ?: Color.BLACK)
+            model.shadowColor?.let { layer.shadowColor = it }
+            model.shadowRadius?.let { layer.shadowRadius = it }
+            model.shadowDx?.let { layer.shadowDx = it }
+            model.shadowDy?.let { layer.shadowDy = it }
+            model.isMotionShadow?.let { layer.isMotionShadow = it }
+            model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.motionShadowAngle?.let { layer.motionShadowAngle = it }
+            model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.isGradient?.let { layer.isGradient = it }
+            model.gradientStartColor?.let { layer.gradientStartColor = it }
+            model.gradientEndColor?.let { layer.gradientEndColor = it }
+            model.gradientAngle?.let { layer.gradientAngle = it }
+            model.isGradientText?.let { layer.isGradientText = it }
+            model.isGradientStroke?.let { layer.isGradientStroke = it }
+            model.isGradientShadow?.let { layer.isGradientShadow = it }
+            model.strokeColor?.let { layer.strokeColor = it }
+            model.strokeWidth?.let { layer.strokeWidth = it }
+            model.doubleStrokeColor?.let { layer.doubleStrokeColor = it }
+            model.doubleStrokeWidth?.let { layer.doubleStrokeWidth = it }
+            model.isPerspective?.let { layer.isPerspective = it }
+            model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
+            model.isWarp?.let { layer.isWarp = it }
+            model.warpRows?.let { layer.warpRows = it }
+            model.warpCols?.let { layer.warpCols = it }
+            model.warpMesh?.let { layer.warpMesh = it.toFloatArray() }
+            if (model.texturePath != null) {
+                layer.textureBitmap = imageMap[model.texturePath]
+                layer.textureOffsetX = model.textureOffsetX ?: 0f
+                layer.textureOffsetY = model.textureOffsetY ?: 0f
+            }
+            model.patternName?.let { layer.patternName = it }
+            model.patternColor?.let { layer.patternColor = it }
+            model.patternAlpha?.let { layer.patternAlpha = it }
+            model.patternScale?.let { layer.patternScale = it }
+            model.patternRotation?.let { layer.patternRotation = it }
+            if (model.eraseMaskPath != null) {
+                layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            }
+            model.currentEffect?.let {
+                try { layer.currentEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
+            }
+            model.secondaryEffect?.let {
+                try { layer.secondaryEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
+            }
+            model.effectSeed?.let { layer.effectSeed = it }
+            model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
+            model.blurRadius?.let { layer.blurRadius = it }
+            model.longShadowLength?.let { layer.longShadowLength = it }
+            model.longShadowColor?.let { layer.longShadowColor = it }
+            model.longShadowAngle?.let { layer.longShadowAngle = it }
+            model.motionBlurLength?.let { layer.motionBlurLength = it }
+            model.motionBlurAngle?.let { layer.motionBlurAngle = it }
+            model.halftoneDotSize?.let { layer.halftoneDotSize = it }
+            model.halftoneDotColor?.let { layer.halftoneDotColor = it }
+            model.halftoneThreshold?.let { layer.halftoneThreshold = it }
+            model.neonRadius?.let { layer.neonRadius = it }
+            model.neonColor?.let { layer.neonColor = it }
+            model.glitchIntensity?.let { layer.glitchIntensity = it }
+            model.pixelBlockSize?.let { layer.pixelBlockSize = it }
+            model.chromaticShift?.let { layer.chromaticShift = it }
+            model.fieryColor?.let { layer.fieryColor = it }
+            model.fieryIntensity?.let { layer.fieryIntensity = it }
+            model.wavyIntensity?.let { layer.wavyIntensity = it }
+            model.wavyFrequency?.let { layer.wavyFrequency = it }
+            model.particleSize?.let { layer.particleSize = it }
+            model.particleSpread?.let { layer.particleSpread = it }
+            model.particleDissolveAngle?.let { layer.particleDissolveAngle = it }
+            model.multiGradientColors?.let { layer.multiGradientColors = it.toIntArray() }
+            model.multiGradientAngle?.let { layer.multiGradientAngle = it }
+            model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
+            model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {
                 layer.globalP1.set(model.globalP1X, model.globalP1Y)

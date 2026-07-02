@@ -1,8 +1,98 @@
 package com.astral.typer.models
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Path
 import android.graphics.PointF
+
+interface StylableLayer {
+    var color: Int
+
+    // Shadow
+    var shadowColor: Int
+    var shadowRadius: Float
+    var shadowDx: Float
+    var shadowDy: Float
+    var isMotionShadow: Boolean
+    var isMotionShadowIncludeStroke: Boolean
+    var motionShadowAngle: Int
+    var motionShadowDistance: Float
+
+    // Gradient
+    var isGradient: Boolean
+    var gradientStartColor: Int
+    var gradientEndColor: Int
+    var gradientAngle: Int
+    var isGradientText: Boolean // Fill
+    var isGradientStroke: Boolean
+    var isGradientShadow: Boolean
+    var isGlobalGradient: Boolean
+    var globalP1: PointF
+    var globalP2: PointF
+
+    // Stroke
+    var strokeColor: Int
+    var strokeWidth: Float
+    var doubleStrokeColor: Int
+    var doubleStrokeWidth: Float
+
+    // Perspective & Warp
+    var isPerspective: Boolean
+    var perspectivePoints: FloatArray?
+    var isWarp: Boolean
+    var warpRows: Int
+    var warpCols: Int
+    var warpMesh: FloatArray?
+    fun updateDenseWarpMesh()
+
+    // Texture & Pattern
+    var textureBitmap: Bitmap?
+    var textureOffsetX: Float
+    var textureOffsetY: Float
+    var patternName: String?
+    var patternColor: Int
+    var patternAlpha: Int
+    var patternScale: Float
+    var patternRotation: Float
+
+    // Effects
+    var currentEffect: TextEffectType
+    var secondaryEffect: TextEffectType
+    var effectSeed: Long
+    var blurRadius: Float
+    var longShadowLength: Float
+    var longShadowColor: Int
+    var longShadowAngle: Float
+    var motionBlurLength: Float
+    var motionBlurAngle: Int
+    var halftoneDotSize: Float
+    var halftoneDotColor: Int
+    var halftoneThreshold: Float
+    var neonRadius: Float
+    var neonColor: Int
+    var glitchIntensity: Float
+    var pixelBlockSize: Float
+    var chromaticShift: Float
+    var chromaticColors: IntArray
+    var fieryColor: Int
+    var fieryIntensity: Float
+    var wavyIntensity: Float
+    var wavyFrequency: Float
+    var particleSize: Float
+    var particleSpread: Float
+    var particleDissolveAngle: Float
+    var multiGradientColors: IntArray
+    var multiGradientAngle: Float
+    var radialBlurInnerRadius: Float
+    var radialBlurMotionStrength: Float
+
+    // Erase
+    var activeErasePath: Path?
+    var activeEraseSize: Float
+    var activeEraseOpacity: Int
+    var activeEraseHardness: Float
+}
 
 abstract class Layer {
     var x: Float = 0f
@@ -29,11 +119,13 @@ abstract class Layer {
 
     // Backwards compatibility for uniform scale getter/setter (optional)
     var scale: Float
-        get() = (scaleX + scaleY) / 2f
+        get() = (abs(scaleX) + abs(scaleY)) / 2f
         set(value) {
-            scaleX = value
-            scaleY = value
+            scaleX = if (scaleX < 0) -value else value
+            scaleY = if (scaleY < 0) -value else value
         }
+
+    private fun abs(f: Float) = if (f < 0) -f else f
 
     // Bounds in local coordinates (before rotation/scale)
     abstract fun getWidth(): Float
@@ -41,6 +133,10 @@ abstract class Layer {
 
     // Draw the content of the layer
     abstract fun draw(canvas: Canvas)
+
+    open fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {}
+
+    open fun updateDenseWarpMesh() {}
 
     // Deep copy
     abstract fun clone(): Layer
