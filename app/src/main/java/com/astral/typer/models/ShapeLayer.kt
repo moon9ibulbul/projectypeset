@@ -21,64 +21,64 @@ import kotlin.math.sin
 
 class ShapeLayer(
     var shapeName: String, // e.g. "shapes/circle.svg"
-    var color: Int = Color.BLACK
-) : Layer() {
+    override var color: Int = Color.BLACK
+) : Layer(), StylableLayer {
 
     // Shadow
-    var shadowColor: Int = Color.GRAY
-    var shadowRadius: Float = 0f
-    var shadowDx: Float = 0f
-    var shadowDy: Float = 0f
+    override var shadowColor: Int = Color.GRAY
+    override var shadowRadius: Float = 0f
+    override var shadowDx: Float = 0f
+    override var shadowDy: Float = 0f
 
     // Motion Shadow
-    var isMotionShadow: Boolean = false
-    var isMotionShadowIncludeStroke: Boolean = false
-    var motionShadowAngle: Int = 0
-    var motionShadowDistance: Float = 0f
+    override var isMotionShadow: Boolean = false
+    override var isMotionShadowIncludeStroke: Boolean = false
+    override var motionShadowAngle: Int = 0
+    override var motionShadowDistance: Float = 0f
 
     // Gradient
-    var isGradient: Boolean = false
-    var gradientStartColor: Int = Color.RED
-    var gradientEndColor: Int = Color.BLUE
-    var gradientAngle: Int = 0
-    var isGradientText: Boolean = true // Repurposed for Shape Fill
-    var isGradientStroke: Boolean = false
-    var isGradientShadow: Boolean = false
+    override var isGradient: Boolean = false
+    override var gradientStartColor: Int = Color.RED
+    override var gradientEndColor: Int = Color.BLUE
+    override var gradientAngle: Int = 0
+    override var isGradientText: Boolean = true // Repurposed for Shape Fill
+    override var isGradientStroke: Boolean = false
+    override var isGradientShadow: Boolean = false
 
-    var isGlobalGradient: Boolean = false
-    var globalP1: PointF = PointF()
-    var globalP2: PointF = PointF()
+    override var isGlobalGradient: Boolean = false
+    override var globalP1: PointF = PointF()
+    override var globalP2: PointF = PointF()
 
     // Stroke
-    var strokeColor: Int = Color.BLACK
-    var strokeWidth: Float = 0f
-    var doubleStrokeColor: Int = Color.WHITE
-    var doubleStrokeWidth: Float = 0f
+    override var strokeColor: Int = Color.BLACK
+    override var strokeWidth: Float = 0f
+    override var doubleStrokeColor: Int = Color.WHITE
+    override var doubleStrokeWidth: Float = 0f
 
     // Perspective
-    var isPerspective: Boolean = false
-    var perspectivePoints: FloatArray? = null
+    override var isPerspective: Boolean = false
+    override var perspectivePoints: FloatArray? = null
 
     // Warp
-    var isWarp: Boolean = false
-    var warpRows: Int = 2
-    var warpCols: Int = 2
-    var warpMesh: FloatArray? = null
+    override var isWarp: Boolean = false
+    override var warpRows: Int = 2
+    override var warpCols: Int = 2
+    override var warpMesh: FloatArray? = null
 
     @Transient
     var denseRenderMesh: FloatArray? = null
 
     // Texture
-    var textureBitmap: Bitmap? = null
-    var textureOffsetX: Float = 0f
-    var textureOffsetY: Float = 0f
+    override var textureBitmap: Bitmap? = null
+    override var textureOffsetX: Float = 0f
+    override var textureOffsetY: Float = 0f
 
     // Built-in Pattern
-    var patternName: String? = null // Asset path
-    var patternColor: Int = Color.BLACK
-    var patternAlpha: Int = 255
-    var patternScale: Float = 1.0f
-    var patternRotation: Float = 0f
+    override var patternName: String? = null // Asset path
+    override var patternColor: Int = Color.BLACK
+    override var patternAlpha: Int = 255
+    override var patternScale: Float = 1.0f
+    override var patternRotation: Float = 0f
 
     // Erase
     var eraseMask: Bitmap? = null
@@ -86,71 +86,71 @@ class ShapeLayer(
     val erasePaths = mutableListOf<ErasePathData>()
 
     @Transient
-    var activeErasePath: Path? = null
+    override var activeErasePath: Path? = null
     @Transient
-    var activeEraseSize: Float = 0f
+    override var activeEraseSize: Float = 0f
     @Transient
-    var activeEraseOpacity: Int = 0
+    override var activeEraseOpacity: Int = 0
     @Transient
-    var activeEraseHardness: Float = 0f
+    override var activeEraseHardness: Float = 0f
 
     // Effect
-    var currentEffect: TextEffectType = TextEffectType.NONE
-    var secondaryEffect: TextEffectType = TextEffectType.NONE
+    override var currentEffect: TextEffectType = TextEffectType.NONE
+    override var secondaryEffect: TextEffectType = TextEffectType.NONE
 
     // Gaussian Blur
-    var blurRadius: Float = 0f
+    override var blurRadius: Float = 0f
 
     // Long Shadow
-    var longShadowLength: Float = 30f
-    var longShadowColor: Int = Color.DKGRAY
-    var longShadowAngle: Float = 45f
+    override var longShadowLength: Float = 30f
+    override var longShadowColor: Int = Color.DKGRAY
+    override var longShadowAngle: Float = 45f
 
     // Motion Blur
-    var motionBlurLength: Float = 0f
-    var motionBlurAngle: Int = 0
+    override var motionBlurLength: Float = 0f
+    override var motionBlurAngle: Int = 0
 
     // Halftone
-    var halftoneDotSize: Float = 10f
-    var halftoneDotColor: Int = Color.BLACK
-    var halftoneThreshold: Float = 0.5f
+    override var halftoneDotSize: Float = 10f
+    override var halftoneDotColor: Int = Color.BLACK
+    override var halftoneThreshold: Float = 0.5f
 
     // Neon
-    var neonRadius: Float = 30f
-    var neonColor: Int = Color.CYAN
+    override var neonRadius: Float = 30f
+    override var neonColor: Int = Color.CYAN
 
     // Glitch
-    var glitchIntensity: Float = 1.0f
+    override var glitchIntensity: Float = 1.0f
 
     // Pixelation
-    var pixelBlockSize: Float = 10f
+    override var pixelBlockSize: Float = 10f
 
     // Chromatic Aberration
-    var chromaticShift: Float = 5f
-    var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())
+    override var chromaticShift: Float = 5f
+    override var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())
 
     // Fiery
-    var fieryColor: Int = Color.rgb(255, 100, 0)
-    var fieryIntensity: Float = 0.5f
+    override var fieryColor: Int = Color.rgb(255, 100, 0)
+    override var fieryIntensity: Float = 0.5f
 
     // Wavy
-    var wavyIntensity: Float = 0.5f
-    var wavyFrequency: Float = 5f
+    override var wavyIntensity: Float = 0.5f
+    override var wavyFrequency: Float = 5f
 
     // Particle Dissolve
-    var particleSize: Float = 5f
-    var particleSpread: Float = 0.5f
-    var particleDissolveAngle: Float = 0f
+    override var particleSize: Float = 5f
+    override var particleSpread: Float = 0.5f
+    override var particleDissolveAngle: Float = 0f
 
     // Multi Gradient
-    var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt())
-    var multiGradientAngle: Float = 0f
+    override var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt())
+    override var multiGradientAngle: Float = 0f
 
     // Radial Blur
-    var radialBlurInnerRadius: Float = 0f
-    var radialBlurMotionStrength: Float = 0f
+    override var radialBlurInnerRadius: Float = 0f
+    override var radialBlurMotionStrength: Float = 0f
 
-    var effectSeed: Long = System.currentTimeMillis()
+    override var effectSeed: Long = System.currentTimeMillis()
 
     @Transient
     private var cachedPixelBitmap: Bitmap? = null
@@ -180,12 +180,16 @@ class ShapeLayer(
 
     override fun getWidth(): Float {
         ensureShapeLoaded()
-        return svg?.documentWidth ?: 100f
+        val w = svg?.documentWidth ?: -1f
+        if (w > 0) return w
+        return svg?.documentViewBox?.width() ?: 100f
     }
 
     override fun getHeight(): Float {
         ensureShapeLoaded()
-        return svg?.documentHeight ?: 100f
+        val h = svg?.documentHeight ?: -1f
+        if (h > 0) return h
+        return svg?.documentViewBox?.height() ?: 100f
     }
 
     private fun ensureShapeLoaded() {
@@ -194,7 +198,10 @@ class ShapeLayer(
             if (context != null) {
                 try {
                     val inputStream = context.assets.open(shapeName)
-                    svgString = inputStream.bufferedReader().use { it.readText() }
+                    var raw = inputStream.bufferedReader().use { it.readText() }
+                    // Strip potential BOM
+                    if (raw.startsWith("\uFEFF")) raw = raw.substring(1)
+                    svgString = raw
                     svg = SVG.getFromString(svgString)
                     inputStream.close()
                 } catch (e: Exception) {
@@ -208,6 +215,9 @@ class ShapeLayer(
         if (!isVisible) return
         ensureShapeLoaded()
         if (svg == null) return
+
+        svg!!.documentWidth = getWidth()
+        svg!!.documentHeight = getHeight()
 
         canvas.save()
         canvas.translate(x, y)
@@ -437,8 +447,6 @@ class ShapeLayer(
                     targetCanvas.translate(d * cos, d * sin)
                     if (isMotionShadowIncludeStroke) {
                         isDrawingShadowPass = true
-                        // Manually applying alpha/blur since we don't have a unified paint here
-                        // For simplicity in motion shadow, we'll just draw the fill silhouette with alpha
                         val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
                         renderSvgManipulated(targetCanvas, fill = c, stroke = null)
                         isDrawingShadowPass = false
@@ -459,7 +467,6 @@ class ShapeLayer(
             if (!isMotionShadow && shadowRadius > 0) {
                 targetCanvas.save()
                 targetCanvas.translate(shadowDx, shadowDy)
-                // Use a shadow paint for simple shadow
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
                 if (isGradient && isGradientShadow) {
                      p.shader = gradientShader
@@ -587,6 +594,107 @@ class ShapeLayer(
                          targetCanvas.restore()
                     }
                 }
+                TextEffectType.FIERY -> {
+                    val pad = calculatePadding()
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("FieryNode")
+                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
+                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.FIERY_SHADER)
+                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("intensity", fieryIntensity)
+                            shader.setFloatUniform("color", Color.red(fieryColor)/255f, Color.green(fieryColor)/255f, Color.blue(fieryColor)/255f)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) drawInner(targetCanvas)
+                }
+                TextEffectType.WAVY -> {
+                    val pad = calculatePadding()
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("WavyNode")
+                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
+                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.WAVY_SHADER)
+                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("intensity", wavyIntensity); shader.setFloatUniform("frequency", wavyFrequency)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) drawInner(targetCanvas)
+                }
+                TextEffectType.PARTICLE_DISSOLVE -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ParticleNode")
+                            node.setPosition(0, 0, w.toInt(), h.toInt())
+                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.PARTICLE_SHADER)
+                            shader.setFloatUniform("particleSize", particleSize); shader.setFloatUniform("spread", particleSpread); shader.setFloatUniform("seed", effectSeed.toFloat())
+                            shader.setFloatUniform("angle", particleDissolveAngle); shader.setFloatUniform("size", w, h)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.drawRenderNode(node)
+                        } catch (e: Exception) { drawInner(targetCanvas) }
+                    } else drawInner(targetCanvas)
+                }
+                TextEffectType.MOTION_BLUR -> {
+                    val pad = calculatePadding()
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("MotionBlurNode")
+                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
+                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.MOTION_BLUR_SHADER)
+                            val rad = Math.toRadians(motionBlurAngle.toDouble())
+                            shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat()); shader.setFloatUniform("length", motionBlurLength)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) drawInner(targetCanvas)
+                }
+                TextEffectType.RADIAL_BLUR -> {
+                    val pad = calculatePadding()
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("RadialBlurNode")
+                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
+                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.RADIAL_BLUR_SHADER)
+                            shader.setFloatUniform("center", w / 2f + pad, h / 2f + pad); shader.setFloatUniform("innerRadius", radialBlurInnerRadius)
+                            shader.setFloatUniform("motionStrength", radialBlurMotionStrength); shader.setFloatUniform("size", w + pad * 2, h + pad * 2)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) drawInner(targetCanvas)
+                }
+                TextEffectType.HALFTONE -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("HalftoneNode")
+                            node.setPosition(0, 0, w.toInt(), h.toInt())
+                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.HALFTONE_SHADER)
+                            shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f)); shader.setFloatUniform("threshold", halftoneThreshold)
+                            shader.setFloatUniform("dotColor", Color.red(halftoneDotColor)/255f, Color.green(halftoneDotColor)/255f, Color.blue(halftoneDotColor)/255f)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.drawRenderNode(node)
+                        } catch (e: Exception) { drawInner(targetCanvas) }
+                    } else drawInner(targetCanvas)
+                }
                 else -> drawInner(targetCanvas)
              }
         }
@@ -649,6 +757,8 @@ class ShapeLayer(
 
         try {
             val mSvg = SVG.getFromString(manipulated)
+            mSvg.documentWidth = getWidth()
+            mSvg.documentHeight = getHeight()
 
             if (fillShader != null || strokeShader != null) {
                 // If shader is present, we render to a layer and apply shader via SRC_IN
@@ -661,8 +771,6 @@ class ShapeLayer(
                     p.shader = fillShader
                     canvas.drawRect(0f, 0f, getWidth(), getHeight(), p)
                 }
-                // Stroke shader is trickier with this approach as it would fill the whole shape.
-                // But for now this covers main cases.
                 canvas.restore()
             } else {
                 mSvg.renderToCanvas(canvas)
@@ -674,7 +782,26 @@ class ShapeLayer(
         var p = strokeWidth + doubleStrokeWidth
         p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
-        return (p + blurRadius * 2.5f + longShadowLength + 20f).coerceAtLeast(0f)
+
+        var effectExpansion = 0f
+        val checkEffect = { effect: TextEffectType ->
+            when(effect) {
+                TextEffectType.GAUSSIAN_BLUR -> effectExpansion = Math.max(effectExpansion, blurRadius * 2.5f)
+                TextEffectType.MOTION_BLUR -> effectExpansion = Math.max(effectExpansion, motionBlurLength)
+                TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
+                TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
+                TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
+                TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
+                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 20f + 20f)
+                TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 10f + 10f)
+                else -> {}
+            }
+        }
+        checkEffect(currentEffect)
+        checkEffect(secondaryEffect)
+
+        return (p + effectExpansion + 20f).coerceAtLeast(0f)
     }
 
     private fun getGradientShader(w: Float, h: Float): Shader? {
@@ -726,7 +853,7 @@ class ShapeLayer(
         return createGradient(w, h, opacityAngle, startColor, endColor)
     }
 
-    fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
+    override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
         val mesh = warpMesh ?: return; val rows = warpRows; val cols = warpCols; var x = 0f; var y = 0f
         for (i in 0..rows) {
             for (j in 0..cols) {
@@ -804,7 +931,7 @@ class ShapeLayer(
         return newLayer
     }
 
-    fun updateDenseWarpMesh() {
+    override fun updateDenseWarpMesh() {
         if (warpMesh == null) return
         val denseCols = 20; val denseRows = 20; val size = (denseCols + 1) * (denseRows + 1) * 2
         if (denseRenderMesh == null || denseRenderMesh!!.size != size) denseRenderMesh = FloatArray(size)

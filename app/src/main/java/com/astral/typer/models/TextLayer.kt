@@ -25,8 +25,8 @@ import kotlin.math.sin
 
 class TextLayer(
     initialText: String = "Double tap to edit",
-    var color: Int = Color.BLACK
-) : Layer() {
+    override var color: Int = Color.BLACK
+) : Layer(), StylableLayer {
 
     var text: SpannableStringBuilder = SpannableStringBuilder(initialText)
     var fontSize: Float = 100f
@@ -40,60 +40,60 @@ class TextLayer(
     var lineSpacing: Float = 0f
 
     // Shadow
-    var shadowColor: Int = Color.GRAY
-    var shadowRadius: Float = 0f
-    var shadowDx: Float = 0f
-    var shadowDy: Float = 0f
+    override var shadowColor: Int = Color.GRAY
+    override var shadowRadius: Float = 0f
+    override var shadowDx: Float = 0f
+    override var shadowDy: Float = 0f
 
     // Motion Shadow
-    var isMotionShadow: Boolean = false
-    var isMotionShadowIncludeStroke: Boolean = false
-    var motionShadowAngle: Int = 0
-    var motionShadowDistance: Float = 0f
+    override var isMotionShadow: Boolean = false
+    override var isMotionShadowIncludeStroke: Boolean = false
+    override var motionShadowAngle: Int = 0
+    override var motionShadowDistance: Float = 0f
 
     // Gradient
-    var isGradient: Boolean = false
-    var gradientStartColor: Int = Color.RED
-    var gradientEndColor: Int = Color.BLUE
-    var gradientAngle: Int = 0
-    var isGradientText: Boolean = true
-    var isGradientStroke: Boolean = false
-    var isGradientShadow: Boolean = false
+    override var isGradient: Boolean = false
+    override var gradientStartColor: Int = Color.RED
+    override var gradientEndColor: Int = Color.BLUE
+    override var gradientAngle: Int = 0
+    override var isGradientText: Boolean = true
+    override var isGradientStroke: Boolean = false
+    override var isGradientShadow: Boolean = false
 
-    var isGlobalGradient: Boolean = false
-    var globalP1: PointF = PointF()
-    var globalP2: PointF = PointF()
+    override var isGlobalGradient: Boolean = false
+    override var globalP1: PointF = PointF()
+    override var globalP2: PointF = PointF()
 
     // Stroke
-    var strokeColor: Int = Color.BLACK
-    var strokeWidth: Float = 0f
-    var doubleStrokeColor: Int = Color.WHITE
-    var doubleStrokeWidth: Float = 0f
+    override var strokeColor: Int = Color.BLACK
+    override var strokeWidth: Float = 0f
+    override var doubleStrokeColor: Int = Color.WHITE
+    override var doubleStrokeWidth: Float = 0f
 
     // Perspective
-    var isPerspective: Boolean = false
-    var perspectivePoints: FloatArray? = null
+    override var isPerspective: Boolean = false
+    override var perspectivePoints: FloatArray? = null
 
     // Warp
-    var isWarp: Boolean = false
-    var warpRows: Int = 2
-    var warpCols: Int = 2
-    var warpMesh: FloatArray? = null
+    override var isWarp: Boolean = false
+    override var warpRows: Int = 2
+    override var warpCols: Int = 2
+    override var warpMesh: FloatArray? = null
 
     @Transient
     var denseRenderMesh: FloatArray? = null
 
     // Texture
-    var textureBitmap: Bitmap? = null
-    var textureOffsetX: Float = 0f
-    var textureOffsetY: Float = 0f
+    override var textureBitmap: Bitmap? = null
+    override var textureOffsetX: Float = 0f
+    override var textureOffsetY: Float = 0f
 
     // Built-in Pattern
-    var patternName: String? = null // Asset path
-    var patternColor: Int = Color.BLACK
-    var patternAlpha: Int = 255
-    var patternScale: Float = 1.0f
-    var patternRotation: Float = 0f
+    override var patternName: String? = null // Asset path
+    override var patternColor: Int = Color.BLACK
+    override var patternAlpha: Int = 255
+    override var patternScale: Float = 1.0f
+    override var patternRotation: Float = 0f
 
     // Erase
     var eraseMask: Bitmap? = null
@@ -104,75 +104,75 @@ class TextLayer(
 
     // Live erase path for preview
     @Transient
-    var activeErasePath: Path? = null
+    override var activeErasePath: Path? = null
     @Transient
-    var activeEraseSize: Float = 0f
+    override var activeEraseSize: Float = 0f
     @Transient
-    var activeEraseOpacity: Int = 0
+    override var activeEraseOpacity: Int = 0
     @Transient
-    var activeEraseHardness: Float = 0f
+    override var activeEraseHardness: Float = 0f
 
     // Effect
-    var currentEffect: TextEffectType = TextEffectType.NONE
-    var secondaryEffect: TextEffectType = TextEffectType.NONE
+    override var currentEffect: TextEffectType = TextEffectType.NONE
+    override var secondaryEffect: TextEffectType = TextEffectType.NONE
 
     // Gaussian Blur
-    var blurRadius: Float = 0f
+    override var blurRadius: Float = 0f
 
     // Long Shadow
-    var longShadowLength: Float = 30f
-    var longShadowColor: Int = Color.DKGRAY
-    var longShadowAngle: Float = 45f
+    override var longShadowLength: Float = 30f
+    override var longShadowColor: Int = Color.DKGRAY
+    override var longShadowAngle: Float = 45f
 
     // Motion Blur
-    var motionBlurLength: Float = 0f
-    var motionBlurAngle: Int = 0
+    override var motionBlurLength: Float = 0f
+    override var motionBlurAngle: Int = 0
 
     // Halftone
-    var halftoneDotSize: Float = 10f
-    var halftoneDotColor: Int = Color.BLACK
-    var halftoneThreshold: Float = 0.5f
+    override var halftoneDotSize: Float = 10f
+    override var halftoneDotColor: Int = Color.BLACK
+    override var halftoneThreshold: Float = 0.5f
 
     // Neon
-    var neonRadius: Float = 30f
-    var neonColor: Int = Color.CYAN
+    override var neonRadius: Float = 30f
+    override var neonColor: Int = Color.CYAN
 
     // Glitch
-    var glitchIntensity: Float = 1.0f
+    override var glitchIntensity: Float = 1.0f
 
     // Pixelation
-    var pixelBlockSize: Float = 10f
+    override var pixelBlockSize: Float = 10f
 
     // Chromatic Aberration
-    var chromaticShift: Float = 5f
-    var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt()) // Left, Right, Center
+    override var chromaticShift: Float = 5f
+    override var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt()) // Left, Right, Center
 
     // Fiery
-    var fieryColor: Int = Color.rgb(255, 100, 0)
-    var fieryIntensity: Float = 0.5f
+    override var fieryColor: Int = Color.rgb(255, 100, 0)
+    override var fieryIntensity: Float = 0.5f
 
     // Wavy
-    var wavyIntensity: Float = 0.5f
-    var wavyFrequency: Float = 5f
+    override var wavyIntensity: Float = 0.5f
+    override var wavyFrequency: Float = 5f
 
     // Particle Dissolve
-    var particleSize: Float = 5f
-    var particleSpread: Float = 0.5f
-    var particleDissolveAngle: Float = 0f
+    override var particleSize: Float = 5f
+    override var particleSpread: Float = 0.5f
+    override var particleDissolveAngle: Float = 0f
 
     // Multi Gradient
-    var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt()) // Classic Rainbow
-    var multiGradientAngle: Float = 0f
+    override var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt()) // Classic Rainbow
+    override var multiGradientAngle: Float = 0f
 
     // Radial Blur
-    var radialBlurInnerRadius: Float = 0f
-    var radialBlurMotionStrength: Float = 0f
+    override var radialBlurInnerRadius: Float = 0f
+    override var radialBlurMotionStrength: Float = 0f
 
     // Shape
     var isOval: Boolean = false
 
     // Random Seed for Glitch effect
-    var effectSeed: Long = System.currentTimeMillis()
+    override var effectSeed: Long = System.currentTimeMillis()
 
     // Caching for Pixelation
     @Transient
@@ -751,7 +751,7 @@ class TextLayer(
         canvas.restore()
     }
 
-    fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
+    override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
         val mesh = warpMesh ?: return
         val rows = warpRows
         val cols = warpCols
@@ -780,7 +780,7 @@ class TextLayer(
         return coeff * Math.pow(t.toDouble(), i.toDouble()).toFloat() * Math.pow((1f - t).toDouble(), (n - i).toDouble()).toFloat()
     }
 
-    fun updateDenseWarpMesh() {
+    override fun updateDenseWarpMesh() {
         if (warpMesh == null) return
         val denseCols = 20
         val denseRows = 20
@@ -1640,6 +1640,7 @@ class TextLayer(
     }
 
     companion object {
+
         const val MOTION_BLUR_SHADER = """
             uniform shader content;
             uniform float2 direction;
