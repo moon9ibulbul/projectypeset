@@ -760,9 +760,12 @@ class ShapeLayer(
             mSvg.documentWidth = getWidth()
             mSvg.documentHeight = getHeight()
 
+            val alphaToUse = if (fill != null) Color.alpha(fill) else if (stroke != null) Color.alpha(stroke) else 255
+            val layerPaint = if (alphaToUse < 255) Paint(Paint.ANTI_ALIAS_FLAG).apply { alpha = alphaToUse } else null
+
             if (fillShader != null || strokeShader != null) {
                 // If shader is present, we render to a layer and apply shader via SRC_IN
-                canvas.saveLayer(null, null)
+                canvas.saveLayer(null, layerPaint)
                 mSvg.renderToCanvas(canvas)
 
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -773,7 +776,13 @@ class ShapeLayer(
                 }
                 canvas.restore()
             } else {
-                mSvg.renderToCanvas(canvas)
+                if (layerPaint != null) {
+                    canvas.saveLayer(null, layerPaint)
+                    mSvg.renderToCanvas(canvas)
+                    canvas.restore()
+                } else {
+                    mSvg.renderToCanvas(canvas)
+                }
             }
         } catch (e: Exception) {}
     }
