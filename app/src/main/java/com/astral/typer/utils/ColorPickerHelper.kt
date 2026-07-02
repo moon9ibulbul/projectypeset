@@ -167,20 +167,23 @@ object ColorPickerHelper {
 
         // Hex Input
         val hexInput = EditText(context).apply {
-            hint = "#RRGGBB"
+            hint = "#AARRGGBB"
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dpToPx(context, 16)
             }
-            setText(String.format("#%06X", (0xFFFFFF and initialColor)))
+            val alpha = Color.alpha(initialColor)
+            val hex = if (alpha < 255) String.format("#%08X", initialColor) else String.format("#%06X", (0xFFFFFF and initialColor))
+            setText(hex)
         }
 
         // Callback
         wheel.onColorChangedListener = { color ->
              currentColor = color
-             val hex = String.format("#%06X", (0xFFFFFF and color))
+             val alpha = Color.alpha(color)
+             val hex = if (alpha < 255) String.format("#%08X", color) else String.format("#%06X", (0xFFFFFF and color))
              if (!hexInput.hasFocus()) {
                 hexInput.setText(hex)
              }
@@ -210,7 +213,8 @@ object ColorPickerHelper {
         val palette = createPaletteView(context, { color ->
              currentColor = color
              wheel.setColor(color)
-             val hex = String.format("#%06X", (0xFFFFFF and color))
+             val alpha = Color.alpha(color)
+             val hex = if (alpha < 255) String.format("#%08X", color) else String.format("#%06X", (0xFFFFFF and color))
              hexInput.setText(hex)
              // Dialog palette selection should likely also refresh to show ring?
              // Since we use the same helper, it will refresh internally if we set the listener correctly.
