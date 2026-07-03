@@ -1057,10 +1057,9 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s2)
                 val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                val currentShadowColor = stylableLayer.longShadowColor
-                settingsLayout.addView(createColorScroll(currentShadowColor,
-                    { c -> stylableLayer.longShadowColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(currentShadowColor) { c -> stylableLayer.longShadowColor = c; canvasView.invalidate() } }
+                settingsLayout.addView(createColorScroll(stylableLayer.longShadowColor,
+                    { c -> stylableLayer.longShadowColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.longShadowColor) { c -> stylableLayer.longShadowColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
         }
         if (isEffectActive(TextEffectType.FIERY)) {
@@ -1082,10 +1081,9 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                val currentFieryColor = stylableLayer.fieryColor
-                settingsLayout.addView(createColorScroll(currentFieryColor,
-                    { c -> stylableLayer.fieryColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(currentFieryColor) { c -> stylableLayer.fieryColor = c; canvasView.invalidate() } }
+                settingsLayout.addView(createColorScroll(stylableLayer.fieryColor,
+                    { c -> stylableLayer.fieryColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.fieryColor) { c -> stylableLayer.fieryColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
         }
         if (isEffectActive(TextEffectType.WAVY)) {
@@ -1195,10 +1193,9 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                val currentDotColor = stylableLayer.halftoneDotColor
-                settingsLayout.addView(createColorScroll(currentDotColor,
-                    { c -> stylableLayer.halftoneDotColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(currentDotColor) { c -> stylableLayer.halftoneDotColor = c; canvasView.invalidate() } }
+                settingsLayout.addView(createColorScroll(stylableLayer.halftoneDotColor,
+                    { c -> stylableLayer.halftoneDotColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.halftoneDotColor) { c -> stylableLayer.halftoneDotColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
         }
         if (isEffectActive(TextEffectType.MULTI_GRADIENT)) {
@@ -1282,10 +1279,9 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
-                val currentNeonColor = stylableLayer.neonColor
-                settingsLayout.addView(createColorScroll(currentNeonColor,
-                    { c -> stylableLayer.neonColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(currentNeonColor) { c -> stylableLayer.neonColor = c; canvasView.invalidate() } }
+                settingsLayout.addView(createColorScroll(stylableLayer.neonColor,
+                    { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.neonColor) { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
@@ -1397,17 +1393,17 @@ class EditorActivity : AppCompatActivity() {
                         layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).apply {
                             setMargins(4, 0, 4, 0)
                         }
-                        val currentColor = stylableLayer.chromaticColors[i]
                         background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
-                            setColor(currentColor)
+                            setColor(stylableLayer.chromaticColors[i])
                             setStroke(dpToPx(1), Color.WHITE)
                         }
                         setOnClickListener { btn ->
-                            showColorWheelDialogForProperty(currentColor) { pickedColor ->
+                            showColorWheelDialogForProperty(stylableLayer.chromaticColors[i]) { pickedColor ->
                                 stylableLayer.chromaticColors[i] = pickedColor
                                 (btn.background as GradientDrawable).setColor(pickedColor)
                                 canvasView.invalidate()
+                                showEffectMenu()
                             }
                         }
                     }
@@ -1504,16 +1500,15 @@ class EditorActivity : AppCompatActivity() {
             settingsScroll.addView(settingsLayout)
 
             if (stylableLayer.patternName != null) {
-                val currentPatternColor = stylableLayer.patternColor
                 val currentPatternScale = stylableLayer.patternScale
                 val currentPatternAlpha = stylableLayer.patternAlpha
                 val currentPatternRotation = stylableLayer.patternRotation
 
                 // Color
                 settingsLayout.addView(TextView(this).apply { text = "Pattern Color"; setTextColor(Color.LTGRAY) })
-                settingsLayout.addView(createColorScroll(currentPatternColor,
-                    { c -> stylableLayer.patternColor = c; canvasView.invalidate() },
-                    { showColorWheelDialogForProperty(currentPatternColor) { c -> stylableLayer.patternColor = c; canvasView.invalidate() } }
+                settingsLayout.addView(createColorScroll(stylableLayer.patternColor,
+                    { c -> stylableLayer.patternColor = c; canvasView.invalidate(); showTextureMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.patternColor) { c -> stylableLayer.patternColor = c; canvasView.invalidate(); showTextureMenu() } }
                 ))
 
                 // Intensity
@@ -3611,7 +3606,7 @@ class EditorActivity : AppCompatActivity() {
                 setMargins(0, 0, 16, 0)
             }
             setOnClickListener {
-                val layerColor = if (layer is TextLayer) layer.color else if (layer is com.astral.typer.models.ShapeLayer) layer.color else Color.BLACK
+                val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else Color.BLACK
                 ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layerColor) { color ->
                     val et = activeEditText
                     if (et != null && et.selectionStart != et.selectionEnd) {
@@ -3619,12 +3614,13 @@ class EditorActivity : AppCompatActivity() {
                     } else {
                         // Apply Color and Disable Gradient
                         if (layer is TextLayer) {
-                            layer.color = color; layer.isGradient = false
+                            (layer as TextLayer).color = color; (layer as TextLayer).isGradient = false
                         } else if (layer is com.astral.typer.models.ShapeLayer) {
-                            layer.color = color; layer.isGradient = false
+                            (layer as com.astral.typer.models.ShapeLayer).color = color; (layer as com.astral.typer.models.ShapeLayer).isGradient = false
                         }
                         canvasView.invalidate()
                     }
+                    showColorPicker()
                 }
             }
         }
@@ -3638,23 +3634,24 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     applySpanToSelection(ForegroundColorSpan(color))
                 } else {
-                    val layerColor = if (layer is TextLayer) layer.color else if (layer is com.astral.typer.models.ShapeLayer) layer.color else 0
-                    val layerIsGradient = if (layer is TextLayer) layer.isGradient else if (layer is com.astral.typer.models.ShapeLayer) layer.isGradient else false
+                    val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else 0
+                    val layerIsGradient = if (layer is TextLayer) (layer as TextLayer).isGradient else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).isGradient else false
 
                     if (layerColor == color && !layerIsGradient) {
                         // Already active and solid.
                     } else {
                         if (layer is TextLayer) {
-                            layer.color = color; layer.isGradient = false
+                            (layer as TextLayer).color = color; (layer as TextLayer).isGradient = false
                         } else if (layer is com.astral.typer.models.ShapeLayer) {
-                            layer.color = color; layer.isGradient = false
+                            (layer as com.astral.typer.models.ShapeLayer).color = color; (layer as com.astral.typer.models.ShapeLayer).isGradient = false
                         }
                         canvasView.invalidate()
                     }
                 }
+                showColorPicker()
             },
             null, // No add button here? Or keep it? The helper has logic for saved colors internally.
-            if (layer is TextLayer) layer.color else if (layer is com.astral.typer.models.ShapeLayer) layer.color else Color.BLACK // Selected color
+            if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else Color.BLACK // Selected color
         )
         list.addView(paletteView)
 
@@ -4315,13 +4312,12 @@ class EditorActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16, 8, 16, 8)
             }
-            val currentShadowColor = stylableLayer.shadowColor
             val currentShadowRadius = stylableLayer.shadowRadius
             val currentShadowDx = stylableLayer.shadowDx
             val currentShadowDy = stylableLayer.shadowDy
 
             // Color
-            layout.addView(createColorScroll(currentShadowColor,
+            layout.addView(createColorScroll(stylableLayer.shadowColor,
                 { c ->
                     if (stylableLayer.shadowColor == c && stylableLayer.shadowRadius > 0) stylableLayer.shadowRadius = 0f
                     else {
@@ -4331,7 +4327,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 },
                 {
-                    showColorWheelDialogForProperty(currentShadowColor) { c ->
+                    showColorWheelDialogForProperty(stylableLayer.shadowColor) { c ->
                         stylableLayer.shadowColor = c
                         if (stylableLayer.shadowRadius == 0f) stylableLayer.shadowRadius = 10f
                         canvasView.invalidate()
@@ -4382,13 +4378,12 @@ class EditorActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16, 8, 16, 8)
             }
-            val currentMShadowColor = stylableLayer.shadowColor
             val currentMShadowDist = stylableLayer.motionShadowDistance
             val currentMShadowAngle = stylableLayer.motionShadowAngle
             val currentMShadowStroke = stylableLayer.isMotionShadowIncludeStroke
 
             // Color
-            layout.addView(createColorScroll(currentMShadowColor,
+            layout.addView(createColorScroll(stylableLayer.shadowColor,
                 { c ->
                     if (stylableLayer.shadowColor == c && stylableLayer.motionShadowDistance > 0) stylableLayer.motionShadowDistance = 0f
                     else {
@@ -4398,7 +4393,7 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                 },
                 {
-                    showColorWheelDialogForProperty(currentMShadowColor) { c ->
+                    showColorWheelDialogForProperty(stylableLayer.shadowColor) { c ->
                         stylableLayer.shadowColor = c
                         if (stylableLayer.motionShadowDistance == 0f) stylableLayer.motionShadowDistance = 20f
                         canvasView.invalidate()
@@ -4582,55 +4577,61 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(togglesLayout)
 
         // Start Color
-        val layerGradStartColor = if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
-        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else layerGradStartColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else (if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor),
              { c ->
                  if (isGradationMode) {
                      canvasView.pendingGradientStart = c
+                     canvasView.invalidate()
                  } else {
                      if (layerAsText != null) { layerAsText.gradientStartColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
                      else if (layerAsShape != null) { layerAsShape.gradientStartColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                      canvasView.invalidate()
                  }
+                 showGradationControls()
              },
              {
-                 val current = if (isGradationMode) canvasView.pendingGradientStart else layerGradStartColor
+                 val current = if (isGradationMode) canvasView.pendingGradientStart else (if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor)
                  showColorWheelDialogForProperty(current) { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientStart = c
+                         canvasView.invalidate()
                      } else {
                          if (layerAsText != null) { layerAsText.gradientStartColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
                          else if (layerAsShape != null) { layerAsShape.gradientStartColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                          canvasView.invalidate()
                      }
+                     showGradationControls()
                  }
              }
         ))
 
         // End Color
-        val layerGradEndColor = if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
-        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else layerGradEndColor,
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else (if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor),
              { c ->
                  if (isGradationMode) {
                      canvasView.pendingGradientEnd = c
+                     canvasView.invalidate()
                  } else {
                      if (layerAsText != null) { layerAsText.gradientEndColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
                      else if (layerAsShape != null) { layerAsShape.gradientEndColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                      canvasView.invalidate()
                  }
+                 showGradationControls()
              },
              {
-                 val current = if (isGradationMode) canvasView.pendingGradientEnd else layerGradEndColor
+                 val current = if (isGradationMode) canvasView.pendingGradientEnd else (if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor)
                  showColorWheelDialogForProperty(current) { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientEnd = c
+                         canvasView.invalidate()
                      } else {
                          if (layerAsText != null) { layerAsText.gradientEndColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
                          else if (layerAsShape != null) { layerAsShape.gradientEndColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
                          canvasView.invalidate()
                      }
+                     showGradationControls()
                  }
              }
         ))
@@ -4670,17 +4671,18 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Color List (Moved to Top)
-        val currentStrokeColor = stylableLayer.strokeColor
-        val colorList = createColorScroll(currentStrokeColor,
+        val colorList = createColorScroll(stylableLayer.strokeColor,
              { c ->
                  if (stylableLayer.strokeColor == c && stylableLayer.strokeWidth > 0) stylableLayer.strokeWidth = 0f
                  else { stylableLayer.strokeColor = c; if (stylableLayer.strokeWidth == 0f) stylableLayer.strokeWidth = 5f }
                  canvasView.invalidate()
+                 showStrokeMenu()
              },
-             { showColorWheelDialogForProperty(currentStrokeColor) { c ->
+             { showColorWheelDialogForProperty(stylableLayer.strokeColor) { c ->
                  stylableLayer.strokeColor = c; if(stylableLayer.strokeWidth==0f) stylableLayer.strokeWidth=5f
-                 canvasView.invalidate() }
-             }
+                 canvasView.invalidate()
+                 showStrokeMenu()
+             } }
         )
         mainLayout.addView(colorList)
 
@@ -4766,17 +4768,18 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Color List (Moved to Top)
-        val currentDStrokeColor = stylableLayer.doubleStrokeColor
-        val colorList = createColorScroll(currentDStrokeColor,
+        val colorList = createColorScroll(stylableLayer.doubleStrokeColor,
              { c ->
                  if (stylableLayer.doubleStrokeColor == c && stylableLayer.doubleStrokeWidth > 0) stylableLayer.doubleStrokeWidth = 0f
                  else { stylableLayer.doubleStrokeColor = c; if (stylableLayer.doubleStrokeWidth == 0f) stylableLayer.doubleStrokeWidth = 5f }
                  canvasView.invalidate()
+                 showDoubleStrokeMenu()
              },
-             { showColorWheelDialogForProperty(currentDStrokeColor) { c ->
+             { showColorWheelDialogForProperty(stylableLayer.doubleStrokeColor) { c ->
                  stylableLayer.doubleStrokeColor = c; if(stylableLayer.doubleStrokeWidth==0f) stylableLayer.doubleStrokeWidth=5f
-                 canvasView.invalidate() }
-             }
+                 canvasView.invalidate()
+                 showDoubleStrokeMenu()
+             } }
         )
         mainLayout.addView(colorList)
 
