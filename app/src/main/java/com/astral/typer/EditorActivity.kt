@@ -2369,7 +2369,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun togglePerspectiveMode(enabled: Boolean) {
-        val layer = canvasView.getSelectedLayer() as? TextLayer
+        val layer = canvasView.getSelectedLayer() as? StylableLayer
         if (layer != null) {
             // "Menu Perspective ... ditekan"
             // The prompt implies it's a tool mode.
@@ -2381,7 +2381,7 @@ class EditorActivity : AppCompatActivity() {
                 // If enabled, initialize points if null
                 if (layer.perspectivePoints == null) {
                     // Initialize to current corners relative to center
-                    val w = layer.getWidth()
+                    val w = (layer as Layer).getWidth()
                     val h = layer.getHeight()
                     layer.perspectivePoints = floatArrayOf(
                         -w/2f, -h/2f, // TL
@@ -2667,18 +2667,62 @@ class EditorActivity : AppCompatActivity() {
         binding.menuProperties.visibility = View.VISIBLE
 
         val layer = canvasView.getSelectedLayer()
-        if (layer is ShapeLayer) {
+        if (layer is ImageLayer) {
+            // Task: Saat layer berupa ImageLayer, buat agar dia bisa melakukan operasi 'Opacity', 'Erase', 'Perspective', dan 'Warp'.
+            // Selain itu (Quick edit, style, font, dan lain-lain) buat menjadi hidden
+            binding.btnPropQuickEdit.visibility = View.GONE
+            binding.btnPropStyle.visibility = View.GONE
+            binding.btnPropFont.visibility = View.GONE
+            binding.btnPropFormat.visibility = View.GONE
+            binding.btnPropColor.visibility = View.GONE
+            binding.btnPropSpacing.visibility = View.GONE
+            binding.btnPropStroke.visibility = View.GONE
+            binding.btnPropDoubleStroke.visibility = View.GONE
+            binding.btnPropShadow.visibility = View.GONE
+            binding.btnPropGradation.visibility = View.GONE
+            binding.btnPropEffect.visibility = View.GONE
+            binding.btnPropTexture.visibility = View.GONE
+
+            binding.btnPropOpacity.visibility = View.VISIBLE
+            binding.btnPropErase.visibility = View.VISIBLE
+            binding.btnPropPerspective.visibility = View.VISIBLE
+            binding.btnPropWarp.visibility = View.VISIBLE
+        } else if (layer is ShapeLayer) {
             binding.btnPropQuickEdit.visibility = View.GONE
             binding.btnPropStyle.visibility = View.GONE
             binding.btnPropFont.visibility = View.GONE
             binding.btnPropFormat.visibility = View.GONE
             binding.btnPropSpacing.visibility = View.GONE
+
+            // Ensure others are visible
+            binding.btnPropColor.visibility = View.VISIBLE
+            binding.btnPropStroke.visibility = View.VISIBLE
+            binding.btnPropDoubleStroke.visibility = View.VISIBLE
+            binding.btnPropShadow.visibility = View.VISIBLE
+            binding.btnPropGradation.visibility = View.VISIBLE
+            binding.btnPropEffect.visibility = View.VISIBLE
+            binding.btnPropTexture.visibility = View.VISIBLE
+            binding.btnPropOpacity.visibility = View.VISIBLE
+            binding.btnPropErase.visibility = View.VISIBLE
+            binding.btnPropPerspective.visibility = View.VISIBLE
+            binding.btnPropWarp.visibility = View.VISIBLE
         } else {
             binding.btnPropQuickEdit.visibility = View.VISIBLE
             binding.btnPropStyle.visibility = View.VISIBLE
             binding.btnPropFont.visibility = View.VISIBLE
             binding.btnPropFormat.visibility = View.VISIBLE
+            binding.btnPropColor.visibility = View.VISIBLE
             binding.btnPropSpacing.visibility = View.VISIBLE
+            binding.btnPropStroke.visibility = View.VISIBLE
+            binding.btnPropDoubleStroke.visibility = View.VISIBLE
+            binding.btnPropShadow.visibility = View.VISIBLE
+            binding.btnPropGradation.visibility = View.VISIBLE
+            binding.btnPropEffect.visibility = View.VISIBLE
+            binding.btnPropTexture.visibility = View.VISIBLE
+            binding.btnPropOpacity.visibility = View.VISIBLE
+            binding.btnPropErase.visibility = View.VISIBLE
+            binding.btnPropPerspective.visibility = View.VISIBLE
+            binding.btnPropWarp.visibility = View.VISIBLE
         }
     }
 

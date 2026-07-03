@@ -81,9 +81,8 @@ class ShapeLayer(
     override var patternRotation: Float = 0f
 
     // Erase
-    var eraseMask: Bitmap? = null
-    data class ErasePathData(val path: Path, val size: Float, val opacity: Int, val hardness: Float)
-    val erasePaths = mutableListOf<ErasePathData>()
+    override var eraseMask: Bitmap? = null
+    override val erasePaths = mutableListOf<ErasePathData>()
 
     @Transient
     override var activeErasePath: Path? = null
@@ -884,7 +883,7 @@ class ShapeLayer(
         matrix.setPolyToPoly(srcPts, 0, dst, 0, 4); return matrix
     }
 
-    fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
+    override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
         erasePaths.add(ErasePathData(Path(path), size, opacity, hardness))
         if (eraseMask != null) {
              val c = Canvas(eraseMask!!); val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -898,11 +897,11 @@ class ShapeLayer(
         }
     }
 
-    fun undoLastErasePath(baseMask: Bitmap?) {
+    override fun undoLastErasePath(baseMask: Bitmap?) {
         if (erasePaths.isNotEmpty()) { erasePaths.removeAt(erasePaths.size - 1); rebuildEraseMask(baseMask) }
     }
 
-    fun rebuildEraseMask(baseMask: Bitmap?) {
+    override fun rebuildEraseMask(baseMask: Bitmap?) {
         val w = eraseMask?.width ?: baseMask?.width ?: getWidth().toInt().coerceAtLeast(1)
         val h = eraseMask?.height ?: baseMask?.height ?: getHeight().toInt().coerceAtLeast(1)
         val newMask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); val c = Canvas(newMask)

@@ -480,7 +480,12 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun setPerspectiveMode(enabled: Boolean) {
         isPerspectiveMode = enabled
-        if (!enabled) currentMode = Mode.NONE
+        if (!enabled) {
+            if (currentMode == Mode.PERSPECTIVE_DRAG_TL || currentMode == Mode.PERSPECTIVE_DRAG_TR ||
+                currentMode == Mode.PERSPECTIVE_DRAG_BR || currentMode == Mode.PERSPECTIVE_DRAG_BL) {
+                currentMode = Mode.NONE
+            }
+        }
         invalidate()
     }
 
@@ -496,9 +501,6 @@ class AstralCanvasView @JvmOverloads constructor(
         isEraseLayerMode = enabled
         if (enabled) {
             currentMode = Mode.ERASE_LAYER
-            if (selectedLayer !is TextLayer) {
-                 // Warning logic
-            }
         } else {
             if (currentMode == Mode.ERASE_LAYER) {
                 currentMode = Mode.NONE
@@ -508,9 +510,8 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun undoLayerErase() {
-        if (selectedLayer is TextLayer) {
-            val layer = selectedLayer as TextLayer
-            layer.undoLastErasePath(null)
+        (selectedLayer as? com.astral.typer.models.StylableLayer)?.let {
+            it.undoLastErasePath(null)
             invalidate()
         }
     }
@@ -1737,10 +1738,8 @@ class AstralCanvasView @JvmOverloads constructor(
             when(event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     currentLayerErasePath.reset(); currentLayerErasePath.moveTo(maskX, maskY)
-                    val maskBmp = if (layer is TextLayer) layer.eraseMask else if (layer is com.astral.typer.models.ShapeLayer) layer.eraseMask else null
-                    if (maskBmp == null) {
-                         val newMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-                         if (layer is TextLayer) layer.eraseMask = newMask else if (layer is com.astral.typer.models.ShapeLayer) layer.eraseMask = newMask
+                    if (stylable.eraseMask == null) {
+                         stylable.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
                     }
                     stylable.activeErasePath = currentLayerErasePath
                     stylable.activeEraseSize = layerEraseSize
@@ -1758,8 +1757,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 MotionEvent.ACTION_UP -> {
                     stylable.activeErasePath = null
                     if (!currentLayerErasePath.isEmpty) {
-                        if (layer is TextLayer) layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
-                        else if (layer is com.astral.typer.models.ShapeLayer) layer.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
+                        stylable.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
                         currentLayerErasePath.reset()
                     }
                     invalidate()

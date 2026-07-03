@@ -96,11 +96,10 @@ class TextLayer(
     override var patternRotation: Float = 0f
 
     // Erase
-    var eraseMask: Bitmap? = null
+    override var eraseMask: Bitmap? = null
 
     // Erase Paths for Granular Undo (Runtime only, lost on save/load if not serialized, but acceptable for session undo)
-    data class ErasePathData(val path: Path, val size: Float, val opacity: Int, val hardness: Float)
-    val erasePaths = mutableListOf<ErasePathData>()
+    override val erasePaths = mutableListOf<ErasePathData>()
 
     // Live erase path for preview
     @Transient
@@ -321,7 +320,7 @@ class TextLayer(
         return newLayer
     }
 
-    fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
+    override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
         erasePaths.add(ErasePathData(Path(path), size, opacity, hardness))
         // We also need to update the bitmap to reflect this change
         if (eraseMask == null) {
@@ -348,14 +347,14 @@ class TextLayer(
         }
     }
 
-    fun undoLastErasePath(baseMask: Bitmap?) {
+    override fun undoLastErasePath(baseMask: Bitmap?) {
         if (erasePaths.isNotEmpty()) {
             erasePaths.removeAt(erasePaths.size - 1)
             rebuildEraseMask(baseMask)
         }
     }
 
-    fun rebuildEraseMask(baseMask: Bitmap?) {
+    override fun rebuildEraseMask(baseMask: Bitmap?) {
         // If we have eraseMask dimensions, reuse or recreate
         val w = eraseMask?.width ?: baseMask?.width ?: 1
         val h = eraseMask?.height ?: baseMask?.height ?: 1
