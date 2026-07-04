@@ -85,7 +85,9 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // RAW Panel
     enum class RawPanelMode { ON_TOP, BESIDE }
-    private var rawPanelBitmap: android.graphics.Bitmap? = null
+    private val rawPanelTiles = mutableListOf<ImageTile>()
+    private var rawPanelWidth = 0
+    private var rawPanelHeight = 0
     var rawPanelOpacity: Int = 255
     var rawPanelMode: RawPanelMode = RawPanelMode.ON_TOP
 
@@ -725,15 +727,17 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun getPixelColor(x: Float, y: Float): Int {
-        rawPanelBitmap?.let { rawBmp ->
-            if (rawPanelMode == RawPanelMode.ON_TOP) {
-                if (x >= 0 && x < rawBmp.width && y >= 0 && y < rawBmp.height) {
-                    return rawBmp.getPixel(x.toInt(), y.toInt())
-                }
-            } else {
-                val rx = x - canvasWidth
-                if (rx >= 0 && rx < rawBmp.width && y >= 0 && y < rawBmp.height) {
-                    return rawBmp.getPixel(rx.toInt(), y.toInt())
+        if (rawPanelTiles.isNotEmpty()) {
+            val rx = if (rawPanelMode == RawPanelMode.ON_TOP) x else x - canvasWidth
+            val ry = y
+
+            if (rx >= 0 && rx < rawPanelWidth && ry >= 0 && ry < rawPanelHeight) {
+                for (tile in rawPanelTiles) {
+                    if (tile.rect.contains(rx, ry)) {
+                        val tx = (rx - tile.rect.left).toInt()
+                        val ty = (ry - tile.rect.top).toInt()
+                        return tile.bitmap.getPixel(tx, ty)
+                    }
                 }
             }
         }
@@ -845,7 +849,19 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun setRawPanelImage(bitmap: android.graphics.Bitmap?) {
-        rawPanelBitmap = bitmap
+        for (tile in rawPanelTiles) {
+            tile.bitmap.recycle()
+        }
+        rawPanelTiles.clear()
+
+        if (bitmap != null) {
+            rawPanelWidth = bitmap.width
+            rawPanelHeight = bitmap.height
+            rawPanelTiles.addAll(createTilesFromBitmap(bitmap))
+        } else {
+            rawPanelWidth = 0
+            rawPanelHeight = 0
+        }
         invalidate()
     }
 
@@ -887,12 +903,35 @@ class AstralCanvasView @JvmOverloads constructor(
         }
         backgroundTiles.clear()
 
-        rawPanelBitmap?.recycle()
-        rawPanelBitmap = null
+        for (tile in rawPanelTiles) {
+            tile.bitmap.recycle()
+        }
+        rawPanelTiles.clear()
+        rawPanelWidth = 0
+        rawPanelHeight = 0
 
         post {
              centerCanvas()
         }
+    }
+
+    private fun createTilesFromBitmap(bitmap: android.graphics.Bitmap): List<ImageTile> {
+        val tiles = mutableListOf<ImageTile>()
+        val w = bitmap.width
+        val h = bitmap.height
+
+        for (y in 0 until h step TILE_SIZE) {
+            for (x in 0 until w step TILE_SIZE) {
+                val tileW = min(TILE_SIZE, w - x)
+                val tileH = min(TILE_SIZE, h - y)
+
+                val tileBitmap = android.graphics.Bitmap.createBitmap(bitmap, x, y, tileW, tileH)
+                val tileRect = RectF(x.toFloat(), y.toFloat(), (x + tileW).toFloat(), (y + tileH).toFloat())
+
+                tiles.add(ImageTile(tileBitmap, tileRect))
+            }
+        }
+        return tiles
     }
 
     fun setBackgroundImage(bitmap: android.graphics.Bitmap) {
@@ -900,23 +939,7 @@ class AstralCanvasView @JvmOverloads constructor(
             tile.bitmap.recycle()
         }
         backgroundTiles.clear()
-
-        val w = bitmap.width
-        val h = bitmap.height
-
-        // Tiling Logic
-        for (y in 0 until h step TILE_SIZE) {
-            for (x in 0 until w step TILE_SIZE) {
-                val tileW = min(TILE_SIZE, w - x)
-                val tileH = min(TILE_SIZE, h - y)
-
-                // Create tile
-                val tileBitmap = android.graphics.Bitmap.createBitmap(bitmap, x, y, tileW, tileH)
-                val tileRect = RectF(x.toFloat(), y.toFloat(), (x + tileW).toFloat(), (y + tileH).toFloat())
-
-                backgroundTiles.add(ImageTile(tileBitmap, tileRect))
-            }
-        }
+        backgroundTiles.addAll(createTilesFromBitmap(bitmap))
         invalidate()
     }
 
@@ -996,15 +1019,28 @@ class AstralCanvasView @JvmOverloads constructor(
         // Draw Layers
         drawScene(canvas)
 
-        // Draw RAW Panel
-        rawPanelBitmap?.let {
+        // Draw RAW Panel with Frustum Culling
+        if (rawPanelTiles.isNotEmpty()) {
+            val visibleViewport = RectF(0f, 0f, width.toFloat(), height.toFloat())
+            val inverse = Matrix()
+            viewMatrix.invert(inverse)
+            inverse.mapRect(visibleViewport)
+
             val rawPaint = Paint(Paint.ANTI_ALIAS_FLAG)
             rawPaint.alpha = rawPanelOpacity
-            if (rawPanelMode == RawPanelMode.ON_TOP) {
-                canvas.drawBitmap(it, 0f, 0f, rawPaint)
-            } else {
-                canvas.drawBitmap(it, canvasWidth.toFloat(), 0f, rawPaint)
+
+            canvas.save()
+            if (rawPanelMode == RawPanelMode.BESIDE) {
+                canvas.translate(canvasWidth.toFloat(), 0f)
+                visibleViewport.offset(-canvasWidth.toFloat(), 0f)
             }
+
+            for (tile in rawPanelTiles) {
+                if (RectF.intersects(tile.rect, visibleViewport)) {
+                    canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, rawPaint)
+                }
+            }
+            canvas.restore()
         }
 
         // Draw Detected Bubbles (Bottom Layer overlay)
@@ -1171,14 +1207,19 @@ class AstralCanvasView @JvmOverloads constructor(
              }
 
              // Draw RAW Panel in Magnifying Glass
-             rawPanelBitmap?.let {
+             if (rawPanelTiles.isNotEmpty()) {
                  val rawPaint = Paint(Paint.ANTI_ALIAS_FLAG)
                  rawPaint.alpha = rawPanelOpacity
-                 if (rawPanelMode == RawPanelMode.ON_TOP) {
-                     canvas.drawBitmap(it, 0f, 0f, rawPaint)
-                 } else {
-                     canvas.drawBitmap(it, canvasWidth.toFloat(), 0f, rawPaint)
+
+                 canvas.save()
+                 if (rawPanelMode == RawPanelMode.BESIDE) {
+                     canvas.translate(canvasWidth.toFloat(), 0f)
                  }
+
+                 for (tile in rawPanelTiles) {
+                     canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, rawPaint)
+                 }
+                 canvas.restore()
              }
 
              canvas.restore()
