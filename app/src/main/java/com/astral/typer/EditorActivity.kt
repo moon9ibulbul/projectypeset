@@ -1311,7 +1311,7 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
-                        stylableLayer.effectSeed = System.currentTimeMillis()
+                        stylableLayer.effectSeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
                     }
                 }
@@ -1478,7 +1478,7 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
-                        stylableLayer.effectSeed = System.currentTimeMillis()
+                        stylableLayer.effectSeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
                     }
                 }

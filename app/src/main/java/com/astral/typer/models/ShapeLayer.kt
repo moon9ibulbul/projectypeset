@@ -711,7 +711,7 @@ class ShapeLayer(
                             val shader = android.graphics.RuntimeShader(TextLayer.TEXT_DECAY_SHADER)
                             shader.setFloatUniform("intensity", decayIntensity)
                             shader.setFloatUniform("fadingLevel", decayFadingLevel)
-                            shader.setFloatUniform("seed", effectSeed.toFloat() % 10000f)
+                            shader.setFloatUniform("seed", (effectSeed % 10000).toFloat())
                             shader.setFloatUniform("size", w, h)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
