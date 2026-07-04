@@ -756,38 +756,42 @@ class ShapeLayer(
         val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         val srcCanvas = Canvas(srcBmp); srcCanvas.translate(pad, pad); drawInner(srcCanvas)
 
-        val noiseScale = 0.1f
-        val nW = (bmpW * noiseScale).toInt().coerceAtLeast(1)
-        val nH = (bmpH * noiseScale).toInt().coerceAtLeast(1)
-        val noiseBmp = Bitmap.createBitmap(nW, nH, Bitmap.Config.ARGB_8888)
         val random = Random(effectSeed)
-        for (y in 0 until nH) for (x in 0 until nW) {
-            val n = random.nextInt(256); noiseBmp.setPixel(x, y, Color.rgb(n, n, n))
+        fun generateNoise(scale: Float): Bitmap {
+            val nW = (bmpW * scale).toInt().coerceAtLeast(1)
+            val nH = (bmpH * scale).toInt().coerceAtLeast(1)
+            val b = Bitmap.createBitmap(nW, nH, Bitmap.Config.ARGB_8888)
+            for (y in 0 until nH) for (x in 0 until nW) {
+                val n = random.nextInt(256); b.setPixel(x, y, Color.rgb(n, n, n))
+            }
+            val s = Bitmap.createScaledBitmap(b, bmpW, bmpH, true); b.recycle(); return s
         }
-        val scaledNoise = Bitmap.createScaledBitmap(noiseBmp, bmpW, bmpH, true); noiseBmp.recycle()
 
-        val pixels = IntArray(bmpW * bmpH)
-        val noisePixels = IntArray(bmpW * bmpH)
+        val noise1 = generateNoise(0.1f); val noise2 = generateNoise(0.2f); val noise3 = generateNoise(0.4f)
+        val pixels = IntArray(bmpW * bmpH); val n1 = IntArray(bmpW * bmpH); val n2 = IntArray(bmpW * bmpH); val n3 = IntArray(bmpW * bmpH)
+
         srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
-        scaledNoise.getPixels(noisePixels, 0, bmpW, 0, 0, bmpW, bmpH)
+        noise1.getPixels(n1, 0, bmpW, 0, 0, bmpW, bmpH); noise2.getPixels(n2, 0, bmpW, 0, 0, bmpW, bmpH); noise3.getPixels(n3, 0, bmpW, 0, 0, bmpW, bmpH)
 
-        val threshold = (1.0f - decayIntensity) * 255
-        val fading = decayFadingLevel * 100f
+        val threshold = 1.1f - (decayIntensity * 1.1f)
+        val softness = decayFadingLevel * 0.4f + 0.01f
+
+        fun smoothstep(e0: Float, e1: Float, x: Float): Float {
+            val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
+            return t * t * (3f - 2f * t)
+        }
 
         for (i in pixels.indices) {
-            val color = pixels[i]; val alpha = Color.alpha(color)
-            if (alpha == 0) continue
-            val noiseVal = Color.red(noisePixels[i])
-            val edgeWeight = alpha.toFloat()
-            val combinedVal = (noiseVal.toFloat() * 0.7f + edgeWeight * 0.3f)
-            val maskAlpha = if (combinedVal < threshold - fading) 0
-                            else if (combinedVal > threshold + fading) 255
-                            else ((combinedVal - (threshold - fading)) / (fading * 2f + 1f) * 255).toInt()
-            pixels[i] = (color and 0x00FFFFFF) or ((alpha * maskAlpha / 255) shl 24)
+            val color = pixels[i]; val alpha = Color.alpha(color) / 255f
+            if (alpha <= 0f) continue
+            var n = (Color.red(n1[i]) / 255f); n += (Color.red(n2[i]) / 255f) * 0.5f; n += (Color.red(n3[i]) / 255f) * 0.25f; n /= 1.75f
+            val valCombined = n + (1.0f - alpha) * 0.5f
+            val mask = smoothstep(threshold - softness, threshold + softness, valCombined)
+            pixels[i] = (color and 0x00FFFFFF) or ((alpha * (1.0f - mask) * 255f).toInt().coerceIn(0, 255) shl 24)
         }
         srcBmp.setPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
         targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawBitmap(srcBmp, 0f, 0f, null); targetCanvas.restore()
-        srcBmp.recycle(); scaledNoise.recycle()
+        srcBmp.recycle(); noise1.recycle(); noise2.recycle(); noise3.recycle()
     }
 
     private fun renderSvgManipulated(canvas: Canvas, fill: Int?, stroke: Int?, strokeW: Float = 0f, fillShader: Shader? = null, strokeShader: Shader? = null) {
