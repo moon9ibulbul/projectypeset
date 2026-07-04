@@ -167,6 +167,10 @@ class TextLayer(
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
 
+    // Text Decay
+    override var decayIntensity: Float = 0.5f
+    override var decayFadingLevel: Float = 0.5f
+
     // Shape
     var isOval: Boolean = false
 
@@ -307,6 +311,8 @@ class TextLayer(
 
         newLayer.radialBlurInnerRadius = this.radialBlurInnerRadius
         newLayer.radialBlurMotionStrength = this.radialBlurMotionStrength
+        newLayer.decayIntensity = this.decayIntensity
+        newLayer.decayFadingLevel = this.decayFadingLevel
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -1581,6 +1587,34 @@ class TextLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.TEXT_DECAY -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("DecayNode")
+                            val wInt = w.toInt().coerceAtLeast(1)
+                            val hInt = h.toInt().coerceAtLeast(1)
+                            node.setPosition(0, 0, wInt, hInt)
+
+                            val recordingCanvas = node.beginRecording()
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TEXT_DECAY_SHADER)
+                            shader.setFloatUniform("intensity", decayIntensity)
+                            shader.setFloatUniform("fadingLevel", decayFadingLevel)
+                            shader.setFloatUniform("seed", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("size", w, h)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.drawRenderNode(node)
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawTextDecaySoftware(targetCanvas, w, h, drawInner)
+                    }
+                }
                 else -> {
                     drawInner(targetCanvas)
                 }
@@ -1624,6 +1658,95 @@ class TextLayer(
             }
             canvas.drawPath(activeErasePath!!, p)
         }
+    }
+
+    private fun drawTextDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        val bmpW = ceil(w + pad * 2).toInt()
+        val bmpH = ceil(h + pad * 2).toInt()
+
+        if (bmpW <= 0 || bmpH <= 0) {
+            drawInner(targetCanvas)
+            return
+        }
+
+        // 1. Render source text to bitmap
+        val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val srcCanvas = Canvas(srcBmp)
+        srcCanvas.translate(pad, pad)
+        drawInner(srcCanvas)
+
+        // 2. Generate multi-octave noise
+        val random = Random(effectSeed)
+        fun generateNoise(scale: Float): Bitmap {
+            val nW = (bmpW * scale).toInt().coerceAtLeast(1)
+            val nH = (bmpH * scale).toInt().coerceAtLeast(1)
+            val b = Bitmap.createBitmap(nW, nH, Bitmap.Config.ARGB_8888)
+            for (y in 0 until nH) for (x in 0 until nW) {
+                val n = random.nextInt(256)
+                b.setPixel(x, y, Color.rgb(n, n, n))
+            }
+            val scaled = Bitmap.createScaledBitmap(b, bmpW, bmpH, true)
+            b.recycle()
+            return scaled
+        }
+
+        val noise1 = generateNoise(0.1f)
+        val noise2 = generateNoise(0.2f)
+        val noise3 = generateNoise(0.4f)
+
+        val pixels = IntArray(bmpW * bmpH)
+        val n1 = IntArray(bmpW * bmpH)
+        val n2 = IntArray(bmpW * bmpH)
+        val n3 = IntArray(bmpW * bmpH)
+
+        srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+        noise1.getPixels(n1, 0, bmpW, 0, 0, bmpW, bmpH)
+        noise2.getPixels(n2, 0, bmpW, 0, 0, bmpW, bmpH)
+        noise3.getPixels(n3, 0, bmpW, 0, 0, bmpW, bmpH)
+
+        val threshold = 1.1f - (decayIntensity * 1.1f)
+        val softness = decayFadingLevel * 0.4f + 0.01f
+
+        fun smoothstep(edge0: Float, edge1: Float, x: Float): Float {
+            val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
+            return t * t * (3f - 2f * t)
+        }
+
+        for (i in pixels.indices) {
+            val color = pixels[i]
+            val alpha = Color.alpha(color) / 255f
+            if (alpha <= 0f) continue
+
+            // Combine noise octaves (normalized to 0..1)
+            var n = (Color.red(n1[i]) / 255f)
+            n += (Color.red(n2[i]) / 255f) * 0.5f
+            n += (Color.red(n3[i]) / 255f) * 0.25f
+            n /= 1.75f
+
+            // Edge weight heuristic from shader
+            val edgeWeight = (1.0f - alpha) * 0.5f
+            val valCombined = n + edgeWeight
+
+            // Apply smoothstep mask
+            val mask = smoothstep(threshold - softness, threshold + softness, valCombined)
+            val finalAlpha = (alpha * (1.0f - mask) * 255f).toInt().coerceIn(0, 255)
+
+            pixels[i] = (color and 0x00FFFFFF) or (finalAlpha shl 24)
+        }
+
+        srcBmp.setPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+        targetCanvas.save()
+        targetCanvas.translate(-pad, -pad)
+        targetCanvas.drawBitmap(srcBmp, 0f, 0f, null)
+        targetCanvas.restore()
+
+        // Cleanup
+        srcBmp.recycle()
+        noise1.recycle()
+        noise2.recycle()
+        noise3.recycle()
     }
 
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
@@ -1800,6 +1923,48 @@ class TextLayer(
                 }
 
                 return color / totalWeight;
+            }
+        """
+
+        const val TEXT_DECAY_SHADER = """
+            uniform shader content;
+            uniform float intensity;
+            uniform float fadingLevel;
+            uniform float seed;
+            uniform float2 size;
+
+            float rand(float2 co) {
+                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            float noise(float2 p) {
+                float2 i = floor(p);
+                float2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = rand(i);
+                float b = rand(i + float2(1.0, 0.0));
+                float c = rand(i + float2(0.0, 1.0));
+                float d = rand(i + float2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+
+            half4 main(float2 coord) {
+                half4 c = content.eval(coord);
+                if (c.a == 0.0) return half4(0);
+
+                float n = noise(coord * 0.1 + seed);
+                n += noise(coord * 0.2 + seed * 1.1) * 0.5;
+                n += noise(coord * 0.4 + seed * 1.2) * 0.25;
+                n /= 1.75;
+
+                float edgeWeight = (1.0 - c.a) * 0.5;
+                float val = n + edgeWeight;
+
+                float threshold = 1.1 - (intensity * 1.1);
+                float softness = fadingLevel * 0.4 + 0.01;
+                float mask = smoothstep(threshold - softness, threshold + softness, val);
+
+                return half4(c.rgb, c.a * (1.0 - mask));
             }
         """
 

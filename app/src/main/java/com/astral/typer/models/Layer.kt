@@ -86,6 +86,8 @@ interface StylableLayer {
     var multiGradientAngle: Float
     var radialBlurInnerRadius: Float
     var radialBlurMotionStrength: Float
+    var decayIntensity: Float
+    var decayFadingLevel: Float
 
     // Erase
     var eraseMask: Bitmap?

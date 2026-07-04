@@ -128,6 +128,9 @@ object StyleManager {
         val radialBlurInnerRadius: Float = 0f,
         val radialBlurMotionStrength: Float = 0f,
 
+        val decayIntensity: Float = 0.5f,
+        val decayFadingLevel: Float = 0.5f,
+
         // Perspective
         val isPerspective: Boolean = false,
         val perspectivePoints: FloatArray? = null,
@@ -165,6 +168,7 @@ object StyleManager {
             l.textAlign.ordinal, l.isJustified,
             isBold, isItalic, isUnderline, isStrike,
             l.radialBlurInnerRadius, l.radialBlurMotionStrength,
+            l.decayIntensity, l.decayFadingLevel,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
@@ -224,6 +228,8 @@ object StyleManager {
 
         l.radialBlurInnerRadius = m.radialBlurInnerRadius
         l.radialBlurMotionStrength = m.radialBlurMotionStrength
+        l.decayIntensity = m.decayIntensity
+        l.decayFadingLevel = m.decayFadingLevel
 
         l.isPerspective = m.isPerspective
         l.perspectivePoints = m.perspectivePoints

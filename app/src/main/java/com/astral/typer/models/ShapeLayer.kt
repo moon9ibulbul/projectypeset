@@ -149,6 +149,10 @@ class ShapeLayer(
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
 
+    // Text Decay
+    override var decayIntensity: Float = 0.5f
+    override var decayFadingLevel: Float = 0.5f
+
     override var effectSeed: Long = System.currentTimeMillis()
 
     @Transient
@@ -641,8 +645,12 @@ class ShapeLayer(
                             shader.setFloatUniform("angle", particleDissolveAngle); shader.setFloatUniform("size", w, h)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
-                        } catch (e: Exception) { drawInner(targetCanvas) }
-                    } else drawInner(targetCanvas)
+                        } catch (e: Exception) {
+                            drawDecaySoftware(targetCanvas, w, h, drawInner)
+                        }
+                    } else {
+                        drawDecaySoftware(targetCanvas, w, h, drawInner)
+                    }
                 }
                 TextEffectType.MOTION_BLUR -> {
                     val pad = calculatePadding()
@@ -694,6 +702,22 @@ class ShapeLayer(
                         } catch (e: Exception) { drawInner(targetCanvas) }
                     } else drawInner(targetCanvas)
                 }
+                TextEffectType.TEXT_DECAY -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("DecayNode")
+                            node.setPosition(0, 0, w.toInt(), h.toInt())
+                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.TEXT_DECAY_SHADER)
+                            shader.setFloatUniform("intensity", decayIntensity)
+                            shader.setFloatUniform("fadingLevel", decayFadingLevel)
+                            shader.setFloatUniform("seed", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("size", w, h)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.drawRenderNode(node)
+                        } catch (e: Exception) { drawInner(targetCanvas) }
+                    } else drawInner(targetCanvas)
+                }
                 else -> drawInner(targetCanvas)
              }
         }
@@ -721,6 +745,53 @@ class ShapeLayer(
             }
             canvas.drawPath(activeErasePath!!, p)
         }
+    }
+
+    private fun drawDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        val bmpW = ceil(w + pad * 2).toInt()
+        val bmpH = ceil(h + pad * 2).toInt()
+        if (bmpW <= 0 || bmpH <= 0) { drawInner(targetCanvas); return }
+
+        val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val srcCanvas = Canvas(srcBmp); srcCanvas.translate(pad, pad); drawInner(srcCanvas)
+
+        val random = Random(effectSeed)
+        fun generateNoise(scale: Float): Bitmap {
+            val nW = (bmpW * scale).toInt().coerceAtLeast(1)
+            val nH = (bmpH * scale).toInt().coerceAtLeast(1)
+            val b = Bitmap.createBitmap(nW, nH, Bitmap.Config.ARGB_8888)
+            for (y in 0 until nH) for (x in 0 until nW) {
+                val n = random.nextInt(256); b.setPixel(x, y, Color.rgb(n, n, n))
+            }
+            val s = Bitmap.createScaledBitmap(b, bmpW, bmpH, true); b.recycle(); return s
+        }
+
+        val noise1 = generateNoise(0.1f); val noise2 = generateNoise(0.2f); val noise3 = generateNoise(0.4f)
+        val pixels = IntArray(bmpW * bmpH); val n1 = IntArray(bmpW * bmpH); val n2 = IntArray(bmpW * bmpH); val n3 = IntArray(bmpW * bmpH)
+
+        srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+        noise1.getPixels(n1, 0, bmpW, 0, 0, bmpW, bmpH); noise2.getPixels(n2, 0, bmpW, 0, 0, bmpW, bmpH); noise3.getPixels(n3, 0, bmpW, 0, 0, bmpW, bmpH)
+
+        val threshold = 1.1f - (decayIntensity * 1.1f)
+        val softness = decayFadingLevel * 0.4f + 0.01f
+
+        fun smoothstep(e0: Float, e1: Float, x: Float): Float {
+            val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
+            return t * t * (3f - 2f * t)
+        }
+
+        for (i in pixels.indices) {
+            val color = pixels[i]; val alpha = Color.alpha(color) / 255f
+            if (alpha <= 0f) continue
+            var n = (Color.red(n1[i]) / 255f); n += (Color.red(n2[i]) / 255f) * 0.5f; n += (Color.red(n3[i]) / 255f) * 0.25f; n /= 1.75f
+            val valCombined = n + (1.0f - alpha) * 0.5f
+            val mask = smoothstep(threshold - softness, threshold + softness, valCombined)
+            pixels[i] = (color and 0x00FFFFFF) or ((alpha * (1.0f - mask) * 255f).toInt().coerceIn(0, 255) shl 24)
+        }
+        srcBmp.setPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+        targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawBitmap(srcBmp, 0f, 0f, null); targetCanvas.restore()
+        srcBmp.recycle(); noise1.recycle(); noise2.recycle(); noise3.recycle()
     }
 
     private fun renderSvgManipulated(canvas: Canvas, fill: Int?, stroke: Int?, strokeW: Float = 0f, fillShader: Shader? = null, strokeShader: Shader? = null) {

@@ -112,6 +112,7 @@ object ProjectManager {
         val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
         val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null,
         val radialBlurInnerRadius: Float? = null, val radialBlurMotionStrength: Float? = null,
+        val decayIntensity: Float? = null, val decayFadingLevel: Float? = null,
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -249,6 +250,7 @@ object ProjectManager {
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -297,6 +299,7 @@ object ProjectManager {
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
                         isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
                 } else if (layer is ImageLayer) {
@@ -319,7 +322,8 @@ object ProjectManager {
                         imagePath = "images/$imgName",
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
-                        eraseMaskPath = erasePath
+                        eraseMaskPath = erasePath,
+                        decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel
                     ))
                 }
             }
@@ -507,6 +511,8 @@ object ProjectManager {
             model.warpRows?.let { layer.warpRows = it }
             model.warpCols?.let { layer.warpCols = it }
             model.warpMesh?.let { layer.warpMesh = it.toFloatArray() }
+            model.decayIntensity?.let { layer.decayIntensity = it }
+            model.decayFadingLevel?.let { layer.decayFadingLevel = it }
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
@@ -626,6 +632,8 @@ object ProjectManager {
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
             model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
+            model.decayIntensity?.let { layer.decayIntensity = it }
+            model.decayFadingLevel?.let { layer.decayFadingLevel = it }
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -711,6 +719,8 @@ object ProjectManager {
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
             model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
+            model.decayIntensity?.let { layer.decayIntensity = it }
+            model.decayFadingLevel?.let { layer.decayFadingLevel = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {
                 layer.globalP1.set(model.globalP1X, model.globalP1Y)
