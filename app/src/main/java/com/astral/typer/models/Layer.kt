@@ -88,11 +88,18 @@ interface StylableLayer {
     var radialBlurMotionStrength: Float
 
     // Erase
+    var eraseMask: Bitmap?
+    val erasePaths: MutableList<ErasePathData>
     var activeErasePath: Path?
     var activeEraseSize: Float
     var activeEraseOpacity: Int
     var activeEraseHardness: Float
+    fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float)
+    fun undoLastErasePath(baseMask: Bitmap?)
+    fun rebuildEraseMask(baseMask: Bitmap?)
 }
+
+data class ErasePathData(val path: Path, val size: Float, val opacity: Int, val hardness: Float)
 
 abstract class Layer {
     var x: Float = 0f

@@ -302,13 +302,24 @@ object ProjectManager {
                 } else if (layer is ImageLayer) {
                     val imgName = "layer_$index.png"
                     saveBitmap(layer.bitmap, File(imagesDir, imgName))
+
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "image_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+
                     layerModels.add(LayerModel(
                         type = "IMAGE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
-                        imagePath = "images/$imgName"
+                        imagePath = "images/$imgName",
+                        isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
+                        isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
+                        eraseMaskPath = erasePath
                     ))
                 }
             }
@@ -489,6 +500,17 @@ object ProjectManager {
         if (model.type == "IMAGE" && model.imagePath != null) {
             val bmp = imageMap[model.imagePath] ?: return null
             val layer = ImageLayer(bmp)
+
+            model.isPerspective?.let { layer.isPerspective = it }
+            model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
+            model.isWarp?.let { layer.isWarp = it }
+            model.warpRows?.let { layer.warpRows = it }
+            model.warpCols?.let { layer.warpCols = it }
+            model.warpMesh?.let { layer.warpMesh = it.toFloatArray() }
+            if (model.eraseMaskPath != null) {
+                layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            }
+
             applyCommonProperties(layer, model)
             return layer
         } else if (model.type == "TEXT") {
