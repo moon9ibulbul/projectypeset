@@ -973,6 +973,10 @@ class EditorActivity : AppCompatActivity() {
             if (effect == TextEffectType.LONG_SHADOW && stylableLayer.longShadowLength == 0f) stylableLayer.longShadowLength = 30f
             if (effect == TextEffectType.GAUSSIAN_BLUR && stylableLayer.blurRadius == 0f) stylableLayer.blurRadius = 10f
             if (effect == TextEffectType.HALFTONE && stylableLayer.halftoneDotSize == 0f) stylableLayer.halftoneDotSize = 10f
+            if (effect == TextEffectType.TEXT_DECAY) {
+                if (stylableLayer.decayIntensity == 0f) stylableLayer.decayIntensity = 0.5f
+                if (stylableLayer.decayFadingLevel == 0f) stylableLayer.decayFadingLevel = 0.5f
+            }
 
             canvasView.invalidate()
             showEffectMenu()
@@ -1004,6 +1008,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Radial Blur", TextEffectType.RADIAL_BLUR)
         addEffectCard("Halftone", TextEffectType.HALFTONE)
         addEffectCard("Multi Gradient", TextEffectType.MULTI_GRADIENT)
+        addEffectCard("Text Decay", TextEffectType.TEXT_DECAY)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -1431,6 +1436,53 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s1)
+        }
+
+        if (isEffectActive(TextEffectType.TEXT_DECAY)) {
+                val currentIntensity = stylableLayer.decayIntensity
+                val s1 = createSlider("Intensity: ${(currentIntensity * 100).toInt()}%", (currentIntensity * 100).toInt(), 100) {
+                    stylableLayer.decayIntensity = it / 100f
+                    canvasView.invalidate()
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.decayIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                val currentFading = stylableLayer.decayFadingLevel
+                val s2 = createSlider("Fading Level: ${(currentFading * 100).toInt()}%", (currentFading * 100).toInt(), 100) {
+                    stylableLayer.decayFadingLevel = it / 100f
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.decayFadingLevel = p / 100f
+                        tv2?.text = "Fading Level: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Seed"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        stylableLayer.effectSeed = System.currentTimeMillis()
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
         }
 
         mainLayout.addView(settingsLayout)

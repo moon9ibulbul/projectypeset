@@ -149,6 +149,10 @@ class ShapeLayer(
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
 
+    // Text Decay
+    override var decayIntensity: Float = 0.5f
+    override var decayFadingLevel: Float = 0.5f
+
     override var effectSeed: Long = System.currentTimeMillis()
 
     @Transient
@@ -689,6 +693,22 @@ class ShapeLayer(
                             val shader = android.graphics.RuntimeShader(TextLayer.HALFTONE_SHADER)
                             shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f)); shader.setFloatUniform("threshold", halftoneThreshold)
                             shader.setFloatUniform("dotColor", Color.red(halftoneDotColor)/255f, Color.green(halftoneDotColor)/255f, Color.blue(halftoneDotColor)/255f)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.drawRenderNode(node)
+                        } catch (e: Exception) { drawInner(targetCanvas) }
+                    } else drawInner(targetCanvas)
+                }
+                TextEffectType.TEXT_DECAY -> {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("DecayNode")
+                            node.setPosition(0, 0, w.toInt(), h.toInt())
+                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.TEXT_DECAY_SHADER)
+                            shader.setFloatUniform("intensity", decayIntensity)
+                            shader.setFloatUniform("fadingLevel", decayFadingLevel)
+                            shader.setFloatUniform("seed", effectSeed.toFloat() % 10000f)
+                            shader.setFloatUniform("size", w, h)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
                         } catch (e: Exception) { drawInner(targetCanvas) }

@@ -167,6 +167,10 @@ class TextLayer(
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
 
+    // Text Decay
+    override var decayIntensity: Float = 0.5f
+    override var decayFadingLevel: Float = 0.5f
+
     // Shape
     var isOval: Boolean = false
 
@@ -307,6 +311,8 @@ class TextLayer(
 
         newLayer.radialBlurInnerRadius = this.radialBlurInnerRadius
         newLayer.radialBlurMotionStrength = this.radialBlurMotionStrength
+        newLayer.decayIntensity = this.decayIntensity
+        newLayer.decayFadingLevel = this.decayFadingLevel
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -1581,6 +1587,32 @@ class TextLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.TEXT_DECAY -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("DecayNode")
+                            val wInt = w.toInt().coerceAtLeast(1)
+                            val hInt = h.toInt().coerceAtLeast(1)
+                            node.setPosition(0, 0, wInt, hInt)
+
+                            val recordingCanvas = node.beginRecording()
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TEXT_DECAY_SHADER)
+                            shader.setFloatUniform("intensity", decayIntensity)
+                            shader.setFloatUniform("fadingLevel", decayFadingLevel)
+                            shader.setFloatUniform("seed", effectSeed.toFloat() % 10000f)
+                            shader.setFloatUniform("size", w, h)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.drawRenderNode(node)
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) drawInner(targetCanvas)
+                }
                 else -> {
                     drawInner(targetCanvas)
                 }
@@ -1800,6 +1832,48 @@ class TextLayer(
                 }
 
                 return color / totalWeight;
+            }
+        """
+
+        const val TEXT_DECAY_SHADER = """
+            uniform shader content;
+            uniform float intensity;
+            uniform float fadingLevel;
+            uniform float seed;
+            uniform float2 size;
+
+            float rand(float2 co) {
+                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            float noise(float2 p) {
+                float2 i = floor(p);
+                float2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = rand(i);
+                float b = rand(i + float2(1.0, 0.0));
+                float c = rand(i + float2(0.0, 1.0));
+                float d = rand(i + float2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+
+            half4 main(float2 coord) {
+                half4 c = content.eval(coord);
+                if (c.a == 0.0) return half4(0);
+
+                float n = noise(coord * 0.1 + seed);
+                n += noise(coord * 0.2 + seed * 1.1) * 0.5;
+                n += noise(coord * 0.4 + seed * 1.2) * 0.25;
+                n /= 1.75;
+
+                float edgeWeight = (1.0 - c.a) * 0.5;
+                float val = n + edgeWeight;
+
+                float threshold = 1.1 - (intensity * 1.1);
+                float softness = fadingLevel * 0.4 + 0.01;
+                float mask = smoothstep(threshold - softness, threshold + softness, val);
+
+                return half4(c.rgb, c.a * (1.0 - mask));
             }
         """
 

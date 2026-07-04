@@ -101,6 +101,8 @@ class ImageLayer(
     override var multiGradientAngle: Float = 0f
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
+    override var decayIntensity: Float = 0.5f
+    override var decayFadingLevel: Float = 0.5f
 
     // Erase
     override var eraseMask: Bitmap? = null
