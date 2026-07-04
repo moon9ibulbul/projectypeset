@@ -1611,7 +1611,9 @@ class TextLayer(
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
-                    if (!useRenderEffect) drawInner(targetCanvas)
+                    if (!useRenderEffect) {
+                        drawTextDecaySoftware(targetCanvas, w, h, drawInner)
+                    }
                 }
                 else -> {
                     drawInner(targetCanvas)
@@ -1656,6 +1658,94 @@ class TextLayer(
             }
             canvas.drawPath(activeErasePath!!, p)
         }
+    }
+
+    private fun drawTextDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        val bmpW = ceil(w + pad * 2).toInt()
+        val bmpH = ceil(h + pad * 2).toInt()
+
+        if (bmpW <= 0 || bmpH <= 0) {
+            drawInner(targetCanvas)
+            return
+        }
+
+        // 1. Render source text to bitmap
+        val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val srcCanvas = Canvas(srcBmp)
+        srcCanvas.translate(pad, pad)
+        drawInner(srcCanvas)
+
+        // 2. Generate Noise Map
+        // Scale down noise for blobby appearance
+        val noiseScale = 0.1f
+        val noiseW = (bmpW * noiseScale).toInt().coerceAtLeast(1)
+        val noiseH = (bmpH * noiseScale).toInt().coerceAtLeast(1)
+        val noiseBmp = Bitmap.createBitmap(noiseW, noiseH, Bitmap.Config.ARGB_8888)
+        val random = Random(effectSeed)
+        for (y in 0 until noiseH) {
+            for (x in 0 until noiseW) {
+                val n = random.nextInt(256)
+                noiseBmp.setPixel(x, y, Color.rgb(n, n, n))
+            }
+        }
+        val scaledNoise = Bitmap.createScaledBitmap(noiseBmp, bmpW, bmpH, true)
+        noiseBmp.recycle()
+
+        // 3. Composite using Edge Weight heuristic
+        val resultBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val resCanvas = Canvas(resultBmp)
+
+        val threshold = (1.0f - decayIntensity) * 255
+        val fading = decayFadingLevel * 100f
+
+        resCanvas.drawBitmap(srcBmp, 0f, 0f, null)
+
+        // Apply noise mask via DST_IN
+        // We use a custom shader-like approach with pixels for maximum accuracy in fallback
+        val pixels = IntArray(bmpW * bmpH)
+        val noisePixels = IntArray(bmpW * bmpH)
+        srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+        scaledNoise.getPixels(noisePixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+        for (i in pixels.indices) {
+            val color = pixels[i]
+            val alpha = Color.alpha(color)
+            if (alpha == 0) continue
+
+            val noiseVal = Color.red(noisePixels[i])
+
+            // Edge Weight: semi-transparent pixels (edges) are "weaker"
+            // t=0 at edges, t=255 at full fill
+            val edgeWeight = alpha
+
+            // Simple thresholding with softness
+            val combinedVal = (noiseVal.toFloat() * 0.7f + edgeWeight.toFloat() * 0.3f)
+
+            val maskAlpha = if (combinedVal < threshold - fading) {
+                0
+            } else if (combinedVal > threshold + fading) {
+                255
+            } else {
+                // Linear transition
+                ((combinedVal - (threshold - fading)) / (fading * 2f + 1f) * 255).toInt()
+            }
+
+            val finalAlpha = (alpha * maskAlpha / 255)
+            pixels[i] = (color and 0x00FFFFFF) or (finalAlpha shl 24)
+        }
+
+        resultBmp.setPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+        targetCanvas.save()
+        targetCanvas.translate(-pad, -pad)
+        targetCanvas.drawBitmap(resultBmp, 0f, 0f, null)
+        targetCanvas.restore()
+
+        // Cleanup
+        srcBmp.recycle()
+        scaledNoise.recycle()
+        resultBmp.recycle()
     }
 
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
