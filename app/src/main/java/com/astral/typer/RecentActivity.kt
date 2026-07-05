@@ -214,17 +214,63 @@ class RecentActivity : AppCompatActivity() {
 
     private fun exportFolderToPdf() {
         val folder = currentFolder ?: return
-        val pdfFile = File(getExternalFilesDir(null), "${folder.name}.pdf")
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        tvStatus.text = "Exporting PDF..."
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.show()
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val success = ProjectManager.exportFolderToPdf(this@RecentActivity, folder, pdfFile)
-            withContext(Dispatchers.Main) {
-                if (success) {
-                    Toast.makeText(this@RecentActivity, "PDF Exported to ${pdfFile.absolutePath}", Toast.LENGTH_LONG).show()
+            val tempPdf = File(cacheDir, "export_temp.pdf")
+            val success = ProjectManager.exportFolderToPdf(this@RecentActivity, folder, tempPdf) { current, total ->
+                runOnUiThread {
+                    progressBar.max = total
+                    progressBar.progress = current
+                    tvStatus.text = "Processing page $current/$total..."
+                }
+            }
+
+            if (success) {
+                val fileName = "${folder.name}.pdf"
+                var savedPath = ""
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Documents/AstralTyper")
+                    }
+                    val uri = contentResolver.insert(android.provider.MediaStore.Files.getContentUri("external"), contentValues)
+                    if (uri != null) {
+                        contentResolver.openOutputStream(uri)?.use { output ->
+                            tempPdf.inputStream().use { input -> input.copyTo(output) }
+                        }
+                        savedPath = "Documents/AstralTyper/$fileName"
+                    }
                 } else {
+                    val publicDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS), "AstralTyper")
+                    if (!publicDir.exists()) publicDir.mkdirs()
+                    val targetFile = File(publicDir, fileName)
+                    tempPdf.copyTo(targetFile, true)
+                    savedPath = targetFile.absolutePath
+                }
+
+                withContext(Dispatchers.Main) {
+                    dialog.dismiss()
+                    Toast.makeText(this@RecentActivity, "PDF Exported to $savedPath", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    dialog.dismiss()
                     Toast.makeText(this@RecentActivity, "Failed to export PDF", Toast.LENGTH_SHORT).show()
                 }
             }
+            tempPdf.delete()
         }
     }
 

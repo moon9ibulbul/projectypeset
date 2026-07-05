@@ -479,13 +479,27 @@ object ProjectManager {
         val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(result)
 
+        val itemSize = (size * 0.8f).toInt()
         for (i in projects.indices.reversed()) {
             val bmp = loadThumbnail(context, projects[i])
             if (bmp != null) {
-                val scaled = Bitmap.createScaledBitmap(bmp, (size * 0.8f).toInt(), (size * 0.8f).toInt(), true)
                 val offset = (i * 20).toFloat()
-                canvas.drawBitmap(scaled, offset, offset, null)
-                scaled.recycle()
+
+                // Draw center-cropped
+                val src = android.graphics.Rect()
+                val dst = android.graphics.RectF(offset, offset, offset + itemSize, offset + itemSize)
+
+                val bmpW = bmp.width
+                val bmpH = bmp.height
+                if (bmpW > bmpH) {
+                    val left = (bmpW - bmpH) / 2
+                    src.set(left, 0, left + bmpH, bmpH)
+                } else {
+                    val top = (bmpH - bmpW) / 2
+                    src.set(0, top, bmpW, top + bmpW)
+                }
+
+                canvas.drawBitmap(bmp, src, dst, null)
                 bmp.recycle()
             }
         }
@@ -907,7 +921,7 @@ object ProjectManager {
         }
     }
 
-    fun exportFolderToPdf(context: Context, folder: File, outputFile: File): Boolean {
+    fun exportFolderToPdf(context: Context, folder: File, outputFile: File, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
         val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
         if (projects.isEmpty()) return false
 
@@ -930,6 +944,7 @@ object ProjectManager {
 
             // Pass 2: Process one project at a time
             for (i in projects.indices) {
+                onProgress(i + 1, projects.size)
                 val loadResult = loadProject(context, projects[i])
                 if (loadResult is LoadResult.Success) {
                     val data = loadResult.projectData
