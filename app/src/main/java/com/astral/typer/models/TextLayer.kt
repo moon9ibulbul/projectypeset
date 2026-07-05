@@ -860,9 +860,10 @@ class TextLayer(
 
             val iterationAlpha = originalAlpha / 255f
 
-            fun modulateColor(c: Int): Int {
+            fun modulateColor(c: Int, ignoreOriginalAlpha: Boolean = false): Int {
                 if (!isDrawingShadowPass) return c
-                val a = ((Color.alpha(c) / 255f) * iterationAlpha * 255).toInt().coerceIn(0, 255)
+                val baseAlpha = if (ignoreOriginalAlpha) 1.0f else (Color.alpha(c) / 255f)
+                val a = (baseAlpha * iterationAlpha * 255).toInt().coerceIn(0, 255)
                 return (c and 0x00FFFFFF) or (a shl 24)
             }
 
@@ -871,7 +872,7 @@ class TextLayer(
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
                 paint.shader = null
-                paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor)
+                paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
                 layout.draw(targetCanvas)
             }
@@ -882,13 +883,13 @@ class TextLayer(
                 paint.strokeWidth = strokeWidth
                 if (silhouetteColor != null) {
                     paint.shader = null
-                    paint.color = modulateColor(silhouetteColor!!)
+                    paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
                 } else if (isGradient && isGradientStroke) {
                     paint.shader = gradientShader
-                    paint.color = modulateColor(Color.WHITE)
+                    paint.color = modulateColor(Color.WHITE, ignoreOriginalAlpha = isDrawingShadowPass)
                 } else {
                     paint.shader = null
-                    paint.color = modulateColor(strokeColor)
+                    paint.color = modulateColor(strokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
                 layout.draw(targetCanvas)
