@@ -226,8 +226,11 @@ class RecentActivity : AppCompatActivity() {
         dialog.show()
 
         lifecycleScope.launch(Dispatchers.IO) {
+            val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+            val pdfQuality = settingsPrefs.getInt("pdf_quality", 80)
+
             val tempPdf = File(cacheDir, "export_temp.pdf")
-            val success = ProjectManager.exportFolderToPdf(this@RecentActivity, folder, tempPdf) { current, total ->
+            val success = ProjectManager.exportFolderToPdf(this@RecentActivity, folder, tempPdf, pdfQuality) { current, total ->
                 runOnUiThread {
                     progressBar.max = total
                     progressBar.progress = current
