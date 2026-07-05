@@ -125,10 +125,12 @@ class MainActivity : AppCompatActivity() {
             fileName.endsWith(".atd") -> {
                 openProjectFromUri(uri)
             }
-            fileName.endsWith(".ttf") || fileName.endsWith(".otf") || fileName.endsWith(".zip") ||
-                    mimeType == "font/ttf" || mimeType == "font/otf" ||
-                    mimeType == "application/zip" || mimeType == "application/x-zip-compressed" -> {
+            fileName.endsWith(".ttf") || fileName.endsWith(".otf") ||
+                    mimeType == "font/ttf" || mimeType == "font/otf" -> {
                 importFontFromUri(uri)
+            }
+            fileName.endsWith(".zip") || mimeType == "application/zip" || mimeType == "application/x-zip-compressed" -> {
+                importZipFromUri(uri)
             }
             else -> {
                 // Try to open as image if mime type is null but it might be an image
@@ -136,6 +138,39 @@ class MainActivity : AppCompatActivity() {
                     openEditorWithImage(uri)
                 } else {
                     Toast.makeText(this, "Unsupported file type", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun importZipFromUri(uri: Uri) {
+        val fileName = getFileName(uri).replace(".zip", "", ignoreCase = true)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val success = ProjectManager.importZipContent(this@MainActivity, uri, fileName) { current, total ->
+                runOnUiThread {
+                    progressBar.max = total
+                    progressBar.progress = current
+                    tvStatus.text = "Importing $current/$total..."
+                }
+            }
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                if (success) {
+                    Toast.makeText(this@MainActivity, "Imported $fileName successfully", Toast.LENGTH_SHORT).show()
+                    setupRecentProjects()
+                } else {
+                    // Fallback to font import if zip doesn't contain project/images
+                    importFontFromUri(uri)
                 }
             }
         }
@@ -303,12 +338,20 @@ class MainActivity : AppCompatActivity() {
                                         text.setTextColor(Color.WHITE)
                                     }
 
-                                    img.setImageResource(android.R.drawable.ic_menu_gallery)
+                                    if (file.isDirectory) {
+                                        img.setImageResource(android.R.drawable.ic_menu_directions)
+                                    } else {
+                                        img.setImageResource(android.R.drawable.ic_menu_gallery)
+                                    }
                                     img.setColorFilter(Color.GRAY)
 
                                     // Async Load Thumbnail
                                     lifecycleScope.launch(Dispatchers.IO) {
-                                        val bmp = ProjectManager.loadThumbnail(this@MainActivity, file)
+                                        val bmp = if (file.isDirectory) {
+                                            ProjectManager.loadFolderThumbnail(this@MainActivity, file)
+                                        } else {
+                                            ProjectManager.loadThumbnail(this@MainActivity, file)
+                                        }
                                         withContext(Dispatchers.Main) {
                                             if (bmp != null) {
                                                 img.setImageBitmap(bmp)
@@ -319,7 +362,14 @@ class MainActivity : AppCompatActivity() {
                                     }
 
                                     holder.itemView.setOnClickListener {
-                                        openProject(file)
+                                        if (file.isDirectory) {
+                                            val intent = Intent(this@MainActivity, RecentActivity::class.java).apply {
+                                                putExtra("FOLDER_PATH", file.absolutePath)
+                                            }
+                                            startActivity(intent)
+                                        } else {
+                                            openProject(file)
+                                        }
                                     }
                                 }
                             }

@@ -25,10 +25,23 @@ class RecentActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: RecentGridAdapter
     private var actionMode: ActionMode? = null
+    private var currentFolder: File? = null
+
+    private val importImageLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            importImageToFolder(it)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_recent)
+
+        val folderPath = intent.getStringExtra("FOLDER_PATH")
+        if (folderPath != null) {
+            currentFolder = File(folderPath)
+            title = currentFolder?.name
+        }
 
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -41,7 +54,11 @@ class RecentActivity : AppCompatActivity() {
                 if (actionMode != null) {
                     toggleSelection(file)
                 } else {
-                    openProject(file)
+                    if (file.isDirectory) {
+                        openFolder(file)
+                    } else {
+                        openProject(file)
+                    }
                 }
             },
             onItemLongClick = { file ->
@@ -58,7 +75,7 @@ class RecentActivity : AppCompatActivity() {
 
     private fun loadProjects() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val projects = ProjectManager.getRecentProjects(this@RecentActivity)
+            val projects = ProjectManager.getRecentProjects(this@RecentActivity, currentFolder)
             withContext(Dispatchers.Main) {
                 adapter.submitList(projects)
             }
@@ -68,6 +85,13 @@ class RecentActivity : AppCompatActivity() {
     private fun openProject(file: File) {
         val intent = Intent(this, EditorActivity::class.java).apply {
             putExtra("PROJECT_PATH", file.absolutePath)
+        }
+        startActivity(intent)
+    }
+
+    private fun openFolder(file: File) {
+        val intent = Intent(this, RecentActivity::class.java).apply {
+            putExtra("FOLDER_PATH", file.absolutePath)
         }
         startActivity(intent)
     }
@@ -84,12 +108,170 @@ class RecentActivity : AppCompatActivity() {
         }
     }
 
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.recent_menu, menu)
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        val isFolder = currentFolder != null
+        menu.findItem(R.id.action_rename).isVisible = isFolder
+        menu.findItem(R.id.action_export_pdf).isVisible = isFolder
+        return true
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            finish()
-            return true
+        when (item.itemId) {
+            android.R.id.home -> {
+                finish()
+                return true
+            }
+            R.id.action_add -> {
+                if (currentFolder == null) {
+                    showAddFolderDialog()
+                } else {
+                    importImageLauncher.launch("image/*")
+                }
+                return true
+            }
+            R.id.action_rename -> {
+                showRenameFolderDialog()
+                return true
+            }
+            R.id.action_export_pdf -> {
+                exportFolderToPdf()
+                return true
+            }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun showAddFolderDialog() {
+        val input = android.widget.EditText(this)
+        input.hint = "Folder Name"
+        android.app.AlertDialog.Builder(this)
+            .setTitle("New Folder")
+            .setView(input)
+            .setPositiveButton("Create") { _, _ ->
+                val name = input.text.toString()
+                if (name.isNotBlank()) {
+                    ProjectManager.createFolder(this, currentFolder, name)
+                    loadProjects()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showRenameFolderDialog() {
+        val folder = currentFolder ?: return
+        val input = android.widget.EditText(this)
+        input.setText(folder.name)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Rename Folder")
+            .setView(input)
+            .setPositiveButton("Rename") { _, _ ->
+                val name = input.text.toString()
+                if (name.isNotBlank()) {
+                    if (ProjectManager.renameFile(folder, name)) {
+                        title = name
+                        currentFolder = File(folder.parentFile, name)
+                        loadProjects()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun importImageToFolder(uri: Uri) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = contentResolver.openInputStream(uri)
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                    val name = "Image_${System.currentTimeMillis()}"
+                    ProjectManager.saveProject(
+                        this@RecentActivity,
+                        emptyList(),
+                        bitmap.width,
+                        bitmap.height,
+                        Color.TRANSPARENT,
+                        bitmap,
+                        name,
+                        bitmap,
+                        currentFolder?.name
+                    )
+                    withContext(Dispatchers.Main) {
+                        loadProjects()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun exportFolderToPdf() {
+        val folder = currentFolder ?: return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        tvStatus.text = "Exporting PDF..."
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val tempPdf = File(cacheDir, "export_temp.pdf")
+            val success = ProjectManager.exportFolderToPdf(this@RecentActivity, folder, tempPdf) { current, total ->
+                runOnUiThread {
+                    progressBar.max = total
+                    progressBar.progress = current
+                    tvStatus.text = "Processing page $current/$total..."
+                }
+            }
+
+            if (success) {
+                val fileName = "${folder.name}.pdf"
+                var savedPath = ""
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Documents/AstralTyper")
+                    }
+                    val uri = contentResolver.insert(android.provider.MediaStore.Files.getContentUri("external"), contentValues)
+                    if (uri != null) {
+                        contentResolver.openOutputStream(uri)?.use { output ->
+                            tempPdf.inputStream().use { input -> input.copyTo(output) }
+                        }
+                        savedPath = "Documents/AstralTyper/$fileName"
+                    }
+                } else {
+                    val publicDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS), "AstralTyper")
+                    if (!publicDir.exists()) publicDir.mkdirs()
+                    val targetFile = File(publicDir, fileName)
+                    tempPdf.copyTo(targetFile, true)
+                    savedPath = targetFile.absolutePath
+                }
+
+                withContext(Dispatchers.Main) {
+                    dialog.dismiss()
+                    Toast.makeText(this@RecentActivity, "PDF Exported to $savedPath", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    dialog.dismiss()
+                    Toast.makeText(this@RecentActivity, "Failed to export PDF", Toast.LENGTH_SHORT).show()
+                }
+            }
+            tempPdf.delete()
+        }
     }
 
     private val actionModeCallback = object : ActionMode.Callback {
@@ -128,14 +310,21 @@ class RecentActivity : AppCompatActivity() {
         if (files.isEmpty()) return
 
         val uris = ArrayList<Uri>()
+        val tempDir = File(cacheDir, "share_temp")
+        if (tempDir.exists()) tempDir.deleteRecursively()
+        tempDir.mkdirs()
+
         for (file in files) {
             try {
-                val uri = FileProvider.getUriForFile(
-                    this,
-                    "${packageName}.provider",
-                    file
-                )
-                uris.add(uri)
+                if (file.isDirectory) {
+                    // Zip folder first
+                    val zipFile = File(tempDir, "${file.name}.zip")
+                    if (ProjectManager.zipProjectFolder(file, zipFile)) {
+                        uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", zipFile))
+                    }
+                } else {
+                    uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", file))
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -163,8 +352,14 @@ class RecentActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             files.forEach { file ->
-                if (file.delete()) {
-                    deletedCount++
+                if (file.isDirectory) {
+                    if (file.deleteRecursively()) {
+                        deletedCount++
+                    }
+                } else {
+                    if (file.delete()) {
+                        deletedCount++
+                    }
                 }
             }
             withContext(Dispatchers.Main) {
@@ -227,16 +422,25 @@ class RecentActivity : AppCompatActivity() {
                 checkIcon.visibility = if (isSelected) View.VISIBLE else View.GONE
 
                 // Placeholder preview default
-                previewImage.setImageResource(android.R.drawable.ic_menu_gallery)
+                if (file.isDirectory) {
+                    previewImage.setImageResource(android.R.drawable.ic_menu_directions)
+                } else {
+                    previewImage.setImageResource(android.R.drawable.ic_menu_gallery)
+                }
                 previewImage.setColorFilter(Color.DKGRAY)
 
                 // Async Load Thumbnail
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val bmp = ProjectManager.loadThumbnail(this@RecentActivity, file)
+                    val bmp = if (file.isDirectory) {
+                        ProjectManager.loadFolderThumbnail(this@RecentActivity, file)
+                    } else {
+                        ProjectManager.loadThumbnail(this@RecentActivity, file)
+                    }
                     withContext(Dispatchers.Main) {
                          if (bmp != null) {
                              previewImage.setImageBitmap(bmp)
                              previewImage.clearColorFilter()
+                             previewImage.scaleType = ImageView.ScaleType.CENTER_CROP
                          }
                     }
                 }

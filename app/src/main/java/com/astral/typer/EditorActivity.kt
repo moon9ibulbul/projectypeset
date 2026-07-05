@@ -61,6 +61,7 @@ class EditorActivity : AppCompatActivity() {
     private var currentMenuType: String? = null
 
     private var currentProjectName: String? = null
+    private var parentFolderName: String? = null
 
     private var isInpaintMode = false
     private var btnApplyInpaint: android.widget.Button? = null
@@ -169,6 +170,10 @@ class EditorActivity : AppCompatActivity() {
         if (projectPath != null) {
              val file = java.io.File(projectPath)
              currentProjectName = file.nameWithoutExtension
+             val parent = file.parentFile
+             if (parent != null && parent.name != "Project" && parent.name != "Projects") {
+                 parentFolderName = parent.name
+             }
              isProjectLoadedSuccessfully = false
              // Load Async
              lifecycleScope.launch(Dispatchers.IO) {
@@ -360,7 +365,8 @@ class EditorActivity : AppCompatActivity() {
                         Color.WHITE,
                         bgBitmap,
                         "autosave",
-                        thumbnail
+                        thumbnail,
+                        parentFolderName
                     )
                 } finally {
                     ProjectManager.isSaving = false
@@ -2077,7 +2083,8 @@ class EditorActivity : AppCompatActivity() {
                     Color.WHITE,
                     bgBitmap,
                     name,
-                    thumbnail
+                    thumbnail,
+                    parentFolderName
                 )
             } catch (e: Exception) {
                 e.printStackTrace()

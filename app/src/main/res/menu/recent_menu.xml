@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_add"
+        android:icon="@android:drawable/ic_menu_add"
+        android:title="Add"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_rename"
+        android:icon="@drawable/ic_pencil"
+        android:title="Rename"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_export_pdf"
+        android:icon="@android:drawable/ic_menu_save"
+        android:title="Export PDF"
+        android:visible="false"
+        app:showAsAction="always" />
+</menu>
