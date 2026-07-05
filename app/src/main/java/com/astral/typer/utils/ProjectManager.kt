@@ -139,7 +139,8 @@ object ProjectManager {
         canvasColor: Int,
         bgBitmap: Bitmap?,
         projectName: String,
-        thumbnail: Bitmap? = null
+        thumbnail: Bitmap? = null,
+        subFolder: String? = null
     ): Boolean {
         try {
             val tempDir = File(context.cacheDir, "temp_save")
@@ -331,7 +332,7 @@ object ProjectManager {
             val projectData = ProjectData(width, height, canvasColor, layerModels)
             File(tempDir, "project.json").writeText(gson.toJson(projectData))
 
-            return finalizeSave(context, tempDir, projectName)
+            return finalizeSave(context, tempDir, projectName, subFolder)
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -339,7 +340,7 @@ object ProjectManager {
         }
     }
 
-    private fun finalizeSave(context: Context, tempDir: File, projectName: String): Boolean {
+    private fun finalizeSave(context: Context, tempDir: File, projectName: String, subFolder: String? = null): Boolean {
         var cleanName = projectName.trim()
 
         if (cleanName == "autosave") {
@@ -360,9 +361,11 @@ object ProjectManager {
             try {
                 val resolver = context.contentResolver
 
+                val relativePath = if (subFolder.isNullOrEmpty()) "Pictures/AstralTyper/Project" else "Pictures/AstralTyper/Project/$subFolder"
+
                 // Attempt to overwrite existing MediaStore entry by deleting it first
                 val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-                val selectionArgs = arrayOf("$cleanName.atd", "%Pictures/AstralTyper/Project%")
+                val selectionArgs = arrayOf("$cleanName.atd", "%$relativePath%")
 
                 try {
                     resolver.query(
@@ -383,7 +386,7 @@ object ProjectManager {
                 val contentValues = android.content.ContentValues().apply {
                     put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$cleanName.atd")
                     put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/zip")
-                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/AstralTyper/Project")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                 }
 
                 val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
@@ -397,7 +400,7 @@ object ProjectManager {
         } else {
             // Legacy (Android 9 and below)
             try {
-                val file = getPublicProjectFile(cleanName)
+                val file = getPublicProjectFile(cleanName, subFolder)
                 if (file.parentFile?.exists() == false) file.parentFile?.mkdirs()
                 success = zipFolder(tempDir, file)
             } catch (e: Exception) { e.printStackTrace() }
@@ -405,7 +408,7 @@ object ProjectManager {
 
         if (!success) {
             // Fallback
-            val file = getPrivateProjectFile(context, cleanName)
+            val file = getPrivateProjectFile(context, cleanName, subFolder)
             file.parentFile?.mkdirs()
             success = zipFolder(tempDir, file)
         }
@@ -466,6 +469,27 @@ object ProjectManager {
         })
 
         return LoadResult.Success(finalData, imageMap)
+    }
+
+    fun loadFolderThumbnail(context: Context, folder: File): Bitmap? {
+        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedByDescending { it.lastModified() }?.take(3) ?: return null
+        if (projects.isEmpty()) return null
+
+        val size = 300
+        val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(result)
+
+        for (i in projects.indices.reversed()) {
+            val bmp = loadThumbnail(context, projects[i])
+            if (bmp != null) {
+                val scaled = Bitmap.createScaledBitmap(bmp, (size * 0.8f).toInt(), (size * 0.8f).toInt(), true)
+                val offset = (i * 20).toFloat()
+                canvas.drawBitmap(scaled, offset, offset, null)
+                scaled.recycle()
+                bmp.recycle()
+            }
+        }
+        return result
     }
 
     fun loadThumbnail(context: Context, file: File): Bitmap? {
@@ -754,13 +778,14 @@ object ProjectManager {
 
     // --- Helper Methods ---
 
-    fun projectExists(context: Context, projectName: String): Boolean {
+    fun projectExists(context: Context, projectName: String, subFolder: String? = null): Boolean {
         val cleanName = projectName.trim()
 
         // Check MediaStore (Android 10+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val relativePath = if (subFolder.isNullOrEmpty()) "Pictures/AstralTyper/Project" else "Pictures/AstralTyper/Project/$subFolder"
             val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-            val selectionArgs = arrayOf("$cleanName.atd", "%Pictures/AstralTyper/Project%")
+            val selectionArgs = arrayOf("$cleanName.atd", "%$relativePath%")
             try {
                 context.contentResolver.query(
                     android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -775,54 +800,87 @@ object ProjectManager {
         }
 
         // Check Legacy/Public
-        val publicFile = getPublicProjectFile(cleanName)
+        val publicFile = getPublicProjectFile(cleanName, subFolder)
         if (publicFile.exists()) return true
 
         // Check Private Fallback
-        val privateFile = getPrivateProjectFile(context, cleanName)
+        val privateFile = getPrivateProjectFile(context, cleanName, subFolder)
         if (privateFile.exists()) return true
 
         return false
     }
 
-    fun getRecentProjects(context: Context? = null): List<File> {
+    fun getRecentProjects(context: Context? = null, parentFolder: File? = null): List<File> {
+        if (parentFolder != null) {
+            return parentFolder.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
+        }
+
         val projects = mutableListOf<File>()
         val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
-        if (publicRoot.exists()) publicRoot.listFiles { f -> f.extension == "atd" }?.let { projects.addAll(it) }
+        if (publicRoot.exists()) {
+            publicRoot.listFiles()?.let { projects.addAll(it) }
+        }
 
         // Legacy / Root Path scan
         val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
-        if (rootPath.exists()) rootPath.listFiles { f -> f.extension == "atd" }?.let { projects.addAll(it) }
+        if (rootPath.exists()) {
+            rootPath.listFiles()?.let { projects.addAll(it) }
+        }
 
         if (context != null) {
              val privateRoot = context.getExternalFilesDir("Projects")
              if (privateRoot != null && privateRoot.exists()) {
-                  privateRoot.listFiles { f -> f.extension == "atd" }?.let { projects.addAll(it) }
+                  privateRoot.listFiles()?.let { projects.addAll(it) }
              }
         }
         return projects.sortedByDescending { it.lastModified() }.distinctBy { it.name }
     }
 
-    private fun getPublicProjectFile(name: String): File {
-        val root = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-            // Use root storage for better visibility on old Androids
+    fun createFolder(context: Context, parentFolder: File?, name: String): Boolean {
+        val root = if (parentFolder != null) {
+            parentFolder
+        } else {
+             // Use private root for simplicity in creating folders
+             context.getExternalFilesDir("Projects") ?: File(context.filesDir, "Projects")
+        }
+        val newFolder = File(root, name)
+        return newFolder.mkdirs()
+    }
+
+    fun renameFile(file: File, newName: String): Boolean {
+        val ext = if (file.isDirectory) "" else "." + file.extension
+        val target = File(file.parentFile, newName + ext)
+        return file.renameTo(target)
+    }
+
+    private fun getPublicProjectFile(name: String, subFolder: String? = null): File {
+        var root = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
             File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
         } else {
-            // Standard path for newer Androids (if accessed via File API)
             File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        }
+        if (subFolder != null) {
+            root = File(root, subFolder)
         }
         if (!root.exists()) root.mkdirs()
         return File(root, "$name.atd")
     }
 
-    private fun getPrivateProjectFile(context: Context, name: String): File {
-        val root = context.getExternalFilesDir("Projects") ?: File(context.filesDir, "Projects")
+    private fun getPrivateProjectFile(context: Context, name: String, subFolder: String? = null): File {
+        var root = context.getExternalFilesDir("Projects") ?: File(context.filesDir, "Projects")
+        if (subFolder != null) {
+            root = File(root, subFolder)
+        }
         if (!root.exists()) root.mkdirs()
         return File(root, "$name.atd")
     }
 
     private fun saveBitmap(bitmap: Bitmap, file: File) {
         FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+    }
+
+    fun zipProjectFolder(folder: File, zipFile: File): Boolean {
+        return zipFolder(folder, zipFile)
     }
 
     private fun zipFolder(srcFolder: File, destZipFile: File): Boolean {
@@ -846,6 +904,118 @@ object ProjectManager {
         FileInputStream(fileToZip).use { fis ->
             zipOut.putNextEntry(ZipEntry(fileName))
             fis.copyTo(zipOut)
+        }
+    }
+
+    fun exportFolderToPdf(context: Context, folder: File, outputFile: File): Boolean {
+        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
+        if (projects.isEmpty()) return false
+
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+
+        try {
+            // Pass 1: Find max width
+            var maxWidth = 0
+            for (projectFile in projects) {
+                val loadResult = loadProject(context, projectFile)
+                if (loadResult is LoadResult.Success) {
+                    if (loadResult.projectData.canvasWidth > maxWidth) {
+                        maxWidth = loadResult.projectData.canvasWidth
+                    }
+                    loadResult.images.values.forEach { it.recycle() }
+                }
+            }
+
+            if (maxWidth == 0) return false
+
+            // Pass 2: Process one project at a time
+            for (i in projects.indices) {
+                val loadResult = loadProject(context, projects[i])
+                if (loadResult is LoadResult.Success) {
+                    val data = loadResult.projectData
+                    val images = loadResult.images
+
+                    val scale = maxWidth.toFloat() / data.canvasWidth
+                    val targetHeight = (data.canvasHeight * scale).toInt()
+
+                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(maxWidth, targetHeight, i + 1).create()
+                    val page = pdfDocument.startPage(pageInfo)
+                    val canvas = page.canvas
+
+                    canvas.scale(scale, scale)
+
+                    // Draw Canvas Background
+                    canvas.drawColor(data.canvasColor)
+                    if (images.containsKey("images/background.png")) {
+                        canvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
+                    }
+
+                    // Draw Layers
+                    for (model in data.layers) {
+                        val layer = createLayerFromModel(model, images)
+                        layer?.draw(canvas)
+                    }
+
+                    pdfDocument.finishPage(page)
+                    images.values.forEach { it.recycle() }
+                }
+            }
+
+            FileOutputStream(outputFile).use { pdfDocument.writeTo(it) }
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        } finally {
+            pdfDocument.close()
+        }
+    }
+
+    fun importZipContent(context: Context, zipUri: android.net.Uri, zipName: String, onProgress: (Int, Int) -> Unit): Boolean {
+        val tempDir = File(context.cacheDir, "import_zip_temp")
+        if (tempDir.exists()) tempDir.deleteRecursively()
+        tempDir.mkdirs()
+
+        val zipFile = File(tempDir, "temp.zip")
+        try {
+            context.contentResolver.openInputStream(zipUri)?.use { input ->
+                zipFile.outputStream().use { output -> input.copyTo(output) }
+            }
+
+            val extractDir = File(tempDir, "extracted")
+            extractDir.mkdirs()
+            if (!unzip(zipFile, extractDir)) return false
+
+            val targetFolder = File(context.getExternalFilesDir("Projects"), zipName)
+            targetFolder.mkdirs()
+
+            val files = extractDir.listFiles() ?: return false
+            val images = files.filter { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }
+            val projects = files.filter { it.extension.lowercase() == "atd" }
+
+            if (images.isNotEmpty()) {
+                for ((index, imgFile) in images.withIndex()) {
+                    val bmp = BitmapFactory.decodeFile(imgFile.absolutePath)
+                    if (bmp != null) {
+                        saveProject(context, emptyList(), bmp.width, bmp.height, Color.TRANSPARENT, bmp, imgFile.nameWithoutExtension, bmp, zipName)
+                        bmp.recycle()
+                    }
+                    onProgress(index + 1, images.size)
+                }
+                return true
+            } else if (projects.isNotEmpty()) {
+                for ((index, projFile) in projects.withIndex()) {
+                    projFile.copyTo(File(targetFolder, projFile.name), true)
+                    onProgress(index + 1, projects.size)
+                }
+                return true
+            }
+            return false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        } finally {
+            tempDir.deleteRecursively()
         }
     }
 
