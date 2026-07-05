@@ -13,6 +13,7 @@ import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
 import com.astral.typer.models.ImageLayer
 import com.astral.typer.models.Layer
+import com.astral.typer.TyperApplication
 import com.astral.typer.models.TextEffectType
 import com.astral.typer.models.TextLayer
 import com.google.gson.GsonBuilder
@@ -35,9 +36,10 @@ object ProjectManager {
     )
 
     data class SpanModel(
-        val type: String, // "BOLD", "ITALIC", "BOLD_ITALIC", "UNDERLINE", "STRIKETHROUGH"
+        val type: String, // "BOLD", "ITALIC", "BOLD_ITALIC", "UNDERLINE", "STRIKETHROUGH", "COLOR", "FONT", "SIZE", "LETTER_SPACING"
         val start: Int,
-        val end: Int
+        val end: Int,
+        val value: String? = null
     )
 
     data class LayerModel(
@@ -197,6 +199,23 @@ object ProjectManager {
                     val strikes = spanStr.getSpans(0, spanStr.length, StrikethroughSpan::class.java)
                     for (s in strikes) {
                         spanModels.add(SpanModel("STRIKETHROUGH", spanStr.getSpanStart(s), spanStr.getSpanEnd(s)))
+                    }
+                    val foregroundColors = spanStr.getSpans(0, spanStr.length, android.text.style.ForegroundColorSpan::class.java)
+                    for (fc in foregroundColors) {
+                        val hexColor = String.format("#%08X", fc.foregroundColor)
+                        spanModels.add(SpanModel("COLOR", spanStr.getSpanStart(fc), spanStr.getSpanEnd(fc), hexColor))
+                    }
+                    val customFonts = spanStr.getSpans(0, spanStr.length, CustomTypefaceSpan::class.java)
+                    for (cf in customFonts) {
+                        spanModels.add(SpanModel("FONT", spanStr.getSpanStart(cf), spanStr.getSpanEnd(cf), cf.fontPath))
+                    }
+                    val absoluteSizes = spanStr.getSpans(0, spanStr.length, android.text.style.AbsoluteSizeSpan::class.java)
+                    for (asize in absoluteSizes) {
+                        spanModels.add(SpanModel("SIZE", spanStr.getSpanStart(asize), spanStr.getSpanEnd(asize), asize.size.toString()))
+                    }
+                    val letterSpacings = spanStr.getSpans(0, spanStr.length, LetterSpacingSpan::class.java)
+                    for (ls in letterSpacings) {
+                        spanModels.add(SpanModel("LETTER_SPACING", spanStr.getSpanStart(ls), spanStr.getSpanEnd(ls), ls.spacing.toString()))
                     }
 
                     layerModels.add(LayerModel(
@@ -563,6 +582,8 @@ object ProjectManager {
             // Restore Spans
             if (!model.text.isNullOrEmpty() && model.spans != null) {
                  val sb = SpannableStringBuilder(model.text)
+                 val availableFonts = FontManager.getStandardFonts(TyperApplication.instance!!) + FontManager.getCustomFonts(TyperApplication.instance!!)
+
                  for (span in model.spans) {
                      val start = span.start.coerceIn(0, sb.length)
                      val end = span.end.coerceIn(0, sb.length)
@@ -573,6 +594,37 @@ object ProjectManager {
                              "BOLD_ITALIC" -> sb.setSpan(StyleSpan(android.graphics.Typeface.BOLD_ITALIC), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                              "UNDERLINE" -> sb.setSpan(UnderlineSpan(), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                              "STRIKETHROUGH" -> sb.setSpan(StrikethroughSpan(), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                             "COLOR" -> {
+                                 span.value?.let { colorStr ->
+                                     try {
+                                         sb.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor(colorStr)), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                     } catch (e: Exception) {}
+                                 }
+                             }
+                             "FONT" -> {
+                                 span.value?.let { fontPath ->
+                                     val found = availableFonts.find {
+                                         (it.isCustom && it.path == fontPath) || (!it.isCustom && it.name == fontPath)
+                                     }
+                                     if (found != null) {
+                                         sb.setSpan(CustomTypefaceSpan(found.typeface, fontPath), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                     }
+                                 }
+                             }
+                             "SIZE" -> {
+                                 span.value?.let { sizeStr ->
+                                     try {
+                                         sb.setSpan(android.text.style.AbsoluteSizeSpan(sizeStr.toInt()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                     } catch (e: Exception) {}
+                                 }
+                             }
+                             "LETTER_SPACING" -> {
+                                 span.value?.let { lsStr ->
+                                     try {
+                                         sb.setSpan(LetterSpacingSpan(lsStr.toFloat()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                     } catch (e: Exception) {}
+                                 }
+                             }
                          }
                      }
                  }

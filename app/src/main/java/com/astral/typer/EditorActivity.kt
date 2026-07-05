@@ -3232,8 +3232,24 @@ class EditorActivity : AppCompatActivity() {
             } else {
                 et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
+        } else if (span is ForegroundColorSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, ForegroundColorSpan::class.java)
+            for (s in existing) et.editableText.removeSpan(s)
+            et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else if (span is CustomTypefaceSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, CustomTypefaceSpan::class.java)
+            for (s in existing) et.editableText.removeSpan(s)
+            et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else if (span is android.text.style.AbsoluteSizeSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, android.text.style.AbsoluteSizeSpan::class.java)
+            for (s in existing) et.editableText.removeSpan(s)
+            et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else if (span is com.astral.typer.utils.LetterSpacingSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, com.astral.typer.utils.LetterSpacingSpan::class.java)
+            for (s in existing) et.editableText.removeSpan(s)
+            et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         } else {
-            // For other spans (Color, Typeface), just apply (replace)
+            // For other spans just apply (replace)
             et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
@@ -3520,7 +3536,8 @@ class EditorActivity : AppCompatActivity() {
                                 setOnClickListener {
                                     val et = activeEditText
                                     if (et != null && et.selectionStart != et.selectionEnd) {
-                                        applySpanToSelection(CustomTypefaceSpan(font.typeface))
+                                         val fontPath = if (font.isCustom) font.path else font.name
+                                         applySpanToSelection(CustomTypefaceSpan(font.typeface, fontPath))
                                     } else {
                                         layer.typeface = font.typeface
                                         layer.fontPath = if (font.isCustom) font.path else font.name // Save Identifier
@@ -3583,9 +3600,11 @@ class EditorActivity : AppCompatActivity() {
                                              setOnClickListener {
                                                  val et = activeEditText
                                                  if (et != null && et.selectionStart != et.selectionEnd) {
-                                                     applySpanToSelection(CustomTypefaceSpan(font.typeface))
+                                                     val fontPath = if (font.isCustom) font.path else font.name
+                                                     applySpanToSelection(CustomTypefaceSpan(font.typeface, fontPath))
                                                  } else {
                                                      layer.typeface = font.typeface
+                                                     layer.fontPath = if (font.isCustom) font.path else font.name
                                                      canvasView.invalidate()
                                                  }
                                              }
@@ -3862,14 +3881,26 @@ class EditorActivity : AppCompatActivity() {
         // Letter Spacing
         val letterSpacingRow = createControl("Letter Spacing", String.format("%.2f", layer.letterSpacing), "LETTER_SPACING",
             onMinus = {
-                layer.letterSpacing -= 0.01f
-                canvasView.invalidate()
-                (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
+                val et = activeEditText
+                if (et != null && et.selectionStart != et.selectionEnd) {
+                    val currentSpacing = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.LetterSpacingSpan::class.java).firstOrNull()?.spacing ?: layer.letterSpacing) - 0.01f
+                    applySpanToSelection(com.astral.typer.utils.LetterSpacingSpan(currentSpacing))
+                } else {
+                    layer.letterSpacing -= 0.01f
+                    canvasView.invalidate()
+                    (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
+                }
             },
             onPlus = {
-                layer.letterSpacing += 0.01f
-                canvasView.invalidate()
-                (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
+                val et = activeEditText
+                if (et != null && et.selectionStart != et.selectionEnd) {
+                    val currentSpacing = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.LetterSpacingSpan::class.java).firstOrNull()?.spacing ?: layer.letterSpacing) + 0.01f
+                    applySpanToSelection(com.astral.typer.utils.LetterSpacingSpan(currentSpacing))
+                } else {
+                    layer.letterSpacing += 0.01f
+                    canvasView.invalidate()
+                    (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
+                }
             }
         )
         layout.addView(letterSpacingRow)
@@ -4188,26 +4219,50 @@ class EditorActivity : AppCompatActivity() {
         // Text Size
         val textSizeRow = createControl("Text Size", "${layer.fontSize.toInt()} pt", "VAL_TEXT_SIZE",
             onMinus = {
-                layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
-                canvasView.invalidate()
-                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
+                val et = activeEditText
+                if (et != null && et.selectionStart != et.selectionEnd) {
+                    val currentSize = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, android.text.style.AbsoluteSizeSpan::class.java).firstOrNull()?.size ?: layer.fontSize.toInt()) - 1
+                    applySpanToSelection(android.text.style.AbsoluteSizeSpan(currentSize.coerceAtLeast(10)))
+                } else {
+                    layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
+                    canvasView.invalidate()
+                    ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
+                }
             },
             onPlus = {
-                layer.fontSize += 1
-                canvasView.invalidate()
-                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
+                val et = activeEditText
+                if (et != null && et.selectionStart != et.selectionEnd) {
+                    val currentSize = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, android.text.style.AbsoluteSizeSpan::class.java).firstOrNull()?.size ?: layer.fontSize.toInt()) + 1
+                    applySpanToSelection(android.text.style.AbsoluteSizeSpan(currentSize))
+                } else {
+                    layer.fontSize += 1
+                    canvasView.invalidate()
+                    ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
+                }
             }
         )
         val tvSizeVal = textSizeRow.findViewWithTag<TextView>("VAL_TEXT_SIZE")
         textSizeRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
-            layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
-            canvasView.invalidate()
-            tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+            val et = activeEditText
+            if (et != null && et.selectionStart != et.selectionEnd) {
+                val currentSize = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, android.text.style.AbsoluteSizeSpan::class.java).firstOrNull()?.size ?: layer.fontSize.toInt()) - 1
+                applySpanToSelection(android.text.style.AbsoluteSizeSpan(currentSize.coerceAtLeast(10)))
+            } else {
+                layer.fontSize = (layer.fontSize - 1).coerceAtLeast(10f)
+                canvasView.invalidate()
+                tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+            }
         }
         textSizeRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
-            layer.fontSize += 1
-            canvasView.invalidate()
-            tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+            val et = activeEditText
+            if (et != null && et.selectionStart != et.selectionEnd) {
+                val currentSize = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, android.text.style.AbsoluteSizeSpan::class.java).firstOrNull()?.size ?: layer.fontSize.toInt()) + 1
+                applySpanToSelection(android.text.style.AbsoluteSizeSpan(currentSize))
+            } else {
+                layer.fontSize += 1
+                canvasView.invalidate()
+                tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
+            }
         }
         layout.addView(textSizeRow)
 
