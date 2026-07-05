@@ -212,6 +212,11 @@ class EditorActivity : AppCompatActivity() {
 
             canvasView.initCanvas(width, height, if (color == -1) Color.WHITE else color)
 
+            val autoWatermark = getSharedPreferences("settings_prefs", MODE_PRIVATE).getBoolean("auto_watermark", false)
+            if (autoWatermark && imageUriString == null) {
+                addWatermarkLayer(true)
+            }
+
             if (imageUriString != null) {
                 binding.loadingOverlay.visibility = View.VISIBLE
                 lifecycleScope.launch(Dispatchers.IO) {
@@ -225,6 +230,10 @@ class EditorActivity : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             if (bitmap != null) {
                                 canvasView.setBackgroundImage(bitmap)
+                                val autoWatermarkImport = getSharedPreferences("settings_prefs", MODE_PRIVATE).getBoolean("auto_watermark", false)
+                                if (autoWatermarkImport) {
+                                    addWatermarkLayer(true)
+                                }
                             } else {
                                 Toast.makeText(this@EditorActivity, "Failed to decode image", Toast.LENGTH_SHORT).show()
                             }
@@ -1931,6 +1940,13 @@ class EditorActivity : AppCompatActivity() {
         }
         sidebarBinding.btnCancelSaveProject.setOnClickListener { backAction() }
         sidebarBinding.btnCancelSaveFile.setOnClickListener { backAction() }
+
+        val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+        val enableWatermark = settingsPrefs.getBoolean("enable_watermark", false)
+        sidebarBinding.btnInsertWatermark.visibility = if (enableWatermark) View.VISIBLE else View.GONE
+        sidebarBinding.btnInsertWatermark.setOnClickListener {
+            addWatermarkLayer(false)
+        }
 
         // CONFIRM ACTIONS
         sidebarBinding.btnConfirmSaveProject.setOnClickListener {
@@ -5110,6 +5126,60 @@ class EditorActivity : AppCompatActivity() {
 
         layout.addView(btnReset)
         container.addView(layout)
+    }
+
+    private fun addWatermarkLayer(isAuto: Boolean) {
+        val watermarkFile = java.io.File(filesDir, "watermark.png")
+        if (!watermarkFile.exists()) {
+            if (!isAuto) Toast.makeText(this, "Watermark file not found. Please import it in Settings.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            val bitmap = android.graphics.BitmapFactory.decodeFile(watermarkFile.absolutePath)
+            if (bitmap != null) {
+                val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+                val opacity = settingsPrefs.getInt("watermark_opacity", 255)
+                val position = if (isAuto) settingsPrefs.getString("watermark_position", "Center") ?: "Center" else "Center"
+
+                val layer = ImageLayer(bitmap, null)
+                layer.opacity = opacity
+
+                val cw = canvasView.canvasWidth
+                val ch = canvasView.canvasHeight
+
+                val posPoint = calculateWatermarkPosition(position, cw, ch, bitmap.width, bitmap.height)
+                layer.x = posPoint.x
+                layer.y = posPoint.y
+
+                canvasView.getLayers().add(layer)
+                canvasView.invalidate()
+                if (!isAuto) Toast.makeText(this, "Watermark Inserted", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun calculateWatermarkPosition(pos: String, canvasW: Int, canvasH: Int, layerW: Int, layerH: Int): android.graphics.PointF {
+        val margin = 50f
+        return when (pos) {
+            "Upper left" -> android.graphics.PointF(margin + layerW / 2f, margin + layerH / 2f)
+            "Top" -> android.graphics.PointF(canvasW / 2f, margin + layerH / 2f)
+            "Upper Right" -> android.graphics.PointF(canvasW - margin - layerW / 2f, margin + layerH / 2f)
+            "Middle Left" -> android.graphics.PointF(margin + layerW / 2f, canvasH / 2f)
+            "Center" -> android.graphics.PointF(canvasW / 2f, canvasH / 2f)
+            "Middle Right" -> android.graphics.PointF(canvasW - margin - layerW / 2f, canvasH / 2f)
+            "Bottom Left" -> android.graphics.PointF(margin + layerW / 2f, canvasH - margin - layerH / 2f)
+            "Bottom" -> android.graphics.PointF(canvasW / 2f, canvasH - margin - layerH / 2f)
+            "Bottom Right" -> android.graphics.PointF(canvasW - margin - layerW / 2f, canvasH - margin - layerH / 2f)
+            "Random" -> {
+                val rx = (margin + layerW / 2f) + (Math.random() * (canvasW - 2 * margin - layerW)).toFloat()
+                val ry = (margin + layerH / 2f) + (Math.random() * (canvasH - 2 * margin - layerH)).toFloat()
+                android.graphics.PointF(rx, ry)
+            }
+            else -> android.graphics.PointF(canvasW / 2f, canvasH / 2f)
+        }
     }
 
     private fun showOpacityMenu() {

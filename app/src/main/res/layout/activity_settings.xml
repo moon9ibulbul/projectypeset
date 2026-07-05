@@ -192,6 +192,93 @@
                 android:text="Download Model"/>
         </LinearLayout>
 
+        <!-- Watermark -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Watermark"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp"/>
+
+        <CheckBox
+            android:id="@+id/cbEnableWatermark"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable Global Watermark"
+            android:textColor="@android:color/white"/>
+
+        <LinearLayout
+            android:id="@+id/layoutWatermarkOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginBottom="24dp">
+
+            <Button
+                android:id="@+id/btnImportWatermark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Import Watermark"
+                android:layout_marginBottom="8dp"/>
+
+            <ImageView
+                android:id="@+id/ivWatermarkPreview"
+                android:layout_width="wrap_content"
+                android:layout_height="100dp"
+                android:adjustViewBounds="true"
+                android:scaleType="fitCenter"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone"/>
+
+            <TextView
+                android:id="@+id/tvWatermarkOpacity"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Watermark Opacity: 100%"
+                android:textColor="@android:color/white"
+                android:layout_marginBottom="8dp"/>
+
+            <SeekBar
+                android:id="@+id/sbWatermarkOpacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="255"
+                android:progress="255"
+                android:layout_marginBottom="16dp"/>
+
+            <CheckBox
+                android:id="@+id/cbAutoWatermark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Auto Watermark"
+                android:textColor="@android:color/white"/>
+
+            <LinearLayout
+                android:id="@+id/layoutWatermarkPosition"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Watermark Position"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"/>
+
+                <Spinner
+                    android:id="@+id/spinnerWatermarkPosition"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@android:color/white"/>
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- About / Donate -->
         <View
             android:layout_width="match_parent"
