@@ -49,6 +49,14 @@
                 android:layout_marginBottom="16dp"/>
 
             <Button
+                android:id="@+id/btnInsertWatermark"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Insert Watermark"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone"/>
+
+            <Button
                 android:id="@+id/btnLoadRaw"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

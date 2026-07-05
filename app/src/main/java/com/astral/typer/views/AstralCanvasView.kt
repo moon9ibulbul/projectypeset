@@ -38,8 +38,10 @@ class AstralCanvasView @JvmOverloads constructor(
     private val TILE_SIZE = 1024
 
     // Canvas Configuration
-    private var canvasWidth = 1080
-    private var canvasHeight = 1080
+    var canvasWidth = 1080
+        private set
+    var canvasHeight = 1080
+        private set
     private var canvasColor = Color.WHITE
     // private var canvasBitmap: android.graphics.Bitmap? = null // Removed
 

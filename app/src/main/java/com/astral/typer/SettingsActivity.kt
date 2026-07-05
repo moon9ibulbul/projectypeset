@@ -29,6 +29,17 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var cbMyFont: CheckBox
     private lateinit var cbAutosave: CheckBox
 
+    // Watermark Views
+    private lateinit var cbEnableWatermark: CheckBox
+    private lateinit var layoutWatermarkOptions: android.widget.LinearLayout
+    private lateinit var btnImportWatermark: Button
+    private lateinit var ivWatermarkPreview: android.widget.ImageView
+    private lateinit var tvWatermarkOpacity: TextView
+    private lateinit var sbWatermarkOpacity: android.widget.SeekBar
+    private lateinit var cbAutoWatermark: CheckBox
+    private lateinit var layoutWatermarkPosition: android.widget.LinearLayout
+    private lateinit var spinnerWatermarkPosition: android.widget.Spinner
+
     // Export Launcher
     private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         uri?.let { performExport(it) }
@@ -37,6 +48,10 @@ class SettingsActivity : AppCompatActivity() {
     // Import Launcher
     private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { performImport(it) }
+    }
+
+    private val watermarkLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { handleWatermarkImport(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +71,71 @@ class SettingsActivity : AppCompatActivity() {
         cbAutosave.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("enable_autosave", isChecked).apply()
         }
+
+        // Watermark Logic
+        cbEnableWatermark = findViewById(R.id.cbEnableWatermark)
+        layoutWatermarkOptions = findViewById(R.id.layoutWatermarkOptions)
+        btnImportWatermark = findViewById(R.id.btnImportWatermark)
+        ivWatermarkPreview = findViewById(R.id.ivWatermarkPreview)
+        tvWatermarkOpacity = findViewById(R.id.tvWatermarkOpacity)
+        sbWatermarkOpacity = findViewById(R.id.sbWatermarkOpacity)
+        cbAutoWatermark = findViewById(R.id.cbAutoWatermark)
+        layoutWatermarkPosition = findViewById(R.id.layoutWatermarkPosition)
+        spinnerWatermarkPosition = findViewById(R.id.spinnerWatermarkPosition)
+
+        val isWatermarkEnabled = settingsPrefs.getBoolean("enable_watermark", false)
+        cbEnableWatermark.isChecked = isWatermarkEnabled
+        layoutWatermarkOptions.visibility = if (isWatermarkEnabled) android.view.View.VISIBLE else android.view.View.GONE
+
+        cbEnableWatermark.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("enable_watermark", isChecked).apply()
+            layoutWatermarkOptions.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
+        }
+
+        val watermarkOpacity = settingsPrefs.getInt("watermark_opacity", 255)
+        sbWatermarkOpacity.progress = watermarkOpacity
+        tvWatermarkOpacity.text = "Watermark Opacity: ${(watermarkOpacity / 2.55f).toInt()}%"
+
+        sbWatermarkOpacity.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                tvWatermarkOpacity.text = "Watermark Opacity: ${(progress / 2.55f).toInt()}%"
+                settingsPrefs.edit().putInt("watermark_opacity", progress).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
+        val isAutoWatermark = settingsPrefs.getBoolean("auto_watermark", false)
+        cbAutoWatermark.isChecked = isAutoWatermark
+        layoutWatermarkPosition.visibility = if (isAutoWatermark) android.view.View.VISIBLE else android.view.View.GONE
+
+        cbAutoWatermark.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("auto_watermark", isChecked).apply()
+            layoutWatermarkPosition.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
+        }
+
+        // Spinner Setup
+        val positions = arrayOf("Upper left", "Top", "Upper Right", "Middle Left", "Center", "Middle Right", "Bottom Left", "Bottom", "Bottom Right", "Random")
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, positions)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerWatermarkPosition.adapter = adapter
+
+        val savedPosition = settingsPrefs.getString("watermark_position", "Center")
+        val posIndex = positions.indexOf(savedPosition).coerceAtLeast(0)
+        spinnerWatermarkPosition.setSelection(posIndex)
+
+        spinnerWatermarkPosition.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                settingsPrefs.edit().putString("watermark_position", positions[position]).apply()
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        btnImportWatermark.setOnClickListener {
+            watermarkLauncher.launch("image/*")
+        }
+
+        updateWatermarkPreview()
 
         val btnExport = findViewById<Button>(R.id.btnExport)
         val btnImport = findViewById<Button>(R.id.btnImport)
@@ -183,6 +263,33 @@ class SettingsActivity : AppCompatActivity() {
         val sizeBytes = calculateSize(cacheDir)
         val sizeMb = sizeBytes / (1024.0 * 1024.0)
         tvCacheSize.text = String.format("Cache Size: %.2f MB", sizeMb)
+    }
+
+    private fun handleWatermarkImport(uri: Uri) {
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                val watermarkFile = File(filesDir, "watermark.png")
+                FileOutputStream(watermarkFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            updateWatermarkPreview()
+            Toast.makeText(this, "Watermark Imported", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Failed to import watermark", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun updateWatermarkPreview() {
+        val watermarkFile = File(filesDir, "watermark.png")
+        if (watermarkFile.exists()) {
+            ivWatermarkPreview.visibility = android.view.View.VISIBLE
+            val bitmap = android.graphics.BitmapFactory.decodeFile(watermarkFile.absolutePath)
+            ivWatermarkPreview.setImageBitmap(bitmap)
+        } else {
+            ivWatermarkPreview.visibility = android.view.View.GONE
+        }
     }
 
     private fun calculateSize(dir: File): Long {
