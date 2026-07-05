@@ -4622,6 +4622,12 @@ class EditorActivity : AppCompatActivity() {
             }
             layout.addView(sbDist)
 
+            // Thickness
+            layout.addView(createSlider("Thickness", stylableLayer.motionShadowThickness.toInt(), 20) {
+                stylableLayer.motionShadowThickness = it.toFloat()
+                canvasView.invalidate()
+            })
+
             // Include Stroke Checkbox
             val cbIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {
                 text = "Include stroke"
