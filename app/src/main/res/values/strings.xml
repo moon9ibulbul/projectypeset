@@ -28,4 +28,9 @@
     <string name="opacity">Opacity</string>
     <string name="eraser">Eraser</string>
     <string name="effect">Effect</string>
+
+    <!-- PDF Settings -->
+    <string name="pdf_export_settings">PDF Export Settings</string>
+    <string name="pdf_quality">PDF Compression Quality: %1$d%%</string>
+    <string name="pdf_quality_summary">Lower quality results in smaller file size.</string>
 </resources>

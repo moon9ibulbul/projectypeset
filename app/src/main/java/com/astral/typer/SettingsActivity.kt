@@ -40,6 +40,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var layoutWatermarkPosition: android.widget.LinearLayout
     private lateinit var spinnerWatermarkPosition: android.widget.Spinner
 
+    private lateinit var tvPdfQuality: TextView
+    private lateinit var sbPdfQuality: android.widget.SeekBar
+
     // Export Launcher
     private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         uri?.let { performExport(it) }
@@ -136,6 +139,23 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         updateWatermarkPreview()
+
+        // PDF Quality Logic
+        tvPdfQuality = findViewById(R.id.tvPdfQuality)
+        sbPdfQuality = findViewById(R.id.sbPdfQuality)
+
+        val pdfQuality = settingsPrefs.getInt("pdf_quality", 80)
+        sbPdfQuality.progress = pdfQuality
+        tvPdfQuality.text = getString(R.string.pdf_quality, pdfQuality)
+
+        sbPdfQuality.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                tvPdfQuality.text = getString(R.string.pdf_quality, progress)
+                settingsPrefs.edit().putInt("pdf_quality", progress).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
 
         val btnExport = findViewById<Button>(R.id.btnExport)
         val btnImport = findViewById<Button>(R.id.btnImport)

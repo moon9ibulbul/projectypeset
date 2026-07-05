@@ -921,7 +921,7 @@ object ProjectManager {
         }
     }
 
-    fun exportFolderToPdf(context: Context, folder: File, outputFile: File, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
+    fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
         val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
         if (projects.isEmpty()) return false
 
@@ -973,7 +973,7 @@ object ProjectManager {
 
                     // Compress
                     val stream = java.io.ByteArrayOutputStream()
-                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
+                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
                     val compressedBytes = stream.toByteArray()
                     val compressedBmp = BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size)
 
