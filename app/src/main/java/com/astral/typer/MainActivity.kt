@@ -338,12 +338,20 @@ class MainActivity : AppCompatActivity() {
                                         text.setTextColor(Color.WHITE)
                                     }
 
-                                    img.setImageResource(android.R.drawable.ic_menu_gallery)
+                                    if (file.isDirectory) {
+                                        img.setImageResource(android.R.drawable.ic_menu_directions)
+                                    } else {
+                                        img.setImageResource(android.R.drawable.ic_menu_gallery)
+                                    }
                                     img.setColorFilter(Color.GRAY)
 
                                     // Async Load Thumbnail
                                     lifecycleScope.launch(Dispatchers.IO) {
-                                        val bmp = ProjectManager.loadThumbnail(this@MainActivity, file)
+                                        val bmp = if (file.isDirectory) {
+                                            ProjectManager.loadFolderThumbnail(this@MainActivity, file)
+                                        } else {
+                                            ProjectManager.loadThumbnail(this@MainActivity, file)
+                                        }
                                         withContext(Dispatchers.Main) {
                                             if (bmp != null) {
                                                 img.setImageBitmap(bmp)
@@ -354,7 +362,14 @@ class MainActivity : AppCompatActivity() {
                                     }
 
                                     holder.itemView.setOnClickListener {
-                                        openProject(file)
+                                        if (file.isDirectory) {
+                                            val intent = Intent(this@MainActivity, RecentActivity::class.java).apply {
+                                                putExtra("FOLDER_PATH", file.absolutePath)
+                                            }
+                                            startActivity(intent)
+                                        } else {
+                                            openProject(file)
+                                        }
                                     }
                                 }
                             }

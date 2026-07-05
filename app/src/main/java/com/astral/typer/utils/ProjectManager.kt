@@ -957,21 +957,35 @@ object ProjectManager {
                     val page = pdfDocument.startPage(pageInfo)
                     val canvas = page.canvas
 
-                    canvas.scale(scale, scale)
+                    // Intermediate bitmap for compression
+                    val pageBitmap = Bitmap.createBitmap(data.canvasWidth, data.canvasHeight, Bitmap.Config.ARGB_8888)
+                    val tempCanvas = android.graphics.Canvas(pageBitmap)
 
-                    // Draw Canvas Background
-                    canvas.drawColor(data.canvasColor)
+                    // Draw Content to tempCanvas
+                    tempCanvas.drawColor(data.canvasColor)
                     if (images.containsKey("images/background.png")) {
-                        canvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
+                        tempCanvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
                     }
-
-                    // Draw Layers
                     for (model in data.layers) {
                         val layer = createLayerFromModel(model, images)
-                        layer?.draw(canvas)
+                        layer?.draw(tempCanvas)
                     }
 
+                    // Compress
+                    val stream = java.io.ByteArrayOutputStream()
+                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
+                    val compressedBytes = stream.toByteArray()
+                    val compressedBmp = BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size)
+
+                    // Draw compressed bitmap to PDF canvas
+                    val src = android.graphics.Rect(0, 0, data.canvasWidth, data.canvasHeight)
+                    val dst = android.graphics.RectF(0f, 0f, maxWidth.toFloat(), targetHeight.toFloat())
+                    canvas.drawBitmap(compressedBmp, src, dst, null)
+
                     pdfDocument.finishPage(page)
+
+                    pageBitmap.recycle()
+                    compressedBmp.recycle()
                     images.values.forEach { it.recycle() }
                 }
             }
