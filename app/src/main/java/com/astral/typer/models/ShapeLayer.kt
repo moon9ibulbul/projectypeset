@@ -93,6 +93,7 @@ class ShapeLayer(
     override var activeEraseOpacity: Int = 0
     @Transient
     override var activeEraseHardness: Float = 0f
+    override var eraseDragRevision: Int = 0
 
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
@@ -731,9 +732,10 @@ class ShapeLayer(
             drawBase(canvas)
         }
 
+        val pad = calculatePadding()
         if (eraseMask != null) {
             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-            canvas.drawBitmap(eraseMask!!, 0f, 0f, maskPaint)
+            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
         }
         if (activeErasePath != null) {
             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -744,7 +746,10 @@ class ShapeLayer(
                     if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
                 }
             }
+            canvas.save()
+            canvas.translate(-pad, -pad)
             canvas.drawPath(activeErasePath!!, p)
+            canvas.restore()
         }
     }
 
@@ -858,7 +863,7 @@ class ShapeLayer(
         } catch (e: Exception) {}
     }
 
-    private fun calculatePadding(): Float {
+    override fun calculatePadding(): Float {
         var p = strokeWidth + doubleStrokeWidth
         p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
@@ -974,9 +979,12 @@ class ShapeLayer(
     }
 
     override fun rebuildEraseMask(baseMask: Bitmap?) {
-        val w = eraseMask?.width ?: baseMask?.width ?: getWidth().toInt().coerceAtLeast(1)
-        val h = eraseMask?.height ?: baseMask?.height ?: getHeight().toInt().coerceAtLeast(1)
-        val newMask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); val c = Canvas(newMask)
+        val pad = calculatePadding()
+        val baseW = getWidth().toInt().coerceAtLeast(1)
+        val baseH = getHeight().toInt().coerceAtLeast(1)
+        val maskW = (baseW + pad * 2).toInt().coerceAtLeast(1)
+        val maskH = (baseH + pad * 2).toInt().coerceAtLeast(1)
+        val newMask = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888); val c = Canvas(newMask)
         if (baseMask != null) c.drawBitmap(baseMask, 0f, 0f, null)
         for (data in erasePaths) {
              val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {

@@ -1776,13 +1776,17 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
             globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
+            val pad = stylable.calculatePadding()
             val w = layer.getWidth().toInt().coerceAtLeast(1); val h = layer.getHeight().toInt().coerceAtLeast(1)
-            val maskX = localPoint[0] + w/2f; val maskY = localPoint[1] + h/2f
+            val maskW = (w + pad * 2).toInt().coerceAtLeast(1)
+            val maskH = (h + pad * 2).toInt().coerceAtLeast(1)
+            val maskX = localPoint[0] + w/2f + pad; val maskY = localPoint[1] + h/2f + pad
             when(event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    stylable.eraseDragRevision++
                     currentLayerErasePath.reset(); currentLayerErasePath.moveTo(maskX, maskY)
                     if (stylable.eraseMask == null) {
-                         stylable.eraseMask = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                         stylable.eraseMask = android.graphics.Bitmap.createBitmap(maskW, maskH, android.graphics.Bitmap.Config.ARGB_8888)
                     }
                     stylable.activeErasePath = currentLayerErasePath
                     stylable.activeEraseSize = layerEraseSize
@@ -1790,6 +1794,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     stylable.activeEraseHardness = layerEraseHardness
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    stylable.eraseDragRevision++
                     currentLayerErasePath.lineTo(maskX, maskY)
                     stylable.activeErasePath = currentLayerErasePath
                     stylable.activeEraseSize = layerEraseSize
@@ -1798,6 +1803,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
+                    stylable.eraseDragRevision++
                     stylable.activeErasePath = null
                     if (!currentLayerErasePath.isEmpty) {
                         stylable.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)

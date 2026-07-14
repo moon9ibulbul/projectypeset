@@ -111,6 +111,7 @@ class TextLayer(
     override var activeEraseOpacity: Int = 0
     @Transient
     override var activeEraseHardness: Float = 0f
+    override var eraseDragRevision: Int = 0
 
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
@@ -197,6 +198,176 @@ class TextLayer(
     private var cachedPatternHash: Int = 0
     @Transient
     private var cachedPatternXfermode: PorterDuffXfermode? = null
+
+    // Base Content Caching for Warp & Perspective optimization
+    @Transient
+    var cleanContentCache: Bitmap? = null
+    @Transient
+    var cleanContentHash: Int = 0
+
+    @Transient
+    var erasedContentCache: Bitmap? = null
+    @Transient
+    var erasedContentHash: Int = -1
+
+    fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float): Int {
+        var result = text.toString().hashCode()
+        result = 31 * result + w.hashCode()
+        result = 31 * result + ch.hashCode()
+        result = 31 * result + pad.hashCode()
+        result = 31 * result + qualityScale.hashCode()
+        result = 31 * result + color
+        result = 31 * result + fontSize.hashCode()
+        result = 31 * result + (fontPath?.hashCode() ?: 0)
+        result = 31 * result + textAlign.hashCode()
+        result = 31 * result + isJustified.hashCode()
+        result = 31 * result + letterSpacing.hashCode()
+        result = 31 * result + lineSpacing.hashCode()
+        result = 31 * result + shadowColor
+        result = 31 * result + shadowRadius.hashCode()
+        result = 31 * result + shadowDx.hashCode()
+        result = 31 * result + shadowDy.hashCode()
+        result = 31 * result + isMotionShadow.hashCode()
+        result = 31 * result + isMotionShadowIncludeStroke.hashCode()
+        result = 31 * result + motionShadowAngle
+        result = 31 * result + motionShadowDistance.hashCode()
+        result = 31 * result + motionShadowThickness.hashCode()
+        result = 31 * result + isGradient.hashCode()
+        result = 31 * result + gradientStartColor
+        result = 31 * result + gradientEndColor
+        result = 31 * result + gradientAngle
+        result = 31 * result + isGradientText.hashCode()
+        result = 31 * result + isGradientStroke.hashCode()
+        result = 31 * result + isGradientShadow.hashCode()
+        result = 31 * result + isGlobalGradient.hashCode()
+        result = 31 * result + globalP1.x.hashCode()
+        result = 31 * result + globalP1.y.hashCode()
+        result = 31 * result + globalP2.x.hashCode()
+        result = 31 * result + globalP2.y.hashCode()
+        result = 31 * result + strokeColor
+        result = 31 * result + strokeWidth.hashCode()
+        result = 31 * result + doubleStrokeColor
+        result = 31 * result + doubleStrokeWidth.hashCode()
+        result = 31 * result + (textureBitmap?.hashCode() ?: 0)
+        result = 31 * result + textureOffsetX.hashCode()
+        result = 31 * result + textureOffsetY.hashCode()
+        result = 31 * result + (patternName?.hashCode() ?: 0)
+        result = 31 * result + patternColor
+        result = 31 * result + patternAlpha
+        result = 31 * result + patternScale.hashCode()
+        result = 31 * result + patternRotation.hashCode()
+        result = 31 * result + currentEffect.hashCode()
+        result = 31 * result + secondaryEffect.hashCode()
+        result = 31 * result + effectSeed.hashCode()
+        result = 31 * result + blurRadius.hashCode()
+        result = 31 * result + longShadowLength.hashCode()
+        result = 31 * result + longShadowColor
+        result = 31 * result + longShadowAngle.hashCode()
+        result = 31 * result + motionBlurLength.hashCode()
+        result = 31 * result + motionBlurAngle
+        result = 31 * result + halftoneDotSize.hashCode()
+        result = 31 * result + halftoneDotColor
+        result = 31 * result + halftoneThreshold.hashCode()
+        result = 31 * result + neonRadius.hashCode()
+        result = 31 * result + neonColor
+        result = 31 * result + glitchIntensity.hashCode()
+        result = 31 * result + pixelBlockSize.hashCode()
+        result = 31 * result + chromaticShift.hashCode()
+        result = 31 * result + chromaticColors.contentHashCode()
+        result = 31 * result + multiGradientColors.contentHashCode()
+        result = 31 * result + multiGradientAngle.hashCode()
+        result = 31 * result + particleSize.hashCode()
+        result = 31 * result + particleSpread.hashCode()
+        result = 31 * result + particleDissolveAngle.hashCode()
+        result = 31 * result + radialBlurInnerRadius.hashCode()
+        result = 31 * result + radialBlurMotionStrength.hashCode()
+        result = 31 * result + decayIntensity.hashCode()
+        result = 31 * result + decayFadingLevel.hashCode()
+        return result
+    }
+
+    private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int): Bitmap {
+        // 1. Ensure cleanContentCache is valid
+        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale)
+        val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
+                cleanContentCache!!.width == bmpW && cleanContentCache!!.height == bmpH &&
+                cleanContentHash == cleanHash
+
+        if (!cleanValid) {
+            cleanContentCache?.recycle()
+            val newClean = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val c = Canvas(newClean)
+            c.scale(qualityScale, qualityScale)
+            c.translate(pad, pad)
+            drawCleanContent(c, layout, w, ch)
+            cleanContentCache = newClean
+            cleanContentHash = cleanHash
+            erasedContentHash = -1 // force update erased content
+        }
+
+        // 2. Ensure erasedContentCache has matching size
+        if (erasedContentCache == null || erasedContentCache!!.isRecycled ||
+            erasedContentCache!!.width != bmpW || erasedContentCache!!.height != bmpH) {
+            erasedContentCache?.recycle()
+            erasedContentCache = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            erasedContentHash = -1 // force update
+        }
+
+        // 3. Update erasedContentCache if eraseDragRevision has changed
+        if (erasedContentHash != eraseDragRevision) {
+            val erasedBmp = erasedContentCache!!
+            val c = Canvas(erasedBmp)
+            c.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+            // Draw clean content
+            c.drawBitmap(cleanContentCache!!, 0f, 0f, null)
+
+            // Apply Erase Mask (with scale since clean content is qualityScale-scaled)
+            if (eraseMask != null) {
+                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                c.drawBitmap(eraseMask!!, null, RectF(0f, 0f, bmpW.toFloat(), bmpH.toFloat()), maskPaint)
+            }
+
+            // Apply active erase path preview (also with scale)
+            if (activeErasePath != null) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK
+                    style = Paint.Style.STROKE
+                    strokeWidth = activeEraseSize * qualityScale
+                    alpha = activeEraseOpacity
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (activeEraseHardness < 100) {
+                        val radius = (activeEraseSize * qualityScale) / 2f
+                        val blur = radius * (1f - (activeEraseHardness / 100f))
+                        if (blur > 0.5f) {
+                            maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                        }
+                    }
+                }
+                c.save()
+                c.scale(qualityScale, qualityScale)
+                c.drawPath(activeErasePath!!, p)
+                c.restore()
+            }
+            erasedContentHash = eraseDragRevision
+        }
+
+        return erasedContentCache!!
+    }
+
+    fun recycleCache() {
+        cleanContentCache?.recycle()
+        cleanContentCache = null
+        erasedContentCache?.recycle()
+        erasedContentCache = null
+        cachedPixelBitmap?.recycle()
+        cachedPixelBitmap = null
+        cachedWavyBitmap?.recycle()
+        cachedWavyBitmap = null
+    }
 
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
@@ -363,12 +534,14 @@ class TextLayer(
     }
 
     override fun rebuildEraseMask(baseMask: Bitmap?) {
-        // If we have eraseMask dimensions, reuse or recreate
-        val w = eraseMask?.width ?: baseMask?.width ?: 1
-        val h = eraseMask?.height ?: baseMask?.height ?: 1
+        val pad = calculatePadding()
+        val baseW = getWidth().toInt().coerceAtLeast(1)
+        val baseH = getHeight().toInt().coerceAtLeast(1)
+        val maskW = (baseW + pad * 2).toInt().coerceAtLeast(1)
+        val maskH = (baseH + pad * 2).toInt().coerceAtLeast(1)
 
         // New clean bitmap
-        val newMask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val newMask = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
         val c = Canvas(newMask)
         c.drawColor(Color.TRANSPARENT)
 
@@ -419,7 +592,7 @@ class TextLayer(
         return cachedLayout?.height?.toFloat() ?: 0f
     }
 
-    fun calculatePadding(): Float {
+    override fun calculatePadding(): Float {
         var p = strokeWidth + doubleStrokeWidth
         p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
@@ -751,11 +924,27 @@ class TextLayer(
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
-        canvas.save()
-        canvas.concat(matrix)
-        canvas.translate(-w / 2f, -h / 2f)
-        drawContent(canvas, layout, w, ch)
-        canvas.restore()
+        val pad = calculatePadding()
+
+        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+        val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
+
+        if (bmpW > 0 && bmpH > 0) {
+            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+            canvas.save()
+            canvas.concat(matrix)
+            val destRect = RectF(
+                -w / 2f - pad,
+                -h / 2f - pad,
+                -w / 2f - pad + finalBmp.width / qualityScale,
+                -h / 2f - pad + finalBmp.height / qualityScale
+            )
+            canvas.drawBitmap(finalBmp, null, destRect, paint)
+            canvas.restore()
+        }
     }
 
     override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
@@ -814,11 +1003,7 @@ class TextLayer(
         val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-            val c = Canvas(bitmap)
-            c.scale(qualityScale, qualityScale)
-            c.translate(pad, pad)
-            drawContent(c, layout, w, ch)
+            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
 
             val meshW = 20
             val meshH = 20
@@ -837,15 +1022,14 @@ class TextLayer(
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, paint)
+                canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, paint)
             } else {
-                canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, null)
+                canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
             }
-            bitmap.recycle()
         }
     }
 
-    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
+    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
         val paint = layout.paint
         val gradientShader = getGradientShader(w, h)
 
@@ -1634,11 +1818,17 @@ class TextLayer(
             drawBase(canvas)
         }
 
+    }
+
+    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
+        drawCleanContent(canvas, layout, w, h)
+
+        val pad = calculatePadding()
         // Apply Erase Mask
         if (eraseMask != null) {
             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            canvas.drawBitmap(eraseMask!!, 0f, 0f, maskPaint)
+            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
         }
 
         // Apply active erase path preview
@@ -1659,7 +1849,10 @@ class TextLayer(
                     }
                 }
             }
+            canvas.save()
+            canvas.translate(-pad, -pad)
             canvas.drawPath(activeErasePath!!, p)
+            canvas.restore()
         }
     }
 
