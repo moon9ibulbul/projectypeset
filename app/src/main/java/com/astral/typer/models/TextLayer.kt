@@ -198,6 +198,97 @@ class TextLayer(
     @Transient
     private var cachedPatternXfermode: PorterDuffXfermode? = null
 
+    // Base Content Caching for Warp & Perspective optimization
+    @Transient
+    var baseContentCache: Bitmap? = null
+    @Transient
+    var baseContentHash: Int = 0
+
+    fun calculateBaseContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float): Int {
+        var result = text.toString().hashCode()
+        result = 31 * result + w.hashCode()
+        result = 31 * result + ch.hashCode()
+        result = 31 * result + pad.hashCode()
+        result = 31 * result + qualityScale.hashCode()
+        result = 31 * result + color
+        result = 31 * result + fontSize.hashCode()
+        result = 31 * result + (fontPath?.hashCode() ?: 0)
+        result = 31 * result + textAlign.hashCode()
+        result = 31 * result + isJustified.hashCode()
+        result = 31 * result + letterSpacing.hashCode()
+        result = 31 * result + lineSpacing.hashCode()
+        result = 31 * result + shadowColor
+        result = 31 * result + shadowRadius.hashCode()
+        result = 31 * result + shadowDx.hashCode()
+        result = 31 * result + shadowDy.hashCode()
+        result = 31 * result + isMotionShadow.hashCode()
+        result = 31 * result + isMotionShadowIncludeStroke.hashCode()
+        result = 31 * result + motionShadowAngle
+        result = 31 * result + motionShadowDistance.hashCode()
+        result = 31 * result + motionShadowThickness.hashCode()
+        result = 31 * result + isGradient.hashCode()
+        result = 31 * result + gradientStartColor
+        result = 31 * result + gradientEndColor
+        result = 31 * result + gradientAngle
+        result = 31 * result + isGradientText.hashCode()
+        result = 31 * result + isGradientStroke.hashCode()
+        result = 31 * result + isGradientShadow.hashCode()
+        result = 31 * result + isGlobalGradient.hashCode()
+        result = 31 * result + globalP1.x.hashCode()
+        result = 31 * result + globalP1.y.hashCode()
+        result = 31 * result + globalP2.x.hashCode()
+        result = 31 * result + globalP2.y.hashCode()
+        result = 31 * result + strokeColor
+        result = 31 * result + strokeWidth.hashCode()
+        result = 31 * result + doubleStrokeColor
+        result = 31 * result + doubleStrokeWidth.hashCode()
+        result = 31 * result + (textureBitmap?.hashCode() ?: 0)
+        result = 31 * result + textureOffsetX.hashCode()
+        result = 31 * result + textureOffsetY.hashCode()
+        result = 31 * result + (patternName?.hashCode() ?: 0)
+        result = 31 * result + patternColor
+        result = 31 * result + patternAlpha
+        result = 31 * result + patternScale.hashCode()
+        result = 31 * result + patternRotation.hashCode()
+        result = 31 * result + currentEffect.hashCode()
+        result = 31 * result + secondaryEffect.hashCode()
+        result = 31 * result + effectSeed.hashCode()
+        result = 31 * result + blurRadius.hashCode()
+        result = 31 * result + longShadowLength.hashCode()
+        result = 31 * result + longShadowColor
+        result = 31 * result + longShadowAngle.hashCode()
+        result = 31 * result + motionBlurLength.hashCode()
+        result = 31 * result + motionBlurAngle
+        result = 31 * result + halftoneDotSize.hashCode()
+        result = 31 * result + halftoneDotColor
+        result = 31 * result + halftoneThreshold.hashCode()
+        result = 31 * result + neonRadius.hashCode()
+        result = 31 * result + neonColor
+        result = 31 * result + glitchIntensity.hashCode()
+        result = 31 * result + pixelBlockSize.hashCode()
+        result = 31 * result + chromaticShift.hashCode()
+        result = 31 * result + chromaticColors.contentHashCode()
+        result = 31 * result + multiGradientColors.contentHashCode()
+        result = 31 * result + multiGradientAngle.hashCode()
+        result = 31 * result + particleSize.hashCode()
+        result = 31 * result + particleSpread.hashCode()
+        result = 31 * result + particleDissolveAngle.hashCode()
+        result = 31 * result + radialBlurInnerRadius.hashCode()
+        result = 31 * result + radialBlurMotionStrength.hashCode()
+        result = 31 * result + decayIntensity.hashCode()
+        result = 31 * result + decayFadingLevel.hashCode()
+        return result
+    }
+
+    fun recycleCache() {
+        baseContentCache?.recycle()
+        baseContentCache = null
+        cachedPixelBitmap?.recycle()
+        cachedPixelBitmap = null
+        cachedWavyBitmap?.recycle()
+        cachedWavyBitmap = null
+    }
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private var cachedLayout: StaticLayout? = null
 
@@ -751,11 +842,45 @@ class TextLayer(
     private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
-        canvas.save()
-        canvas.concat(matrix)
-        canvas.translate(-w / 2f, -h / 2f)
-        drawContent(canvas, layout, w, ch)
-        canvas.restore()
+        val pad = calculatePadding()
+
+        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+        val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
+
+        if (bmpW > 0 && bmpH > 0) {
+            val currentHash = calculateBaseContentHash(w, ch, pad, qualityScale)
+            val cachedBmp = baseContentCache
+            val cacheValid = cachedBmp != null && !cachedBmp.isRecycled &&
+                    cachedBmp.width == bmpW && cachedBmp.height == bmpH &&
+                    baseContentHash == currentHash
+
+            val finalBmp = if (cacheValid) {
+                cachedBmp!!
+            } else {
+                baseContentCache?.recycle()
+                val newBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val c = Canvas(newBitmap)
+                c.scale(qualityScale, qualityScale)
+                c.translate(pad, pad)
+                drawContent(c, layout, w, ch)
+                baseContentCache = newBitmap
+                baseContentHash = currentHash
+                newBitmap
+            }
+
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+            canvas.save()
+            canvas.concat(matrix)
+            val destRect = RectF(
+                -w / 2f - pad,
+                -h / 2f - pad,
+                -w / 2f - pad + finalBmp.width / qualityScale,
+                -h / 2f - pad + finalBmp.height / qualityScale
+            )
+            canvas.drawBitmap(finalBmp, null, destRect, paint)
+            canvas.restore()
+        }
     }
 
     override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
@@ -814,11 +939,25 @@ class TextLayer(
         val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-            val c = Canvas(bitmap)
-            c.scale(qualityScale, qualityScale)
-            c.translate(pad, pad)
-            drawContent(c, layout, w, ch)
+            val currentHash = calculateBaseContentHash(w, ch, pad, qualityScale)
+            val cachedBmp = baseContentCache
+            val cacheValid = cachedBmp != null && !cachedBmp.isRecycled &&
+                    cachedBmp.width == bmpW && cachedBmp.height == bmpH &&
+                    baseContentHash == currentHash
+
+            val finalBmp = if (cacheValid) {
+                cachedBmp!!
+            } else {
+                baseContentCache?.recycle()
+                val newBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val c = Canvas(newBitmap)
+                c.scale(qualityScale, qualityScale)
+                c.translate(pad, pad)
+                drawContent(c, layout, w, ch)
+                baseContentCache = newBitmap
+                baseContentHash = currentHash
+                newBitmap
+            }
 
             val meshW = 20
             val meshH = 20
@@ -837,11 +976,10 @@ class TextLayer(
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, paint)
+                canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, paint)
             } else {
-                canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, null)
+                canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
             }
-            bitmap.recycle()
         }
     }
 

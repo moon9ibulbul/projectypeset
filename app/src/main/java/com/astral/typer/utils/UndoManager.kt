@@ -77,11 +77,12 @@ object UndoManager {
         bitmapHistory.clear()
         bitmapRedoStack.clear()
 
-        // Also recycle eraseMasks in TextLayers within history
+        // Also recycle eraseMasks and cached bitmaps in TextLayers within history
         history.forEach { layers ->
             layers.forEach { layer ->
                 if (layer is TextLayer) {
                     layer.eraseMask?.recycle()
+                    layer.recycleCache()
                 }
             }
         }
@@ -89,6 +90,7 @@ object UndoManager {
             layers.forEach { layer ->
                 if (layer is TextLayer) {
                     layer.eraseMask?.recycle()
+                    layer.recycleCache()
                 }
             }
         }
