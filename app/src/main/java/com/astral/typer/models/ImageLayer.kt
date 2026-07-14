@@ -117,6 +117,7 @@ class ImageLayer(
     override var activeEraseOpacity: Int = 0
     @Transient
     override var activeEraseHardness: Float = 0f
+    override var eraseDragRevision: Int = 0
 
     init {
         name = "Image Layer"
@@ -224,11 +225,12 @@ class ImageLayer(
         val dest = RectF(0f, 0f, w, h)
         canvas.drawBitmap(bitmap, null, dest, null)
 
+        val pad = calculatePadding()
         // Apply Erase Mask
         if (eraseMask != null) {
             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            canvas.drawBitmap(eraseMask!!, 0f, 0f, maskPaint)
+            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
         }
 
         // Apply active erase path preview
@@ -249,7 +251,10 @@ class ImageLayer(
                     }
                 }
             }
+            canvas.save()
+            canvas.translate(-pad, -pad)
             canvas.drawPath(activeErasePath!!, p)
+            canvas.restore()
         }
     }
 
@@ -393,7 +398,7 @@ class ImageLayer(
         }
     }
 
-    private fun calculatePadding(): Float {
+    override fun calculatePadding(): Float {
         // ImageLayer currently doesn't support effects that expand bounds, but we keep this for interface compatibility
         return 20f
     }
@@ -431,10 +436,13 @@ class ImageLayer(
     }
 
     override fun rebuildEraseMask(baseMask: Bitmap?) {
-        val w = eraseMask?.width ?: baseMask?.width ?: getWidth().toInt().coerceAtLeast(1)
-        val h = eraseMask?.height ?: baseMask?.height ?: getHeight().toInt().coerceAtLeast(1)
+        val pad = calculatePadding()
+        val baseW = getWidth().toInt().coerceAtLeast(1)
+        val baseH = getHeight().toInt().coerceAtLeast(1)
+        val maskW = (baseW + pad * 2).toInt().coerceAtLeast(1)
+        val maskH = (baseH + pad * 2).toInt().coerceAtLeast(1)
 
-        val newMask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val newMask = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
         val c = Canvas(newMask)
         c.drawColor(Color.TRANSPARENT)
 
