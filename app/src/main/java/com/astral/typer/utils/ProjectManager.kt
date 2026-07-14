@@ -70,6 +70,7 @@ object ProjectManager {
         // Shadow
         val shadowColor: Int? = null, val shadowRadius: Float? = null, val shadowDx: Float? = null, val shadowDy: Float? = null,
         val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
+        val motionShadowThickness: Float? = null,
 
         // Gradient
         val isGradient: Boolean? = null, val gradientStartColor: Int? = null, val gradientEndColor: Int? = null, val gradientAngle: Int? = null,
@@ -238,6 +239,7 @@ object ProjectManager {
 
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowThickness = layer.motionShadowThickness,
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
@@ -300,6 +302,7 @@ object ProjectManager {
                         shapeName = layer.shapeName, color = layer.color,
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowThickness = layer.motionShadowThickness,
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
@@ -650,6 +653,7 @@ object ProjectManager {
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.motionShadowThickness?.let { layer.motionShadowThickness = it }
 
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
@@ -746,6 +750,7 @@ object ProjectManager {
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.motionShadowThickness?.let { layer.motionShadowThickness = it }
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
             model.gradientEndColor?.let { layer.gradientEndColor = it }

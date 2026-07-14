@@ -35,6 +35,7 @@ class ShapeLayer(
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowThickness: Float = 4f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -437,7 +438,7 @@ class ShapeLayer(
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
-                val maxBlur = 4f
+                val maxBlur = motionShadowThickness
                 val initialShadowAlpha = 30f
 
                 for (i in 1..iterations) {
@@ -996,7 +997,7 @@ class ShapeLayer(
         newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
-        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance
+        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness
         newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke = isGradientStroke; newLayer.isGradientShadow = isGradientShadow
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
         newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth

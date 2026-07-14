@@ -50,6 +50,7 @@ class TextLayer(
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowThickness: Float = 4f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -233,6 +234,7 @@ class TextLayer(
         newLayer.isMotionShadowIncludeStroke = this.isMotionShadowIncludeStroke
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
+        newLayer.motionShadowThickness = this.motionShadowThickness
 
         newLayer.isGradient = this.isGradient
         newLayer.gradientStartColor = this.gradientStartColor
@@ -996,7 +998,7 @@ class TextLayer(
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
-                val maxBlur = 4f
+                val maxBlur = motionShadowThickness
                 val initialShadowAlpha = 30f
 
                 for (i in 1..iterations) {

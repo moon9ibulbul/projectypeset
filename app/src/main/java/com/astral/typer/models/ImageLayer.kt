@@ -31,6 +31,7 @@ class ImageLayer(
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowThickness: Float = 4f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -486,6 +487,8 @@ class ImageLayer(
         newLayer.warpRows = warpRows
         newLayer.warpCols = warpCols
         newLayer.warpMesh = warpMesh?.clone()
+
+        newLayer.motionShadowThickness = this.motionShadowThickness
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
