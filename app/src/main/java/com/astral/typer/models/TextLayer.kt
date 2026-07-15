@@ -1,5 +1,7 @@
 package com.astral.typer.models
 
+import com.astral.typer.utils.CustomTypefaceSpan
+import com.astral.typer.utils.LetterSpacingSpan
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
@@ -1168,11 +1170,13 @@ class TextLayer(
         val fullText = text.toString()
         val pad = calculatePadding()
 
+        ensureLayout()
+
         for (i in 0 until fullText.length) {
             val char = fullText[i]
             if (char.isWhitespace()) continue
 
-            // Find character bounds
+            // Find unwarped bounds inside full layout
             val line = layout.getLineForOffset(i)
             val xStart = layout.getPrimaryHorizontal(i)
             val xEnd = layout.getPrimaryHorizontal(i + 1)
@@ -1181,8 +1185,49 @@ class TextLayer(
 
             val left = Math.min(xStart, xEnd)
             val right = Math.max(xStart, xEnd)
-            val charW = right - left
-            val charH = yBottom - yTop
+            val charW = (right - left).coerceAtLeast(5f)
+            val charH = (yBottom - yTop).coerceAtLeast(5f)
+
+            // Extract single-character text content along with all spans that apply to index i
+            val charSb = SpannableStringBuilder(char.toString())
+            val spans = text.getSpans(i, i + 1, Any::class.java)
+            for (span in spans) {
+                val start = text.getSpanStart(span)
+                val end = text.getSpanEnd(span)
+                if (i in start until end) {
+                    val copiedSpan = when (span) {
+                        is android.text.style.ForegroundColorSpan -> android.text.style.ForegroundColorSpan(span.foregroundColor)
+                        is android.text.style.StyleSpan -> android.text.style.StyleSpan(span.style)
+                        is android.text.style.UnderlineSpan -> android.text.style.UnderlineSpan()
+                        is android.text.style.StrikethroughSpan -> android.text.style.StrikethroughSpan()
+                        is CustomTypefaceSpan -> CustomTypefaceSpan(span.typeface, span.fontPath ?: "")
+                        is android.text.style.AbsoluteSizeSpan -> android.text.style.AbsoluteSizeSpan(span.size)
+                        is LetterSpacingSpan -> LetterSpacingSpan(span.spacing)
+                        else -> null
+                    }
+                    if (copiedSpan != null) {
+                        charSb.setSpan(copiedSpan, 0, 1, SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
+            }
+
+            // Create temporary layout for just this character
+            val charPaint = TextPaint(textPaint)
+            charPaint.textSize = fontSize
+            charPaint.color = color
+            charPaint.typeface = typeface
+            charPaint.alpha = 255
+            charPaint.letterSpacing = letterSpacing
+
+            val charLayoutWidth = Math.ceil(StaticLayout.getDesiredWidth(charSb, charPaint).toDouble()).toFloat().coerceAtLeast(5f)
+            val charLayout = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                StaticLayout.Builder.obtain(charSb, 0, charSb.length, charPaint, (charLayoutWidth + 10).toInt())
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setLineSpacing(0f, 1.0f)
+                    .build()
+            } else {
+                StaticLayout(charSb, charPaint, (charLayoutWidth + 10).toInt(), Layout.Alignment.ALIGN_NORMAL, 1.0f, 0f, false)
+            }
 
             val mesh = letterWarpMeshes[i]
             if (mesh != null) {
@@ -1193,12 +1238,10 @@ class TextLayer(
                     val tempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
                     val tempCanvas = Canvas(tempBmp)
                     tempCanvas.scale(qualityScale, qualityScale)
-                    tempCanvas.translate(-left + pad, -yTop + pad)
-                    tempCanvas.clipRect(left - pad, yTop - pad, right + pad, yBottom + pad)
 
                     tempCanvas.save()
-                    tempCanvas.translate(-w/2f, -h/2f)
-                    drawContent(tempCanvas, layout, w, h)
+                    tempCanvas.translate(pad, pad)
+                    drawContent(tempCanvas, charLayout, charW, charH)
                     tempCanvas.restore()
 
                     val meshW = 20
@@ -1227,9 +1270,8 @@ class TextLayer(
                 }
             } else {
                 canvas.save()
-                canvas.clipRect(left - pad, yTop - pad, right + pad, yBottom + pad)
-                canvas.translate(-w/2f, -h/2f)
-                drawContent(canvas, layout, w, h)
+                canvas.translate(-w / 2f + left, -h / 2f + yTop)
+                drawContent(canvas, charLayout, charW, charH)
                 canvas.restore()
             }
         }
