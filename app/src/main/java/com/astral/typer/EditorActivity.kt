@@ -1731,6 +1731,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun enterCutMode() {
+        if (btnApplyCut != null) return
         canvasView.enterCutMode()
 
         // Hide standard menus
@@ -3885,10 +3886,11 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     val currentSpacing = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.LetterSpacingSpan::class.java).firstOrNull()?.spacing ?: layer.letterSpacing) - 0.01f
                     applySpanToSelection(com.astral.typer.utils.LetterSpacingSpan(currentSpacing))
+                    binding.propertyDetailContainer.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", currentSpacing)
                 } else {
                     layer.letterSpacing -= 0.01f
                     canvasView.invalidate()
-                    (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
+                    binding.propertyDetailContainer.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
                 }
             },
             onPlus = {
@@ -3896,10 +3898,11 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     val currentSpacing = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.LetterSpacingSpan::class.java).firstOrNull()?.spacing ?: layer.letterSpacing) + 0.01f
                     applySpanToSelection(com.astral.typer.utils.LetterSpacingSpan(currentSpacing))
+                    binding.propertyDetailContainer.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", currentSpacing)
                 } else {
                     layer.letterSpacing += 0.01f
                     canvasView.invalidate()
-                    (canvasView.parent as? View)?.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
+                    binding.propertyDetailContainer.findViewWithTag<TextView>("LETTER_SPACING")?.text = String.format("%.2f", layer.letterSpacing)
                 }
             }
         )
@@ -3910,12 +3913,12 @@ class EditorActivity : AppCompatActivity() {
             onMinus = {
                 layer.lineSpacing -= 5f
                 canvasView.invalidate()
-                (canvasView.parent as? View)?.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
+                binding.propertyDetailContainer.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
             },
             onPlus = {
                 layer.lineSpacing += 5f
                 canvasView.invalidate()
-                (canvasView.parent as? View)?.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
+                binding.propertyDetailContainer.findViewWithTag<TextView>("LINE_SPACING")?.text = "${layer.lineSpacing.toInt()}"
             }
         )
         layout.addView(lineSpacingRow)
