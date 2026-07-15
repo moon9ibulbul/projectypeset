@@ -999,8 +999,10 @@ object ProjectManager {
 
             if (maxWidth == 0) return false
 
-            // Limit target width to 1080px to optimize size while keeping excellent quality for mobile readers
-            val targetPageWidth = if (maxWidth > 1080) 1080 else maxWidth
+            // Dynamically scale target page width based on quality setting to reduce file size quadratically
+            val baseWidth = if (maxWidth > 1080) 1080 else maxWidth
+            val scaleFactor = (quality.toFloat() / 100f).coerceIn(0.3f, 1.0f)
+            val targetPageWidth = (baseWidth * scaleFactor).toInt()
 
             // Pass 2: Process one project at a time
             for (i in projects.indices) {
@@ -1017,8 +1019,8 @@ object ProjectManager {
                     val page = pdfDocument.startPage(pageInfo)
                     val canvas = page.canvas
 
-                    // Intermediate bitmap for compression
-                    val pageBitmap = Bitmap.createBitmap(targetPageWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                    // Intermediate bitmap for compression in RGB_565 config (halves memory and has no alpha channel)
+                    val pageBitmap = Bitmap.createBitmap(targetPageWidth, targetHeight, Bitmap.Config.RGB_565)
                     val tempCanvas = android.graphics.Canvas(pageBitmap)
                     tempCanvas.scale(scale, scale)
 
@@ -1032,17 +1034,16 @@ object ProjectManager {
                         layer?.draw(tempCanvas)
                     }
 
-                    // Compress
+                    // Compress using a high JPEG quality to ensure presentable visual clarity (no blocky artifacts)
                     val stream = java.io.ByteArrayOutputStream()
-                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+                    val jpegQuality = quality.coerceAtLeast(80)
+                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, jpegQuality, stream)
                     val compressedBytes = stream.toByteArray()
 
                     val options = BitmapFactory.Options().apply {
-                        inPreferredConfig = Bitmap.Config.ARGB_8888
-                        inMutable = true
+                        inPreferredConfig = Bitmap.Config.RGB_565
                     }
                     val compressedBmp = BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size, options)
-                    compressedBmp?.setHasAlpha(false)
 
                     // Draw compressed bitmap to PDF canvas
                     if (compressedBmp != null) {
