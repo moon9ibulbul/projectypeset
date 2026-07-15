@@ -999,6 +999,9 @@ object ProjectManager {
 
             if (maxWidth == 0) return false
 
+            // Limit target width to 1080px to optimize size while keeping excellent quality for mobile readers
+            val targetPageWidth = if (maxWidth > 1080) 1080 else maxWidth
+
             // Pass 2: Process one project at a time
             for (i in projects.indices) {
                 onProgress(i + 1, projects.size)
@@ -1007,16 +1010,17 @@ object ProjectManager {
                     val data = loadResult.projectData
                     val images = loadResult.images
 
-                    val scale = maxWidth.toFloat() / data.canvasWidth
+                    val scale = targetPageWidth.toFloat() / data.canvasWidth
                     val targetHeight = (data.canvasHeight * scale).toInt()
 
-                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(maxWidth, targetHeight, i + 1).create()
+                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(targetPageWidth, targetHeight, i + 1).create()
                     val page = pdfDocument.startPage(pageInfo)
                     val canvas = page.canvas
 
                     // Intermediate bitmap for compression
-                    val pageBitmap = Bitmap.createBitmap(data.canvasWidth, data.canvasHeight, Bitmap.Config.ARGB_8888)
+                    val pageBitmap = Bitmap.createBitmap(targetPageWidth, targetHeight, Bitmap.Config.ARGB_8888)
                     val tempCanvas = android.graphics.Canvas(pageBitmap)
+                    tempCanvas.scale(scale, scale)
 
                     // Draw Content to tempCanvas
                     tempCanvas.drawColor(data.canvasColor)
@@ -1032,17 +1036,25 @@ object ProjectManager {
                     val stream = java.io.ByteArrayOutputStream()
                     pageBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
                     val compressedBytes = stream.toByteArray()
-                    val compressedBmp = BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size)
+
+                    val options = BitmapFactory.Options().apply {
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                        inMutable = true
+                    }
+                    val compressedBmp = BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size, options)
+                    compressedBmp?.setHasAlpha(false)
 
                     // Draw compressed bitmap to PDF canvas
-                    val src = android.graphics.Rect(0, 0, data.canvasWidth, data.canvasHeight)
-                    val dst = android.graphics.RectF(0f, 0f, maxWidth.toFloat(), targetHeight.toFloat())
-                    canvas.drawBitmap(compressedBmp, src, dst, null)
+                    if (compressedBmp != null) {
+                        val src = android.graphics.Rect(0, 0, targetPageWidth, targetHeight)
+                        val dst = android.graphics.RectF(0f, 0f, targetPageWidth.toFloat(), targetHeight.toFloat())
+                        canvas.drawBitmap(compressedBmp, src, dst, null)
+                    }
 
                     pdfDocument.finishPage(page)
 
                     pageBitmap.recycle()
-                    compressedBmp.recycle()
+                    compressedBmp?.recycle()
                     images.values.forEach { it.recycle() }
                 }
             }
