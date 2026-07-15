@@ -5065,6 +5065,49 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
+        if (layer is TextLayer) {
+            val targets = layer.getWarpTargets()
+            val scroll = android.widget.HorizontalScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                setPadding(0, 8, 0, 8)
+            }
+            val rowTarget = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+            for (target in targets) {
+                val btn = android.widget.Button(this).apply {
+                    text = target.label
+                    val isSelectedTarget = layer.selectedWarpIndex == target.index
+                    setTextColor(if (isSelectedTarget) Color.BLACK else Color.WHITE)
+                    background = GradientDrawable().apply {
+                        setColor(if (isSelectedTarget) Color.YELLOW else Color.DKGRAY)
+                        cornerRadius = dpToPx(6).toFloat()
+                    }
+                    val params = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        dpToPx(40)
+                    ).apply {
+                        setMargins(8, 0, 8, 0)
+                    }
+                    layoutParams = params
+                    setOnClickListener {
+                        layer.selectedWarpIndex = target.index
+                        if (layer.warpMesh == null) {
+                            initWarpMesh(layer, layer.warpRows, layer.warpCols)
+                        }
+                        canvasView.invalidate()
+                        showWarpMenu()
+                    }
+                }
+                rowTarget.addView(btn)
+            }
+            scroll.addView(rowTarget)
+            layout.addView(scroll)
+        }
+
         // Row/Col Controls
         val row = LinearLayout(this).apply {
              orientation = LinearLayout.HORIZONTAL
@@ -5144,6 +5187,10 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun initWarpMesh(layer: Layer, rows: Int, cols: Int) {
+         if (layer is TextLayer) {
+             layer.initWarpMeshForTarget(layer.selectedWarpIndex, rows, cols)
+             return
+         }
          val w = layer.getWidth(); val h = layer.getHeight()
          val count = (rows + 1) * (cols + 1); val mesh = FloatArray(count * 2); var index = 0
          for (r in 0..rows) {

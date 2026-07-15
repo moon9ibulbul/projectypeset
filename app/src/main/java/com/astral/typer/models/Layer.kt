@@ -45,6 +45,7 @@ interface StylableLayer {
     var warpRows: Int
     var warpCols: Int
     var warpMesh: FloatArray?
+    var selectedWarpIndex: Int
     fun updateDenseWarpMesh()
 
     // Texture & Pattern
