@@ -982,8 +982,6 @@ object ProjectManager {
         val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
         if (projects.isEmpty()) return false
 
-        val pdfDocument = android.graphics.pdf.PdfDocument()
-
         try {
             // Pass 1: Find max width
             var maxWidth = 0
@@ -999,7 +997,16 @@ object ProjectManager {
 
             if (maxWidth == 0) return false
 
-            // Pass 2: Process one project at a time
+            // Dynamically scale target page width based on quality setting to reduce file size quadratically
+            val baseWidth = if (maxWidth > 1080) 1080 else maxWidth
+            val scaleFactor = (quality.toFloat() / 100f).coerceIn(0.3f, 1.0f)
+            val targetPageWidth = (baseWidth * scaleFactor).toInt()
+
+            val jpegBytesList = mutableListOf<ByteArray>()
+            val widths = mutableListOf<Int>()
+            val heights = mutableListOf<Int>()
+
+            // Pass 2: Process one project at a time and render to JPEG bytes
             for (i in projects.indices) {
                 onProgress(i + 1, projects.size)
                 val loadResult = loadProject(context, projects[i])
@@ -1007,16 +1014,13 @@ object ProjectManager {
                     val data = loadResult.projectData
                     val images = loadResult.images
 
-                    val scale = maxWidth.toFloat() / data.canvasWidth
+                    val scale = targetPageWidth.toFloat() / data.canvasWidth
                     val targetHeight = (data.canvasHeight * scale).toInt()
 
-                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(maxWidth, targetHeight, i + 1).create()
-                    val page = pdfDocument.startPage(pageInfo)
-                    val canvas = page.canvas
-
-                    // Intermediate bitmap for compression
-                    val pageBitmap = Bitmap.createBitmap(data.canvasWidth, data.canvasHeight, Bitmap.Config.ARGB_8888)
+                    // Intermediate bitmap for rendering
+                    val pageBitmap = Bitmap.createBitmap(targetPageWidth, targetHeight, Bitmap.Config.ARGB_8888)
                     val tempCanvas = android.graphics.Canvas(pageBitmap)
+                    tempCanvas.scale(scale, scale)
 
                     // Draw Content to tempCanvas
                     tempCanvas.drawColor(data.canvasColor)
@@ -1028,32 +1032,119 @@ object ProjectManager {
                         layer?.draw(tempCanvas)
                     }
 
-                    // Compress
+                    // Compress using a high JPEG quality to ensure presentable visual clarity (no blocky artifacts)
                     val stream = java.io.ByteArrayOutputStream()
-                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
-                    val compressedBytes = stream.toByteArray()
-                    val compressedBmp = BitmapFactory.decodeByteArray(compressedBytes, 0, compressedBytes.size)
-
-                    // Draw compressed bitmap to PDF canvas
-                    val src = android.graphics.Rect(0, 0, data.canvasWidth, data.canvasHeight)
-                    val dst = android.graphics.RectF(0f, 0f, maxWidth.toFloat(), targetHeight.toFloat())
-                    canvas.drawBitmap(compressedBmp, src, dst, null)
-
-                    pdfDocument.finishPage(page)
+                    val jpegQuality = quality.coerceAtLeast(80)
+                    pageBitmap.compress(Bitmap.CompressFormat.JPEG, jpegQuality, stream)
+                    jpegBytesList.add(stream.toByteArray())
+                    widths.add(targetPageWidth)
+                    heights.add(targetHeight)
 
                     pageBitmap.recycle()
-                    compressedBmp.recycle()
                     images.values.forEach { it.recycle() }
                 }
             }
 
-            FileOutputStream(outputFile).use { pdfDocument.writeTo(it) }
+            if (jpegBytesList.isEmpty()) return false
+
+            // Pass 3: Write PDF using direct JPEG embedding (DCTDecode)
+            FileOutputStream(outputFile).use { fos ->
+                val out = java.io.ByteArrayOutputStream()
+                val offsets = mutableListOf<Long>()
+
+                fun writeStr(str: String) {
+                    out.write(str.toByteArray(Charsets.ISO_8859_1))
+                }
+
+                writeStr("%PDF-1.4\n")
+                writeStr("%\u00e2\u00e3\u00cf\u00d3\n")
+
+                // 1. Catalog Object
+                offsets.add(out.size().toLong())
+                writeStr("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")
+
+                // 2. Pages Object
+                val kids = StringBuilder()
+                for (idx in jpegBytesList.indices) {
+                    kids.append("${3 + 3 * idx} 0 R ")
+                }
+                offsets.add(out.size().toLong())
+                writeStr("2 0 obj\n<< /Type /Pages /Kids [ $kids] /Count ${jpegBytesList.size} >>\nendobj\n")
+
+                // Pages and Resources
+                for (idx in jpegBytesList.indices) {
+                    val pageObjectId = 3 + 3 * idx
+                    val imageObjectId = 4 + 3 * idx
+                    val contentObjectId = 5 + 3 * idx
+                    val w = widths[idx]
+                    val h = heights[idx]
+                    val jpegBytes = jpegBytesList[idx]
+
+                    // Page Object
+                    offsets.add(out.size().toLong())
+                    writeStr("$pageObjectId 0 obj\n")
+                    writeStr("<< /Type /Page\n")
+                    writeStr(" /Parent 2 0 R\n")
+                    writeStr(" /MediaBox [ 0 0 $w $h ]\n")
+                    writeStr(" /Resources << /XObject << /Im1 $imageObjectId 0 R >> >>\n")
+                    writeStr(" /Contents $contentObjectId 0 R\n")
+                    writeStr(">>\n")
+                    writeStr("endobj\n")
+
+                    // Image Object (DCTDecode)
+                    offsets.add(out.size().toLong())
+                    writeStr("$imageObjectId 0 obj\n")
+                    writeStr("<< /Type /XObject\n")
+                    writeStr(" /Subtype /Image\n")
+                    writeStr(" /Width $w\n")
+                    writeStr(" /Height $h\n")
+                    writeStr(" /ColorSpace /DeviceRGB\n")
+                    writeStr(" /BitsPerComponent 8\n")
+                    writeStr(" /Filter /DCTDecode\n")
+                    writeStr(" /Length ${jpegBytes.size}\n")
+                    writeStr(">>\n")
+                    writeStr("stream\n")
+                    out.write(jpegBytes)
+                    writeStr("\nendstream\n")
+                    writeStr("endobj\n")
+
+                    // Content Stream Object
+                    val contentStream = "q\n$w 0 0 $h 0 0 cm\n/Im1 Do\nQ\n"
+                    val contentBytes = contentStream.toByteArray(Charsets.ISO_8859_1)
+
+                    offsets.add(out.size().toLong())
+                    writeStr("$contentObjectId 0 obj\n")
+                    writeStr("<< /Length ${contentBytes.size} >>\n")
+                    writeStr("stream\n")
+                    out.write(contentBytes)
+                    writeStr("\nendstream\n")
+                    writeStr("endobj\n")
+                }
+
+                // Xref table
+                val xrefStart = out.size().toLong()
+                writeStr("xref\n")
+                writeStr("0 ${offsets.size + 1}\n")
+                writeStr("0000000000 65535 f\r\n")
+                for (offset in offsets) {
+                    writeStr(String.format(java.util.Locale.US, "%010d 00000 n\r\n", offset))
+                }
+
+                // Trailer
+                writeStr("trailer\n")
+                writeStr("<< /Size ${offsets.size + 1}\n")
+                writeStr(" /Root 1 0 R\n")
+                writeStr(">>\n")
+                writeStr("startxref\n")
+                writeStr("$xrefStart\n")
+                writeStr("%%EOF\n")
+
+                out.writeTo(fos)
+            }
             return true
         } catch (e: Exception) {
             e.printStackTrace()
             return false
-        } finally {
-            pdfDocument.close()
         }
     }
 
