@@ -144,7 +144,7 @@ class SettingsActivity : AppCompatActivity() {
         tvPdfQuality = findViewById(R.id.tvPdfQuality)
         sbPdfQuality = findViewById(R.id.sbPdfQuality)
 
-        val pdfQuality = settingsPrefs.getInt("pdf_quality", 80)
+        val pdfQuality = settingsPrefs.getInt("pdf_quality", 90)
         sbPdfQuality.progress = pdfQuality
         tvPdfQuality.text = getString(R.string.pdf_quality, pdfQuality)
 
