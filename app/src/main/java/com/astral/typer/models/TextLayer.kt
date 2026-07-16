@@ -920,25 +920,31 @@ class TextLayer(
         val ch = getContentHeight()
         val hScale = if (h > 0) ch / h else 1f
 
-        val hasLetterWarp = isWarp && selectedWarpIndex != -1
+        val isWarpActive = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())
 
-        val bounds = if (hasLetterWarp) {
-            val b = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
-            b.inset(-pad - 100f, -pad - 100f)
-            b
-        } else if (isWarp && warpMesh != null) {
+        val bounds = if (isWarpActive) {
             val b = RectF()
-            val steps = 10
-            val out = FloatArray(2)
-            for (i in 0..steps) {
-                val v = (i / steps.toFloat()) * hScale
-                for (j in 0..steps) {
-                    val u = j / steps.toFloat()
-                    evaluateBezierSurface(u, v, out)
-                    if (i == 0 && j == 0) b.set(out[0], out[1], out[0], out[1]) else b.union(out[0], out[1])
+            val expanded = getExpandedRenderBounds(layout, w, h, ch, pad)
+            val renderW = expanded.renderRight - expanded.renderLeft
+            val renderH = expanded.renderBottom - expanded.renderTop
+
+            if (_warpMesh != null) {
+                val steps = 10
+                val out = FloatArray(2)
+                for (i in 0..steps) {
+                    val ly = expanded.renderTop + (i / steps.toFloat()) * renderH
+                    val v = (ly + h / 2f) / h
+                    for (j in 0..steps) {
+                        val lx = expanded.renderLeft + (j / steps.toFloat()) * renderW
+                        val u = (lx + w / 2f) / w
+                        evaluateBezierSurface(u, v, out)
+                        if (i == 0 && j == 0) b.set(out[0], out[1], out[0], out[1]) else b.union(out[0], out[1])
+                    }
                 }
+            } else {
+                b.set(expanded.renderLeft, expanded.renderTop, expanded.renderRight, expanded.renderBottom)
             }
-            b.inset(-pad - 50f, -pad - 50f)
+            b.inset(-50f, -50f)
             b
         } else if (isPerspective && perspectivePoints != null) {
             val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
@@ -961,12 +967,13 @@ class TextLayer(
         }
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
-        if (hasLetterWarp) {
+        if (isWarpActive) {
             val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
-        } else if (isWarp && warpMesh != null) {
-            val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            drawWarped(canvas, layout, w, h, ch, warpRows, warpCols, warpMesh!!, qualityScale)
+            if (_warpMesh != null) {
+                drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale)
+            } else {
+                drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
+            }
         } else if (isPerspective && perspectivePoints != null) {
              drawPerspective(canvas, layout, w, h, ch)
         } else {
@@ -1092,6 +1099,102 @@ class TextLayer(
         }
     }
 
+    class RenderBounds(
+        val renderLeft: Float,
+        val renderRight: Float,
+        val renderTop: Float,
+        val renderBottom: Float
+    )
+
+    fun getExpandedRenderBounds(layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float): RenderBounds {
+        val fullText = text.toString()
+        var minX = -w / 2f - pad
+        var maxX = w / 2f + pad
+        var minY = -h / 2f - pad
+        var maxY = -h / 2f + ch + pad
+
+        if (letterWarpMeshes.isNotEmpty()) {
+            var first = true
+            for (i in 0 until fullText.length) {
+                val char = fullText[i]
+                if (char.isWhitespace()) continue
+
+                val mesh = letterWarpMeshes[i]
+                if (mesh != null) {
+                    for (idx in 0 until (mesh.size / 2)) {
+                        val mx = mesh[idx * 2]
+                        val my = mesh[idx * 2 + 1]
+                        if (first) {
+                            minX = mx - pad; maxX = mx + pad; minY = my - pad; maxY = my + pad
+                            first = false
+                        } else {
+                            if (mx - pad < minX) minX = mx - pad
+                            if (mx + pad > maxX) maxX = mx + pad
+                            if (my - pad < minY) minY = my - pad
+                            if (my + pad > maxY) maxY = my + pad
+                        }
+                    }
+                } else {
+                    val line = layout.getLineForOffset(i)
+                    val xStart = layout.getPrimaryHorizontal(i)
+                    val xEnd = layout.getPrimaryHorizontal(i + 1)
+                    val yTop = layout.getLineTop(line).toFloat()
+                    val yBottom = layout.getLineBottom(line).toFloat()
+
+                    val left = Math.min(xStart, xEnd)
+                    val right = Math.max(xStart, xEnd)
+
+                    val xL = -w / 2f + left
+                    val xR = -w / 2f + right
+                    val yT = -h / 2f + yTop
+                    val yB = -h / 2f + yBottom
+
+                    if (first) {
+                        minX = xL - pad; maxX = xR + pad; minY = yT - pad; maxY = yB + pad
+                        first = false
+                    } else {
+                        if (xL - pad < minX) minX = xL - pad
+                        if (xR + pad > maxX) maxX = xR + pad
+                        if (yT - pad < minY) minY = yT - pad
+                        if (yB + pad > maxY) maxY = yB + pad
+                    }
+                }
+            }
+        }
+
+        return RenderBounds(
+            renderLeft = minX,
+            renderRight = maxX,
+            renderTop = minY,
+            renderBottom = maxY
+        )
+    }
+
+    fun evaluateFullLayerBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
+        val mesh = _warpMesh
+        if (mesh == null) {
+            outPoint[0] = -getWidth() / 2f + u * getWidth()
+            outPoint[1] = -getHeight() / 2f + v * getHeight()
+            return
+        }
+        val rows = _warpRows
+        val cols = _warpCols
+        var x = 0f
+        var y = 0f
+        for (i in 0..rows) {
+            for (j in 0..cols) {
+                val b_i = bernstein(rows, i, v)
+                val b_j = bernstein(cols, j, u)
+                val basis = b_i * b_j
+                val idx = (i * (cols + 1) + j) * 2
+                x += mesh[idx] * basis
+                y += mesh[idx + 1] * basis
+            }
+        }
+        outPoint[0] = x
+        outPoint[1] = y
+    }
+
     fun evaluateBezierSurfaceForCharacter(charIndex: Int, u: Float, v: Float, outPoint: FloatArray) {
         val charMesh = letterWarpMeshes[charIndex] ?: return
         val charRows = letterWarpRows[charIndex] ?: 2
@@ -1115,6 +1218,11 @@ class TextLayer(
     override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
         if (selectedWarpIndex != -1) {
             evaluateBezierSurfaceForCharacter(selectedWarpIndex, u, v, outPoint)
+            val lx = outPoint[0]
+            val ly = outPoint[1]
+            val fu = (lx + getWidth() / 2f) / getWidth()
+            val fv = (ly + getHeight() / 2f) / getHeight()
+            evaluateFullLayerBezierSurface(fu, fv, outPoint)
             return
         }
         val mesh = warpMesh ?: return
@@ -1241,7 +1349,7 @@ class TextLayer(
 
                     tempCanvas.save()
                     tempCanvas.translate(pad, pad)
-                    drawContent(tempCanvas, charLayout, charW, charH)
+                    drawContent(tempCanvas, charLayout, charW, charH, left, yTop)
                     tempCanvas.restore()
 
                     val meshW = 20
@@ -1271,31 +1379,44 @@ class TextLayer(
             } else {
                 canvas.save()
                 canvas.translate(-w / 2f + left, -h / 2f + yTop)
-                drawContent(canvas, charLayout, charW, charH)
+                drawContent(canvas, charLayout, charW, charH, left, yTop)
                 canvas.restore()
             }
         }
     }
 
-    private fun getAssembledLetterWarpBitmap(layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int): Bitmap {
+    private fun getAssembledLetterWarpBitmap(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int): Bitmap {
         val bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.scale(qualityScale, qualityScale)
-        canvas.translate(pad, pad)
-        canvas.translate(w / 2f, h / 2f)
+        canvas.translate(-bounds.renderLeft, -bounds.renderTop)
         drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
         return bmp
     }
 
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
         val pad = calculatePadding()
-        val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
-        val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
+        val isFreshBmp = letterWarpMeshes.isNotEmpty()
+
+        val bounds = if (isFreshBmp) {
+            getExpandedRenderBounds(layout, w, h, ch, pad)
+        } else {
+            RenderBounds(
+                renderLeft = -w / 2f - pad,
+                renderRight = w / 2f + pad,
+                renderTop = -h / 2f - pad,
+                renderBottom = -h / 2f + ch + pad
+            )
+        }
+
+        val renderW = bounds.renderRight - bounds.renderLeft
+        val renderH = bounds.renderBottom - bounds.renderTop
+        val bmpW = ceil(renderW * qualityScale).toInt()
+        val bmpH = ceil(renderH * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val isFreshBmp = letterWarpMeshes.isNotEmpty()
             val finalBmp = if (isFreshBmp) {
-                getAssembledLetterWarpBitmap(layout, w, h, ch, pad, qualityScale, bmpW, bmpH)
+                getAssembledLetterWarpBitmap(bounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH)
             } else {
                 getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
             }
@@ -1306,9 +1427,11 @@ class TextLayer(
             val outPoint = FloatArray(2)
             var idx = 0
             for (i in 0..meshH) {
-                val v = ((i.toFloat() / meshH) * ((ch + pad * 2) / ch) - (pad / ch)) * (ch / h)
+                val ly = bounds.renderTop + (i.toFloat() / meshH) * renderH
+                val v = (ly + h / 2f) / h
                 for (j in 0..meshW) {
-                    val u = (j.toFloat() / meshW) * ((w + pad * 2) / w) - (pad / w)
+                    val lx = bounds.renderLeft + (j.toFloat() / meshW) * renderW
+                    val u = (lx + w / 2f) / w
                     evaluateBezierSurface(u, v, outPoint)
                     paddedVerts[idx++] = outPoint[0]
                     paddedVerts[idx++] = outPoint[1]
