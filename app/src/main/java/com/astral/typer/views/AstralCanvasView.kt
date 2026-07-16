@@ -752,6 +752,18 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private var lastTouchX = 0f
     private var lastTouchY = 0f
+    private var lastLocalX = 0f
+    private var lastLocalY = 0f
+
+    private fun getLocalPoint(cx: Float, cy: Float, layer: Layer): FloatArray {
+        val localPoint = floatArrayOf(cx, cy)
+        val globalToLocal = Matrix()
+        globalToLocal.postTranslate(-layer.x, -layer.y)
+        globalToLocal.postRotate(-layer.rotation)
+        globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY)
+        globalToLocal.mapPoints(localPoint)
+        return localPoint
+    }
     private var startTouchX = 0f
     private var startTouchY = 0f
     private var hasMoved = false
@@ -1978,6 +1990,9 @@ class AstralCanvasView @JvmOverloads constructor(
                         currentMode = Mode.DRAG_LAYER
                         lastTouchX = cx
                         lastTouchY = cy
+                        val localPoint = getLocalPoint(cx, cy, hitLayer)
+                        lastLocalX = localPoint[0]
+                        lastLocalY = localPoint[1]
                         invalidate()
                     }
                 } else {
@@ -2119,39 +2134,62 @@ class AstralCanvasView @JvmOverloads constructor(
 
                     when (currentMode) {
                         Mode.DRAG_LAYER -> {
-                            var dx = cx - lastTouchX
-                            var dy = cy - lastTouchY
+                            if (layer is TextLayer && isWarpToolActive && layer.selectedWarpIndex != -1) {
+                                val localPoint = getLocalPoint(cx, cy, layer)
+                                val lx = localPoint[0]
+                                val ly = localPoint[1]
+                                val ldx = lx - lastLocalX
+                                val ldy = ly - lastLocalY
 
-                            val nextX = layer.x + dx
-                            val nextY = layer.y + dy
-
-                            val snapThreshold = 20f
-                            var snappedX = false
-                            var snappedY = false
-                            val currentSnapThreshold = 6f
-
-                            if (abs(nextX - canvasWidth / 2f) < currentSnapThreshold) {
-                                dx = (canvasWidth / 2f) - layer.x
-                                showVerticalCenterLine = true
-                                snappedX = true
+                                val mesh = layer.warpMesh
+                                if (mesh != null) {
+                                    for (i in 0 until (mesh.size / 2)) {
+                                        mesh[i * 2] = mesh[i * 2] + ldx
+                                        mesh[i * 2 + 1] = mesh[i * 2 + 1] + ldy
+                                    }
+                                    layer.updateDenseWarpMesh()
+                                }
+                                lastLocalX = lx
+                                lastLocalY = ly
+                                lastTouchX = cx
+                                lastTouchY = cy
+                                invalidate()
+                                onLayerUpdateListener?.onLayerUpdate(layer)
                             } else {
-                                showVerticalCenterLine = false
-                            }
+                                var dx = cx - lastTouchX
+                                var dy = cy - lastTouchY
 
-                            if (abs(nextY - canvasHeight / 2f) < currentSnapThreshold) {
-                                dy = (canvasHeight / 2f) - layer.y
-                                showHorizontalCenterLine = true
-                                snappedY = true
-                            } else {
-                                showHorizontalCenterLine = false
-                            }
+                                val nextX = layer.x + dx
+                                val nextY = layer.y + dy
 
-                            layer.x += dx
-                            layer.y += dy
-                            lastTouchX = cx
-                            lastTouchY = cy
-                            invalidate()
-                            onLayerUpdateListener?.onLayerUpdate(layer)
+                                val snapThreshold = 20f
+                                var snappedX = false
+                                var snappedY = false
+                                val currentSnapThreshold = 6f
+
+                                if (abs(nextX - canvasWidth / 2f) < currentSnapThreshold) {
+                                    dx = (canvasWidth / 2f) - layer.x
+                                    showVerticalCenterLine = true
+                                    snappedX = true
+                                } else {
+                                    showVerticalCenterLine = false
+                                }
+
+                                if (abs(nextY - canvasHeight / 2f) < currentSnapThreshold) {
+                                    dy = (canvasHeight / 2f) - layer.y
+                                    showHorizontalCenterLine = true
+                                    snappedY = true
+                                } else {
+                                    showHorizontalCenterLine = false
+                                }
+
+                                layer.x += dx
+                                layer.y += dy
+                                lastTouchX = cx
+                                lastTouchY = cy
+                                invalidate()
+                                onLayerUpdateListener?.onLayerUpdate(layer)
+                            }
                         }
                         Mode.ROTATE_LAYER -> {
                             val currentAngle = getAngle(centerX, centerY, cx, cy)

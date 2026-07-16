@@ -423,6 +423,7 @@ class EditorActivity : AppCompatActivity() {
                                  "TEXTURE" -> showTextureMenu()
                                  "ERASE" -> showEraseMenu()
                                  "WARP" -> showWarpMenu()
+                                 "PUPPET_WARP" -> showPuppetWarpMenu()
                                  "OPACITY" -> showOpacityMenu()
                                  "STYLE" -> showStyleMenu()
                                  "PERSPECTIVE" -> showPerspectiveMenu()
@@ -752,6 +753,17 @@ class EditorActivity : AppCompatActivity() {
             } else {
                 toggleMenu("WARP") {
                     showWarpMenu()
+                }
+            }
+        }
+
+        binding.btnPropPuppetWarp.setOnClickListener {
+            if (currentMenuType == "PUPPET_WARP") {
+                togglePuppetWarpMode(false)
+                hidePropertyDetail()
+            } else {
+                toggleMenu("PUPPET_WARP") {
+                    showPuppetWarpMenu()
                 }
             }
         }
@@ -2763,6 +2775,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropErase.visibility = View.VISIBLE
             binding.btnPropPerspective.visibility = View.VISIBLE
             binding.btnPropWarp.visibility = View.VISIBLE
+            binding.btnPropPuppetWarp.visibility = View.GONE
         } else if (layer is ShapeLayer) {
             binding.btnPropQuickEdit.visibility = View.GONE
             binding.btnPropStyle.visibility = View.GONE
@@ -2782,6 +2795,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropErase.visibility = View.VISIBLE
             binding.btnPropPerspective.visibility = View.VISIBLE
             binding.btnPropWarp.visibility = View.VISIBLE
+            binding.btnPropPuppetWarp.visibility = View.GONE
         } else {
             binding.btnPropQuickEdit.visibility = View.VISIBLE
             binding.btnPropStyle.visibility = View.VISIBLE
@@ -2799,7 +2813,10 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropErase.visibility = View.VISIBLE
             binding.btnPropPerspective.visibility = View.VISIBLE
             binding.btnPropWarp.visibility = View.VISIBLE
+            binding.btnPropPuppetWarp.visibility = View.VISIBLE
         }
+
+        binding.btnPropPuppetWarp.visibility = if (layer is TextLayer) View.VISIBLE else View.GONE
     }
 
     private fun dpToPx(dp: Int): Int {
@@ -2841,6 +2858,9 @@ class EditorActivity : AppCompatActivity() {
         if (currentMenuType == "WARP") {
             toggleWarpMode(false)
         }
+        if (currentMenuType == "PUPPET_WARP") {
+            togglePuppetWarpMode(false)
+        }
         if (currentMenuType == "ERASE") {
             canvasView.setEraseLayerMode(false)
         }
@@ -2868,6 +2888,9 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "WARP" && type != "WARP") {
                 toggleWarpMode(false)
+            }
+            if (currentMenuType == "PUPPET_WARP" && type != "PUPPET_WARP") {
+                togglePuppetWarpMode(false)
             }
             if (currentMenuType == "ERASE" && type != "ERASE") {
                 canvasView.setEraseLayerMode(false)
@@ -5058,6 +5081,10 @@ class EditorActivity : AppCompatActivity() {
         val layer = canvasView.getSelectedLayer() ?: return
         val stylableLayer = layer as? StylableLayer ?: return
 
+        if (layer is TextLayer) {
+            layer.selectedWarpIndex = -1
+        }
+
         toggleWarpMode(true)
 
         val layout = LinearLayout(this).apply {
@@ -5156,6 +5183,163 @@ class EditorActivity : AppCompatActivity() {
          if (layer is StylableLayer) {
              layer.warpMesh = mesh; layer.warpRows = rows; layer.warpCols = cols
          }
+    }
+
+    private fun togglePuppetWarpMode(enabled: Boolean) {
+        val layer = canvasView.getSelectedLayer()
+        if (layer is StylableLayer) {
+            if (enabled) {
+                layer.isWarp = true
+                if (layer is TextLayer) {
+                    val targets = layer.getWarpTargets().filter { it.index != -1 }
+                    if (targets.isNotEmpty() && (layer.selectedWarpIndex == -1 || layer.selectedWarpIndex >= targets.size)) {
+                        layer.selectedWarpIndex = targets[0].index
+                    }
+                    if (layer.warpMesh == null) {
+                        layer.initWarpMeshForTarget(layer.selectedWarpIndex, layer.warpRows, layer.warpCols)
+                    }
+                }
+            } else {
+                if (layer is TextLayer) {
+                    layer.selectedWarpIndex = -1
+                }
+            }
+            canvasView.setWarpToolActive(enabled)
+        }
+    }
+
+    private fun showPuppetWarpMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() ?: return
+        val textLayer = layer as? TextLayer ?: return
+
+        togglePuppetWarpMode(true)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 8, 16, 8)
+        }
+
+        val title = TextView(this).apply {
+            text = "Puppet Warp - Select Character:"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            setPadding(0, 0, 0, 8)
+        }
+        layout.addView(title)
+
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        }
+        val grid = GridLayout(this).apply {
+            columnCount = 6
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val targets = textLayer.getWarpTargets().filter { it.index != -1 }
+        for (target in targets) {
+            val btn = android.widget.Button(this).apply {
+                text = target.label
+                val isSelectedTarget = textLayer.selectedWarpIndex == target.index
+                setTextColor(if (isSelectedTarget) Color.BLACK else Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(if (isSelectedTarget) Color.YELLOW else Color.DKGRAY)
+                    cornerRadius = dpToPx(6).toFloat()
+                }
+
+                val params = GridLayout.LayoutParams().apply {
+                    width = dpToPx(40)
+                    height = dpToPx(40)
+                    setMargins(6, 6, 6, 6)
+                }
+                layoutParams = params
+
+                setOnClickListener {
+                    textLayer.selectedWarpIndex = target.index
+                    if (textLayer.warpMesh == null) {
+                        textLayer.initWarpMeshForTarget(target.index, textLayer.warpRows, textLayer.warpCols)
+                    }
+                    canvasView.invalidate()
+                    showPuppetWarpMenu()
+                }
+            }
+            grid.addView(btn)
+        }
+        scroll.addView(grid)
+        layout.addView(scroll)
+
+        if (textLayer.selectedWarpIndex != -1) {
+            val controlRow = LinearLayout(this).apply {
+                 orientation = LinearLayout.HORIZONTAL
+                 gravity = Gravity.CENTER_VERTICAL
+                 setPadding(0, 8, 0, 8)
+            }
+
+            fun createCounter(label: String, value: Int, min: Int, onChange: (Int) -> Unit): View {
+                val sub = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    gravity = Gravity.CENTER
+                }
+                val tv = TextView(this).apply { text = "$label: $value"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0,0,8,0) }
+                val btnMinus = TextView(this).apply {
+                    text = "-"
+                    setTextColor(Color.WHITE)
+                    textSize = 20f
+                    setPadding(16,0,16,0)
+                    setOnClickListener { onChange((value - 1).coerceAtLeast(min)) }
+                }
+                val btnPlus = TextView(this).apply {
+                    text = "+"
+                    setTextColor(Color.WHITE)
+                    textSize = 20f
+                    setPadding(16,0,16,0)
+                    setOnClickListener { onChange(value + 1) }
+                }
+                sub.addView(btnMinus); sub.addView(tv); sub.addView(btnPlus)
+                return sub
+            }
+
+            val letterRows = textLayer.warpRows
+            val letterCols = textLayer.warpCols
+
+            controlRow.addView(createCounter("Rows", letterRows, 1) {
+                textLayer.initWarpMeshForTarget(textLayer.selectedWarpIndex, it, textLayer.warpCols)
+                canvasView.invalidate()
+                showPuppetWarpMenu()
+            })
+
+            controlRow.addView(createCounter("Cols", letterCols, 1) {
+                textLayer.initWarpMeshForTarget(textLayer.selectedWarpIndex, textLayer.warpRows, it)
+                canvasView.invalidate()
+                showPuppetWarpMenu()
+            })
+
+            layout.addView(controlRow)
+
+            val btnReset = android.widget.Button(this).apply {
+                text = "Reset Letter Points"
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                setOnClickListener {
+                    textLayer.initWarpMeshForTarget(textLayer.selectedWarpIndex, textLayer.warpRows, textLayer.warpCols)
+                    canvasView.invalidate()
+                }
+            }
+            layout.addView(btnReset)
+        }
+
+        container.addView(layout)
     }
 
     private fun showPerspectiveMenu() {

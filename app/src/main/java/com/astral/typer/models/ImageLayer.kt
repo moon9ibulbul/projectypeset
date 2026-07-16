@@ -58,6 +58,9 @@ class ImageLayer(
     override var warpRows: Int = 2
     override var warpCols: Int = 2
     override var warpMesh: FloatArray? = null
+    override var selectedWarpIndex: Int
+        get() = -1
+        set(value) {}
 
     @Transient
     var denseRenderMesh: FloatArray? = null
