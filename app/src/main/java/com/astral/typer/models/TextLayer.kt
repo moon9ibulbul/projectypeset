@@ -920,7 +920,7 @@ class TextLayer(
         val ch = getContentHeight()
         val hScale = if (h > 0) ch / h else 1f
 
-        val hasLetterWarp = isWarp && (selectedWarpIndex != -1 || letterWarpMeshes.isNotEmpty())
+        val hasLetterWarp = isWarp && selectedWarpIndex != -1
 
         val bounds = if (hasLetterWarp) {
             val b = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
