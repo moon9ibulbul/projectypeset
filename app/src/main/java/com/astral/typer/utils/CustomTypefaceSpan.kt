@@ -5,7 +5,7 @@ import android.graphics.Typeface
 import android.text.TextPaint
 import android.text.style.MetricAffectingSpan
 
-class CustomTypefaceSpan(private val typeface: Typeface, val fontPath: String? = null) : MetricAffectingSpan() {
+class CustomTypefaceSpan(val typeface: Typeface, val fontPath: String? = null) : MetricAffectingSpan() {
     override fun updateDrawState(ds: TextPaint) {
         applyCustomTypeface(ds, typeface)
     }

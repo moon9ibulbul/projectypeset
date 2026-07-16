@@ -317,6 +317,14 @@
                     android:text="Warp"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:textColor="@color/white"/>
+
+                  <Button
+                    android:id="@+id/btnPropPuppetWarp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Puppet Warp"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:textColor="@color/white"/>
             </LinearLayout>
         </HorizontalScrollView>
 

@@ -85,6 +85,9 @@ object ProjectManager {
 
         // Warp
         val isWarp: Boolean? = null, val warpRows: Int? = null, val warpCols: Int? = null, val warpMesh: List<Float>? = null,
+        val letterWarpMeshes: Map<String, List<Float>>? = null,
+        val letterWarpRows: Map<String, Int>? = null,
+        val letterWarpCols: Map<String, Int>? = null,
 
         // Texture
         val texturePath: String? = null, val textureOffsetX: Float? = null, val textureOffsetY: Float? = null,
@@ -248,7 +251,10 @@ object ProjectManager {
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
 
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
-                        isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
+                        isWarp = layer.isWarp, warpRows = layer.mainWarpRows, warpCols = layer.mainWarpCols, warpMesh = layer.mainWarpMesh?.toList(),
+                        letterWarpMeshes = layer.letterWarpMeshes.mapKeys { it.key.toString() }.mapValues { it.value.toList() },
+                        letterWarpRows = layer.letterWarpRows.mapKeys { it.key.toString() },
+                        letterWarpCols = layer.letterWarpCols.mapKeys { it.key.toString() },
 
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
                         patternName = layer.patternName,
@@ -675,6 +681,25 @@ object ProjectManager {
             model.warpRows?.let { layer.warpRows = it }
             model.warpCols?.let { layer.warpCols = it }
             model.warpMesh?.let { layer.warpMesh = it.toFloatArray() }
+
+            model.letterWarpMeshes?.forEach { (k, v) ->
+                val idx = k.toIntOrNull()
+                if (idx != null) {
+                    layer.letterWarpMeshes[idx] = v.toFloatArray()
+                }
+            }
+            model.letterWarpRows?.forEach { (k, v) ->
+                val idx = k.toIntOrNull()
+                if (idx != null) {
+                    layer.letterWarpRows[idx] = v
+                }
+            }
+            model.letterWarpCols?.forEach { (k, v) ->
+                val idx = k.toIntOrNull()
+                if (idx != null) {
+                    layer.letterWarpCols[idx] = v
+                }
+            }
 
             if (model.texturePath != null) {
                 layer.textureBitmap = imageMap[model.texturePath]
