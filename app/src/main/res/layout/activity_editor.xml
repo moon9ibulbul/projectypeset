@@ -173,14 +173,6 @@
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:textColor="@color/white"/>
 
-            <Button
-                android:id="@+id/btnInsertBrush"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Brush"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="@color/white"/>
-
         </LinearLayout>
 
         <!-- Properties Menu (Hidden by default) -->
@@ -197,15 +189,6 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="16dp">
-
-                <Button
-                    android:id="@+id/btnPropBrush"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Brush"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"
-                    android:visibility="gone"/>
 
                 <Button
                     android:id="@+id/btnPropQuickEdit"
