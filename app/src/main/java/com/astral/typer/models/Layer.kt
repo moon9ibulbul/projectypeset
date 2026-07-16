@@ -155,7 +155,7 @@ abstract class Layer {
     abstract fun clone(): Layer
 
     // Check if a point (canvas coordinates) hits this layer
-    fun contains(px: Float, py: Float): Boolean {
+    open fun contains(px: Float, py: Float): Boolean {
         if (!isVisible || isLocked) return false
 
         // Transform point to local layer coordinates
