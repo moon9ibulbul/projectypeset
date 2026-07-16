@@ -1928,10 +1928,19 @@ class EditorActivity : AppCompatActivity() {
             loadRawLauncher.launch("image/*")
         }
 
+        if (canvasView.isRawPanelLoaded()) {
+            sidebarBinding.layoutRawControls.visibility = View.VISIBLE
+        } else {
+            sidebarBinding.layoutRawControls.visibility = View.GONE
+        }
+
         val rawModes = arrayOf("Load on top Canvas", "Load Beside Canvas")
         val rawAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, rawModes)
         rawAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         sidebarBinding.spinnerRawMode.adapter = rawAdapter
+
+        val currentModePos = if (canvasView.rawPanelMode == AstralCanvasView.RawPanelMode.ON_TOP) 0 else 1
+        sidebarBinding.spinnerRawMode.setSelection(currentModePos)
 
         sidebarBinding.spinnerRawMode.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
@@ -1940,6 +1949,9 @@ class EditorActivity : AppCompatActivity() {
             }
             override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
         }
+
+        sidebarBinding.seekBarRawOpacity.progress = canvasView.rawPanelOpacity
+        sidebarBinding.tvRawOpacityLabel.text = "RAW Opacity: ${(canvasView.rawPanelOpacity / 2.55f).toInt()}%"
 
         sidebarBinding.seekBarRawOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
@@ -5244,16 +5256,29 @@ class EditorActivity : AppCompatActivity() {
                 1f
             )
         }
-        val grid = GridLayout(this).apply {
-            columnCount = 6
+        val grid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
         }
 
+        var currentRow: LinearLayout? = null
         val targets = textLayer.getWarpTargets().filter { it.index != -1 }
-        for (target in targets) {
+        for ((idx, target) in targets.withIndex()) {
+            if (idx % 6 == 0) {
+                currentRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                }
+                grid.addView(currentRow)
+            }
+
             val btn = android.widget.Button(this).apply {
                 text = target.label
                 val isSelectedTarget = textLayer.selectedWarpIndex == target.index
@@ -5263,9 +5288,10 @@ class EditorActivity : AppCompatActivity() {
                     cornerRadius = dpToPx(6).toFloat()
                 }
 
-                val params = GridLayout.LayoutParams().apply {
-                    width = dpToPx(40)
-                    height = dpToPx(40)
+                val params = LinearLayout.LayoutParams(
+                    dpToPx(40),
+                    dpToPx(40)
+                ).apply {
                     setMargins(6, 6, 6, 6)
                 }
                 layoutParams = params
@@ -5279,7 +5305,7 @@ class EditorActivity : AppCompatActivity() {
                     showPuppetWarpMenu()
                 }
             }
-            grid.addView(btn)
+            currentRow?.addView(btn)
         }
         scroll.addView(grid)
         layout.addView(scroll)
