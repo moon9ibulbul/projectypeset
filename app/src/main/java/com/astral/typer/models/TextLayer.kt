@@ -1218,11 +1218,6 @@ class TextLayer(
     override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
         if (selectedWarpIndex != -1) {
             evaluateBezierSurfaceForCharacter(selectedWarpIndex, u, v, outPoint)
-            val lx = outPoint[0]
-            val ly = outPoint[1]
-            val fu = (lx + getWidth() / 2f) / getWidth()
-            val fv = (ly + getHeight() / 2f) / getHeight()
-            evaluateFullLayerBezierSurface(fu, fv, outPoint)
             return
         }
         val mesh = warpMesh ?: return
@@ -1349,7 +1344,7 @@ class TextLayer(
 
                     tempCanvas.save()
                     tempCanvas.translate(pad, pad)
-                    drawContent(tempCanvas, charLayout, charW, charH, left, yTop)
+                    drawContent(tempCanvas, charLayout, charW, charH, left, yTop, isCharByChar = true)
                     tempCanvas.restore()
 
                     val meshW = 20
@@ -1379,7 +1374,7 @@ class TextLayer(
             } else {
                 canvas.save()
                 canvas.translate(-w / 2f + left, -h / 2f + yTop)
-                drawContent(canvas, charLayout, charW, charH, left, yTop)
+                drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true)
                 canvas.restore()
             }
         }
@@ -1451,12 +1446,12 @@ class TextLayer(
         }
     }
 
-    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f) {
+    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false) {
         val paint = layout.paint
         val fullW = getWidth()
         val fullH = getContentHeight()
 
-        val gradientShader = if (charLeft != 0f || charTop != 0f) {
+        val gradientShader = if (isCharByChar) {
             val shader = getGradientShader(fullW, fullH)
             if (shader != null) {
                 val mat = Matrix()
@@ -1532,7 +1527,7 @@ class TextLayer(
             } else {
                 val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
                 if (hasMultiGradient) {
-                    val mShader = if (charLeft != 0f || charTop != 0f) {
+                    val mShader = if (isCharByChar) {
                         val shader = getMultiGradientShader(fullW, fullH)
                         val mat = Matrix()
                         mat.postTranslate(-charLeft, -charTop)
@@ -2264,8 +2259,8 @@ class TextLayer(
 
     }
 
-    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f) {
-        drawCleanContent(canvas, layout, w, h, charLeft, charTop)
+    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false) {
+        drawCleanContent(canvas, layout, w, h, charLeft, charTop, isCharByChar)
 
         val pad = calculatePadding()
         // Apply Erase Mask
