@@ -1277,13 +1277,28 @@ class TextLayer(
         }
     }
 
+    private fun getAssembledLetterWarpBitmap(layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.scale(qualityScale, qualityScale)
+        canvas.translate(pad, pad)
+        canvas.translate(w / 2f, h / 2f)
+        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
+        return bmp
+    }
+
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
         val pad = calculatePadding()
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
+            val isFreshBmp = letterWarpMeshes.isNotEmpty()
+            val finalBmp = if (isFreshBmp) {
+                getAssembledLetterWarpBitmap(layout, w, h, ch, pad, qualityScale, bmpW, bmpH)
+            } else {
+                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
+            }
 
             val meshW = 20
             val meshH = 20
@@ -1305,6 +1320,10 @@ class TextLayer(
                 canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, paint)
             } else {
                 canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
+            }
+
+            if (isFreshBmp) {
+                finalBmp.recycle()
             }
         }
     }
