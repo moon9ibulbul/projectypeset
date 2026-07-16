@@ -5150,7 +5150,7 @@ class EditorActivity : AppCompatActivity() {
                 cornerRadius = dpToPx(8).toFloat()
             }
             setOnClickListener {
-                initWarpMesh(layer, stylableLayer.warpRows, stylableLayer.warpCols)
+                initWarpMesh(layer, stylableLayer.warpRows, stylableLayer.warpCols, forceReset = true)
                 canvasView.invalidate()
             }
         }
@@ -5170,14 +5170,23 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun initWarpMesh(layer: Layer, rows: Int, cols: Int) {
+    private fun initWarpMesh(layer: Layer, rows: Int, cols: Int, forceReset: Boolean = false) {
          val w = layer.getWidth(); val h = layer.getHeight()
          val count = (rows + 1) * (cols + 1); val mesh = FloatArray(count * 2); var index = 0
+         val hasOldMesh = !forceReset && (layer is StylableLayer) && (layer.warpMesh != null)
+         val outPoint = FloatArray(2)
          for (r in 0..rows) {
-             val y = -h/2f + (h * r / rows.toFloat())
+             val v = r / rows.toFloat()
              for (c in 0..cols) {
-                 val x = -w/2f + (w * c / cols.toFloat())
-                 mesh[index++] = x; mesh[index++] = y
+                 val u = c / cols.toFloat()
+                 if (hasOldMesh) {
+                     layer.evaluateBezierSurface(u, v, outPoint)
+                     mesh[index++] = outPoint[0]; mesh[index++] = outPoint[1]
+                 } else {
+                     val x = -w/2f + (w * u)
+                     val y = -h/2f + (h * v)
+                     mesh[index++] = x; mesh[index++] = y
+                 }
              }
          }
          if (layer is StylableLayer) {
@@ -5332,7 +5341,7 @@ class EditorActivity : AppCompatActivity() {
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 setOnClickListener {
-                    textLayer.initWarpMeshForTarget(textLayer.selectedWarpIndex, textLayer.warpRows, textLayer.warpCols)
+                    textLayer.initWarpMeshForTarget(textLayer.selectedWarpIndex, textLayer.warpRows, textLayer.warpCols, forceReset = true)
                     canvasView.invalidate()
                 }
             }

@@ -928,7 +928,7 @@ class TextLayer(
             val renderW = expanded.renderRight - expanded.renderLeft
             val renderH = expanded.renderBottom - expanded.renderTop
 
-            if (_warpMesh != null) {
+            if (_warpMesh != null && selectedWarpIndex == -1) {
                 val steps = 10
                 val out = FloatArray(2)
                 for (i in 0..steps) {
@@ -937,7 +937,7 @@ class TextLayer(
                     for (j in 0..steps) {
                         val lx = expanded.renderLeft + (j / steps.toFloat()) * renderW
                         val u = (lx + w / 2f) / w
-                        evaluateBezierSurface(u, v, out)
+                        evaluateFullLayerBezierSurface(u, v, out)
                         if (i == 0 && j == 0) b.set(out[0], out[1], out[0], out[1]) else b.union(out[0], out[1])
                     }
                 }
@@ -969,7 +969,7 @@ class TextLayer(
 
         if (isWarpActive) {
             val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            if (_warpMesh != null) {
+            if (_warpMesh != null && selectedWarpIndex == -1) {
                 drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale)
             } else {
                 drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
@@ -1075,19 +1075,34 @@ class TextLayer(
         )
     }
 
-    fun initWarpMeshForTarget(targetIndex: Int, rows: Int, cols: Int) {
+    fun initWarpMeshForTarget(targetIndex: Int, rows: Int, cols: Int, forceReset: Boolean = false) {
         val bounds = getWarpTargetBounds(targetIndex)
         val count = (rows + 1) * (cols + 1)
         val mesh = FloatArray(count * 2)
         var index = 0
+        val oldSelectedWarpIndex = selectedWarpIndex
+        val hasOldMesh = !forceReset && (if (targetIndex == -1) _warpMesh != null else letterWarpMeshes[targetIndex] != null)
+        val outPoint = FloatArray(2)
+
         for (r in 0..rows) {
-            val y = bounds.top + (bounds.height() * r / rows.toFloat())
+            val v = r / rows.toFloat()
             for (c in 0..cols) {
-                val x = bounds.left + (bounds.width() * c / cols.toFloat())
-                mesh[index++] = x
-                mesh[index++] = y
+                val u = c / cols.toFloat()
+                if (hasOldMesh) {
+                    selectedWarpIndex = targetIndex
+                    evaluateBezierSurface(u, v, outPoint)
+                    mesh[index++] = outPoint[0]
+                    mesh[index++] = outPoint[1]
+                } else {
+                    val y = bounds.top + (bounds.height() * v)
+                    val x = bounds.left + (bounds.width() * u)
+                    mesh[index++] = x
+                    mesh[index++] = y
+                }
             }
         }
+        selectedWarpIndex = oldSelectedWarpIndex
+
         if (targetIndex == -1) {
             _warpMesh = mesh
             _warpRows = rows
@@ -1427,7 +1442,7 @@ class TextLayer(
                 for (j in 0..meshW) {
                     val lx = bounds.renderLeft + (j.toFloat() / meshW) * renderW
                     val u = (lx + w / 2f) / w
-                    evaluateBezierSurface(u, v, outPoint)
+                    evaluateFullLayerBezierSurface(u, v, outPoint)
                     paddedVerts[idx++] = outPoint[0]
                     paddedVerts[idx++] = outPoint[1]
                 }
