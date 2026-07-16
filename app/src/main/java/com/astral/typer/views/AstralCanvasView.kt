@@ -1259,6 +1259,9 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {
+        if (layer is com.astral.typer.models.BrushLayer) {
+            return
+        }
         canvas.save()
         canvas.translate(layer.x, layer.y)
         canvas.rotate(layer.rotation)
@@ -1592,6 +1595,50 @@ class AstralCanvasView @JvmOverloads constructor(
         invertedMatrix.mapPoints(touchPoint)
         val cx = touchPoint[0]
         val cy = touchPoint[1]
+
+        if (selectedLayer is com.astral.typer.models.BrushLayer && !isEraseLayerMode) {
+            val brushLayer = selectedLayer as com.astral.typer.models.BrushLayer
+
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                currentMode = Mode.PAN_ZOOM
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.NONE
+                }
+                return true
+            }
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    com.astral.typer.utils.UndoManager.saveState(layers)
+                    lastTouchX = cx
+                    lastTouchY = cy
+                    val brushCanvas = Canvas(brushLayer.bitmap)
+                    val brushData = com.astral.typer.utils.MyPaintBrushHelper.getBrushData(context, brushLayer.brushName)
+                    com.astral.typer.utils.MyPaintBrushHelper.drawStroke(
+                        brushCanvas, cx, cy, cx, cy,
+                        brushData, brushLayer.brushColor, brushLayer.brushSize, brushLayer.brushHardness, brushLayer.brushOpacity
+                    )
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val brushCanvas = Canvas(brushLayer.bitmap)
+                    val brushData = com.astral.typer.utils.MyPaintBrushHelper.getBrushData(context, brushLayer.brushName)
+                    com.astral.typer.utils.MyPaintBrushHelper.drawStroke(
+                        brushCanvas, lastTouchX, lastTouchY, cx, cy,
+                        brushData, brushLayer.brushColor, brushLayer.brushSize, brushLayer.brushHardness, brushLayer.brushOpacity
+                    )
+                    lastTouchX = cx
+                    lastTouchY = cy
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP -> {
+                    // Done
+                }
+            }
+            return true
+        }
 
         if (currentMode == Mode.EYEDROPPER) {
              eyedropperX = cx

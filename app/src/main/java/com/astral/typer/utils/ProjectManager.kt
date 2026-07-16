@@ -331,6 +331,31 @@ object ProjectManager {
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
                         isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    val imgName = "brush_$index.png"
+                    saveBitmap(layer.bitmap, File(imagesDir, imgName))
+
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "brush_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+
+                    layerModels.add(LayerModel(
+                        type = "BRUSH",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+                        imagePath = "images/$imgName",
+                        patternName = layer.brushName,
+                        color = layer.brushColor,
+                        strokeWidth = layer.brushSize,
+                        doubleStrokeWidth = layer.brushHardness,
+                        patternAlpha = layer.brushOpacity,
+                        eraseMaskPath = erasePath
+                    ))
                 } else if (layer is ImageLayer) {
                     val imgName = "layer_$index.png"
                     saveBitmap(layer.bitmap, File(imagesDir, imgName))
@@ -567,7 +592,21 @@ object ProjectManager {
 
     // Helper to Convert Model to Layer
     fun createLayerFromModel(model: LayerModel, imageMap: Map<String, Bitmap>): Layer? {
-        if (model.type == "IMAGE" && model.imagePath != null) {
+        if (model.type == "BRUSH" && model.imagePath != null) {
+            val bmp = imageMap[model.imagePath] ?: return null
+            val layer = com.astral.typer.models.BrushLayer(bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, true))
+
+            model.patternName?.let { layer.brushName = it }
+            model.color?.let { layer.brushColor = it }
+            model.strokeWidth?.let { layer.brushSize = it }
+            model.doubleStrokeWidth?.let { layer.brushHardness = it }
+            model.patternAlpha?.let { layer.brushOpacity = it }
+            if (model.eraseMaskPath != null) {
+                layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            }
+            applyCommonProperties(layer, model)
+            return layer
+        } else if (model.type == "IMAGE" && model.imagePath != null) {
             val bmp = imageMap[model.imagePath] ?: return null
             val layer = ImageLayer(bmp)
 
