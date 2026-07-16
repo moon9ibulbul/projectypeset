@@ -1328,9 +1328,22 @@ class TextLayer(
         }
     }
 
-    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
+    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f) {
         val paint = layout.paint
-        val gradientShader = getGradientShader(w, h)
+        val fullW = getWidth()
+        val fullH = getContentHeight()
+
+        val gradientShader = if (charLeft != 0f || charTop != 0f) {
+            val shader = getGradientShader(fullW, fullH)
+            if (shader != null) {
+                val mat = Matrix()
+                mat.postTranslate(-charLeft, -charTop)
+                shader.setLocalMatrix(mat)
+            }
+            shader
+        } else {
+            getGradientShader(w, h)
+        }
 
         var silhouetteColor: Int? = null
         var isDrawingShadowPass = false
@@ -1396,7 +1409,16 @@ class TextLayer(
             } else {
                 val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
                 if (hasMultiGradient) {
-                    paint.shader = getMultiGradientShader(w, h)
+                    val mShader = if (charLeft != 0f || charTop != 0f) {
+                        val shader = getMultiGradientShader(fullW, fullH)
+                        val mat = Matrix()
+                        mat.postTranslate(-charLeft, -charTop)
+                        shader.setLocalMatrix(mat)
+                        shader
+                    } else {
+                        getMultiGradientShader(w, h)
+                    }
+                    paint.shader = mShader
                     paint.color = Color.WHITE
                 } else if (isGradient && isGradientText) {
                     paint.shader = gradientShader
@@ -2119,8 +2141,8 @@ class TextLayer(
 
     }
 
-    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float) {
-        drawCleanContent(canvas, layout, w, h)
+    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f) {
+        drawCleanContent(canvas, layout, w, h, charLeft, charTop)
 
         val pad = calculatePadding()
         // Apply Erase Mask
