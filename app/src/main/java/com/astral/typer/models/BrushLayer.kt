@@ -38,6 +38,12 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     var brushRadiusByRandom: Float = 0.0f
     var brushEllipticalDabRatio: Float = 1.0f
     var brushEllipticalDabAngle: Float = 90.0f
+    var brushSmudge: Float = 0.0f
+    var brushSmudgeLength: Float = 0.5f
+    var brushSlowTracking: Float = 1.0f
+
+    // Dynamic Smudge color state
+    private var currentSmudgeColor: Int = Color.BLACK
 
     // Standard touch stroke points
     private var lastX: Float = 0f
@@ -217,6 +223,9 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             brushRadiusByRandom = this@BrushLayer.brushRadiusByRandom
             brushEllipticalDabRatio = this@BrushLayer.brushEllipticalDabRatio
             brushEllipticalDabAngle = this@BrushLayer.brushEllipticalDabAngle
+            brushSmudge = this@BrushLayer.brushSmudge
+            brushSmudgeLength = this@BrushLayer.brushSmudgeLength
+            brushSlowTracking = this@BrushLayer.brushSlowTracking
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)
@@ -303,11 +312,17 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         lastX = x
         lastY = y
         strokeHasMoved = false
+        currentSmudgeColor = brushColor
     }
 
     fun continueStroke(x: Float, y: Float) {
-        val dx = x - lastX
-        val dy = y - lastY
+        // Apply slow tracking EMA stabilizer if > 1.0
+        val factor = if (brushSlowTracking > 1f) (1f / brushSlowTracking).coerceIn(0.01f, 1f) else 1f
+        val targetX = lastX + (x - lastX) * factor
+        val targetY = lastY + (y - lastY) * factor
+
+        val dx = targetX - lastX
+        val dy = targetY - lastY
         val distance = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
 
         if (distance > 2f) {
@@ -326,8 +341,8 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
                 val interpolatedY = lastY + dy * (i.toFloat() / steps)
                 drawDab(interpolatedX, interpolatedY)
             }
-            lastX = x
-            lastY = y
+            lastX = targetX
+            lastY = targetY
         }
     }
 
@@ -359,18 +374,53 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             dabRadius *= (1f + randFactor * brushRadiusByRandom).coerceAtLeast(0.1f)
         }
 
+        // 3. Handle smudge and smudge decay
+        var finalColor = brushColor
+        if (brushSmudge > 0f && dabX >= 0 && dabX < canvasWidth && dabY >= 0 && dabY < canvasHeight) {
+            val px = dabX.toInt()
+            val py = dabY.toInt()
+            val sampledColor = bitmap.getPixel(px, py)
+            if (Color.alpha(sampledColor) > 0) {
+                // Mix current smudge color with sampled canvas color
+                val r = (Color.red(currentSmudgeColor) * (1f - brushSmudge) + Color.red(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
+                val g = (Color.green(currentSmudgeColor) * (1f - brushSmudge) + Color.green(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
+                val b = (Color.blue(currentSmudgeColor) * (1f - brushSmudge) + Color.blue(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
+                val a = (Color.alpha(currentSmudgeColor) * (1f - brushSmudge) + Color.alpha(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
+                val blended = Color.argb(a, r, g, b)
+
+                finalColor = blended
+
+                // Decay currentSmudgeColor back to brushColor based on smudge_length
+                val decay = (1f - brushSmudgeLength).coerceIn(0f, 1f)
+                val dr = (Color.red(blended) * (1f - decay) + Color.red(brushColor) * decay).toInt().coerceIn(0, 255)
+                val dg = (Color.green(blended) * (1f - decay) + Color.green(brushColor) * decay).toInt().coerceIn(0, 255)
+                val db = (Color.blue(blended) * (1f - decay) + Color.blue(brushColor) * decay).toInt().coerceIn(0, 255)
+                val da = (Color.alpha(blended) * (1f - decay) + Color.alpha(brushColor) * decay).toInt().coerceIn(0, 255)
+                currentSmudgeColor = Color.argb(da, dr, dg, db)
+            } else {
+                // Decay currentSmudgeColor back to brushColor when transparent is sampled
+                val decay = (1f - brushSmudgeLength).coerceIn(0f, 1f)
+                val dr = (Color.red(currentSmudgeColor) * (1f - decay) + Color.red(brushColor) * decay).toInt().coerceIn(0, 255)
+                val dg = (Color.green(currentSmudgeColor) * (1f - decay) + Color.green(brushColor) * decay).toInt().coerceIn(0, 255)
+                val db = (Color.blue(currentSmudgeColor) * (1f - decay) + Color.blue(brushColor) * decay).toInt().coerceIn(0, 255)
+                val da = (Color.alpha(currentSmudgeColor) * (1f - decay) + Color.alpha(brushColor) * decay).toInt().coerceIn(0, 255)
+                currentSmudgeColor = Color.argb(da, dr, dg, db)
+                finalColor = currentSmudgeColor
+            }
+        }
+
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             alpha = brushOpacity
         }
 
-        // 3. Setup shader with RadialGradient centered at local origin (0, 0)
+        // 4. Setup shader with RadialGradient centered at local origin (0, 0)
         if (brushHardness < 1f) {
-            val colors = intArrayOf(brushColor, brushColor, Color.TRANSPARENT)
+            val colors = intArrayOf(finalColor, finalColor, Color.TRANSPARENT)
             val stops = floatArrayOf(0f, brushHardness.coerceIn(0f, 0.99f), 1f)
             paint.shader = RadialGradient(0f, 0f, dabRadius, colors, stops, Shader.TileMode.CLAMP)
         } else {
-            paint.color = brushColor
+            paint.color = finalColor
         }
 
         // Support soft eraser when eraser is selected
@@ -386,7 +436,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             }
         }
 
-        // 4. Draw with elliptical transformations on canvas
+        // 5. Draw with elliptical transformations on canvas
         drawCanvas.save()
         drawCanvas.translate(dabX, dabY)
         drawCanvas.rotate(brushEllipticalDabAngle)

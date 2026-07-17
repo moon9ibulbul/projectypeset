@@ -19,7 +19,10 @@ object MyPaintBrushHelper {
         val offsetByRandom: Float = 0.0f,
         val radiusByRandom: Float = 0.0f,
         val ellipticalDabRatio: Float = 1.0f,
-        val ellipticalDabAngle: Float = 90.0f
+        val ellipticalDabAngle: Float = 90.0f,
+        val smudge: Float = 0.0f,
+        val smudgeLength: Float = 0.5f,
+        val slowTracking: Float = 1.0f
     )
 
     fun loadPreset(context: Context, assetPath: String): BrushPreset {
@@ -65,6 +68,15 @@ object MyPaintBrushHelper {
             val ellipticalDabAngleObj = settings.optJSONObject("elliptical_dab_angle")
             val ellipticalDabAngle = ellipticalDabAngleObj?.optDouble("base_value", 90.0)?.toFloat() ?: 90.0f
 
+            val smudgeObj = settings.optJSONObject("smudge")
+            val smudge = smudgeObj?.optDouble("base_value", 0.0)?.toFloat() ?: 0.0f
+
+            val smudgeLengthObj = settings.optJSONObject("smudge_length")
+            val smudgeLength = smudgeLengthObj?.optDouble("base_value", 0.5)?.toFloat() ?: 0.5f
+
+            val slowTrackingObj = settings.optJSONObject("slow_tracking")
+            val slowTracking = slowTrackingObj?.optDouble("base_value", 1.0)?.toFloat() ?: 1.0f
+
             return BrushPreset(
                 name = name,
                 opaque = opaque,
@@ -77,7 +89,10 @@ object MyPaintBrushHelper {
                 offsetByRandom = offsetByRandom,
                 radiusByRandom = radiusByRandom,
                 ellipticalDabRatio = ellipticalDabRatio,
-                ellipticalDabAngle = ellipticalDabAngle
+                ellipticalDabAngle = ellipticalDabAngle,
+                smudge = smudge,
+                smudgeLength = smudgeLength,
+                slowTracking = slowTracking
             )
         } catch (e: Exception) {
             e.printStackTrace()

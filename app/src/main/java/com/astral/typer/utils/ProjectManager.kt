@@ -63,6 +63,9 @@ object ProjectManager {
         val brushRadiusByRandom: Float? = null,
         val brushEllipticalDabRatio: Float? = null,
         val brushEllipticalDabAngle: Float? = null,
+        val brushSmudge: Float? = null,
+        val brushSmudgeLength: Float? = null,
+        val brushSlowTracking: Float? = null,
 
         // Shape Layer
         val shapeName: String? = null,
@@ -399,6 +402,9 @@ object ProjectManager {
                         brushRadiusByRandom = layer.brushRadiusByRandom,
                         brushEllipticalDabRatio = layer.brushEllipticalDabRatio,
                         brushEllipticalDabAngle = layer.brushEllipticalDabAngle,
+                        brushSmudge = layer.brushSmudge,
+                        brushSmudgeLength = layer.brushSmudgeLength,
+                        brushSlowTracking = layer.brushSlowTracking,
                         eraseMaskPath = erasePath
                     ))
                 }
@@ -915,6 +921,9 @@ object ProjectManager {
             model.brushRadiusByRandom?.let { layer.brushRadiusByRandom = it }
             model.brushEllipticalDabRatio?.let { layer.brushEllipticalDabRatio = it }
             model.brushEllipticalDabAngle?.let { layer.brushEllipticalDabAngle = it }
+            model.brushSmudge?.let { layer.brushSmudge = it }
+            model.brushSmudgeLength?.let { layer.brushSmudgeLength = it }
+            model.brushSlowTracking?.let { layer.brushSlowTracking = it }
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }

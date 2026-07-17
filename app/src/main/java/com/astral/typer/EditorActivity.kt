@@ -4000,6 +4000,9 @@ class EditorActivity : AppCompatActivity() {
                 layer.brushRadiusByRandom = preset.radiusByRandom
                 layer.brushEllipticalDabRatio = preset.ellipticalDabRatio
                 layer.brushEllipticalDabAngle = preset.ellipticalDabAngle
+                layer.brushSmudge = preset.smudge
+                layer.brushSmudgeLength = preset.smudgeLength
+                layer.brushSlowTracking = preset.slowTracking
 
                 // Update UI sliders
                 sizeSliderBar?.progress = layer.brushSize.toInt()
