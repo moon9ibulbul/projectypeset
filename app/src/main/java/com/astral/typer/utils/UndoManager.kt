@@ -23,6 +23,9 @@ object UndoManager {
             removed.forEach { layer ->
                 if (layer is TextLayer) {
                     layer.eraseMask?.recycle()
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    layer.bitmap.recycle()
+                    layer.eraseMask?.recycle()
                 }
             }
         }
@@ -30,6 +33,9 @@ object UndoManager {
         redoStack.forEach { layersList ->
             layersList.forEach { layer ->
                 if (layer is TextLayer) {
+                    layer.eraseMask?.recycle()
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    layer.bitmap.recycle()
                     layer.eraseMask?.recycle()
                 }
             }
@@ -83,6 +89,9 @@ object UndoManager {
                 if (layer is TextLayer) {
                     layer.eraseMask?.recycle()
                     layer.recycleCache()
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    layer.bitmap.recycle()
+                    layer.eraseMask?.recycle()
                 }
             }
         }
@@ -91,6 +100,9 @@ object UndoManager {
                 if (layer is TextLayer) {
                     layer.eraseMask?.recycle()
                     layer.recycleCache()
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    layer.bitmap.recycle()
+                    layer.eraseMask?.recycle()
                 }
             }
         }
