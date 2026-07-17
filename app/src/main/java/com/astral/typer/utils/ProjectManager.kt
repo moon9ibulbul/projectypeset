@@ -56,6 +56,13 @@ object ProjectManager {
         val brushSize: Float? = null,
         val brushHardness: Float? = null,
         val brushOpacity: Int? = null,
+        val brushDabsPerActualRadius: Float? = null,
+        val brushDabsPerBasicRadius: Float? = null,
+        val brushDabsPerSecond: Float? = null,
+        val brushOffsetByRandom: Float? = null,
+        val brushRadiusByRandom: Float? = null,
+        val brushEllipticalDabRatio: Float? = null,
+        val brushEllipticalDabAngle: Float? = null,
 
         // Shape Layer
         val shapeName: String? = null,
@@ -385,6 +392,13 @@ object ProjectManager {
                         brushSize = layer.brushSize,
                         brushHardness = layer.brushHardness,
                         brushOpacity = layer.brushOpacity,
+                        brushDabsPerActualRadius = layer.brushDabsPerActualRadius,
+                        brushDabsPerBasicRadius = layer.brushDabsPerBasicRadius,
+                        brushDabsPerSecond = layer.brushDabsPerSecond,
+                        brushOffsetByRandom = layer.brushOffsetByRandom,
+                        brushRadiusByRandom = layer.brushRadiusByRandom,
+                        brushEllipticalDabRatio = layer.brushEllipticalDabRatio,
+                        brushEllipticalDabAngle = layer.brushEllipticalDabAngle,
                         eraseMaskPath = erasePath
                     ))
                 }
@@ -894,6 +908,13 @@ object ProjectManager {
             model.brushSize?.let { layer.brushSize = it }
             model.brushHardness?.let { layer.brushHardness = it }
             model.brushOpacity?.let { layer.brushOpacity = it }
+            model.brushDabsPerActualRadius?.let { layer.brushDabsPerActualRadius = it }
+            model.brushDabsPerBasicRadius?.let { layer.brushDabsPerBasicRadius = it }
+            model.brushDabsPerSecond?.let { layer.brushDabsPerSecond = it }
+            model.brushOffsetByRandom?.let { layer.brushOffsetByRandom = it }
+            model.brushRadiusByRandom?.let { layer.brushRadiusByRandom = it }
+            model.brushEllipticalDabRatio?.let { layer.brushEllipticalDabRatio = it }
+            model.brushEllipticalDabAngle?.let { layer.brushEllipticalDabAngle = it }
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }

@@ -30,6 +30,15 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     var brushHardness: Float = 0.5f
     var brushOpacity: Int = 255
 
+    // Extra .myb parameters
+    var brushDabsPerActualRadius: Float = 4.0f
+    var brushDabsPerBasicRadius: Float = 0.0f
+    var brushDabsPerSecond: Float = 0.0f
+    var brushOffsetByRandom: Float = 0.0f
+    var brushRadiusByRandom: Float = 0.0f
+    var brushEllipticalDabRatio: Float = 1.0f
+    var brushEllipticalDabAngle: Float = 90.0f
+
     // Standard touch stroke points
     private var lastX: Float = 0f
     private var lastY: Float = 0f
@@ -200,6 +209,14 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             brushSize = this@BrushLayer.brushSize
             brushHardness = this@BrushLayer.brushHardness
             brushOpacity = this@BrushLayer.brushOpacity
+
+            brushDabsPerActualRadius = this@BrushLayer.brushDabsPerActualRadius
+            brushDabsPerBasicRadius = this@BrushLayer.brushDabsPerBasicRadius
+            brushDabsPerSecond = this@BrushLayer.brushDabsPerSecond
+            brushOffsetByRandom = this@BrushLayer.brushOffsetByRandom
+            brushRadiusByRandom = this@BrushLayer.brushRadiusByRandom
+            brushEllipticalDabRatio = this@BrushLayer.brushEllipticalDabRatio
+            brushEllipticalDabAngle = this@BrushLayer.brushEllipticalDabAngle
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)
@@ -297,9 +314,10 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             strokeHasMoved = true
         }
 
-        // Calculate spacing based on brush size. Standard dabs spacing is size * 0.1
+        // Calculate spacing based on brush size and dabs_per_actual_radius.
         val radius = brushSize / 2f
-        val spacing = (radius * 0.2f).coerceAtLeast(1f)
+        val dabsCount = if (brushDabsPerActualRadius <= 0f) 4.0f else brushDabsPerActualRadius
+        val spacing = (radius / dabsCount).coerceAtLeast(1f)
 
         if (distance > spacing) {
             val steps = (distance / spacing).toInt()
@@ -323,16 +341,34 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         val radius = brushSize / 2f
         if (radius <= 0.1f) return
 
+        // 1. Handle offset_by_random
+        var dabX = cx
+        var dabY = cy
+        if (brushOffsetByRandom > 0f) {
+            val maxOffset = brushOffsetByRandom * radius
+            val angle = Math.random() * 2.0 * Math.PI
+            val dist = Math.random() * maxOffset
+            dabX += (dist * Math.cos(angle)).toFloat()
+            dabY += (dist * Math.sin(angle)).toFloat()
+        }
+
+        // 2. Handle radius_by_random
+        var dabRadius = radius
+        if (brushRadiusByRandom > 0f) {
+            val randFactor = (Math.random() * 2.0 - 1.0).toFloat()
+            dabRadius *= (1f + randFactor * brushRadiusByRandom).coerceAtLeast(0.1f)
+        }
+
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             alpha = brushOpacity
         }
 
-        // Apply custom hardness via RadialGradient color stops
+        // 3. Setup shader with RadialGradient centered at local origin (0, 0)
         if (brushHardness < 1f) {
             val colors = intArrayOf(brushColor, brushColor, Color.TRANSPARENT)
             val stops = floatArrayOf(0f, brushHardness.coerceIn(0f, 0.99f), 1f)
-            paint.shader = RadialGradient(cx, cy, radius, colors, stops, Shader.TileMode.CLAMP)
+            paint.shader = RadialGradient(0f, 0f, dabRadius, colors, stops, Shader.TileMode.CLAMP)
         } else {
             paint.color = brushColor
         }
@@ -341,16 +377,22 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         val isEraser = brushName.contains("eraser", ignoreCase = true)
         if (isEraser) {
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            // For eraser, gradient should go from fully opaque black (which erases) to transparent (which doesn't erase)
             if (brushHardness < 1f) {
                 val colors = intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT)
                 val stops = floatArrayOf(0f, brushHardness.coerceIn(0f, 0.99f), 1f)
-                paint.shader = RadialGradient(cx, cy, radius, colors, stops, Shader.TileMode.CLAMP)
+                paint.shader = RadialGradient(0f, 0f, dabRadius, colors, stops, Shader.TileMode.CLAMP)
             } else {
                 paint.color = Color.BLACK
             }
         }
 
-        drawCanvas.drawCircle(cx, cy, radius, paint)
+        // 4. Draw with elliptical transformations on canvas
+        drawCanvas.save()
+        drawCanvas.translate(dabX, dabY)
+        drawCanvas.rotate(brushEllipticalDabAngle)
+        val scaleY = if (brushEllipticalDabRatio <= 0.01f) 1f else (1f / brushEllipticalDabRatio)
+        drawCanvas.scale(1f, scaleY)
+        drawCanvas.drawCircle(0f, 0f, dabRadius, paint)
+        drawCanvas.restore()
     }
 }
