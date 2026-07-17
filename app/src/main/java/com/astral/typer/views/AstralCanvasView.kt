@@ -280,6 +280,10 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun isRawPanelLoaded(): Boolean {
+        return rawPanelTiles.isNotEmpty()
+    }
+
 
     fun enterCutMode() {
         if (selectedLayer is ImageLayer) {

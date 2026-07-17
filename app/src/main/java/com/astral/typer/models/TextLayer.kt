@@ -271,8 +271,51 @@ class TextLayer(
     @Transient
     var erasedContentHash: Int = -1
 
+    private class SpanInfo(val start: Int, val end: Int, val pVal: Int, val classNameHash: Int) : Comparable<SpanInfo> {
+        override fun compareTo(other: SpanInfo): Int {
+            var cmp = start.compareTo(other.start)
+            if (cmp != 0) return cmp
+            cmp = end.compareTo(other.end)
+            if (cmp != 0) return cmp
+            cmp = pVal.compareTo(other.pVal)
+            if (cmp != 0) return cmp
+            return classNameHash.compareTo(other.classNameHash)
+        }
+    }
+
+    private fun getSpansHash(): Int {
+        var hashResult = 1
+        val len = text.length
+        val spans = text.getSpans(0, len, Any::class.java) ?: emptyArray()
+        val list = mutableListOf<SpanInfo>()
+        for (span in spans) {
+            val start = text.getSpanStart(span)
+            val end = text.getSpanEnd(span)
+            val pVal = when (span) {
+                is android.text.style.StyleSpan -> span.style
+                is android.text.style.ForegroundColorSpan -> span.foregroundColor
+                is android.text.style.UnderlineSpan -> 1
+                is android.text.style.StrikethroughSpan -> 2
+                is CustomTypefaceSpan -> span.fontPath?.hashCode() ?: 0
+                is android.text.style.AbsoluteSizeSpan -> span.size
+                is LetterSpacingSpan -> span.spacing.hashCode()
+                else -> span.hashCode()
+            }
+            list.add(SpanInfo(start, end, pVal, span.javaClass.name.hashCode()))
+        }
+        list.sort()
+        for (item in list) {
+            hashResult = 31 * hashResult + item.start
+            hashResult = 31 * hashResult + item.end
+            hashResult = 31 * hashResult + item.pVal
+            hashResult = 31 * hashResult + item.classNameHash
+        }
+        return hashResult
+    }
+
     fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float): Int {
         var result = text.toString().hashCode()
+        result = 31 * result + getSpansHash()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
         result = 31 * result + pad.hashCode()
