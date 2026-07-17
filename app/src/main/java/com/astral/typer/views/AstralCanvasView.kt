@@ -832,6 +832,14 @@ class AstralCanvasView @JvmOverloads constructor(
         selectLayer(layer)
     }
 
+    fun addBrushLayer() {
+        val layer = com.astral.typer.models.BrushLayer(canvasWidth, canvasHeight).apply {
+            name = "Brush ${layers.count { it is com.astral.typer.models.BrushLayer } + 1}"
+        }
+        layers.add(layer)
+        selectLayer(layer)
+    }
+
     fun addShapeLayer(shapeName: String) {
         val center = getViewportCenter()
         val layer = com.astral.typer.models.ShapeLayer(shapeName).apply {
@@ -1263,6 +1271,9 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {
+        if (layer is com.astral.typer.models.BrushLayer) {
+            return
+        }
         canvas.save()
         canvas.translate(layer.x, layer.y)
         canvas.rotate(layer.rotation)
@@ -1596,6 +1607,38 @@ class AstralCanvasView @JvmOverloads constructor(
         invertedMatrix.mapPoints(touchPoint)
         val cx = touchPoint[0]
         val cy = touchPoint[1]
+
+        val brushLayer = selectedLayer as? com.astral.typer.models.BrushLayer
+        if (brushLayer != null && !isEraseLayerMode && currentMode != Mode.EYEDROPPER && !isInpaintMode && !isGradationMode && !isTyperActive) {
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                currentMode = Mode.PAN_ZOOM
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.NONE
+                }
+                return true
+            }
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    currentMode = Mode.NONE
+                    com.astral.typer.utils.UndoManager.saveState(layers)
+                    brushLayer.startStroke(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    brushLayer.continueStroke(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    brushLayer.endStroke()
+                    currentMode = Mode.NONE
+                    invalidate()
+                }
+            }
+            return true
+        }
 
         if (currentMode == Mode.EYEDROPPER) {
              eyedropperX = cx

@@ -49,6 +49,14 @@ object ProjectManager {
         val opacity: Int, val blendMode: String,
         val isOpacityGradient: Boolean, val opacityStart: Int, val opacityEnd: Int, val opacityAngle: Int,
 
+        // Brush Layer
+        val brushPath: String? = null,
+        val brushName: String? = null,
+        val brushColor: Int? = null,
+        val brushSize: Float? = null,
+        val brushHardness: Float? = null,
+        val brushOpacity: Int? = null,
+
         // Shape Layer
         val shapeName: String? = null,
 
@@ -353,6 +361,31 @@ object ProjectManager {
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
                         eraseMaskPath = erasePath,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel
+                    ))
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    val brushImgName = "brush_$index.png"
+                    saveBitmap(layer.bitmap, File(imagesDir, brushImgName))
+
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "brush_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+
+                    layerModels.add(LayerModel(
+                        type = "BRUSH",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+                        brushPath = "images/$brushImgName",
+                        brushName = layer.brushName,
+                        brushColor = layer.brushColor,
+                        brushSize = layer.brushSize,
+                        brushHardness = layer.brushHardness,
+                        brushOpacity = layer.brushOpacity,
+                        eraseMaskPath = erasePath
                     ))
                 }
             }
@@ -847,6 +880,22 @@ object ProjectManager {
             }
             if (model.globalP2X != null && model.globalP2Y != null) {
                 layer.globalP2.set(model.globalP2X, model.globalP2Y)
+            }
+
+            applyCommonProperties(layer, model)
+            return layer
+        } else if (model.type == "BRUSH" && model.brushPath != null) {
+            val bmp = imageMap[model.brushPath] ?: return null
+            val layer = com.astral.typer.models.BrushLayer(bmp.width, bmp.height)
+            layer.bitmap = bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+
+            model.brushName?.let { layer.brushName = it }
+            model.brushColor?.let { layer.brushColor = it }
+            model.brushSize?.let { layer.brushSize = it }
+            model.brushHardness?.let { layer.brushHardness = it }
+            model.brushOpacity?.let { layer.brushOpacity = it }
+            if (model.eraseMaskPath != null) {
+                layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
 
             applyCommonProperties(layer, model)

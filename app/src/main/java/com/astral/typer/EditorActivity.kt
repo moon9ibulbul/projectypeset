@@ -45,6 +45,8 @@ import com.astral.typer.utils.StyleManager
 import com.astral.typer.utils.InpaintManager
 import com.astral.typer.utils.ProjectManager
 import com.astral.typer.models.ImageLayer
+import android.graphics.BitmapFactory
+import android.widget.ImageView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -713,16 +715,22 @@ class EditorActivity : AppCompatActivity() {
             showShapePicker()
         }
 
+        binding.btnInsertBrush.setOnClickListener {
+            canvasView.addBrushLayer()
+        }
+
         // Top Bar Add Button
         binding.btnAdd.setOnClickListener { view ->
             val popup = android.widget.PopupMenu(this, view)
             popup.menu.add("Text")
             popup.menu.add("Image")
             popup.menu.add("Shape")
+            popup.menu.add("Brush")
             popup.setOnMenuItemClickListener {
                  if (it.title == "Text") canvasView.addTextLayer("Double Tap to Edit")
                  else if (it.title == "Image") addImageLauncher.launch("image/*")
                  else if (it.title == "Shape") showShapePicker()
+                 else if (it.title == "Brush") canvasView.addBrushLayer()
                  true
             }
             popup.show()
@@ -733,6 +741,7 @@ class EditorActivity : AppCompatActivity() {
         binding.btnPropQuickEdit.setOnClickListener { toggleMenu("QUICK_EDIT") { showQuickEditMenu() } }
         binding.btnPropFont.setOnClickListener { toggleMenu("FONT") { showFontPicker() } }
         binding.btnPropColor.setOnClickListener { toggleMenu("COLOR") { showColorPicker() } }
+        binding.btnPropBrush.setOnClickListener { toggleMenu("BRUSH") { showBrushMenu() } }
         binding.btnPropFormat.setOnClickListener { toggleMenu("FORMAT") { showFormatMenu() } }
         binding.btnPropEffect.setOnClickListener { toggleMenu("EFFECT") { showEffectMenu() } }
 
@@ -2767,7 +2776,27 @@ class EditorActivity : AppCompatActivity() {
         binding.menuProperties.visibility = View.VISIBLE
 
         val layer = canvasView.getSelectedLayer()
-        if (layer is ImageLayer) {
+        if (layer is com.astral.typer.models.BrushLayer) {
+            binding.btnPropQuickEdit.visibility = View.GONE
+            binding.btnPropStyle.visibility = View.GONE
+            binding.btnPropFont.visibility = View.GONE
+            binding.btnPropFormat.visibility = View.GONE
+            binding.btnPropSpacing.visibility = View.GONE
+            binding.btnPropStroke.visibility = View.GONE
+            binding.btnPropDoubleStroke.visibility = View.GONE
+            binding.btnPropShadow.visibility = View.GONE
+            binding.btnPropGradation.visibility = View.GONE
+            binding.btnPropEffect.visibility = View.GONE
+            binding.btnPropTexture.visibility = View.GONE
+            binding.btnPropOpacity.visibility = View.GONE
+            binding.btnPropPerspective.visibility = View.GONE
+            binding.btnPropWarp.visibility = View.GONE
+            binding.btnPropPuppetWarp.visibility = View.GONE
+
+            binding.btnPropBrush.visibility = View.VISIBLE
+            binding.btnPropColor.visibility = View.VISIBLE
+            binding.btnPropErase.visibility = View.VISIBLE
+        } else if (layer is ImageLayer) {
             // Task: Saat layer berupa ImageLayer, buat agar dia bisa melakukan operasi 'Opacity', 'Erase', 'Perspective', dan 'Warp'.
             // Selain itu (Quick edit, style, font, dan lain-lain) buat menjadi hidden
             binding.btnPropQuickEdit.visibility = View.GONE
@@ -2788,6 +2817,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropPerspective.visibility = View.VISIBLE
             binding.btnPropWarp.visibility = View.VISIBLE
             binding.btnPropPuppetWarp.visibility = View.GONE
+            binding.btnPropBrush.visibility = View.GONE
         } else if (layer is ShapeLayer) {
             binding.btnPropQuickEdit.visibility = View.GONE
             binding.btnPropStyle.visibility = View.GONE
@@ -2808,6 +2838,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropPerspective.visibility = View.VISIBLE
             binding.btnPropWarp.visibility = View.VISIBLE
             binding.btnPropPuppetWarp.visibility = View.GONE
+            binding.btnPropBrush.visibility = View.GONE
         } else {
             binding.btnPropQuickEdit.visibility = View.VISIBLE
             binding.btnPropStyle.visibility = View.VISIBLE
@@ -2826,6 +2857,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropPerspective.visibility = View.VISIBLE
             binding.btnPropWarp.visibility = View.VISIBLE
             binding.btnPropPuppetWarp.visibility = View.VISIBLE
+            binding.btnPropBrush.visibility = View.GONE
         }
 
         binding.btnPropPuppetWarp.visibility = if (layer is TextLayer) View.VISIBLE else View.GONE
@@ -3720,7 +3752,7 @@ class EditorActivity : AppCompatActivity() {
     private fun showColorPicker() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() ?: return
-        if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer) return
+        if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer && layer !is com.astral.typer.models.BrushLayer) return
 
         if (layer is TextLayer) {
             container.addView(createInputView(layer, false))
@@ -3758,6 +3790,8 @@ class EditorActivity : AppCompatActivity() {
                                 layer.color = color; layer.isGradient = false
                             } else if (layer is com.astral.typer.models.ShapeLayer) {
                                 layer.color = color; layer.isGradient = false
+                            } else if (layer is com.astral.typer.models.BrushLayer) {
+                                layer.brushColor = color
                             }
                             canvasView.invalidate()
                       }
@@ -3780,7 +3814,7 @@ class EditorActivity : AppCompatActivity() {
                 setMargins(0, 0, 16, 0)
             }
             setOnClickListener {
-                val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else Color.BLACK
+                val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else if (layer is com.astral.typer.models.BrushLayer) (layer as com.astral.typer.models.BrushLayer).brushColor else Color.BLACK
                 ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layerColor) { color ->
                     val et = activeEditText
                     if (et != null && et.selectionStart != et.selectionEnd) {
@@ -3791,6 +3825,8 @@ class EditorActivity : AppCompatActivity() {
                             (layer as TextLayer).color = color; (layer as TextLayer).isGradient = false
                         } else if (layer is com.astral.typer.models.ShapeLayer) {
                             (layer as com.astral.typer.models.ShapeLayer).color = color; (layer as com.astral.typer.models.ShapeLayer).isGradient = false
+                        } else if (layer is com.astral.typer.models.BrushLayer) {
+                            (layer as com.astral.typer.models.BrushLayer).brushColor = color
                         }
                         canvasView.invalidate()
                     }
@@ -3808,7 +3844,7 @@ class EditorActivity : AppCompatActivity() {
                 if (et != null && et.selectionStart != et.selectionEnd) {
                     applySpanToSelection(ForegroundColorSpan(color))
                 } else {
-                    val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else 0
+                    val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else if (layer is com.astral.typer.models.BrushLayer) (layer as com.astral.typer.models.BrushLayer).brushColor else 0
                     val layerIsGradient = if (layer is TextLayer) (layer as TextLayer).isGradient else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).isGradient else false
 
                     if (layerColor == color && !layerIsGradient) {
@@ -3818,6 +3854,8 @@ class EditorActivity : AppCompatActivity() {
                             (layer as TextLayer).color = color; (layer as TextLayer).isGradient = false
                         } else if (layer is com.astral.typer.models.ShapeLayer) {
                             (layer as com.astral.typer.models.ShapeLayer).color = color; (layer as com.astral.typer.models.ShapeLayer).isGradient = false
+                        } else if (layer is com.astral.typer.models.BrushLayer) {
+                            (layer as com.astral.typer.models.BrushLayer).brushColor = color
                         }
                         canvasView.invalidate()
                     }
@@ -3825,11 +3863,256 @@ class EditorActivity : AppCompatActivity() {
                 showColorPicker()
             },
             null, // No add button here? Or keep it? The helper has logic for saved colors internally.
-            if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else Color.BLACK // Selected color
+            if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else if (layer is com.astral.typer.models.BrushLayer) (layer as com.astral.typer.models.BrushLayer).brushColor else Color.BLACK // Selected color
         )
         list.addView(paletteView)
 
         scroll.addView(list)
+        container.addView(scroll)
+    }
+
+    private fun showBrushMenu() {
+        val container = prepareContainer()
+        val layer = canvasView.getSelectedLayer() as? com.astral.typer.models.BrushLayer ?: return
+
+        // Outer vertical scroll
+        val scroll = android.widget.ScrollView(this).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setPadding(16, 8, 16, 8)
+        }
+
+        // 1. Horizontal list of brushes
+        val brushesLabel = TextView(this).apply {
+            text = "Choose Brush"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            setPadding(0, 0, 0, 4)
+        }
+        mainLayout.addView(brushesLabel)
+
+        val brushScroll = android.widget.HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = 8
+            }
+            isFillViewport = true
+        }
+
+        val brushListLayout = GridLayout(this).apply {
+            rowCount = 2
+            orientation = GridLayout.HORIZONTAL
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        // Load all .myb brushes from assets
+        val assets = this.assets
+        val files = assets.list("brushes/classic") ?: emptyArray()
+        val mybFiles = files.filter { it.endsWith(".myb") }.sorted()
+
+        // We will keep a map or list of item views to update their backgrounds when selection changes
+        val itemViews = mutableListOf<Pair<String, LinearLayout>>()
+
+        fun selectBrushItem(selectedName: String) {
+            for ((name, itemView) in itemViews) {
+                if (name == selectedName) {
+                    itemView.setBackgroundColor(Color.parseColor("#666666"))
+                } else {
+                    itemView.setBackgroundColor(Color.TRANSPARENT)
+                }
+            }
+        }
+
+        // Declare seekbars so they can be accessed inside callbacks
+        var sizeSliderBar: SeekBar? = null
+        var sizeLabel: TextView? = null
+        var hardnessSliderBar: SeekBar? = null
+        var hardnessLabel: TextView? = null
+        var opacitySliderBar: SeekBar? = null
+        var opacityLabel: TextView? = null
+
+        for (fileName in mybFiles) {
+            val name = fileName.substringBeforeLast(".")
+            val displayName = name.replace("_", " ").replace("+", " & ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+
+            val itemView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(12, 8, 12, 8)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    rightMargin = dpToPx(8)
+                }
+            }
+
+            // Thumbnail
+            val ivThumbnail = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(50), dpToPx(50))
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+            }
+            val prevPath = "brushes/classic/${name}_prev.png"
+            try {
+                val stream = assets.open(prevPath)
+                val bmp = BitmapFactory.decodeStream(stream)
+                ivThumbnail.setImageBitmap(bmp)
+            } catch (e: Exception) {
+                // Use generic brush icon as fallback
+                ivThumbnail.setImageResource(R.drawable.ic_brush)
+                ivThumbnail.setColorFilter(Color.WHITE)
+            }
+
+            // Name
+            val tvName = TextView(this).apply {
+                text = displayName
+                setTextColor(Color.WHITE)
+                textSize = 10f
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = 4
+                }
+            }
+
+            itemView.addView(ivThumbnail)
+            itemView.addView(tvName)
+
+            itemView.setOnClickListener {
+                // Load preset settings
+                val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this@EditorActivity, "brushes/classic/$fileName")
+                layer.brushName = preset.name
+
+                // Map presets to layer defaults
+                layer.brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
+                layer.brushHardness = preset.hardness.coerceIn(0f, 1f)
+                val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
+                layer.brushSize = mappedSize
+
+                // Update UI sliders
+                sizeSliderBar?.progress = layer.brushSize.toInt()
+                sizeLabel?.text = "Size: ${layer.brushSize.toInt()} px"
+
+                hardnessSliderBar?.progress = (layer.brushHardness * 100).toInt()
+                hardnessLabel?.text = "Hardness: ${(layer.brushHardness * 100).toInt()}%"
+
+                opacitySliderBar?.progress = layer.brushOpacity
+                opacityLabel?.text = "Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%"
+
+                selectBrushItem(name)
+                canvasView.invalidate()
+            }
+
+            brushListLayout.addView(itemView)
+            itemViews.add(Pair(name, itemView))
+        }
+
+        selectBrushItem(layer.brushName)
+        brushScroll.addView(brushListLayout)
+        mainLayout.addView(brushScroll)
+
+        // 2. Brush Size Slider
+        val sizeContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = 8
+            }
+        }
+        sizeLabel = TextView(this).apply {
+            text = "Size: ${layer.brushSize.toInt()} px"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        sizeSliderBar = SeekBar(this).apply {
+            max = 200
+            progress = layer.brushSize.toInt()
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val p = progress.coerceAtLeast(1)
+                    layer.brushSize = p.toFloat()
+                    sizeLabel?.text = "Size: $p px"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        sizeContainer.addView(sizeLabel)
+        sizeContainer.addView(sizeSliderBar)
+        mainLayout.addView(sizeContainer)
+
+        // 3. Hardness Slider
+        val hardnessContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = 8
+            }
+        }
+        hardnessLabel = TextView(this).apply {
+            text = "Hardness: ${(layer.brushHardness * 100).toInt()}%"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        hardnessSliderBar = SeekBar(this).apply {
+            max = 100
+            progress = (layer.brushHardness * 100).toInt()
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    layer.brushHardness = progress / 100f
+                    hardnessLabel?.text = "Hardness: $progress%"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        hardnessContainer.addView(hardnessLabel)
+        hardnessContainer.addView(hardnessSliderBar)
+        mainLayout.addView(hardnessContainer)
+
+        // 4. Opacity Slider
+        val opacityContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = 8
+            }
+        }
+        opacityLabel = TextView(this).apply {
+            text = "Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        opacitySliderBar = SeekBar(this).apply {
+            max = 255
+            progress = layer.brushOpacity
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    layer.brushOpacity = progress
+                    opacityLabel?.text = "Opacity: ${(progress * 100 / 255).toInt()}%"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        opacityContainer.addView(opacityLabel)
+        opacityContainer.addView(opacitySliderBar)
+        mainLayout.addView(opacityContainer)
+
+        scroll.addView(mainLayout)
         container.addView(scroll)
     }
 
