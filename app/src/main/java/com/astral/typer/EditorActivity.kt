@@ -3993,6 +3993,17 @@ class EditorActivity : AppCompatActivity() {
                 val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
                 layer.brushSize = mappedSize
 
+                layer.brushDabsPerActualRadius = preset.dabsPerActualRadius
+                layer.brushDabsPerBasicRadius = preset.dabsPerBasicRadius
+                layer.brushDabsPerSecond = preset.dabsPerSecond
+                layer.brushOffsetByRandom = preset.offsetByRandom
+                layer.brushRadiusByRandom = preset.radiusByRandom
+                layer.brushEllipticalDabRatio = preset.ellipticalDabRatio
+                layer.brushEllipticalDabAngle = preset.ellipticalDabAngle
+                layer.brushSmudge = preset.smudge
+                layer.brushSmudgeLength = preset.smudgeLength
+                layer.brushSlowTracking = preset.slowTracking
+
                 // Update UI sliders
                 sizeSliderBar?.progress = layer.brushSize.toInt()
                 sizeLabel?.text = "Size: ${layer.brushSize.toInt()} px"
