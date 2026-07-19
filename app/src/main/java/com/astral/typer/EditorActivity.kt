@@ -1988,6 +1988,75 @@ class EditorActivity : AppCompatActivity() {
             addWatermarkLayer(false)
         }
 
+        sidebarBinding.btnFlattenLayers.setOnClickListener {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Flatten All Layers")
+                .setMessage("Are you sure you want to flatten all layers into the base image?")
+                .setPositiveButton("Yes") { _, _ ->
+                    // Show loading
+                    binding.loadingOverlay.visibility = View.VISIBLE
+                    // Hide save sidebar
+                    binding.saveSidebar.root.visibility = View.GONE
+
+                    lifecycleScope.launch(Dispatchers.Default) {
+                        try {
+                            // Render combined background and layers to a new Bitmap on the main thread
+                            val mergedBitmap = withContext(Dispatchers.Main) {
+                                canvasView.renderToBitmap()
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                // Clear selected layer
+                                canvasView.selectLayer(null)
+
+                                // Recycle and clear all layers
+                                val layers = canvasView.getLayers()
+                                for (layer in layers) {
+                                    if (layer is com.astral.typer.models.BrushLayer) {
+                                        layer.bitmap.recycle()
+                                        layer.eraseMask?.recycle()
+                                    } else if (layer is com.astral.typer.models.ImageLayer) {
+                                        layer.bitmap.recycle()
+                                        layer.eraseMask?.recycle()
+                                    } else if (layer is com.astral.typer.models.TextLayer) {
+                                        layer.eraseMask?.recycle()
+                                        layer.recycleCache()
+                                    } else if (layer is StylableLayer) {
+                                        layer.eraseMask?.recycle()
+                                    }
+                                }
+                                layers.clear()
+
+                                // Set as new background image (this splits it into backgroundTiles)
+                                canvasView.setBackgroundImage(mergedBitmap)
+
+                                // Since setBackgroundImage makes independent tiles from mergedBitmap, we can recycle it!
+                                mergedBitmap.recycle()
+
+                                // Clear all undo/redo history to prevent any state mismatches or OOM
+                                com.astral.typer.utils.UndoManager.clearMemory()
+
+                                // Force redraw
+                                canvasView.invalidate()
+
+                                Toast.makeText(this@EditorActivity, "Layers flattened successfully!", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@EditorActivity, "Flatten failed: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                            }
+                        } finally {
+                            withContext(Dispatchers.Main) {
+                                binding.loadingOverlay.visibility = View.GONE
+                            }
+                        }
+                    }
+                }
+                .setNegativeButton("No", null)
+                .show()
+        }
+
         // CONFIRM ACTIONS
         sidebarBinding.btnConfirmSaveProject.setOnClickListener {
             val name = sidebarBinding.etProjectName.text.toString()
