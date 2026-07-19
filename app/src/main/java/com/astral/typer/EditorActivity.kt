@@ -3895,6 +3895,96 @@ class EditorActivity : AppCompatActivity() {
         }
         mainLayout.addView(brushesLabel)
 
+        // Structure of a brush item
+        data class UIBrushItem(
+            val id: String, // e.g. "classic/pencil.myb"
+            val category: String, // e.g. "classic"
+            val fileName: String, // e.g. "pencil.myb"
+            val name: String, // e.g. "pencil"
+            val displayName: String // e.g. "Pencil"
+        )
+
+        fun getBrushesForCategory(category: String): List<UIBrushItem> {
+            val assets = this.assets
+            val files = assets.list("brushes/$category") ?: emptyArray()
+            val mybFiles = files.filter { it.endsWith(".myb") && !it.contains("ink_eraser") }.sorted().toMutableList()
+
+            // 1. "Untuk brushlayer, Karena defaultnya adalah pencil.myb maka taruh pencil.myb di grid paling kiri."
+            if (category == "classic") {
+                val pencilIndex = mybFiles.indexOf("pencil.myb")
+                if (pencilIndex != -1) {
+                    mybFiles.removeAt(pencilIndex)
+                    mybFiles.add(0, "pencil.myb")
+                }
+            }
+
+            return mybFiles.map { fileName ->
+                val name = fileName.substringBeforeLast(".")
+                val displayName = name.replace("_", " ").replace("+", " & ").replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString()
+                }
+                UIBrushItem(
+                    id = "$category/$fileName",
+                    category = category,
+                    fileName = fileName,
+                    name = name,
+                    displayName = displayName
+                )
+            }
+        }
+
+        // Preload all brushes across categories
+        val categoriesList = listOf("classic", "Dieterle", "deevad", "experimental", "kaerhon_v1", "ramon", "tanda")
+        val allBrushes = mutableListOf<UIBrushItem>()
+        for (cat in categoriesList) {
+            allBrushes.addAll(getBrushesForCategory(cat))
+        }
+
+        // Determine initial category tab based on currently active brush
+        val activeBrushItem = allBrushes.find { it.name == layer.brushName }
+        var currentTab = "Classic"
+        if (activeBrushItem != null) {
+            currentTab = when (activeBrushItem.category) {
+                "classic" -> "Classic"
+                "Dieterle" -> "Dieterle"
+                "deevad" -> "Deevad"
+                "experimental" -> "Experimental"
+                "kaerhon_v1" -> "Kaerhon v1"
+                "ramon" -> "Ramon"
+                "tanda" -> "Tanda"
+                else -> "Classic"
+            }
+        }
+
+        // Horizontal Category Tab layout
+        val tabsScroll = android.widget.HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = 8
+            }
+            isFillViewport = true
+            isHorizontalScrollBarEnabled = false
+        }
+
+        val tabsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val tabNames = listOf("Classic", "Dieterle", "Deevad", "Experimental", "Kaerhon v1", "Ramon", "Tanda", "Favorite")
+        val tabButtons = mutableListOf<TextView>()
+
+        fun updateTabStyles() {
+            for (btn in tabButtons) {
+                if (btn.tag == currentTab) {
+                    btn.setTextColor(Color.YELLOW)
+                    btn.setTypeface(null, Typeface.BOLD)
+                } else {
+                    btn.setTextColor(Color.LTGRAY)
+                    btn.setTypeface(null, Typeface.NORMAL)
+                }
+            }
+        }
+
         val brushScroll = android.widget.HorizontalScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = 8
@@ -3908,13 +3998,7 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        // Load all .myb brushes from assets
-        val assets = this.assets
-        val files = assets.list("brushes/classic") ?: emptyArray()
-        val mybFiles = files.filter { it.endsWith(".myb") && !it.contains("ink_eraser") }.sorted()
-
-        // We will keep a map or list of item views to update their backgrounds when selection changes
-        val itemViews = mutableListOf<Pair<String, LinearLayout>>()
+        val itemViews = mutableListOf<Pair<String, android.widget.RelativeLayout>>()
 
         fun selectBrushItem(selectedName: String) {
             for ((name, itemView) in itemViews) {
@@ -3934,95 +4018,172 @@ class EditorActivity : AppCompatActivity() {
         var opacitySliderBar: SeekBar? = null
         var opacityLabel: TextView? = null
 
-        for (fileName in mybFiles) {
-            val name = fileName.substringBeforeLast(".")
-            val displayName = name.replace("_", " ").replace("+", " & ").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+        fun loadTabBrushes() {
+            brushListLayout.removeAllViews()
+            itemViews.clear()
 
-            val itemView = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(12, 8, 12, 8)
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dpToPx(4).toFloat()
+            val displayedBrushes = if (currentTab == "Favorite") {
+                allBrushes.filter { com.astral.typer.utils.MyPaintBrushHelper.isBrushFavorite(this@EditorActivity, it.id) }
+            } else {
+                val catDir = when (currentTab) {
+                    "Classic" -> "classic"
+                    "Dieterle" -> "Dieterle"
+                    "Deevad" -> "deevad"
+                    "Experimental" -> "experimental"
+                    "Kaerhon v1" -> "kaerhon_v1"
+                    "Ramon" -> "ramon"
+                    "Tanda" -> "tanda"
+                    else -> "classic"
                 }
-                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    rightMargin = dpToPx(8)
+                allBrushes.filter { it.category == catDir }
+            }
+
+            for (brushItem in displayedBrushes) {
+                val name = brushItem.name
+                val category = brushItem.category
+                val fileName = brushItem.fileName
+                val displayName = brushItem.displayName
+
+                val itemView = android.widget.RelativeLayout(this@EditorActivity).apply {
+                    setPadding(6, 6, 6, 6)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        rightMargin = dpToPx(8)
+                    }
                 }
-            }
 
-            // Thumbnail
-            val ivThumbnail = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dpToPx(50), dpToPx(50))
-                scaleType = ImageView.ScaleType.CENTER_INSIDE
-            }
-            val prevPath = "brushes/classic/${name}_prev.png"
-            try {
-                val stream = assets.open(prevPath)
-                val bmp = BitmapFactory.decodeStream(stream)
-                ivThumbnail.setImageBitmap(bmp)
-            } catch (e: Exception) {
-                // Use generic brush icon as fallback
-                ivThumbnail.setImageResource(R.drawable.ic_brush)
-                ivThumbnail.setColorFilter(Color.WHITE)
-            }
-
-            // Name
-            val tvName = TextView(this).apply {
-                text = displayName
-                setTextColor(Color.WHITE)
-                textSize = 10f
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = 4
+                // Vertical Content layout (Thumbnail + Name)
+                val contentLayout = LinearLayout(this@EditorActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    layoutParams = android.widget.RelativeLayout.LayoutParams(android.widget.RelativeLayout.LayoutParams.MATCH_PARENT, android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT)
                 }
+
+                // Thumbnail
+                val ivThumbnail = ImageView(this@EditorActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(50), dpToPx(50))
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+                val prevPath = "brushes/$category/${name}_prev.png"
+                try {
+                    val stream = assets.open(prevPath)
+                    val bmp = BitmapFactory.decodeStream(stream)
+                    ivThumbnail.setImageBitmap(bmp)
+                } catch (e: Exception) {
+                    ivThumbnail.setImageResource(R.drawable.ic_brush)
+                    ivThumbnail.setColorFilter(Color.WHITE)
+                }
+
+                // Name
+                val tvName = TextView(this@EditorActivity).apply {
+                    text = displayName
+                    setTextColor(Color.WHITE)
+                    textSize = 10f
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = 4
+                    }
+                }
+
+                contentLayout.addView(ivThumbnail)
+                contentLayout.addView(tvName)
+                itemView.addView(contentLayout)
+
+                // Favorite Star
+                val btnStar = TextView(this@EditorActivity).apply {
+                    text = if (com.astral.typer.utils.MyPaintBrushHelper.isBrushFavorite(this@EditorActivity, brushItem.id)) "★" else "☆"
+                    setTextColor(Color.YELLOW)
+                    textSize = 14f
+                    setPadding(4, 4, 4, 4)
+                    layoutParams = android.widget.RelativeLayout.LayoutParams(android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT, android.widget.RelativeLayout.LayoutParams.WRAP_CONTENT).apply {
+                        addRule(android.widget.RelativeLayout.ALIGN_PARENT_TOP)
+                        addRule(android.widget.RelativeLayout.ALIGN_PARENT_RIGHT)
+                    }
+                    setOnClickListener {
+                        com.astral.typer.utils.MyPaintBrushHelper.toggleBrushFavorite(this@EditorActivity, brushItem.id)
+                        val isFav = com.astral.typer.utils.MyPaintBrushHelper.isBrushFavorite(this@EditorActivity, brushItem.id)
+                        text = if (isFav) "★" else "☆"
+                        if (currentTab == "Favorite") {
+                            loadTabBrushes()
+                        }
+                    }
+                }
+                itemView.addView(btnStar)
+
+                itemView.setOnClickListener {
+                    // Load preset settings
+                    val assetPath = "brushes/$category/$fileName"
+                    val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this@EditorActivity, assetPath)
+                    layer.brushName = preset.name
+
+                    // Map presets to layer defaults
+                    layer.brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
+                    layer.brushHardness = preset.hardness.coerceIn(0f, 1f)
+                    val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
+                    layer.brushSize = mappedSize
+
+                    layer.brushDabsPerActualRadius = preset.dabsPerActualRadius
+                    layer.brushDabsPerBasicRadius = preset.dabsPerBasicRadius
+                    layer.brushDabsPerSecond = preset.dabsPerSecond
+                    layer.brushOffsetByRandom = preset.offsetByRandom
+                    layer.brushRadiusByRandom = preset.radiusByRandom
+                    layer.brushEllipticalDabRatio = preset.ellipticalDabRatio
+                    layer.brushEllipticalDabAngle = preset.ellipticalDabAngle
+                    layer.brushSmudge = preset.smudge
+                    layer.brushSmudgeLength = preset.smudgeLength
+                    layer.brushSlowTracking = preset.slowTracking
+
+                    // Update UI sliders
+                    sizeSliderBar?.progress = layer.brushSize.toInt()
+                    sizeLabel?.text = "Size: ${layer.brushSize.toInt()} px"
+
+                    hardnessSliderBar?.progress = (layer.brushHardness * 100).toInt()
+                    hardnessLabel?.text = "Hardness: ${(layer.brushHardness * 100).toInt()}%"
+
+                    opacitySliderBar?.progress = layer.brushOpacity
+                    opacityLabel?.text = "Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%"
+
+                    selectBrushItem(name)
+                    canvasView.invalidate()
+                }
+
+                brushListLayout.addView(itemView)
+                itemViews.add(Pair(name, itemView))
             }
 
-            itemView.addView(ivThumbnail)
-            itemView.addView(tvName)
-
-            itemView.setOnClickListener {
-                // Load preset settings
-                val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this@EditorActivity, "brushes/classic/$fileName")
-                layer.brushName = preset.name
-
-                // Map presets to layer defaults
-                layer.brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
-                layer.brushHardness = preset.hardness.coerceIn(0f, 1f)
-                val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
-                layer.brushSize = mappedSize
-
-                layer.brushDabsPerActualRadius = preset.dabsPerActualRadius
-                layer.brushDabsPerBasicRadius = preset.dabsPerBasicRadius
-                layer.brushDabsPerSecond = preset.dabsPerSecond
-                layer.brushOffsetByRandom = preset.offsetByRandom
-                layer.brushRadiusByRandom = preset.radiusByRandom
-                layer.brushEllipticalDabRatio = preset.ellipticalDabRatio
-                layer.brushEllipticalDabAngle = preset.ellipticalDabAngle
-                layer.brushSmudge = preset.smudge
-                layer.brushSmudgeLength = preset.smudgeLength
-                layer.brushSlowTracking = preset.slowTracking
-
-                // Update UI sliders
-                sizeSliderBar?.progress = layer.brushSize.toInt()
-                sizeLabel?.text = "Size: ${layer.brushSize.toInt()} px"
-
-                hardnessSliderBar?.progress = (layer.brushHardness * 100).toInt()
-                hardnessLabel?.text = "Hardness: ${(layer.brushHardness * 100).toInt()}%"
-
-                opacitySliderBar?.progress = layer.brushOpacity
-                opacityLabel?.text = "Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%"
-
-                selectBrushItem(name)
-                canvasView.invalidate()
-            }
-
-            brushListLayout.addView(itemView)
-            itemViews.add(Pair(name, itemView))
+            selectBrushItem(layer.brushName)
         }
 
-        selectBrushItem(layer.brushName)
+        // Build Tab Buttons
+        for (name in tabNames) {
+            val btn = TextView(this).apply {
+                text = name
+                gravity = Gravity.CENTER
+                setTextColor(Color.LTGRAY)
+                textSize = 12f
+                setPadding(12, 12, 12, 12)
+                tag = name
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setOnClickListener {
+                    currentTab = name
+                    updateTabStyles()
+                    loadTabBrushes()
+                }
+            }
+            tabsLayout.addView(btn)
+            tabButtons.add(btn)
+        }
+        tabsScroll.addView(tabsLayout)
+        mainLayout.addView(tabsScroll)
+
+        // Initialize and load default state
+        updateTabStyles()
+        loadTabBrushes()
+
         brushScroll.addView(brushListLayout)
         mainLayout.addView(brushScroll)
 

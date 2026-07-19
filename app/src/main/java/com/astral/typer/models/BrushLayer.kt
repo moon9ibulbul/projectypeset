@@ -63,7 +63,8 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     fun getPreset(context: android.content.Context): com.astral.typer.utils.MyPaintBrushHelper.BrushPreset {
         var preset = activePreset
         if (preset == null || preset.name != brushName) {
-            preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(context, "brushes/classic/$brushName.myb")
+            val assetPath = com.astral.typer.utils.MyPaintBrushHelper.findBrushAssetPath(context, brushName)
+            preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(context, assetPath)
             activePreset = preset
         }
         return preset!!

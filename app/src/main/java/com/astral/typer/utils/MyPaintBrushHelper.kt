@@ -168,4 +168,44 @@ object MyPaintBrushHelper {
             return BrushPreset(name)
         }
     }
+
+    fun getFavoriteBrushes(context: Context): Set<String> {
+        return context.getSharedPreferences("brush_prefs", Context.MODE_PRIVATE)
+            .getStringSet("favorites", emptySet()) ?: emptySet()
+    }
+
+    fun toggleBrushFavorite(context: Context, brushId: String) {
+        val favorites = getFavoriteBrushes(context).toMutableSet()
+        if (favorites.contains(brushId)) {
+            favorites.remove(brushId)
+        } else {
+            favorites.add(brushId)
+        }
+        context.getSharedPreferences("brush_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet("favorites", favorites)
+            .apply()
+    }
+
+    fun isBrushFavorite(context: Context, brushId: String): Boolean {
+        return getFavoriteBrushes(context).contains(brushId)
+    }
+
+    fun findBrushAssetPath(context: Context, name: String): String {
+        val nameClean = name.substringAfterLast("/").substringBeforeLast(".")
+        val folders = listOf("classic", "Dieterle", "deevad", "experimental", "kaerhon_v1", "ramon", "tanda")
+        for (folder in folders) {
+            try {
+                val files = context.assets.list("brushes/$folder") ?: emptyArray()
+                for (f in files) {
+                    if (f.endsWith(".myb") && f.substringBeforeLast(".") == nameClean) {
+                        return "brushes/$folder/$f"
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return "brushes/classic/pencil.myb"
+    }
 }
