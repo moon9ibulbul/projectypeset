@@ -132,7 +132,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(context, assetPath)
             activePreset = preset
         }
-        return preset
+        return preset!!
     }
 
     // Implement StylableLayer overrides
@@ -424,7 +424,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         states[STATE_STROKE] = 1.0f
         states[STATE_VIEWZOOM] = 1.0f
 
-        val context = TyperApplication.instance
+        val context = TyperApplication.instance ?: return
         val preset = getPreset(context)
         calculateSpeedMappings(preset)
 
@@ -455,6 +455,12 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         }
     }
 
+    private fun getBrushScale(preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset): Float {
+        val baseRadiusLog = getBaseValue(preset, "radius_logarithmic")
+        val baseRadiusScale = Math.exp(baseRadiusLog.toDouble()).toFloat() * 15f
+        return if (baseRadiusScale > 0f) brushSize / baseRadiusScale else 1.0f
+    }
+
     private fun calculateSpeedMappings(preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset) {
         for (i in 0 until 2) {
             val gammaLog = if (i == 0) getBaseValue(preset, "speed1_gamma") else getBaseValue(preset, "speed2_gamma")
@@ -476,7 +482,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
 
     private fun countDabsTo(x: Float, y: Float, dt: Float, preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset): Float {
         val baseRadiusLog = getBaseValue(preset, "radius_logarithmic")
-        val baseRadius = Math.exp(baseRadiusLog.toDouble()).toFloat().coerceIn(0.2f, 1000f)
+        val baseRadius = (Math.exp(baseRadiusLog.toDouble()).toFloat() * getBrushScale(preset)).coerceIn(0.2f, 1000f)
 
         if (states[STATE_ACTUAL_RADIUS] == 0f) {
             states[STATE_ACTUAL_RADIUS] = baseRadius
@@ -511,7 +517,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         val dtime = if (lastEventTime == 0L) 0.016f else ((now - lastEventTime) / 1000f).coerceIn(0.001f, 1.0f)
         lastEventTime = now
 
-        val context = TyperApplication.instance
+        val context = TyperApplication.instance ?: return
         val preset = getPreset(context)
 
         // Calculate slow tracking factor
@@ -658,7 +664,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
 
     fun endStroke() {
         if (!strokeHasMoved) {
-            val context = TyperApplication.instance
+            val context = TyperApplication.instance ?: return
             val preset = getPreset(context)
 
             updateStatesAndSettingValues(
@@ -876,7 +882,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         }
 
         val radiusLog = settingsValue["radius_logarithmic"] ?: 0.5f
-        states[STATE_ACTUAL_RADIUS] = Math.exp(radiusLog.toDouble()).toFloat().coerceIn(0.2f, 1000f)
+        states[STATE_ACTUAL_RADIUS] = (Math.exp(radiusLog.toDouble()).toFloat() * getBrushScale(preset)).coerceIn(0.2f, 1000f)
 
         states[STATE_ACTUAL_ELLIPTICAL_DAB_RATIO] = settingsValue["elliptical_dab_ratio"] ?: 1f
         states[STATE_ACTUAL_ELLIPTICAL_DAB_ANGLE] = modArith((settingsValue["elliptical_dab_angle"] ?: 90f) - viewrotation + 180f, 180f) - 180f
@@ -927,7 +933,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         var y = states[STATE_ACTUAL_Y]
 
         val baseRadiusLog = getBaseValue(preset, "radius_logarithmic")
-        val baseRadius = Math.exp(baseRadiusLog.toDouble()).toFloat()
+        val baseRadius = Math.exp(baseRadiusLog.toDouble()).toFloat() * getBrushScale(preset)
 
         // Directional offsets
         val offs = directionalOffsets(baseRadius, states[STATE_FLIP], settingsValue)
@@ -953,7 +959,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         if (radiusByRandom != 0f) {
             val noise = randGauss() * radiusByRandom
             val radiusLog = (settingsValue["radius_logarithmic"] ?: baseRadiusLog) + noise
-            radius = Math.exp(radiusLog.toDouble()).toFloat().coerceIn(0.2f, 1000f)
+            radius = (Math.exp(radiusLog.toDouble()).toFloat() * getBrushScale(preset)).coerceIn(0.2f, 1000f)
             val alphaCorrection = (states[STATE_ACTUAL_RADIUS] / radius) * (states[STATE_ACTUAL_RADIUS] / radius)
             if (alphaCorrection <= 1f) {
                 opaque *= alphaCorrection
@@ -1109,6 +1115,9 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         )
 
         var hardness = (settingsValue["hardness"] ?: 0.5f).coerceIn(0f, 1f)
+        val baseHardness = getBaseValue(preset, "hardness")
+        val hardnessScale = if (baseHardness > 0f) brushHardness / baseHardness else 1.0f
+        hardness = (hardness * hardnessScale).coerceIn(0f, 1f)
 
         val currentFadeoutInPixels = radius * (1.0f - hardness)
         val minFadeoutInPixels = settingsValue["anti_aliasing"] ?: 0f
