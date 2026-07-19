@@ -164,6 +164,29 @@ class ShapeLayer(
     override var decayIntensity: Float = 0.5f
     override var decayFadingLevel: Float = 0.5f
 
+    // Twist
+    override var twistAngle: Float = 4.0f
+    override var twistOffsetX: Float = 0.0f
+    override var twistOffsetY: Float = 0.0f
+    override var twistRadius: Float = 200.0f
+
+    // Bulge & Pinch
+    override var bulgeCenterX: Float = 0.5f
+    override var bulgeCenterY: Float = 0.5f
+    override var bulgeRadius: Float = 100.0f
+    override var bulgeStrength: Float = 1.0f
+
+    // Reflection
+    override var reflectionAlphaStart: Float = 1.0f
+    override var reflectionAlphaEnd: Float = 1.0f
+    override var reflectionAmplitudeStart: Float = 0.0f
+    override var reflectionAmplitudeEnd: Float = 20.0f
+    override var reflectionBoundary: Float = 0.5f
+    override var reflectionMirror: Boolean = true
+    override var reflectionTime: Float = 0.0f
+    override var reflectionWavelengthStart: Float = 30.0f
+    override var reflectionWavelengthEnd: Float = 100.0f
+
     override var effectSeed: Long = System.currentTimeMillis()
 
     @Transient
@@ -802,6 +825,101 @@ class ShapeLayer(
                         } catch (e: Exception) { drawInner(targetCanvas) }
                     } else drawInner(targetCanvas)
                 }
+                TextEffectType.TWIST -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("TwistNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.TWIST_SHADER)
+                            val cx = (if (hasBounds) nodeW / 2f else w / 2f + pad) + twistOffsetX
+                            val cy = (if (hasBounds) nodeH / 2f else h / 2f + pad) + twistOffsetY
+                            shader.setFloatUniform("offset", cx, cy)
+                            shader.setFloatUniform("radius", twistRadius)
+                            shader.setFloatUniform("angle", twistAngle)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
+                TextEffectType.BULGE_PINCH -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("BulgePinchNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.BULGE_PINCH_SHADER)
+                            val cx = (if (hasBounds) nodeW.toFloat() else (w + pad * 2)) * bulgeCenterX
+                            val cy = (if (hasBounds) nodeH.toFloat() else (h + pad * 2)) * bulgeCenterY
+                            shader.setFloatUniform("center", cx, cy)
+                            shader.setFloatUniform("radius", bulgeRadius)
+                            shader.setFloatUniform("strength", bulgeStrength)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
+                TextEffectType.REFLECTION -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ReflectionNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.REFLECTION_SHADER)
+                            shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("mirror", if (reflectionMirror) 1.0f else 0.0f)
+                            shader.setFloatUniform("boundary", reflectionBoundary)
+                            shader.setFloatUniform("amplitude", reflectionAmplitudeStart, reflectionAmplitudeEnd)
+                            shader.setFloatUniform("waveLength", reflectionWavelengthStart, reflectionWavelengthEnd)
+                            shader.setFloatUniform("alpha", reflectionAlphaStart, reflectionAlphaEnd)
+                            shader.setFloatUniform("time", reflectionTime)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
                 else -> drawInner(targetCanvas)
              }
     }
@@ -1075,6 +1193,30 @@ class ShapeLayer(
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+
+        // Twist
+        newLayer.twistAngle = twistAngle
+        newLayer.twistOffsetX = twistOffsetX
+        newLayer.twistOffsetY = twistOffsetY
+        newLayer.twistRadius = twistRadius
+
+        // Bulge & Pinch
+        newLayer.bulgeCenterX = bulgeCenterX
+        newLayer.bulgeCenterY = bulgeCenterY
+        newLayer.bulgeRadius = bulgeRadius
+        newLayer.bulgeStrength = bulgeStrength
+
+        // Reflection
+        newLayer.reflectionAlphaStart = reflectionAlphaStart
+        newLayer.reflectionAlphaEnd = reflectionAlphaEnd
+        newLayer.reflectionAmplitudeStart = reflectionAmplitudeStart
+        newLayer.reflectionAmplitudeEnd = reflectionAmplitudeEnd
+        newLayer.reflectionBoundary = reflectionBoundary
+        newLayer.reflectionMirror = reflectionMirror
+        newLayer.reflectionTime = reflectionTime
+        newLayer.reflectionWavelengthStart = reflectionWavelengthStart
+        newLayer.reflectionWavelengthEnd = reflectionWavelengthEnd
+
         return newLayer
     }
 

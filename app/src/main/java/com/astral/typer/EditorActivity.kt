@@ -1020,6 +1020,25 @@ class EditorActivity : AppCompatActivity() {
                     stylableLayer.motionBlurVelocityY = 0f
                 }
             }
+            if (effect == TextEffectType.TWIST) {
+                if (stylableLayer.twistAngle == 0f) stylableLayer.twistAngle = 4.0f
+                if (stylableLayer.twistRadius == 0f) stylableLayer.twistRadius = 200.0f
+            }
+            if (effect == TextEffectType.BULGE_PINCH) {
+                if (stylableLayer.bulgeRadius == 0f) stylableLayer.bulgeRadius = 100.0f
+                if (stylableLayer.bulgeStrength == 0f) stylableLayer.bulgeStrength = 1.0f
+            }
+            if (effect == TextEffectType.REFLECTION) {
+                if (stylableLayer.reflectionBoundary == 0f) stylableLayer.reflectionBoundary = 0.5f
+                if (stylableLayer.reflectionAmplitudeEnd == 0f) {
+                    stylableLayer.reflectionAlphaStart = 1.0f
+                    stylableLayer.reflectionAlphaEnd = 1.0f
+                    stylableLayer.reflectionAmplitudeStart = 0.0f
+                    stylableLayer.reflectionAmplitudeEnd = 20.0f
+                    stylableLayer.reflectionWavelengthStart = 30.0f
+                    stylableLayer.reflectionWavelengthEnd = 100.0f
+                }
+            }
 
             canvasView.invalidate()
             showEffectMenu()
@@ -1053,6 +1072,9 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Halftone", TextEffectType.HALFTONE)
         addEffectCard("Multi Gradient", TextEffectType.MULTI_GRADIENT)
         addEffectCard("Text Decay", TextEffectType.TEXT_DECAY)
+        addEffectCard("Twist", TextEffectType.TWIST)
+        addEffectCard("Bulge & Pinch", TextEffectType.BULGE_PINCH)
+        addEffectCard("Reflection", TextEffectType.REFLECTION)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -1607,6 +1629,289 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
                 settingsLayout.addView(btnSeed)
+        }
+
+        if (isEffectActive(TextEffectType.TWIST)) {
+                // Angle: -10 to 10. Slider from 0 to 200. Progress = (angle + 10) * 10
+                val currentAngle = stylableLayer.twistAngle
+                val initialProgress = ((currentAngle + 10f) * 10f).toInt().coerceIn(0, 200)
+                val s1 = createSlider("Angle: ${String.format("%.1f", currentAngle)} rad", initialProgress, 200) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val angle = (p / 10f) - 10f
+                        stylableLayer.twistAngle = angle
+                        tv1?.text = "Angle: ${String.format("%.1f", angle)} rad"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Radius: 10 to 1000
+                val currentRadius = stylableLayer.twistRadius
+                val s2 = createSlider("Radius: ${currentRadius.toInt()} px", currentRadius.toInt(), 1000) { }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val r = p.coerceAtLeast(10)
+                        stylableLayer.twistRadius = r.toFloat()
+                        tv2?.text = "Radius: $r px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                // Offset X: -300 to 300. Progress = offsetX + 300
+                val currentOffsetX = stylableLayer.twistOffsetX
+                val initialXProgress = (currentOffsetX + 300f).toInt().coerceIn(0, 600)
+                val s3 = createSlider("Offset X: ${currentOffsetX.toInt()} px", initialXProgress, 600) { }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val ox = p - 300
+                        stylableLayer.twistOffsetX = ox.toFloat()
+                        tv3?.text = "Offset X: $ox px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                // Offset Y: -300 to 300. Progress = offsetY + 300
+                val currentOffsetY = stylableLayer.twistOffsetY
+                val initialYProgress = (currentOffsetY + 300f).toInt().coerceIn(0, 600)
+                val s4 = createSlider("Offset Y: ${currentOffsetY.toInt()} px", initialYProgress, 600) { }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val oy = p - 300
+                        stylableLayer.twistOffsetY = oy.toFloat()
+                        tv4?.text = "Offset Y: $oy px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s4)
+        }
+
+        if (isEffectActive(TextEffectType.BULGE_PINCH)) {
+                // Center X: 0% to 100%
+                val currentCX = stylableLayer.bulgeCenterX
+                val s1 = createSlider("Center X: ${(currentCX * 100).toInt()}%", (currentCX * 100).toInt(), 100) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val cx = p / 100f
+                        stylableLayer.bulgeCenterX = cx
+                        tv1?.text = "Center X: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Center Y: 0% to 100%
+                val currentCY = stylableLayer.bulgeCenterY
+                val s2 = createSlider("Center Y: ${(currentCY * 100).toInt()}%", (currentCY * 100).toInt(), 100) { }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val cy = p / 100f
+                        stylableLayer.bulgeCenterY = cy
+                        tv2?.text = "Center Y: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                // Radius: 10 to 1000
+                val currentRadius = stylableLayer.bulgeRadius
+                val s3 = createSlider("Radius: ${currentRadius.toInt()} px", currentRadius.toInt(), 1000) { }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val r = p.coerceAtLeast(10)
+                        stylableLayer.bulgeRadius = r.toFloat()
+                        tv3?.text = "Radius: $r px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                // Strength: -1.0 to 1.0. Slider from 0 to 200. Progress = (strength + 1) * 100
+                val currentStrength = stylableLayer.bulgeStrength
+                val initialProgress = ((currentStrength + 1f) * 100f).toInt().coerceIn(0, 200)
+                val s4 = createSlider("Strength: ${String.format("%.2f", currentStrength)}", initialProgress, 200) { }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val strength = (p / 100f) - 1f
+                        stylableLayer.bulgeStrength = strength
+                        tv4?.text = "Strength: ${String.format("%.2f", strength)}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s4)
+        }
+
+        if (isEffectActive(TextEffectType.REFLECTION)) {
+                // Mirror Switch
+                val rowMirror = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, 16, 0, 16)
+                }
+                val tvMirror = TextView(this).apply {
+                    text = "Mirror Reflection"
+                    setTextColor(Color.LTGRAY)
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val swMirror = android.widget.Switch(this).apply {
+                    isChecked = stylableLayer.reflectionMirror
+                    setOnCheckedChangeListener { _, checked ->
+                        stylableLayer.reflectionMirror = checked
+                        canvasView.invalidate()
+                    }
+                }
+                rowMirror.addView(tvMirror)
+                rowMirror.addView(swMirror)
+                settingsLayout.addView(rowMirror)
+
+                // Alpha Start: 0% to 100%
+                val currentAStart = stylableLayer.reflectionAlphaStart
+                val s1 = createSlider("Alpha Start: ${(currentAStart * 100).toInt()}%", (currentAStart * 100).toInt(), 100) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.reflectionAlphaStart = p / 100f
+                        tv1?.text = "Alpha Start: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Alpha End: 0% to 100%
+                val currentAEnd = stylableLayer.reflectionAlphaEnd
+                val s2 = createSlider("Alpha End: ${(currentAEnd * 100).toInt()}%", (currentAEnd * 100).toInt(), 100) { }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.reflectionAlphaEnd = p / 100f
+                        tv2?.text = "Alpha End: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                // Amplitude Start: 0 to 100
+                val currentAmpStart = stylableLayer.reflectionAmplitudeStart
+                val s3 = createSlider("Amplitude Start: ${currentAmpStart.toInt()} px", currentAmpStart.toInt(), 100) { }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.reflectionAmplitudeStart = p.toFloat()
+                        tv3?.text = "Amplitude Start: $p px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                // Amplitude End: 0 to 100
+                val currentAmpEnd = stylableLayer.reflectionAmplitudeEnd
+                val s4 = createSlider("Amplitude End: ${currentAmpEnd.toInt()} px", currentAmpEnd.toInt(), 100) { }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.reflectionAmplitudeEnd = p.toFloat()
+                        tv4?.text = "Amplitude End: $p px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s4)
+
+                // Boundary: 0% to 100%
+                val currentBoundary = stylableLayer.reflectionBoundary
+                val s5 = createSlider("Boundary: ${(currentBoundary * 100).toInt()}%", (currentBoundary * 100).toInt(), 100) { }
+                val tv5 = s5.findViewWithTag<TextView>("SLIDER_LABEL")
+                s5.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.reflectionBoundary = p / 100f
+                        tv5?.text = "Boundary: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s5)
+
+                // Wavelength Start: 10 to 500
+                val currentWaveStart = stylableLayer.reflectionWavelengthStart
+                val s6 = createSlider("Wavelength Start: ${currentWaveStart.toInt()} px", currentWaveStart.toInt(), 500) { }
+                val tv6 = s6.findViewWithTag<TextView>("SLIDER_LABEL")
+                s6.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val w = p.coerceAtLeast(10)
+                        stylableLayer.reflectionWavelengthStart = w.toFloat()
+                        tv6?.text = "Wavelength Start: $w px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s6)
+
+                // Wavelength End: 10 to 500
+                val currentWaveEnd = stylableLayer.reflectionWavelengthEnd
+                val s7 = createSlider("Wavelength End: ${currentWaveEnd.toInt()} px", currentWaveEnd.toInt(), 500) { }
+                val tv7 = s7.findViewWithTag<TextView>("SLIDER_LABEL")
+                s7.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val w = p.coerceAtLeast(10)
+                        stylableLayer.reflectionWavelengthEnd = w.toFloat()
+                        tv7?.text = "Wavelength End: $w px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s7)
+
+                // Time: 0 to 100
+                val currentTime = stylableLayer.reflectionTime
+                val s8 = createSlider("Time: ${String.format("%.1f", currentTime)}", (currentTime * 10f).toInt().coerceIn(0, 100), 100) { }
+                val tv8 = s8.findViewWithTag<TextView>("SLIDER_LABEL")
+                s8.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val t = p / 10f
+                        stylableLayer.reflectionTime = t
+                        tv8?.text = "Time: ${String.format("%.1f", t)}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s8)
         }
 
         mainLayout.addView(settingsLayout)

@@ -95,6 +95,29 @@ interface StylableLayer {
     var decayIntensity: Float
     var decayFadingLevel: Float
 
+    // Twist
+    var twistAngle: Float
+    var twistOffsetX: Float
+    var twistOffsetY: Float
+    var twistRadius: Float
+
+    // Bulge & Pinch
+    var bulgeCenterX: Float
+    var bulgeCenterY: Float
+    var bulgeRadius: Float
+    var bulgeStrength: Float
+
+    // Reflection
+    var reflectionAlphaStart: Float
+    var reflectionAlphaEnd: Float
+    var reflectionAmplitudeStart: Float
+    var reflectionAmplitudeEnd: Float
+    var reflectionBoundary: Float
+    var reflectionMirror: Boolean
+    var reflectionTime: Float
+    var reflectionWavelengthStart: Float
+    var reflectionWavelengthEnd: Float
+
     // Erase
     var eraseMask: Bitmap?
     val erasePaths: MutableList<ErasePathData>
