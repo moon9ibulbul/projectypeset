@@ -61,6 +61,7 @@ class EditorActivity : AppCompatActivity() {
     private var activeEditText: EditText? = null
     private val MENU_HEIGHT_DP = 180
     private var currentMenuType: String? = null
+    private var lastActiveBrushName: String = "pencil"
 
     private var currentProjectName: String? = null
     private var parentFolderName: String? = null
@@ -315,7 +316,7 @@ class EditorActivity : AppCompatActivity() {
          val availableFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
 
          for (model in proj.layers) {
-             val layer = ProjectManager.createLayerFromModel(model, images)
+             val layer = ProjectManager.createLayerFromModel(this@EditorActivity, model, images)
              if (layer != null) {
                  // Restore Font Typeface if TextLayer
                  if (layer is TextLayer && !model.fontPath.isNullOrEmpty()) {
@@ -1824,66 +1825,236 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private fun restoreBrushIfErasing() {
+        val layer = canvasView.getSelectedLayer()
+        if (layer is com.astral.typer.models.BrushLayer && layer.brushName == "ink_eraser") {
+            val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this, "brushes/classic/$lastActiveBrushName.myb")
+            layer.brushName = preset.name
+            layer.brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
+            layer.brushHardness = preset.hardness.coerceIn(0f, 1f)
+            val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
+            layer.brushSize = mappedSize
+
+            // Restore other settings
+            layer.brushDabsPerActualRadius = preset.dabsPerActualRadius
+            layer.brushDabsPerBasicRadius = preset.dabsPerBasicRadius
+            layer.brushDabsPerSecond = preset.dabsPerSecond
+            layer.brushOffsetByRandom = preset.offsetByRandom
+            layer.brushRadiusByRandom = preset.radiusByRandom
+            layer.brushEllipticalDabRatio = preset.ellipticalDabRatio
+            layer.brushEllipticalDabAngle = preset.ellipticalDabAngle
+            layer.brushSmudge = preset.smudge
+            layer.brushSmudgeLength = preset.smudgeLength
+            layer.brushSlowTracking = preset.slowTracking
+
+            layer.mapChangeColorH = preset.changeColorH
+            layer.mapChangeColorL = preset.changeColorL
+            layer.mapChangeColorHslS = preset.changeColorHslS
+            layer.mapChangeColorV = preset.changeColorV
+            layer.mapChangeColorHsvS = preset.changeColorHsvS
+            layer.mapColorH = preset.colorH
+            layer.mapColorS = preset.colorS
+            layer.mapColorV = preset.colorV
+            layer.mapColorize = preset.colorize
+            layer.mapStrokeDurationLogarithmic = preset.strokeDurationLogarithmic
+            layer.mapStrokeHoldtime = preset.strokeHoldtime
+            layer.mapCustomInput = preset.customInput
+            layer.mapCustomInputSlowness = preset.customInputSlowness
+            layer.mapSpeed1Slowness = preset.speed1Slowness
+            layer.mapSpeed1Gamma = preset.speed1Gamma
+            layer.mapSpeed2Slowness = preset.speed2Slowness
+            layer.mapSpeed2Gamma = preset.speed2Gamma
+
+            layer.mapOpaque = preset.opaqueMapping
+            layer.mapHardness = preset.hardnessMapping
+            layer.mapRadiusLog = preset.radiusLogMapping
+            layer.mapOffsetByRandom = preset.offsetByRandomMapping
+            layer.mapRadiusByRandom = preset.radiusByRandomMapping
+            layer.mapEllipticalDabRatio = preset.ellipticalDabRatioMapping
+            layer.mapEllipticalDabAngle = preset.ellipticalDabAngleMapping
+            layer.mapSmudge = preset.smudgeMapping
+            layer.mapSmudgeLength = preset.smudgeLengthMapping
+        }
+    }
+
     private fun showEraseMenu() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer()
         if (layer !is StylableLayer) return
 
-        canvasView.setEraseLayerMode(true)
+        if (layer is com.astral.typer.models.BrushLayer) {
+            canvasView.setEraseLayerMode(false) // Direct drawing
 
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            setPadding(16, 16, 16, 16)
-        }
+            // Load ink_eraser.myb preset if not already ink_eraser
+            if (layer.brushName != "ink_eraser") {
+                lastActiveBrushName = layer.brushName
+                val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this, "brushes/classic/ink_eraser.myb")
+                layer.brushName = preset.name
+                layer.brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
+                layer.brushHardness = preset.hardness.coerceIn(0f, 1f)
+                val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
+                layer.brushSize = mappedSize
 
-        val s1 = createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
-            canvasView.layerEraseSize = it.toFloat().coerceAtLeast(1f)
-        }
-        val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-        val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
-        sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                val value = p.coerceAtLeast(1)
-                canvasView.layerEraseSize = value.toFloat()
-                tv1?.text = "Size: $value"
+                // Set other settings
+                layer.brushDabsPerActualRadius = preset.dabsPerActualRadius
+                layer.brushDabsPerBasicRadius = preset.dabsPerBasicRadius
+                layer.brushDabsPerSecond = preset.dabsPerSecond
+                layer.brushOffsetByRandom = preset.offsetByRandom
+                layer.brushRadiusByRandom = preset.radiusByRandom
+                layer.brushEllipticalDabRatio = preset.ellipticalDabRatio
+                layer.brushEllipticalDabAngle = preset.ellipticalDabAngle
+                layer.brushSmudge = preset.smudge
+                layer.brushSmudgeLength = preset.smudgeLength
+                layer.brushSlowTracking = preset.slowTracking
+
+                layer.mapChangeColorH = preset.changeColorH
+                layer.mapChangeColorL = preset.changeColorL
+                layer.mapChangeColorHslS = preset.changeColorHslS
+                layer.mapChangeColorV = preset.changeColorV
+                layer.mapChangeColorHsvS = preset.changeColorHsvS
+                layer.mapColorH = preset.colorH
+                layer.mapColorS = preset.colorS
+                layer.mapColorV = preset.colorV
+                layer.mapColorize = preset.colorize
+                layer.mapStrokeDurationLogarithmic = preset.strokeDurationLogarithmic
+                layer.mapStrokeHoldtime = preset.strokeHoldtime
+                layer.mapCustomInput = preset.customInput
+                layer.mapCustomInputSlowness = preset.customInputSlowness
+                layer.mapSpeed1Slowness = preset.speed1Slowness
+                layer.mapSpeed1Gamma = preset.speed1Gamma
+                layer.mapSpeed2Slowness = preset.speed2Slowness
+                layer.mapSpeed2Gamma = preset.speed2Gamma
+
+                layer.mapOpaque = preset.opaqueMapping
+                layer.mapHardness = preset.hardnessMapping
+                layer.mapRadiusLog = preset.radiusLogMapping
+                layer.mapOffsetByRandom = preset.offsetByRandomMapping
+                layer.mapRadiusByRandom = preset.radiusByRandomMapping
+                layer.mapEllipticalDabRatio = preset.ellipticalDabRatioMapping
+                layer.mapEllipticalDabAngle = preset.ellipticalDabAngleMapping
+                layer.mapSmudge = preset.smudgeMapping
+                layer.mapSmudgeLength = preset.smudgeLengthMapping
             }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-        layout.addView(s1)
 
-        val s2 = createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
-            canvasView.layerEraseOpacity = it
-        }
-        val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
-        val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
-        sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                canvasView.layerEraseOpacity = p
-                tv2?.text = "Opacity: $p"
+            val layout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                setPadding(16, 16, 16, 16)
             }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-        layout.addView(s2)
 
-        val s3 = createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
-            canvasView.layerEraseHardness = it.toFloat()
-        }
-        val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
-        val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
-        sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                canvasView.layerEraseHardness = p.toFloat()
-                tv3?.text = "Hardness: $p%"
+            // Size Slider
+            val s1 = createSlider("Size: ${layer.brushSize.toInt()}", layer.brushSize.toInt(), 200) {
+                layer.brushSize = it.toFloat().coerceAtLeast(1f)
+                canvasView.invalidate()
             }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-        layout.addView(s3)
+            val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+            val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
+            sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    val value = p.coerceAtLeast(1)
+                    layer.brushSize = value.toFloat()
+                    tv1?.text = "Size: $value"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            layout.addView(s1)
 
-        container.addView(layout)
+            // Opacity Slider
+            val s2 = createSlider("Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%", layer.brushOpacity, 255) {
+                layer.brushOpacity = it
+                canvasView.invalidate()
+            }
+            val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+            val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
+            sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    layer.brushOpacity = p
+                    tv2?.text = "Opacity: ${(p * 100 / 255).toInt()}%"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            layout.addView(s2)
+
+            // Hardness Slider
+            val s3 = createSlider("Hardness: ${(layer.brushHardness * 100).toInt()}%", (layer.brushHardness * 100).toInt(), 100) {
+                layer.brushHardness = it / 100f
+                canvasView.invalidate()
+            }
+            val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+            val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
+            sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    layer.brushHardness = p / 100f
+                    tv3?.text = "Hardness: $p%"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            layout.addView(s3)
+
+            container.addView(layout)
+        } else {
+            canvasView.setEraseLayerMode(true)
+
+            val layout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                setPadding(16, 16, 16, 16)
+            }
+
+            val s1 = createSlider("Size: ${canvasView.layerEraseSize.toInt()}", canvasView.layerEraseSize.toInt(), 200) {
+                canvasView.layerEraseSize = it.toFloat().coerceAtLeast(1f)
+            }
+            val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+            val sb1 = s1.findViewWithTag<SeekBar>("SLIDER_BAR")
+            sb1?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    val value = p.coerceAtLeast(1)
+                    canvasView.layerEraseSize = value.toFloat()
+                    tv1?.text = "Size: $value"
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            layout.addView(s1)
+
+            val s2 = createSlider("Opacity: ${canvasView.layerEraseOpacity}", canvasView.layerEraseOpacity, 255) {
+                canvasView.layerEraseOpacity = it
+            }
+            val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+            val sb2 = s2.findViewWithTag<SeekBar>("SLIDER_BAR")
+            sb2?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    canvasView.layerEraseOpacity = p
+                    tv2?.text = "Opacity: $p"
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            layout.addView(s2)
+
+            val s3 = createSlider("Hardness: ${canvasView.layerEraseHardness.toInt()}%", canvasView.layerEraseHardness.toInt(), 100) {
+                canvasView.layerEraseHardness = it.toFloat()
+            }
+            val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+            val sb3 = s3.findViewWithTag<SeekBar>("SLIDER_BAR")
+            sb3?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    canvasView.layerEraseHardness = p.toFloat()
+                    tv3?.text = "Hardness: $p%"
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            layout.addView(s3)
+
+            container.addView(layout)
+        }
     }
 
     // --- SIDEBAR LOGIC ---
@@ -2907,6 +3078,7 @@ class EditorActivity : AppCompatActivity() {
         }
         if (currentMenuType == "ERASE") {
             canvasView.setEraseLayerMode(false)
+            restoreBrushIfErasing()
         }
         if (currentMenuType == "GRADATION") {
             canvasView.setGradationMode(false)
@@ -2938,6 +3110,7 @@ class EditorActivity : AppCompatActivity() {
             }
             if (currentMenuType == "ERASE" && type != "ERASE") {
                 canvasView.setEraseLayerMode(false)
+                restoreBrushIfErasing()
             }
             if (currentMenuType == "GRADATION" && type != "GRADATION") {
                 canvasView.setGradationMode(false)
@@ -3908,10 +4081,10 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        // Load all .myb brushes from assets
+        // Load all .myb brushes from assets, excluding ink_eraser
         val assets = this.assets
         val files = assets.list("brushes/classic") ?: emptyArray()
-        val mybFiles = files.filter { it.endsWith(".myb") }.sorted()
+        val mybFiles = files.filter { it.endsWith(".myb") && !it.contains("ink_eraser") }.sorted()
 
         // We will keep a map or list of item views to update their backgrounds when selection changes
         val itemViews = mutableListOf<Pair<String, LinearLayout>>()
@@ -3986,6 +4159,9 @@ class EditorActivity : AppCompatActivity() {
                 // Load preset settings
                 val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this@EditorActivity, "brushes/classic/$fileName")
                 layer.brushName = preset.name
+                if (preset.name != "ink_eraser") {
+                    lastActiveBrushName = preset.name
+                }
 
                 // Map presets to layer defaults
                 layer.brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
@@ -4003,6 +4179,35 @@ class EditorActivity : AppCompatActivity() {
                 layer.brushSmudge = preset.smudge
                 layer.brushSmudgeLength = preset.smudgeLength
                 layer.brushSlowTracking = preset.slowTracking
+
+                // Set dynamic mapped settings to layer
+                layer.mapChangeColorH = preset.changeColorH
+                layer.mapChangeColorL = preset.changeColorL
+                layer.mapChangeColorHslS = preset.changeColorHslS
+                layer.mapChangeColorV = preset.changeColorV
+                layer.mapChangeColorHsvS = preset.changeColorHsvS
+                layer.mapColorH = preset.colorH
+                layer.mapColorS = preset.colorS
+                layer.mapColorV = preset.colorV
+                layer.mapColorize = preset.colorize
+                layer.mapStrokeDurationLogarithmic = preset.strokeDurationLogarithmic
+                layer.mapStrokeHoldtime = preset.strokeHoldtime
+                layer.mapCustomInput = preset.customInput
+                layer.mapCustomInputSlowness = preset.customInputSlowness
+                layer.mapSpeed1Slowness = preset.speed1Slowness
+                layer.mapSpeed1Gamma = preset.speed1Gamma
+                layer.mapSpeed2Slowness = preset.speed2Slowness
+                layer.mapSpeed2Gamma = preset.speed2Gamma
+
+                layer.mapOpaque = preset.opaqueMapping
+                layer.mapHardness = preset.hardnessMapping
+                layer.mapRadiusLog = preset.radiusLogMapping
+                layer.mapOffsetByRandom = preset.offsetByRandomMapping
+                layer.mapRadiusByRandom = preset.radiusByRandomMapping
+                layer.mapEllipticalDabRatio = preset.ellipticalDabRatioMapping
+                layer.mapEllipticalDabAngle = preset.ellipticalDabAngleMapping
+                layer.mapSmudge = preset.smudgeMapping
+                layer.mapSmudgeLength = preset.smudgeLengthMapping
 
                 // Update UI sliders
                 sizeSliderBar?.progress = layer.brushSize.toInt()
