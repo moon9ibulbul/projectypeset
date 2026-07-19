@@ -218,6 +218,8 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     override var multiGradientAngle: Float = 0f
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
+    override var radialBlurCenterX: Float = 0.5f
+    override var radialBlurCenterY: Float = 0.5f
     override var decayIntensity: Float = 0f
     override var decayFadingLevel: Float = 0f
 

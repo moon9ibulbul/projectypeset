@@ -159,6 +159,8 @@ class ShapeLayer(
     // Radial Blur
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
+    override var radialBlurCenterX: Float = 0.5f
+    override var radialBlurCenterY: Float = 0.5f
 
     // Text Decay
     override var decayIntensity: Float = 0.5f
@@ -784,8 +786,8 @@ class ShapeLayer(
                             node.setPosition(0, 0, nodeW, nodeH)
                             val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.RADIAL_BLUR_SHADER)
-                            val centerX = if (hasBounds) nodeW / 2f else w / 2f + pad
-                            val centerY = if (hasBounds) nodeH / 2f else h / 2f + pad
+                            val centerX = (if (hasBounds) nodeW.toFloat() else (w + pad * 2)) * radialBlurCenterX
+                            val centerY = (if (hasBounds) nodeH.toFloat() else (h + pad * 2)) * radialBlurCenterY
                             shader.setFloatUniform("center", centerX, centerY); shader.setFloatUniform("innerRadius", radialBlurInnerRadius)
                             shader.setFloatUniform("motionStrength", radialBlurMotionStrength); shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
@@ -1193,6 +1195,7 @@ class ShapeLayer(
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
 
         // Twist
         newLayer.twistAngle = twistAngle
