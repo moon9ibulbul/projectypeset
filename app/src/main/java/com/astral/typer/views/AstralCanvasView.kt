@@ -835,6 +835,55 @@ class AstralCanvasView @JvmOverloads constructor(
     fun addBrushLayer() {
         val layer = com.astral.typer.models.BrushLayer(canvasWidth, canvasHeight).apply {
             name = "Brush ${layers.count { it is com.astral.typer.models.BrushLayer } + 1}"
+            try {
+                val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(context, "brushes/classic/pencil.myb")
+                brushName = preset.name
+                brushOpacity = (preset.opaque * 255).toInt().coerceIn(0, 255)
+                brushHardness = preset.hardness.coerceIn(0f, 1f)
+                val mappedSize = (Math.exp(preset.radiusLog.toDouble()).toFloat() * 15f).coerceIn(2f, 200f)
+                brushSize = mappedSize
+
+                brushDabsPerActualRadius = preset.dabsPerActualRadius
+                brushDabsPerBasicRadius = preset.dabsPerBasicRadius
+                brushDabsPerSecond = preset.dabsPerSecond
+                brushOffsetByRandom = preset.offsetByRandom
+                brushRadiusByRandom = preset.radiusByRandom
+                brushEllipticalDabRatio = preset.ellipticalDabRatio
+                brushEllipticalDabAngle = preset.ellipticalDabAngle
+                brushSmudge = preset.smudge
+                brushSmudgeLength = preset.smudgeLength
+                brushSlowTracking = preset.slowTracking
+
+                mapChangeColorH = preset.changeColorH
+                mapChangeColorL = preset.changeColorL
+                mapChangeColorHslS = preset.changeColorHslS
+                mapChangeColorV = preset.changeColorV
+                mapChangeColorHsvS = preset.changeColorHsvS
+                mapColorH = preset.colorH
+                mapColorS = preset.colorS
+                mapColorV = preset.colorV
+                mapColorize = preset.colorize
+                mapStrokeDurationLogarithmic = preset.strokeDurationLogarithmic
+                mapStrokeHoldtime = preset.strokeHoldtime
+                mapCustomInput = preset.customInput
+                mapCustomInputSlowness = preset.customInputSlowness
+                mapSpeed1Slowness = preset.speed1Slowness
+                mapSpeed1Gamma = preset.speed1Gamma
+                mapSpeed2Slowness = preset.speed2Slowness
+                mapSpeed2Gamma = preset.speed2Gamma
+
+                mapOpaque = preset.opaqueMapping
+                mapHardness = preset.hardnessMapping
+                mapRadiusLog = preset.radiusLogMapping
+                mapOffsetByRandom = preset.offsetByRandomMapping
+                mapRadiusByRandom = preset.radiusByRandomMapping
+                mapEllipticalDabRatio = preset.ellipticalDabRatioMapping
+                mapEllipticalDabAngle = preset.ellipticalDabAngleMapping
+                mapSmudge = preset.smudgeMapping
+                mapSmudgeLength = preset.smudgeLengthMapping
+            } catch(e: Exception) {
+                // Keep defaults
+            }
         }
         layers.add(layer)
         selectLayer(layer)

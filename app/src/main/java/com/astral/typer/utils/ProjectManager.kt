@@ -619,7 +619,7 @@ object ProjectManager {
     }
 
     // Helper to Convert Model to Layer
-    fun createLayerFromModel(model: LayerModel, imageMap: Map<String, Bitmap>): Layer? {
+    fun createLayerFromModel(context: Context, model: LayerModel, imageMap: Map<String, Bitmap>): Layer? {
         if (model.type == "IMAGE" && model.imagePath != null) {
             val bmp = imageMap[model.imagePath] ?: return null
             val layer = ImageLayer(bmp)
@@ -909,7 +909,43 @@ object ProjectManager {
             val layer = com.astral.typer.models.BrushLayer(bmp.width, bmp.height)
             layer.bitmap = bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
 
-            model.brushName?.let { layer.brushName = it }
+            model.brushName?.let {
+                layer.brushName = it
+                // Dynamically load its preset so that map settings are initialized
+                val presetPath = "brushes/classic/${it}.myb"
+                try {
+                    val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(context, presetPath)
+                    layer.mapChangeColorH = preset.changeColorH
+                    layer.mapChangeColorL = preset.changeColorL
+                    layer.mapChangeColorHslS = preset.changeColorHslS
+                    layer.mapChangeColorV = preset.changeColorV
+                    layer.mapChangeColorHsvS = preset.changeColorHsvS
+                    layer.mapColorH = preset.colorH
+                    layer.mapColorS = preset.colorS
+                    layer.mapColorV = preset.colorV
+                    layer.mapColorize = preset.colorize
+                    layer.mapStrokeDurationLogarithmic = preset.strokeDurationLogarithmic
+                    layer.mapStrokeHoldtime = preset.strokeHoldtime
+                    layer.mapCustomInput = preset.customInput
+                    layer.mapCustomInputSlowness = preset.customInputSlowness
+                    layer.mapSpeed1Slowness = preset.speed1Slowness
+                    layer.mapSpeed1Gamma = preset.speed1Gamma
+                    layer.mapSpeed2Slowness = preset.speed2Slowness
+                    layer.mapSpeed2Gamma = preset.speed2Gamma
+
+                    layer.mapOpaque = preset.opaqueMapping
+                    layer.mapHardness = preset.hardnessMapping
+                    layer.mapRadiusLog = preset.radiusLogMapping
+                    layer.mapOffsetByRandom = preset.offsetByRandomMapping
+                    layer.mapRadiusByRandom = preset.radiusByRandomMapping
+                    layer.mapEllipticalDabRatio = preset.ellipticalDabRatioMapping
+                    layer.mapEllipticalDabAngle = preset.ellipticalDabAngleMapping
+                    layer.mapSmudge = preset.smudgeMapping
+                    layer.mapSmudgeLength = preset.smudgeLengthMapping
+                } catch(e: Exception) {
+                    // Ignore or fallback
+                }
+            }
             model.brushColor?.let { layer.brushColor = it }
             model.brushSize?.let { layer.brushSize = it }
             model.brushHardness?.let { layer.brushHardness = it }
@@ -1132,7 +1168,7 @@ object ProjectManager {
                         tempCanvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
                     }
                     for (model in data.layers) {
-                        val layer = createLayerFromModel(model, images)
+                        val layer = createLayerFromModel(context, model, images)
                         layer?.draw(tempCanvas)
                     }
 

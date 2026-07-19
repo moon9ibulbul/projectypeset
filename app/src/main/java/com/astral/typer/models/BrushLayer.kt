@@ -11,6 +11,7 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.Shader
+import com.astral.typer.utils.MyPaintBrushHelper
 
 class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), StylableLayer {
 
@@ -41,6 +42,35 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     var brushSmudge: Float = 0.0f
     var brushSmudgeLength: Float = 0.5f
     var brushSlowTracking: Float = 1.0f
+
+    // Dynamic mapped settings for .myb
+    var mapChangeColorH = MyPaintBrushHelper.SettingMapping()
+    var mapChangeColorL = MyPaintBrushHelper.SettingMapping()
+    var mapChangeColorHslS = MyPaintBrushHelper.SettingMapping()
+    var mapChangeColorV = MyPaintBrushHelper.SettingMapping()
+    var mapChangeColorHsvS = MyPaintBrushHelper.SettingMapping()
+    var mapColorH = MyPaintBrushHelper.SettingMapping()
+    var mapColorS = MyPaintBrushHelper.SettingMapping()
+    var mapColorV = MyPaintBrushHelper.SettingMapping()
+    var mapColorize = MyPaintBrushHelper.SettingMapping()
+    var mapStrokeDurationLogarithmic = MyPaintBrushHelper.SettingMapping(4.0f)
+    var mapStrokeHoldtime = MyPaintBrushHelper.SettingMapping(0.0f)
+    var mapCustomInput = MyPaintBrushHelper.SettingMapping()
+    var mapCustomInputSlowness = MyPaintBrushHelper.SettingMapping()
+    var mapSpeed1Slowness = MyPaintBrushHelper.SettingMapping()
+    var mapSpeed1Gamma = MyPaintBrushHelper.SettingMapping()
+    var mapSpeed2Slowness = MyPaintBrushHelper.SettingMapping()
+    var mapSpeed2Gamma = MyPaintBrushHelper.SettingMapping()
+
+    var mapOpaque = MyPaintBrushHelper.SettingMapping(1.0f)
+    var mapHardness = MyPaintBrushHelper.SettingMapping(0.5f)
+    var mapRadiusLog = MyPaintBrushHelper.SettingMapping(0.5f)
+    var mapOffsetByRandom = MyPaintBrushHelper.SettingMapping()
+    var mapRadiusByRandom = MyPaintBrushHelper.SettingMapping()
+    var mapEllipticalDabRatio = MyPaintBrushHelper.SettingMapping(1.0f)
+    var mapEllipticalDabAngle = MyPaintBrushHelper.SettingMapping(90.0f)
+    var mapSmudge = MyPaintBrushHelper.SettingMapping()
+    var mapSmudgeLength = MyPaintBrushHelper.SettingMapping(0.5f)
 
     // Dynamic Smudge color state
     private var currentSmudgeColor: Int = Color.BLACK
@@ -226,6 +256,34 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             brushSmudge = this@BrushLayer.brushSmudge
             brushSmudgeLength = this@BrushLayer.brushSmudgeLength
             brushSlowTracking = this@BrushLayer.brushSlowTracking
+
+            mapChangeColorH = this@BrushLayer.mapChangeColorH
+            mapChangeColorL = this@BrushLayer.mapChangeColorL
+            mapChangeColorHslS = this@BrushLayer.mapChangeColorHslS
+            mapChangeColorV = this@BrushLayer.mapChangeColorV
+            mapChangeColorHsvS = this@BrushLayer.mapChangeColorHsvS
+            mapColorH = this@BrushLayer.mapColorH
+            mapColorS = this@BrushLayer.mapColorS
+            mapColorV = this@BrushLayer.mapColorV
+            mapColorize = this@BrushLayer.mapColorize
+            mapStrokeDurationLogarithmic = this@BrushLayer.mapStrokeDurationLogarithmic
+            mapStrokeHoldtime = this@BrushLayer.mapStrokeHoldtime
+            mapCustomInput = this@BrushLayer.mapCustomInput
+            mapCustomInputSlowness = this@BrushLayer.mapCustomInputSlowness
+            mapSpeed1Slowness = this@BrushLayer.mapSpeed1Slowness
+            mapSpeed1Gamma = this@BrushLayer.mapSpeed1Gamma
+            mapSpeed2Slowness = this@BrushLayer.mapSpeed2Slowness
+            mapSpeed2Gamma = this@BrushLayer.mapSpeed2Gamma
+
+            mapOpaque = this@BrushLayer.mapOpaque
+            mapHardness = this@BrushLayer.mapHardness
+            mapRadiusLog = this@BrushLayer.mapRadiusLog
+            mapOffsetByRandom = this@BrushLayer.mapOffsetByRandom
+            mapRadiusByRandom = this@BrushLayer.mapRadiusByRandom
+            mapEllipticalDabRatio = this@BrushLayer.mapEllipticalDabRatio
+            mapEllipticalDabAngle = this@BrushLayer.mapEllipticalDabAngle
+            mapSmudge = this@BrushLayer.mapSmudge
+            mapSmudgeLength = this@BrushLayer.mapSmudgeLength
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)
@@ -308,14 +366,29 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     // Touch Stroke Processing
     private var strokeHasMoved = false
 
+    // State properties for dynamic settings
+    private var strokeDistance: Float = 0f
+    private var lastTouchTime: Long = 0L
+    private var smoothSpeed: Float = 0f
+    private var customInputState: Float = 0f
+
     fun startStroke(x: Float, y: Float) {
         lastX = x
         lastY = y
         strokeHasMoved = false
         currentSmudgeColor = brushColor
+
+        strokeDistance = 0f
+        lastTouchTime = System.currentTimeMillis()
+        smoothSpeed = 0f
+        customInputState = 0f
     }
 
     fun continueStroke(x: Float, y: Float) {
+        val currentTime = System.currentTimeMillis()
+        val dtSeconds = (currentTime - lastTouchTime).coerceAtLeast(1) / 1000f
+        lastTouchTime = currentTime
+
         // Apply slow tracking EMA stabilizer if > 1.0
         val factor = if (brushSlowTracking > 1f) (1f / brushSlowTracking).coerceIn(0.01f, 1f) else 1f
         val targetX = lastX + (x - lastX) * factor
@@ -328,6 +401,13 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         if (distance > 2f) {
             strokeHasMoved = true
         }
+
+        // Accumulate distance
+        strokeDistance += distance
+
+        // Smooth speed estimation
+        val instantSpeed = distance / dtSeconds
+        smoothSpeed += (instantSpeed - smoothSpeed) * 0.1f
 
         // Calculate spacing based on brush size and dabs_per_actual_radius.
         val radius = brushSize / 2f
@@ -353,53 +433,160 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     }
 
     private fun drawDab(cx: Float, cy: Float) {
-        val radius = brushSize / 2f
-        if (radius <= 0.1f) return
+        val randomVal = Math.random().toFloat()
 
-        // 1. Handle offset_by_random
+        // 1. Calculate stroke input progress
+        val strokeDurationLog = mapStrokeDurationLogarithmic.baseValue
+        val frequency = Math.exp(-strokeDurationLog.toDouble()).toFloat()
+        val strokeVal = strokeDistance * frequency
+        val strokeInput = strokeVal.coerceIn(0f, 1.0f)
+
+        // 2. Calculate speed input
+        val speedInput = (smoothSpeed / 1000f).coerceIn(0f, 1f)
+
+        // 3. Update custom input state
+        val inputsTemp = mapOf(
+            "pressure" to 1.0f,
+            "random" to randomVal,
+            "stroke" to strokeInput,
+            "speed1" to speedInput,
+            "speed2" to speedInput
+        )
+        val customSetting = mapCustomInput.calculate(inputsTemp)
+        val customSlowness = mapCustomInputSlowness.baseValue
+        val customFac = if (customSlowness > 0f) (1f / customSlowness).coerceIn(0.01f, 1f) else 0.1f
+        customInputState += (customSetting - customInputState) * customFac
+
+        // Final Inputs Map
+        val inputs = mapOf(
+            "pressure" to 1.0f,
+            "random" to randomVal,
+            "stroke" to strokeInput,
+            "speed1" to speedInput,
+            "speed2" to speedInput,
+            "custom" to customInputState
+        )
+
+        // 4. Calculate dynamic settings values
+        val d_opaque = mapOpaque.calculate(inputs).coerceIn(0f, 1f)
+        val d_hardness = mapHardness.calculate(inputs).coerceIn(0f, 1f)
+        val d_radiusLog = mapRadiusLog.calculate(inputs)
+
+        // Map dynamic radius to size, proportional to current size slider
+        val baseRadiusLog = mapRadiusLog.baseValue
+        val sizeFactor = brushSize / (Math.exp(baseRadiusLog.toDouble()).toFloat() * 15f).coerceAtLeast(1f)
+        val d_size = (Math.exp(d_radiusLog.toDouble()).toFloat() * 15f * sizeFactor).coerceIn(2f, 400f)
+        val dabRadius = d_size / 2f
+
+        val d_offsetByRandom = mapOffsetByRandom.calculate(inputs)
+        val d_radiusByRandom = mapRadiusByRandom.calculate(inputs)
+        val d_ellipticalDabRatio = mapEllipticalDabRatio.calculate(inputs)
+        val d_ellipticalDabAngle = mapEllipticalDabAngle.calculate(inputs)
+        val d_smudge = mapSmudge.calculate(inputs)
+        val d_smudgeLength = mapSmudgeLength.calculate(inputs)
+
+        // Handle offset_by_random dynamically
         var dabX = cx
         var dabY = cy
-        if (brushOffsetByRandom > 0f) {
-            val maxOffset = brushOffsetByRandom * radius
+        val actOffset = if (d_offsetByRandom != 0f) d_offsetByRandom else brushOffsetByRandom
+        if (actOffset > 0f) {
+            val maxOffset = actOffset * dabRadius
             val angle = Math.random() * 2.0 * Math.PI
             val dist = Math.random() * maxOffset
             dabX += (dist * Math.cos(angle)).toFloat()
             dabY += (dist * Math.sin(angle)).toFloat()
         }
 
-        // 2. Handle radius_by_random
-        var dabRadius = radius
-        if (brushRadiusByRandom > 0f) {
+        // Handle radius_by_random dynamically
+        var actDabRadius = dabRadius
+        val actRadiusRandom = if (d_radiusByRandom != 0f) d_radiusByRandom else brushRadiusByRandom
+        if (actRadiusRandom > 0f) {
             val randFactor = (Math.random() * 2.0 - 1.0).toFloat()
-            dabRadius *= (1f + randFactor * brushRadiusByRandom).coerceAtLeast(0.1f)
+            actDabRadius *= (1f + randFactor * actRadiusRandom).coerceAtLeast(0.1f)
         }
 
-        // 3. Handle smudge and smudge decay
+        // Handle smudge dynamically
+        val actSmudge = if (d_smudge != 0f) d_smudge else brushSmudge
+        val actSmudgeLength = if (d_smudgeLength != 0f) d_smudgeLength else brushSmudgeLength
+
+        // Compute base color dynamics
         var finalColor = brushColor
-        if (brushSmudge > 0f && dabX >= 0 && dabX < canvasWidth && dabY >= 0 && dabY < canvasHeight) {
+
+        val changeColorH = mapChangeColorH.calculate(inputs)
+        val changeColorL = mapChangeColorL.calculate(inputs)
+        val changeColorHslS = mapChangeColorHslS.calculate(inputs)
+        val changeColorV = mapChangeColorV.calculate(inputs)
+        val changeColorHsvS = mapChangeColorHsvS.calculate(inputs)
+
+        val usingHsvDynamics = changeColorH != 0f || changeColorHsvS != 0f || changeColorV != 0f
+        val usingHslDynamics = changeColorL != 0f || changeColorHslS != 0f
+
+        if (usingHsvDynamics || usingHslDynamics) {
+            val r = Color.red(brushColor) / 255f
+            val g = Color.green(brushColor) / 255f
+            val b = Color.blue(brushColor) / 255f
+
+            if (usingHsvDynamics) {
+                val hsv = FloatArray(3)
+                Color.colorToHSV(brushColor, hsv)
+                var h = hsv[0] / 360f
+                var s = hsv[1]
+                var v = hsv[2]
+
+                h += changeColorH
+                s += s * v * changeColorHsvS
+                v += changeColorV
+
+                h = (h % 1f + 1f) % 1f
+                s = s.coerceIn(0f, 1f)
+                v = v.coerceIn(0f, 1f)
+
+                hsv[0] = h * 360f
+                hsv[1] = s
+                hsv[2] = v
+
+                finalColor = Color.HSVToColor(Color.alpha(brushColor), hsv)
+            }
+
+            if (usingHslDynamics) {
+                val hsl = rgbToHsl(r, g, b)
+                var h = hsl[0]
+                var s = hsl[1]
+                var l = hsl[2]
+
+                l += changeColorL
+                s += s * minOf(Math.abs(1f - l), Math.abs(l)).toFloat() * 2f * changeColorHslS
+
+                h = (h % 1f + 1f) % 1f
+                s = s.coerceIn(0f, 1f)
+                l = l.coerceIn(0f, 1f)
+
+                finalColor = hslToRgb(h, s, l, Color.alpha(brushColor))
+            }
+        }
+
+        // Apply smudge color interpolation using finalColor
+        if (actSmudge > 0f && dabX >= 0 && dabX < canvasWidth && dabY >= 0 && dabY < canvasHeight) {
             val px = dabX.toInt()
             val py = dabY.toInt()
             val sampledColor = bitmap.getPixel(px, py)
             if (Color.alpha(sampledColor) > 0) {
-                // Mix current smudge color with sampled canvas color
-                val r = (Color.red(currentSmudgeColor) * (1f - brushSmudge) + Color.red(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
-                val g = (Color.green(currentSmudgeColor) * (1f - brushSmudge) + Color.green(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
-                val b = (Color.blue(currentSmudgeColor) * (1f - brushSmudge) + Color.blue(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
-                val a = (Color.alpha(currentSmudgeColor) * (1f - brushSmudge) + Color.alpha(sampledColor) * brushSmudge).toInt().coerceIn(0, 255)
+                val r = (Color.red(currentSmudgeColor) * (1f - actSmudge) + Color.red(sampledColor) * actSmudge).toInt().coerceIn(0, 255)
+                val g = (Color.green(currentSmudgeColor) * (1f - actSmudge) + Color.green(sampledColor) * actSmudge).toInt().coerceIn(0, 255)
+                val b = (Color.blue(currentSmudgeColor) * (1f - actSmudge) + Color.blue(sampledColor) * actSmudge).toInt().coerceIn(0, 255)
+                val a = (Color.alpha(currentSmudgeColor) * (1f - actSmudge) + Color.alpha(sampledColor) * actSmudge).toInt().coerceIn(0, 255)
                 val blended = Color.argb(a, r, g, b)
 
                 finalColor = blended
 
-                // Decay currentSmudgeColor back to brushColor based on smudge_length
-                val decay = (1f - brushSmudgeLength).coerceIn(0f, 1f)
+                val decay = (1f - actSmudgeLength).coerceIn(0f, 1f)
                 val dr = (Color.red(blended) * (1f - decay) + Color.red(brushColor) * decay).toInt().coerceIn(0, 255)
                 val dg = (Color.green(blended) * (1f - decay) + Color.green(brushColor) * decay).toInt().coerceIn(0, 255)
                 val db = (Color.blue(blended) * (1f - decay) + Color.blue(brushColor) * decay).toInt().coerceIn(0, 255)
                 val da = (Color.alpha(blended) * (1f - decay) + Color.alpha(brushColor) * decay).toInt().coerceIn(0, 255)
                 currentSmudgeColor = Color.argb(da, dr, dg, db)
             } else {
-                // Decay currentSmudgeColor back to brushColor when transparent is sampled
-                val decay = (1f - brushSmudgeLength).coerceIn(0f, 1f)
+                val decay = (1f - actSmudgeLength).coerceIn(0f, 1f)
                 val dr = (Color.red(currentSmudgeColor) * (1f - decay) + Color.red(brushColor) * decay).toInt().coerceIn(0, 255)
                 val dg = (Color.green(currentSmudgeColor) * (1f - decay) + Color.green(brushColor) * decay).toInt().coerceIn(0, 255)
                 val db = (Color.blue(currentSmudgeColor) * (1f - decay) + Color.blue(brushColor) * decay).toInt().coerceIn(0, 255)
@@ -409,16 +596,19 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             }
         }
 
+        val actOpacity = (d_opaque * brushOpacity).toInt().coerceIn(0, 255)
+        val actHardness = if (d_hardness != 0.5f) d_hardness else brushHardness
+
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            alpha = brushOpacity
+            alpha = actOpacity
         }
 
-        // 4. Setup shader with RadialGradient centered at local origin (0, 0)
-        if (brushHardness < 1f) {
+        // Setup shader with RadialGradient centered at local origin (0, 0)
+        if (actHardness < 1f) {
             val colors = intArrayOf(finalColor, finalColor, Color.TRANSPARENT)
-            val stops = floatArrayOf(0f, brushHardness.coerceIn(0f, 0.99f), 1f)
-            paint.shader = RadialGradient(0f, 0f, dabRadius, colors, stops, Shader.TileMode.CLAMP)
+            val stops = floatArrayOf(0f, actHardness.coerceIn(0f, 0.99f), 1f)
+            paint.shader = RadialGradient(0f, 0f, actDabRadius, colors, stops, Shader.TileMode.CLAMP)
         } else {
             paint.color = finalColor
         }
@@ -427,22 +617,69 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         val isEraser = brushName.contains("eraser", ignoreCase = true)
         if (isEraser) {
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            if (brushHardness < 1f) {
+            if (actHardness < 1f) {
                 val colors = intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT)
-                val stops = floatArrayOf(0f, brushHardness.coerceIn(0f, 0.99f), 1f)
-                paint.shader = RadialGradient(0f, 0f, dabRadius, colors, stops, Shader.TileMode.CLAMP)
+                val stops = floatArrayOf(0f, actHardness.coerceIn(0f, 0.99f), 1f)
+                paint.shader = RadialGradient(0f, 0f, actDabRadius, colors, stops, Shader.TileMode.CLAMP)
             } else {
                 paint.color = Color.BLACK
             }
         }
 
-        // 5. Draw with elliptical transformations on canvas
+        // Setup elliptical transformations dynamically
+        val actEllipticalRatio = if (d_ellipticalDabRatio != 1f) d_ellipticalDabRatio else brushEllipticalDabRatio
+        val actEllipticalAngle = if (d_ellipticalDabAngle != 90f) d_ellipticalDabAngle else brushEllipticalDabAngle
+
         drawCanvas.save()
         drawCanvas.translate(dabX, dabY)
-        drawCanvas.rotate(brushEllipticalDabAngle)
-        val scaleY = if (brushEllipticalDabRatio <= 0.01f) 1f else (1f / brushEllipticalDabRatio)
+        drawCanvas.rotate(actEllipticalAngle)
+        val scaleY = if (actEllipticalRatio <= 0.01f) 1f else (1f / actEllipticalRatio)
         drawCanvas.scale(1f, scaleY)
-        drawCanvas.drawCircle(0f, 0f, dabRadius, paint)
+        drawCanvas.drawCircle(0f, 0f, actDabRadius, paint)
         drawCanvas.restore()
+    }
+
+    private fun rgbToHsl(r: Float, g: Float, b: Float): FloatArray {
+        val max = maxOf(r, maxOf(g, b))
+        val min = minOf(r, minOf(g, b))
+        var h = 0f
+        var s = 0f
+        val l = (max + min) / 2f
+
+        if (max != min) {
+            val d = max - min
+            s = if (l > 0.5f) d / (2f - max - min) else d / (max + min)
+            when (max) {
+                r -> h = (g - b) / d + (if (g < b) 6f else 0f)
+                g -> h = (b - r) / d + 2f
+                b -> h = (r - g) / d + 4f
+            }
+            h /= 6f
+        }
+        return floatArrayOf(h, s, l)
+    }
+
+    private fun hslToRgb(h: Float, s: Float, l: Float, alpha: Int): Int {
+        var r = l
+        var g = l
+        var b = l
+        if (s != 0f) {
+            val q = if (l < 0.5f) l * (1f + s) else l + s - l * s
+            val p = 2f * l - q
+            r = hueToRgb(p, q, h + 1f / 3f)
+            g = hueToRgb(p, q, h)
+            b = hueToRgb(p, q, h - 1f / 3f)
+        }
+        return Color.argb(alpha, (r * 255f).toInt().coerceIn(0, 255), (g * 255f).toInt().coerceIn(0, 255), (b * 255f).toInt().coerceIn(0, 255))
+    }
+
+    private fun hueToRgb(p: Float, q: Float, t: Float): Float {
+        var tr = t
+        if (tr < 0f) tr += 1f
+        if (tr > 1f) tr -= 1f
+        if (tr < 1f / 6f) return p + (q - p) * 6f * tr
+        if (tr < 1f / 2f) return q
+        if (tr < 2f / 3f) return p + (q - p) * (2f / 3f - tr) * 6f
+        return p
     }
 }
