@@ -194,6 +194,10 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     override var longShadowAngle: Float = 0f
     override var motionBlurLength: Float = 0f
     override var motionBlurAngle: Int = 0
+    override var motionBlurKernelSize: Int = 5
+    override var motionBlurOffset: Float = 0f
+    override var motionBlurVelocityX: Float = 0f
+    override var motionBlurVelocityY: Float = 0f
     override var halftoneDotSize: Float = 0f
     override var halftoneDotColor: Int = Color.TRANSPARENT
     override var halftoneThreshold: Float = 0f

@@ -189,6 +189,10 @@ class TextLayer(
     // Motion Blur
     override var motionBlurLength: Float = 0f
     override var motionBlurAngle: Int = 0
+    override var motionBlurKernelSize: Int = 5
+    override var motionBlurOffset: Float = 0f
+    override var motionBlurVelocityX: Float = 0f
+    override var motionBlurVelocityY: Float = 0f
 
     // Halftone
     override var halftoneDotSize: Float = 10f
@@ -369,6 +373,10 @@ class TextLayer(
         result = 31 * result + longShadowAngle.hashCode()
         result = 31 * result + motionBlurLength.hashCode()
         result = 31 * result + motionBlurAngle
+        result = 31 * result + motionBlurKernelSize
+        result = 31 * result + motionBlurOffset.hashCode()
+        result = 31 * result + motionBlurVelocityX.hashCode()
+        result = 31 * result + motionBlurVelocityY.hashCode()
         result = 31 * result + halftoneDotSize.hashCode()
         result = 31 * result + halftoneDotColor
         result = 31 * result + halftoneThreshold.hashCode()
@@ -569,6 +577,10 @@ class TextLayer(
         newLayer.longShadowAngle = this.longShadowAngle
         newLayer.motionBlurLength = this.motionBlurLength
         newLayer.motionBlurAngle = this.motionBlurAngle
+        newLayer.motionBlurKernelSize = this.motionBlurKernelSize
+        newLayer.motionBlurOffset = this.motionBlurOffset
+        newLayer.motionBlurVelocityX = this.motionBlurVelocityX
+        newLayer.motionBlurVelocityY = this.motionBlurVelocityY
         newLayer.halftoneDotSize = this.halftoneDotSize
         newLayer.halftoneDotColor = this.halftoneDotColor
         newLayer.halftoneThreshold = this.halftoneThreshold
@@ -710,7 +722,11 @@ class TextLayer(
         val checkEffect = { effect: TextEffectType ->
             when(effect) {
                 TextEffectType.GAUSSIAN_BLUR -> effectExpansion = Math.max(effectExpansion, blurRadius * 2.5f)
-                TextEffectType.MOTION_BLUR -> effectExpansion = Math.max(effectExpansion, motionBlurLength)
+                TextEffectType.MOTION_BLUR -> {
+                    val velLen = Math.hypot(motionBlurVelocityX.toDouble(), motionBlurVelocityY.toDouble()).toFloat()
+                    val expansion = velLen + Math.abs(motionBlurOffset)
+                    effectExpansion = Math.max(effectExpansion, expansion)
+                }
                 TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
@@ -2088,9 +2104,9 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(MOTION_BLUR_SHADER)
-                            val rad = Math.toRadians(motionBlurAngle.toDouble())
-                            shader.setFloatUniform("direction", Math.cos(rad).toFloat(), Math.sin(rad).toFloat())
-                            shader.setFloatUniform("length", motionBlurLength)
+                            shader.setFloatUniform("uVelocity", motionBlurVelocityX, motionBlurVelocityY)
+                            shader.setIntUniform("uKernelSize", motionBlurKernelSize)
+                            shader.setFloatUniform("uOffset", motionBlurOffset)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -2103,7 +2119,8 @@ class TextLayer(
 
                     if (!useRenderEffect) {
                         val originalMask = paint.maskFilter
-                        val fallbackBlur = motionBlurLength / 2f
+                        val velLen = Math.hypot(motionBlurVelocityX.toDouble(), motionBlurVelocityY.toDouble()).toFloat()
+                        val fallbackBlur = velLen / 2f
                         if (fallbackBlur > 0) {
                             paint.maskFilter = BlurMaskFilter(fallbackBlur.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
                         }
@@ -2458,25 +2475,34 @@ class TextLayer(
 
         const val MOTION_BLUR_SHADER = """
             uniform shader content;
-            uniform float2 direction;
-            uniform float length;
-
-            float rand(float2 co) {
-                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
-            }
+            uniform float2 uVelocity;
+            uniform int uKernelSize;
+            uniform float uOffset;
 
             half4 main(float2 coord) {
-                half4 color = half4(0);
-                float total = 0.0;
-                float noise = (rand(coord) - 0.5) * 0.1;
+                half4 color = content.eval(coord);
 
-                for (float i = 0.0; i <= 50.0; i += 1.0) {
-                    float t = i / 50.0;
-                    float offset = (t - 0.5 + noise) * length;
-                    color += content.eval(coord + direction * offset);
-                    total += 1.0;
+                if (uKernelSize <= 0) {
+                    return color;
                 }
-                return color / total;
+
+                float len = length(uVelocity);
+                if (len < 0.01) {
+                    return color;
+                }
+
+                float offsetVal = -uOffset / len - 0.5;
+                int k = uKernelSize - 1;
+
+                for (int i = 0; i < 256; i++) {
+                    if (i >= k) {
+                        break;
+                    }
+                    float2 bias = uVelocity * (float(i) / float(k) + offsetVal);
+                    color += content.eval(coord + bias);
+                }
+
+                return color / float(uKernelSize);
             }
         """
 
