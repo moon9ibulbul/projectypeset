@@ -98,6 +98,8 @@ class ShapeLayer(
     override var activeEraseHardness: Float = 0f
     override var eraseDragRevision: Int = 0
 
+    private var silhouetteColor: Int? = null
+
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
@@ -293,14 +295,40 @@ class ShapeLayer(
         }
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
-        if (isWarp && warpMesh != null) {
-            val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale)
-        } else if (isPerspective && perspectivePoints != null) {
-             drawPerspective(canvas, w, h)
+        val activeEffects = mutableListOf<TextEffectType>()
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+
+        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        val useHardwareTransformEffects = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
+
+        if (useHardwareTransformEffects) {
+            val drawTransformed = { targetCanvas: Canvas ->
+                if (isWarp && warpMesh != null) {
+                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                    drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true)
+                } else if (isPerspective && perspectivePoints != null) {
+                    drawPerspective(targetCanvas, w, h, skipEffects = true)
+                }
+            }
+
+            if (activeEffects.size == 2) {
+                applyEffect(activeEffects[1], canvas, w, h) { innerCanvas ->
+                    applyEffect(activeEffects[0], innerCanvas, w, h, drawTransformed)
+                }
+            } else {
+                applyEffect(activeEffects[0], canvas, w, h, drawTransformed)
+            }
         } else {
-             canvas.translate(dx, dy)
-             drawContent(canvas, w, h)
+            if (isWarp && warpMesh != null) {
+                val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false)
+            } else if (isPerspective && perspectivePoints != null) {
+                 drawPerspective(canvas, w, h, skipEffects = false)
+            } else {
+                 canvas.translate(dx, dy)
+                 drawContent(canvas, w, h, skipEffects = false)
+            }
         }
 
         if (isOpacityGradient) {
@@ -315,17 +343,17 @@ class ShapeLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, w: Float, h: Float) {
+    private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         canvas.save()
         canvas.concat(matrix)
         canvas.translate(-w / 2f, -h / 2f)
-        drawContent(canvas, w, h)
+        drawContent(canvas, w, h, skipEffects = skipEffects)
         canvas.restore()
     }
 
-    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
+    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
         val pad = calculatePadding()
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
@@ -335,7 +363,7 @@ class ShapeLayer(
             val c = Canvas(bitmap)
             c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
-            drawContent(c, w, h)
+            drawContent(c, w, h, skipEffects = skipEffects)
 
             val meshW = 20
             val meshH = 20
@@ -358,9 +386,9 @@ class ShapeLayer(
         }
     }
 
-    private fun drawContent(canvas: Canvas, w: Float, h: Float) {
+    private fun drawContent(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
         val gradientShader = getGradientShader(w, h)
-        var silhouetteColor: Int? = null
+        silhouetteColor = null
         var isDrawingShadowPass = false
 
         val drawMain = { targetCanvas: Canvas ->
@@ -502,8 +530,40 @@ class ShapeLayer(
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
 
-        fun applyEffect(effect: TextEffectType, targetCanvas: Canvas, drawInner: (Canvas) -> Unit) {
-             when (effect) {
+        val hasEffects = activeEffects.isNotEmpty() && !skipEffects
+        if (hasEffects) {
+            if (activeEffects.size == 2) {
+                applyEffect(activeEffects[1], canvas, w, h) { innerCanvas -> applyEffect(activeEffects[0], innerCanvas, w, h, drawInner = drawBase) }
+            } else {
+                applyEffect(activeEffects[0], canvas, w, h, drawInner = drawBase)
+            }
+        } else {
+            drawBase(canvas)
+        }
+
+        val pad = calculatePadding()
+        if (eraseMask != null) {
+            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
+        }
+        if (activeErasePath != null) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                if (activeEraseHardness < 100) {
+                    val r = activeEraseSize / 2f
+                    val b = r * (1f - (activeEraseHardness / 100f))
+                    if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                }
+            }
+            canvas.save()
+            canvas.translate(-pad, -pad)
+            canvas.drawPath(activeErasePath!!, p)
+            canvas.restore()
+        }
+    }
+
+    private fun applyEffect(effect: TextEffectType, targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+         when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     val prevSilhouette = silhouetteColor
                     silhouetteColor = chromaticColors[0]
@@ -730,35 +790,6 @@ class ShapeLayer(
                 }
                 else -> drawInner(targetCanvas)
              }
-        }
-
-        if (activeEffects.size == 2) {
-            applyEffect(activeEffects[1], canvas) { innerCanvas -> applyEffect(activeEffects[0], innerCanvas, drawBase) }
-        } else if (activeEffects.size == 1) {
-            applyEffect(activeEffects[0], canvas, drawBase)
-        } else {
-            drawBase(canvas)
-        }
-
-        val pad = calculatePadding()
-        if (eraseMask != null) {
-            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
-        }
-        if (activeErasePath != null) {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                if (activeEraseHardness < 100) {
-                    val r = activeEraseSize / 2f
-                    val b = r * (1f - (activeEraseHardness / 100f))
-                    if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
-                }
-            }
-            canvas.save()
-            canvas.translate(-pad, -pad)
-            canvas.drawPath(activeErasePath!!, p)
-            canvas.restore()
-        }
     }
 
     private fun drawDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {

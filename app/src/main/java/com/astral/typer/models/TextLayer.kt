@@ -287,6 +287,8 @@ class TextLayer(
         }
     }
 
+    private var silhouetteColor: Int? = null
+
     private fun getSpansHash(): Int {
         var hashResult = 1
         val len = text.length
@@ -317,13 +319,14 @@ class TextLayer(
         return hashResult
     }
 
-    fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float): Int {
+    fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float, skipEffects: Boolean): Int {
         var result = text.toString().hashCode()
         result = 31 * result + getSpansHash()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
         result = 31 * result + pad.hashCode()
         result = 31 * result + qualityScale.hashCode()
+        result = 31 * result + skipEffects.hashCode()
         result = 31 * result + color
         result = 31 * result + fontSize.hashCode()
         result = 31 * result + (fontPath?.hashCode() ?: 0)
@@ -398,9 +401,9 @@ class TextLayer(
         return result
     }
 
-    private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int): Bitmap {
+    private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false): Bitmap {
         // 1. Ensure cleanContentCache is valid
-        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale)
+        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
         val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
                 cleanContentCache!!.width == bmpW && cleanContentCache!!.height == bmpH &&
                 cleanContentHash == cleanHash
@@ -411,7 +414,7 @@ class TextLayer(
             val c = Canvas(newClean)
             c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
-            drawCleanContent(c, layout, w, ch)
+            drawCleanContent(c, layout, w, ch, skipEffects = skipEffects)
             cleanContentCache = newClean
             cleanContentHash = cleanHash
             erasedContentHash = -1 // force update erased content
@@ -1026,28 +1029,58 @@ class TextLayer(
         }
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
-        if (isWarpActive) {
-            val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            if (_warpMesh != null && selectedWarpIndex == -1) {
-                drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale)
-            } else {
-                drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
+        val activeEffects = mutableListOf<TextEffectType>()
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+
+        val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
+        val useHardwareTransformEffects = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
+
+        if (useHardwareTransformEffects) {
+            val drawTransformed = { targetCanvas: Canvas ->
+                if (isWarpActive) {
+                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                    if (_warpMesh != null && selectedWarpIndex == -1) {
+                        drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true)
+                    } else {
+                        drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
+                    }
+                } else if (isPerspective && perspectivePoints != null) {
+                    drawPerspective(targetCanvas, layout, w, h, ch, skipEffects = true)
+                }
             }
-        } else if (isPerspective && perspectivePoints != null) {
-             drawPerspective(canvas, layout, w, h, ch)
+
+            if (activeEffects.size == 2) {
+                applyEffect(activeEffects[1], canvas, w, h, layout.paint) { innerCanvas ->
+                    applyEffect(activeEffects[0], innerCanvas, w, h, layout.paint, drawTransformed)
+                }
+            } else {
+                applyEffect(activeEffects[0], canvas, w, h, layout.paint, drawTransformed)
+            }
         } else {
-             // If fixedHeight is set, we need to clip the content area
-             if (fixedHeight != null && fixedHeight!! > 0) {
-                 canvas.save()
-                 val pad = calculatePadding()
-                 canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
-                 canvas.translate(dx, dy)
-                 drawContent(canvas, layout, w, h)
-                 canvas.restore()
-             } else {
-                 canvas.translate(dx, dy)
-                 drawContent(canvas, layout, w, h)
-             }
+            if (isWarpActive) {
+                val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                if (_warpMesh != null && selectedWarpIndex == -1) {
+                    drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false)
+                } else {
+                    drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
+                }
+            } else if (isPerspective && perspectivePoints != null) {
+                 drawPerspective(canvas, layout, w, h, ch, skipEffects = false)
+            } else {
+                 // If fixedHeight is set, we need to clip the content area
+                 if (fixedHeight != null && fixedHeight!! > 0) {
+                     canvas.save()
+                     val pad = calculatePadding()
+                     canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
+                     canvas.translate(dx, dy)
+                     drawContent(canvas, layout, w, h, skipEffects = false)
+                     canvas.restore()
+                 } else {
+                     canvas.translate(dx, dy)
+                     drawContent(canvas, layout, w, h, skipEffects = false)
+                 }
+            }
         }
 
         if (isOpacityGradient) {
@@ -1062,7 +1095,7 @@ class TextLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float) {
+    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
@@ -1072,7 +1105,7 @@ class TextLayer(
         val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
+            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
             canvas.save()
@@ -1343,7 +1376,7 @@ class TextLayer(
         }
     }
 
-    private fun drawCharacterByCharacter(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, qualityScale: Float) {
+    private fun drawCharacterByCharacter(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, qualityScale: Float, skipEffects: Boolean = false) {
         val fullText = text.toString()
         val pad = calculatePadding()
 
@@ -1418,7 +1451,7 @@ class TextLayer(
 
                     tempCanvas.save()
                     tempCanvas.translate(pad, pad)
-                    drawContent(tempCanvas, charLayout, charW, charH, left, yTop, isCharByChar = true)
+                    drawContent(tempCanvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
                     tempCanvas.restore()
 
                     val meshW = 20
@@ -1448,22 +1481,22 @@ class TextLayer(
             } else {
                 canvas.save()
                 canvas.translate(-w / 2f + left, -h / 2f + yTop)
-                drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true)
+                drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
                 canvas.restore()
             }
         }
     }
 
-    private fun getAssembledLetterWarpBitmap(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int): Bitmap {
+    private fun getAssembledLetterWarpBitmap(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false): Bitmap {
         val bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.scale(qualityScale, qualityScale)
         canvas.translate(-bounds.renderLeft, -bounds.renderTop)
-        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale)
+        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects)
         return bmp
     }
 
-    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
+    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
         val pad = calculatePadding()
         val isFreshBmp = letterWarpMeshes.isNotEmpty()
 
@@ -1485,9 +1518,9 @@ class TextLayer(
 
         if (bmpW > 0 && bmpH > 0) {
             val finalBmp = if (isFreshBmp) {
-                getAssembledLetterWarpBitmap(bounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH)
+                getAssembledLetterWarpBitmap(bounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
             } else {
-                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH)
+                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
             }
 
             val meshW = 20
@@ -1520,7 +1553,7 @@ class TextLayer(
         }
     }
 
-    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false) {
+    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false) {
         val paint = layout.paint
         val fullW = getWidth()
         val fullH = getContentHeight()
@@ -1537,7 +1570,7 @@ class TextLayer(
             getGradientShader(w, h)
         }
 
-        var silhouetteColor: Int? = null
+        silhouetteColor = null
         var isDrawingShadowPass = false
 
         val drawMain = { targetCanvas: Canvas ->
@@ -1770,8 +1803,22 @@ class TextLayer(
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
 
-        fun applyEffect(effect: TextEffectType, targetCanvas: Canvas, drawInner: (Canvas) -> Unit) {
-            when (effect) {
+        val hasEffects = activeEffects.isNotEmpty() && !skipEffects
+        if (hasEffects) {
+            if (activeEffects.size == 2) {
+                applyEffect(activeEffects[1], canvas, w, h, paint) { innerCanvas ->
+                    applyEffect(activeEffects[0], innerCanvas, w, h, paint, drawBase)
+                }
+            } else {
+                applyEffect(activeEffects[0], canvas, w, h, paint, drawBase)
+            }
+        } else {
+            drawBase(canvas)
+        }
+    }
+
+    private fun applyEffect(effect: TextEffectType, targetCanvas: Canvas, w: Float, h: Float, paint: Paint, drawInner: (Canvas) -> Unit) {
+        when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     val originalXfermode = paint.xfermode
                     val originalColor = paint.color
@@ -2320,22 +2367,10 @@ class TextLayer(
                     drawInner(targetCanvas)
                 }
             }
-        }
-
-        if (activeEffects.size == 2) {
-            applyEffect(activeEffects[1], canvas) { innerCanvas ->
-                applyEffect(activeEffects[0], innerCanvas, drawBase)
-            }
-        } else if (activeEffects.size == 1) {
-            applyEffect(activeEffects[0], canvas, drawBase)
-        } else {
-            drawBase(canvas)
-        }
-
     }
 
-    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false) {
-        drawCleanContent(canvas, layout, w, h, charLeft, charTop, isCharByChar)
+    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false) {
+        drawCleanContent(canvas, layout, w, h, charLeft, charTop, isCharByChar, skipEffects = skipEffects)
 
         val pad = calculatePadding()
         // Apply Erase Mask
