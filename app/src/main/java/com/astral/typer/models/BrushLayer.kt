@@ -1149,23 +1149,17 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
 
         val dabOpacity = (opaque * brushOpacity).toInt().coerceIn(0, 255)
 
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            alpha = dabOpacity
-        }
+        val isPureEraser = eraser > 0f
+        val ellipticalDabRatio = states[STATE_ACTUAL_ELLIPTICAL_DAB_RATIO]
+        val ellipticalDabAngle = states[STATE_ACTUAL_ELLIPTICAL_DAB_ANGLE]
+        val scaleY = if (ellipticalDabRatio <= 0.01f) 1f else (1f / ellipticalDabRatio)
 
-        if (hardness < 1f) {
-            val colors = intArrayOf(finalColor, finalColor, Color.TRANSPARENT)
-            val stops = floatArrayOf(0f, hardness.coerceIn(0f, 0.99f), 1f)
-            paint.shader = RadialGradient(0f, 0f, radius, colors, stops, Shader.TileMode.CLAMP)
-        } else {
-            paint.color = finalColor
-        }
-
-        val isEraserVal = (eraser > 0f) || (eraserTargetAlpha < 1.0f && smudgeValue > 0f)
-
-        if (isEraserVal) {
-            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+        if (isPureEraser) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                alpha = dabOpacity
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            }
             if (hardness < 1f) {
                 val colors = intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT)
                 val stops = floatArrayOf(0f, hardness.coerceIn(0f, 0.99f), 1f)
@@ -1173,18 +1167,77 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             } else {
                 paint.color = Color.BLACK
             }
+
+            drawCanvas.save()
+            drawCanvas.translate(x, y)
+            drawCanvas.rotate(ellipticalDabAngle)
+            drawCanvas.scale(1f, scaleY)
+            drawCanvas.drawCircle(0f, 0f, radius, paint)
+            drawCanvas.restore()
+        } else if (eraserTargetAlpha < 1.0f && smudgeValue > 0f) {
+            // Blending / smudge brush with transparency - 2-pass drawing
+            // Pass 1: Erase pass (DST_OUT) with the base dab alpha profile
+            val paintErase = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                alpha = dabOpacity
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            }
+            if (hardness < 1f) {
+                val colors = intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT)
+                val stops = floatArrayOf(0f, hardness.coerceIn(0f, 0.99f), 1f)
+                paintErase.shader = RadialGradient(0f, 0f, radius, colors, stops, Shader.TileMode.CLAMP)
+            } else {
+                paintErase.color = Color.BLACK
+            }
+
+            drawCanvas.save()
+            drawCanvas.translate(x, y)
+            drawCanvas.rotate(ellipticalDabAngle)
+            drawCanvas.scale(1f, scaleY)
+            drawCanvas.drawCircle(0f, 0f, radius, paintErase)
+            drawCanvas.restore()
+
+            // Pass 2: Add pass (ADD) with finalColor and scaled alpha
+            val paintAdd = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                alpha = (dabOpacity * eraserTargetAlpha).toInt().coerceIn(0, 255)
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+            }
+            if (hardness < 1f) {
+                val colors = intArrayOf(finalColor, finalColor, Color.TRANSPARENT)
+                val stops = floatArrayOf(0f, hardness.coerceIn(0f, 0.99f), 1f)
+                paintAdd.shader = RadialGradient(0f, 0f, radius, colors, stops, Shader.TileMode.CLAMP)
+            } else {
+                paintAdd.color = finalColor
+            }
+
+            drawCanvas.save()
+            drawCanvas.translate(x, y)
+            drawCanvas.rotate(ellipticalDabAngle)
+            drawCanvas.scale(1f, scaleY)
+            drawCanvas.drawCircle(0f, 0f, radius, paintAdd)
+            drawCanvas.restore()
+        } else {
+            // Standard paint brush - 1-pass drawing
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                alpha = dabOpacity
+            }
+            if (hardness < 1f) {
+                val colors = intArrayOf(finalColor, finalColor, Color.TRANSPARENT)
+                val stops = floatArrayOf(0f, hardness.coerceIn(0f, 0.99f), 1f)
+                paint.shader = RadialGradient(0f, 0f, radius, colors, stops, Shader.TileMode.CLAMP)
+            } else {
+                paint.color = finalColor
+            }
+
+            drawCanvas.save()
+            drawCanvas.translate(x, y)
+            drawCanvas.rotate(ellipticalDabAngle)
+            drawCanvas.scale(1f, scaleY)
+            drawCanvas.drawCircle(0f, 0f, radius, paint)
+            drawCanvas.restore()
         }
-
-        val ellipticalDabRatio = states[STATE_ACTUAL_ELLIPTICAL_DAB_RATIO]
-        val ellipticalDabAngle = states[STATE_ACTUAL_ELLIPTICAL_DAB_ANGLE]
-
-        drawCanvas.save()
-        drawCanvas.translate(x, y)
-        drawCanvas.rotate(ellipticalDabAngle)
-        val scaleY = if (ellipticalDabRatio <= 0.01f) 1f else (1f / ellipticalDabRatio)
-        drawCanvas.scale(1f, scaleY)
-        drawCanvas.drawCircle(0f, 0f, radius, paint)
-        drawCanvas.restore()
 
         return true
     }
