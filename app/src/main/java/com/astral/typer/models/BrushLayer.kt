@@ -58,6 +58,24 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     private var stateNormSpeed2Slow: Float = 0f
     private var stateCustomInput: Float = 0f
 
+    // MyPaint brush engine state variables
+    private var statePartialDabs: Float = 0f
+    private var stateActualRadius: Float = 0f
+    private var stateActualEllipticalDabRatio: Float = 1f
+    private var stateActualEllipticalDabAngle: Float = 90f
+    private var stateActualX: Float = 0f
+    private var stateActualY: Float = 0f
+    private var stateFlip: Float = -1f
+
+    private var stateDabsPerActualRadius: Float = 4f
+    private var stateDabsPerBasicRadius: Float = 0f
+    private var stateDabsPerSecond: Float = 0f
+
+    private var stateDirectionDx: Float = 0f
+    private var stateDirectionDy: Float = 0f
+    private var stateDirectionAngleDx: Float = 0f
+    private var stateDirectionAngleDy: Float = 0f
+
     var activePreset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset? = null
 
     fun getPreset(context: android.content.Context): com.astral.typer.utils.MyPaintBrushHelper.BrushPreset {
@@ -340,6 +358,58 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         stateNormSpeed2Slow = 0f
         stateCustomInput = 0f
         currentSmudgeColor = brushColor
+
+        statePartialDabs = 0f
+        stateActualRadius = 0f
+        stateActualEllipticalDabRatio = 1f
+        stateActualEllipticalDabAngle = 90f
+        stateActualX = x
+        stateActualY = y
+        stateFlip = -1f
+
+        stateDirectionDx = 0f
+        stateDirectionDy = 0f
+        stateDirectionAngleDx = 0f
+        stateDirectionAngleDy = 0f
+
+        val context = TyperApplication.instance ?: return
+        val preset = getPreset(context)
+        val tempInputs = mapOf("pressure" to 1.0f)
+        stateDabsPerActualRadius = preset.getSettingValue("dabs_per_actual_radius", tempInputs)
+        stateDabsPerBasicRadius = preset.getSettingValue("dabs_per_basic_radius", tempInputs)
+        stateDabsPerSecond = preset.getSettingValue("dabs_per_second", tempInputs)
+    }
+
+    private fun countDabsTo(x: Float, y: Float, dt: Float, preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset): Float {
+        val baseRadius = (brushSize / 2f).coerceAtLeast(0.1f)
+        if (stateActualRadius == 0f) {
+            stateActualRadius = baseRadius
+        }
+
+        val dx = x - lastX
+        val dy = y - lastY
+
+        var dist = 0f
+
+        if (stateActualEllipticalDabRatio > 1.0f) {
+            val angleRad = Math.toRadians(stateActualEllipticalDabAngle.toDouble()).toFloat()
+            val cs = Math.cos(angleRad.toDouble()).toFloat()
+            val sn = Math.sin(angleRad.toDouble()).toFloat()
+            val yyr = (dy * cs - dx * sn) * stateActualEllipticalDabRatio
+            val xxr = dy * sn + dx * cs
+            dist = Math.hypot(yyr.toDouble(), xxr.toDouble()).toFloat()
+        } else {
+            dist = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        }
+
+        val res1 = dist / stateActualRadius * stateDabsPerActualRadius
+        val res2 = dist / baseRadius * stateDabsPerBasicRadius
+        val res3 = dt * stateDabsPerSecond
+        var res4 = res1 + res2 + res3
+        if (res4.isNaN() || res4 < 0f) {
+            res4 = 0f
+        }
+        return res4
     }
 
     fun continueStroke(x: Float, y: Float) {
@@ -370,28 +440,50 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             strokeHasMoved = true
         }
 
-        // Calculate spacing based on brush size and dabs_per_actual_radius.
-        val inputPressure = 1.0f
-        val tempInputs = mapOf("pressure" to inputPressure)
-        val dabsPerActualRadius = preset.getSettingValue("dabs_per_actual_radius", tempInputs)
+        var dtimeLeft = dtime
+        val dabsTodo = countDabsTo(targetX, targetY, dtimeLeft, preset)
+        var dabsMoved = statePartialDabs
 
-        val radius = brushSize / 2f
-        val dabsCount = if (dabsPerActualRadius <= 0f) 4.0f else dabsPerActualRadius
-        val spacing = (radius / dabsCount).coerceAtLeast(1f)
+        var totalDabsTodo = dabsTodo
 
-        if (distance > spacing) {
-            val steps = (distance / spacing).toInt()
-            val stepDtime = dtime / steps
-            for (i in 1..steps) {
-                val interpolatedX = lastX + dx * (i.toFloat() / steps)
-                val interpolatedY = lastY + dy * (i.toFloat() / steps)
-
-                val stepDist = distance / steps
-                updateStatesAndDrawDab(interpolatedX, interpolatedY, stepDist, stepDtime, inputPressure, preset)
+        while (dabsMoved + totalDabsTodo >= 1.0f) {
+            val stepDdab: Float
+            val frac: Float
+            if (dabsMoved > 0f) {
+                stepDdab = 1.0f - dabsMoved
+                dabsMoved = 0f
+            } else {
+                stepDdab = 1.0f
             }
-            lastX = targetX
-            lastY = targetY
+            frac = if (totalDabsTodo > 0f) stepDdab / totalDabsTodo else 1.0f
+
+            val stepDx = frac * (targetX - lastX)
+            val stepDy = frac * (targetY - lastY)
+            val stepDtime = frac * dtimeLeft
+
+            val interpolatedX = lastX + stepDx
+            val interpolatedY = lastY + stepDy
+
+            updateStatesAndDrawDab(interpolatedX, interpolatedY, stepDx, stepDy, stepDdab, stepDtime, 1.0f, true, preset)
+
+            lastX = interpolatedX
+            lastY = interpolatedY
+            dtimeLeft -= stepDtime
+
+            totalDabsTodo = countDabsTo(targetX, targetY, dtimeLeft, preset)
         }
+
+        val stepDdab = totalDabsTodo
+        val stepDx = targetX - lastX
+        val stepDy = targetY - lastY
+        val stepDtime = dtimeLeft
+
+        updateStatesAndDrawDab(targetX, targetY, stepDx, stepDy, stepDdab, stepDtime, 1.0f, false, preset)
+
+        lastX = targetX
+        lastY = targetY
+
+        statePartialDabs = dabsMoved + totalDabsTodo
     }
 
     fun endStroke() {
@@ -408,14 +500,34 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
                 "direction" to 0f,
                 "direction_angle" to 0f
             )
+
+            stateActualEllipticalDabRatio = preset.getSettingValue("elliptical_dab_ratio", inputs).coerceAtLeast(1f)
+            stateActualEllipticalDabAngle = preset.getSettingValue("elliptical_dab_angle", inputs)
+            val currentRadiusLog = preset.getSettingValue("radius_logarithmic", inputs)
+            val baseRadiusLog = preset.settings["radius_logarithmic"]?.baseValue ?: 0.5f
+            val baseRadiusScale = Math.exp(baseRadiusLog.toDouble()).toFloat() * 15f
+            val scale = if (baseRadiusScale > 0f) brushSize / baseRadiusScale else 1.0f
+            val dabSize = (Math.exp(currentRadiusLog.toDouble()).toFloat() * 15f * scale).coerceAtLeast(1f)
+            stateActualRadius = dabSize / 2f
+
             drawDabWithInputs(lastX, lastY, inputs, preset)
         }
     }
 
-    private fun updateStatesAndDrawDab(cx: Float, cy: Float, stepDist: Float, stepDtime: Float, pressure: Float, preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset) {
+    private fun updateStatesAndDrawDab(
+        cx: Float,
+        cy: Float,
+        stepDx: Float,
+        stepDy: Float,
+        stepDdab: Float,
+        stepDtime: Float,
+        pressure: Float,
+        shouldDraw: Boolean,
+        preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset
+    ) {
         val tempInputs = mapOf("pressure" to pressure)
-        val baseRadiusLog = preset.getSettingValue("radius_logarithmic", tempInputs)
-        val baseRadius = Math.exp(baseRadiusLog.toDouble()).toFloat().coerceIn(0.2f, 1000f)
+        val baseRadius = (brushSize / 2f).coerceAtLeast(0.1f)
+        val stepDist = Math.hypot(stepDx.toDouble(), stepDy.toDouble()).toFloat()
         val normDist = stepDist / baseRadius
 
         val threshold = preset.getSettingValue("stroke_threshold", tempInputs)
@@ -441,13 +553,14 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         }
 
         // Update speed
-        val normSpeed = stepDist / stepDtime
+        val safeStepDtime = if (stepDtime <= 0f) 0.0001f else stepDtime
+        val normSpeed = stepDist / safeStepDtime
         val speed1Slowness = preset.getSettingValue("speed1_slowness", tempInputs)
-        val fac1 = 1f - expDecay(speed1Slowness, stepDtime)
+        val fac1 = 1f - expDecay(speed1Slowness, safeStepDtime)
         stateNormSpeed1Slow += (normSpeed - stateNormSpeed1Slow) * fac1
 
         val speed2Slowness = preset.getSettingValue("speed2_slowness", tempInputs)
-        val fac2 = 1f - expDecay(speed2Slowness, stepDtime)
+        val fac2 = 1f - expDecay(speed2Slowness, safeStepDtime)
         stateNormSpeed2Slow += (normSpeed - stateNormSpeed2Slow) * fac2
 
         // Speed inputs calculation
@@ -475,25 +588,68 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         val facCustom = 1.0f - expDecay(customInputSlowness, 0.1f)
         stateCustomInput += (customInputSetting - stateCustomInput) * facCustom
 
-        // Direction
-        val dx = cx - lastX
-        val dy = cy - lastY
-        val angle = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        val inputDirection = (angle + 180f) % 180f
-        val inputDirectionAngle = (angle + 360f) % 360f
+        // Direction with lowpass filter
+        val directionFilter = preset.getSettingValue("direction_filter", tempInputs)
+        val facDir = 1f - expDecay(Math.exp(directionFilter.toDouble() * 0.5).toFloat() - 1f, stepDist)
+
+        stateDirectionAngleDx += (stepDx - stateDirectionAngleDx) * facDir
+        stateDirectionAngleDy += (stepDy - stateDirectionAngleDy) * facDir
+
+        var signCorrectedDx = stepDx
+        var signCorrectedDy = stepDy
+
+        // Use the opposite speed vector if it is closer (for 180 degree turns)
+        val distNormal = (stateDirectionDx - stepDx) * (stateDirectionDx - stepDx) + (stateDirectionDy - stepDy) * (stateDirectionDy - stepDy)
+        val distOpposite = (stateDirectionDx - (-stepDx)) * (stateDirectionDx - (-stepDx)) + (stateDirectionDy - (-stepDy)) * (stateDirectionDy - (-stepDy))
+        if (distNormal > distOpposite) {
+            signCorrectedDx = -stepDx
+            signCorrectedDy = -stepDy
+        }
+        stateDirectionDx += (signCorrectedDx - stateDirectionDx) * facDir
+        stateDirectionDy += (signCorrectedDy - stateDirectionDy) * facDir
+
+        val dirAngle = Math.toDegrees(Math.atan2(stateDirectionDy.toDouble(), stateDirectionDx.toDouble())).toFloat()
+        val inputDirection = (dirAngle + 180f) % 180f
+
+        val dirAngle360 = Math.toDegrees(Math.atan2(stateDirectionAngleDy.toDouble(), stateDirectionAngleDx.toDouble())).toFloat()
+        val inputDirectionAngle = (dirAngle360 + 360f) % 360f
 
         val inputValues = mapOf(
             "pressure" to pressure,
             "random" to Math.random().toFloat(),
             "stroke" to stateStroke.coerceIn(0f, 1f),
-            "speed1" to inputSpeed1,
-            "speed2" to inputSpeed2,
+            "speed1" to inputSpeed1.toFloat(),
+            "speed2" to inputSpeed2.toFloat(),
             "custom" to stateCustomInput,
             "direction" to inputDirection,
             "direction_angle" to inputDirectionAngle
         )
 
-        drawDabWithInputs(cx, cy, inputValues, preset)
+        // Update states for next countDabsTo calculation
+        stateDabsPerActualRadius = preset.getSettingValue("dabs_per_actual_radius", inputValues)
+        stateDabsPerBasicRadius = preset.getSettingValue("dabs_per_basic_radius", inputValues)
+        stateDabsPerSecond = preset.getSettingValue("dabs_per_second", inputValues)
+
+        val currentRadiusLog = preset.getSettingValue("radius_logarithmic", inputValues)
+        val baseRadiusLog = preset.settings["radius_logarithmic"]?.baseValue ?: 0.5f
+        val baseRadiusScale = Math.exp(baseRadiusLog.toDouble()).toFloat() * 15f
+        val scale = if (baseRadiusScale > 0f) brushSize / baseRadiusScale else 1.0f
+        val dabSize = (Math.exp(currentRadiusLog.toDouble()).toFloat() * 15f * scale).coerceAtLeast(1f)
+        stateActualRadius = dabSize / 2f
+
+        stateActualEllipticalDabRatio = preset.getSettingValue("elliptical_dab_ratio", inputValues).coerceAtLeast(1f)
+        stateActualEllipticalDabAngle = preset.getSettingValue("elliptical_dab_angle", inputValues)
+
+        // Update actual positions using slow_tracking_per_dab
+        val slowTrackingPerDab = preset.getSettingValue("slow_tracking_per_dab", inputValues)
+        val facDab = 1f - expDecay(slowTrackingPerDab, stepDdab)
+        stateActualX += (cx - stateActualX) * facDab
+        stateActualY += (cy - stateActualY) * facDab
+
+        if (shouldDraw) {
+            stateFlip *= -1f
+            drawDabWithInputs(stateActualX, stateActualY, inputValues, preset)
+        }
     }
 
     private fun drawDabWithInputs(cx: Float, cy: Float, inputValues: Map<String, Float>, preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset) {
@@ -646,8 +802,8 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
         }
 
         // Draw with elliptical transformations
-        val ellipticalDabRatio = preset.getSettingValue("elliptical_dab_ratio", inputValues)
-        val ellipticalDabAngle = preset.getSettingValue("elliptical_dab_angle", inputValues)
+        val ellipticalDabRatio = stateActualEllipticalDabRatio
+        val ellipticalDabAngle = stateActualEllipticalDabAngle
 
         drawCanvas.save()
         drawCanvas.translate(dabX, dabY)
