@@ -92,6 +92,8 @@ interface StylableLayer {
     var multiGradientAngle: Float
     var radialBlurInnerRadius: Float
     var radialBlurMotionStrength: Float
+    var radialBlurCenterX: Float
+    var radialBlurCenterY: Float
     var decayIntensity: Float
     var decayFadingLevel: Float
 

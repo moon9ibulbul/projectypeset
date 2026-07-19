@@ -128,6 +128,8 @@ object StyleManager {
         // Radial Blur
         val radialBlurInnerRadius: Float = 0f,
         val radialBlurMotionStrength: Float = 0f,
+        val radialBlurCenterX: Float = 0.5f,
+        val radialBlurCenterY: Float = 0.5f,
 
         val decayIntensity: Float = 0.5f,
         val decayFadingLevel: Float = 0.5f,
@@ -193,6 +195,7 @@ object StyleManager {
             l.textAlign.ordinal, l.isJustified,
             isBold, isItalic, isUnderline, isStrike,
             l.radialBlurInnerRadius, l.radialBlurMotionStrength,
+            l.radialBlurCenterX, l.radialBlurCenterY,
             l.decayIntensity, l.decayFadingLevel,
             l.twistAngle, l.twistOffsetX, l.twistOffsetY, l.twistRadius,
             l.bulgeCenterX, l.bulgeCenterY, l.bulgeRadius, l.bulgeStrength,
@@ -257,6 +260,8 @@ object StyleManager {
 
         l.radialBlurInnerRadius = m.radialBlurInnerRadius
         l.radialBlurMotionStrength = m.radialBlurMotionStrength
+        l.radialBlurCenterX = m.radialBlurCenterX
+        l.radialBlurCenterY = m.radialBlurCenterY
         l.decayIntensity = m.decayIntensity
         l.decayFadingLevel = m.decayFadingLevel
 

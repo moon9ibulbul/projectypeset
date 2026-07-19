@@ -1226,6 +1226,40 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s2)
+
+                val currentCX = stylableLayer.radialBlurCenterX
+                val s3 = createSlider("Center X: ${(currentCX * 100).toInt()}%", (currentCX * 100).toInt(), 100) {
+                    stylableLayer.radialBlurCenterX = it / 100f
+                    canvasView.invalidate()
+                }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.radialBlurCenterX = p / 100f
+                        tv3?.text = "Center X: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                val currentCY = stylableLayer.radialBlurCenterY
+                val s4 = createSlider("Center Y: ${(currentCY * 100).toInt()}%", (currentCY * 100).toInt(), 100) {
+                    stylableLayer.radialBlurCenterY = it / 100f
+                    canvasView.invalidate()
+                }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.radialBlurCenterY = p / 100f
+                        tv4?.text = "Center Y: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s4)
         }
         if (isEffectActive(TextEffectType.MOTION_BLUR)) {
                 val currentKernel = stylableLayer.motionBlurKernelSize.coerceIn(5, 101)

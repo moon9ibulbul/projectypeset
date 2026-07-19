@@ -140,6 +140,7 @@ object ProjectManager {
         val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
         val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null,
         val radialBlurInnerRadius: Float? = null, val radialBlurMotionStrength: Float? = null,
+        val radialBlurCenterX: Float? = null, val radialBlurCenterY: Float? = null,
         val decayIntensity: Float? = null, val decayFadingLevel: Float? = null,
 
         // Twist
@@ -328,6 +329,7 @@ object ProjectManager {
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
 
                         // Twist
@@ -402,6 +404,7 @@ object ProjectManager {
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
 
                         // Twist
@@ -892,6 +895,8 @@ object ProjectManager {
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
             model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
+            model.radialBlurCenterX?.let { layer.radialBlurCenterX = it }
+            model.radialBlurCenterY?.let { layer.radialBlurCenterY = it }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
 
@@ -1008,6 +1013,8 @@ object ProjectManager {
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
             model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
+            model.radialBlurCenterX?.let { layer.radialBlurCenterX = it }
+            model.radialBlurCenterY?.let { layer.radialBlurCenterY = it }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
 

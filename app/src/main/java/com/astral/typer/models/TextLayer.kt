@@ -233,6 +233,8 @@ class TextLayer(
     // Radial Blur
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
+    override var radialBlurCenterX: Float = 0.5f
+    override var radialBlurCenterY: Float = 0.5f
 
     // Text Decay
     override var decayIntensity: Float = 0.5f
@@ -419,6 +421,8 @@ class TextLayer(
         result = 31 * result + particleDissolveAngle.hashCode()
         result = 31 * result + radialBlurInnerRadius.hashCode()
         result = 31 * result + radialBlurMotionStrength.hashCode()
+        result = 31 * result + radialBlurCenterX.hashCode()
+        result = 31 * result + radialBlurCenterY.hashCode()
         result = 31 * result + decayIntensity.hashCode()
         result = 31 * result + decayFadingLevel.hashCode()
 
@@ -655,6 +659,8 @@ class TextLayer(
 
         newLayer.radialBlurInnerRadius = this.radialBlurInnerRadius
         newLayer.radialBlurMotionStrength = this.radialBlurMotionStrength
+        newLayer.radialBlurCenterX = this.radialBlurCenterX
+        newLayer.radialBlurCenterY = this.radialBlurCenterY
         newLayer.decayIntensity = this.decayIntensity
         newLayer.decayFadingLevel = this.decayFadingLevel
 
@@ -2264,8 +2270,8 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(RADIAL_BLUR_SHADER)
-                            val centerX = if (hasBounds) nodeW / 2f else w / 2f + pad
-                            val centerY = if (hasBounds) nodeH / 2f else h / 2f + pad
+                            val centerX = (if (hasBounds) nodeW.toFloat() else (w + pad * 2)) * radialBlurCenterX
+                            val centerY = (if (hasBounds) nodeH.toFloat() else (h + pad * 2)) * radialBlurCenterY
                             shader.setFloatUniform("center", centerX, centerY)
                             shader.setFloatUniform("innerRadius", radialBlurInnerRadius)
                             shader.setFloatUniform("motionStrength", radialBlurMotionStrength)
@@ -2289,7 +2295,7 @@ class TextLayer(
                             c.translate(recordTranslateX, recordTranslateY)
                             drawInner(c)
 
-                            val center = PointF(bmpW / 2f, bmpH / 2f)
+                            val center = PointF(bmpW * radialBlurCenterX, bmpH * radialBlurCenterY)
                             val motionRad = Math.toRadians(radialBlurMotionStrength.toDouble())
                             val zoomBase = (1.0 - (radialBlurMotionStrength / 180.0).coerceIn(0.0, 1.0)) * 0.03
 
