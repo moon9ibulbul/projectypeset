@@ -101,6 +101,13 @@ class AstralCanvasView @JvmOverloads constructor(
     // Temp path for layer erase
     private val currentLayerErasePath = Path()
 
+    // Saved brush state variables for BrushLayer erase toggle
+    private var savedBrushName: String = "pencil"
+    private var savedBrushSize: Float = 20f
+    private var savedBrushHardness: Float = 0.5f
+    private var savedBrushOpacity: Int = 255
+    private var savedBrushPreset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset? = null
+
     // Inpaint Tools
     enum class InpaintTool {
         BRUSH, ERASER, LASSO, LASSO_ERASER
@@ -509,9 +516,25 @@ class AstralCanvasView @JvmOverloads constructor(
         isEraseLayerMode = enabled
         if (enabled) {
             currentMode = Mode.ERASE_LAYER
+            val brushLayer = selectedLayer as? com.astral.typer.models.BrushLayer
+            if (brushLayer != null) {
+                savedBrushName = brushLayer.brushName
+                savedBrushSize = brushLayer.brushSize
+                savedBrushHardness = brushLayer.brushHardness
+                savedBrushOpacity = brushLayer.brushOpacity
+                savedBrushPreset = brushLayer.activePreset
+            }
         } else {
             if (currentMode == Mode.ERASE_LAYER) {
                 currentMode = Mode.NONE
+            }
+            val brushLayer = selectedLayer as? com.astral.typer.models.BrushLayer
+            if (brushLayer != null) {
+                brushLayer.brushName = savedBrushName
+                brushLayer.brushSize = savedBrushSize
+                brushLayer.brushHardness = savedBrushHardness
+                brushLayer.brushOpacity = savedBrushOpacity
+                brushLayer.activePreset = savedBrushPreset
             }
         }
         invalidate()
@@ -1820,6 +1843,50 @@ class AstralCanvasView @JvmOverloads constructor(
                         }
                     }
                     gradationStart = null; gradationEnd = null; invalidate()
+                }
+            }
+            return true
+        }
+
+        if (isEraseLayerMode && selectedLayer is com.astral.typer.models.BrushLayer) {
+            val brushLayer = selectedLayer as com.astral.typer.models.BrushLayer
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                currentMode = Mode.PAN_ZOOM
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.ERASE_LAYER
+                }
+                return true
+            }
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    currentMode = Mode.NONE
+                    com.astral.typer.utils.UndoManager.saveState(layers)
+
+                    val eraserPreset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(context, "brushes/classic/ink_eraser.myb")
+                    brushLayer.activePreset = eraserPreset
+                    brushLayer.brushName = "ink_eraser"
+                    brushLayer.brushSize = layerEraseSize
+                    brushLayer.brushHardness = layerEraseHardness / 100f
+                    brushLayer.brushOpacity = layerEraseOpacity
+
+                    brushLayer.startStroke(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    brushLayer.brushSize = layerEraseSize
+                    brushLayer.brushHardness = layerEraseHardness / 100f
+                    brushLayer.brushOpacity = layerEraseOpacity
+
+                    brushLayer.continueStroke(cx, cy)
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    brushLayer.endStroke()
+                    currentMode = Mode.NONE
+                    invalidate()
                 }
             }
             return true
