@@ -1027,8 +1027,11 @@ class AstralCanvasView @JvmOverloads constructor(
             val renderer = android.graphics.HardwareRenderer()
             renderer.setContentRoot(rootNode)
             renderer.setSurface(surface)
+            renderer.setLightSourceAlpha(0f, 0f)
+            renderer.setLightSourceGeometry(0f, 0f, 0f, 1f)
 
             val request = renderer.createRenderRequest()
+            request.setWaitForPresent(true)
             request.syncAndDraw()
 
             val image = reader.acquireNextImage()

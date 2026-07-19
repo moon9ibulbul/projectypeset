@@ -1102,6 +1102,64 @@ object ProjectManager {
         }
     }
 
+    private fun renderPageToBitmapHardware(data: ProjectData, images: Map<String, Bitmap>, targetWidth: Int, targetHeight: Int, scale: Float): Bitmap? {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return null
+        try {
+            val reader = android.media.ImageReader.newInstance(
+                targetWidth, targetHeight,
+                android.graphics.PixelFormat.RGBA_8888, 1,
+                android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
+            )
+            val surface = reader.surface
+
+            val rootNode = android.graphics.RenderNode("RootNode")
+            rootNode.setPosition(0, 0, targetWidth, targetHeight)
+            val canvas = rootNode.beginRecording()
+            canvas.scale(scale, scale)
+
+            // Draw Content
+            canvas.drawColor(data.canvasColor)
+            if (images.containsKey("images/background.png")) {
+                canvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
+            }
+            for (model in data.layers) {
+                val layer = createLayerFromModel(model, images)
+                layer?.draw(canvas)
+            }
+            rootNode.endRecording()
+
+            val renderer = android.graphics.HardwareRenderer()
+            renderer.setContentRoot(rootNode)
+            renderer.setSurface(surface)
+            renderer.setLightSourceAlpha(0f, 0f)
+            renderer.setLightSourceGeometry(0f, 0f, 0f, 1f)
+
+            val request = renderer.createRenderRequest()
+            request.setWaitForPresent(true)
+            request.syncAndDraw()
+
+            val image = reader.acquireNextImage()
+            if (image != null) {
+                val hardwareBuffer = image.hardwareBuffer
+                if (hardwareBuffer != null) {
+                    val bmp = android.graphics.Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
+                    val softwareBmp = bmp?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+                    hardwareBuffer.close()
+                    image.close()
+                    renderer.destroy()
+                    reader.close()
+                    return softwareBmp
+                }
+                image.close()
+            }
+            renderer.destroy()
+            reader.close()
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
         val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
         if (projects.isEmpty()) return false
@@ -1142,18 +1200,25 @@ object ProjectManager {
                     val targetHeight = (data.canvasHeight * scale).toInt()
 
                     // Intermediate bitmap for rendering
-                    val pageBitmap = Bitmap.createBitmap(targetPageWidth, targetHeight, Bitmap.Config.ARGB_8888)
-                    val tempCanvas = android.graphics.Canvas(pageBitmap)
-                    tempCanvas.scale(scale, scale)
-
-                    // Draw Content to tempCanvas
-                    tempCanvas.drawColor(data.canvasColor)
-                    if (images.containsKey("images/background.png")) {
-                        tempCanvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
+                    var pageBitmap: Bitmap? = null
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        pageBitmap = renderPageToBitmapHardware(data, images, targetPageWidth, targetHeight, scale)
                     }
-                    for (model in data.layers) {
-                        val layer = createLayerFromModel(model, images)
-                        layer?.draw(tempCanvas)
+
+                    if (pageBitmap == null) {
+                        pageBitmap = Bitmap.createBitmap(targetPageWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                        val tempCanvas = android.graphics.Canvas(pageBitmap)
+                        tempCanvas.scale(scale, scale)
+
+                        // Draw Content to tempCanvas
+                        tempCanvas.drawColor(data.canvasColor)
+                        if (images.containsKey("images/background.png")) {
+                            tempCanvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
+                        }
+                        for (model in data.layers) {
+                            val layer = createLayerFromModel(model, images)
+                            layer?.draw(tempCanvas)
+                        }
                     }
 
                     // Compress using a high JPEG quality to ensure presentable visual clarity (no blocky artifacts)
