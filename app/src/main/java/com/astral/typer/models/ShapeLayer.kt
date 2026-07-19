@@ -98,6 +98,8 @@ class ShapeLayer(
     override var activeEraseHardness: Float = 0f
     override var eraseDragRevision: Int = 0
 
+    private var silhouetteColor: Int? = null
+
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
@@ -293,14 +295,40 @@ class ShapeLayer(
         }
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
-        if (isWarp && warpMesh != null) {
-            val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale)
-        } else if (isPerspective && perspectivePoints != null) {
-             drawPerspective(canvas, w, h)
+        val activeEffects = mutableListOf<TextEffectType>()
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+
+        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        val useHardwareTransformEffects = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
+
+        if (useHardwareTransformEffects) {
+            val drawTransformed = { targetCanvas: Canvas ->
+                if (isWarp && warpMesh != null) {
+                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                    drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true)
+                } else if (isPerspective && perspectivePoints != null) {
+                    drawPerspective(targetCanvas, w, h, skipEffects = true)
+                }
+            }
+
+            if (activeEffects.size == 2) {
+                applyEffect(activeEffects[1], canvas, w, h, bounds) { innerCanvas ->
+                    applyEffect(activeEffects[0], innerCanvas, w, h, bounds, drawTransformed)
+                }
+            } else {
+                applyEffect(activeEffects[0], canvas, w, h, bounds, drawTransformed)
+            }
         } else {
-             canvas.translate(dx, dy)
-             drawContent(canvas, w, h)
+            if (isWarp && warpMesh != null) {
+                val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false)
+            } else if (isPerspective && perspectivePoints != null) {
+                 drawPerspective(canvas, w, h, skipEffects = false)
+            } else {
+                 canvas.translate(dx, dy)
+                 drawContent(canvas, w, h, skipEffects = false)
+            }
         }
 
         if (isOpacityGradient) {
@@ -315,17 +343,17 @@ class ShapeLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, w: Float, h: Float) {
+    private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         canvas.save()
         canvas.concat(matrix)
         canvas.translate(-w / 2f, -h / 2f)
-        drawContent(canvas, w, h)
+        drawContent(canvas, w, h, skipEffects = skipEffects)
         canvas.restore()
     }
 
-    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f) {
+    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
         val pad = calculatePadding()
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
@@ -335,7 +363,7 @@ class ShapeLayer(
             val c = Canvas(bitmap)
             c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
-            drawContent(c, w, h)
+            drawContent(c, w, h, skipEffects = skipEffects)
 
             val meshW = 20
             val meshH = 20
@@ -358,9 +386,9 @@ class ShapeLayer(
         }
     }
 
-    private fun drawContent(canvas: Canvas, w: Float, h: Float) {
+    private fun drawContent(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
         val gradientShader = getGradientShader(w, h)
-        var silhouetteColor: Int? = null
+        silhouetteColor = null
         var isDrawingShadowPass = false
 
         val drawMain = { targetCanvas: Canvas ->
@@ -502,8 +530,51 @@ class ShapeLayer(
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
 
-        fun applyEffect(effect: TextEffectType, targetCanvas: Canvas, drawInner: (Canvas) -> Unit) {
-             when (effect) {
+        val hasEffects = activeEffects.isNotEmpty() && !skipEffects
+        if (hasEffects) {
+            if (activeEffects.size == 2) {
+                applyEffect(activeEffects[1], canvas, w, h, bounds = null) { innerCanvas -> applyEffect(activeEffects[0], innerCanvas, w, h, bounds = null, drawInner = drawBase) }
+            } else {
+                applyEffect(activeEffects[0], canvas, w, h, bounds = null, drawInner = drawBase)
+            }
+        } else {
+            drawBase(canvas)
+        }
+
+        val pad = calculatePadding()
+        if (eraseMask != null) {
+            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
+        }
+        if (activeErasePath != null) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                if (activeEraseHardness < 100) {
+                    val r = activeEraseSize / 2f
+                    val b = r * (1f - (activeEraseHardness / 100f))
+                    if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                }
+            }
+            canvas.save()
+            canvas.translate(-pad, -pad)
+            canvas.drawPath(activeErasePath!!, p)
+            canvas.restore()
+        }
+    }
+
+    private fun applyEffect(effect: TextEffectType, targetCanvas: Canvas, w: Float, h: Float, bounds: RectF? = null, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        val hasBounds = bounds != null
+        val nodeW = if (hasBounds) bounds!!.width().toInt().coerceAtLeast(1) else (w + pad * 2).toInt().coerceAtLeast(1)
+        val nodeH = if (hasBounds) bounds!!.height().toInt().coerceAtLeast(1) else (h + pad * 2).toInt().coerceAtLeast(1)
+
+        val recordTranslateX = if (hasBounds) -bounds!!.left else pad
+        val recordTranslateY = if (hasBounds) -bounds!!.top else pad
+
+        val drawTranslateX = if (hasBounds) bounds!!.left else -pad
+        val drawTranslateY = if (hasBounds) bounds!!.top else -pad
+
+        when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     val prevSilhouette = silhouetteColor
                     silhouetteColor = chromaticColors[0]
@@ -523,38 +594,44 @@ class ShapeLayer(
                     silhouetteColor = prevSilhouette
                 }
                 TextEffectType.PIXELATION -> {
-                    val pad = calculatePadding()
                     val safeBlockSize = pixelBlockSize.coerceAtLeast(1f)
                     val scaleFactor = 1f / safeBlockSize
-                    val scaledW = ((w + pad * 2) * scaleFactor).toInt().coerceAtLeast(1)
-                    val scaledH = ((h + pad * 2) * scaleFactor).toInt().coerceAtLeast(1)
-                    val currentHash = listOf(shapeName, w, h, color, safeBlockSize, strokeWidth, strokeColor, doubleStrokeWidth, doubleStrokeColor, currentEffect, secondaryEffect, pad).hashCode()
+                    val scaledW = (nodeW * scaleFactor).toInt().coerceAtLeast(1)
+                    val scaledH = (nodeH * scaleFactor).toInt().coerceAtLeast(1)
+                    val currentHash = listOf(shapeName, w, h, color, safeBlockSize, strokeWidth, strokeColor, doubleStrokeWidth, doubleStrokeColor, currentEffect, secondaryEffect, pad, bounds).hashCode()
                     if (cachedPixelBitmap == null || cachedPixelBitmap!!.width != scaledW || cachedPixelBitmap!!.height != scaledH || cachedPixelHash != currentHash) {
                         cachedPixelBitmap?.recycle()
                         val tempBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
                         val tempCanvas = Canvas(tempBitmap)
                         tempCanvas.scale(scaleFactor, scaleFactor)
-                        tempCanvas.translate(pad, pad)
+                        tempCanvas.translate(recordTranslateX, recordTranslateY)
                         drawInner(tempCanvas)
                         cachedPixelBitmap = tempBitmap
                         cachedPixelHash = currentHash
                     }
                     if (cachedPixelBitmap != null && !cachedPixelBitmap!!.isRecycled) {
                         val pixelPaint = Paint().apply { isFilterBitmap = false }
-                        targetCanvas.drawBitmap(cachedPixelBitmap!!, null, RectF(-pad, -pad, w + pad, h + pad), pixelPaint)
+                        targetCanvas.drawBitmap(cachedPixelBitmap!!, null, RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH), pixelPaint)
                     }
                 }
                 TextEffectType.GLITCH -> {
-                    val pad = calculatePadding()
                     val random = Random(effectSeed)
-                    var currentY = -pad
-                    while (currentY < h + pad) {
-                        var stripHeight = (h * 0.02f) + (random.nextFloat() * (h * 0.13f))
+                    val currentYStart = if (hasBounds) bounds!!.top else -pad
+                    val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
+                    val currentXStart = if (hasBounds) bounds!!.left else -pad
+                    val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+
+                    var currentY = currentYStart
+                    val maxStripHeight = (currentYEnd - currentYStart) * 0.15f
+                    val minStripHeight = (currentYEnd - currentYStart) * 0.02f
+
+                    while (currentY < currentYEnd) {
+                        var stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
                         if (stripHeight < 1f) stripHeight = 1f
-                        val bottom = kotlin.math.min(currentY + stripHeight, h + pad)
+                        val bottom = kotlin.math.min(currentY + stripHeight, currentYEnd)
                         val xOffset = if (random.nextFloat() < 0.5f) (random.nextFloat() - 0.5f) * 100f * glitchIntensity else 0f
                         targetCanvas.save()
-                        targetCanvas.clipRect(-pad, currentY, w + pad, bottom)
+                        targetCanvas.clipRect(currentXStart, currentY, currentXEnd, bottom)
                         targetCanvas.translate(xOffset, 0f)
                         drawInner(targetCanvas)
                         targetCanvas.restore()
@@ -586,16 +663,15 @@ class ShapeLayer(
                     drawInner(targetCanvas)
                 }
                 TextEffectType.GAUSSIAN_BLUR -> {
-                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("GaussianBlurNode")
-                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
-                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val r = blurRadius.coerceAtLeast(0.1f)
                             node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
-                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
@@ -607,37 +683,35 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.FIERY -> {
-                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("FieryNode")
-                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
-                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.FIERY_SHADER)
                             shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
                             shader.setFloatUniform("intensity", fieryIntensity)
                             shader.setFloatUniform("color", Color.red(fieryColor)/255f, Color.green(fieryColor)/255f, Color.blue(fieryColor)/255f)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
                 TextEffectType.WAVY -> {
-                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("WavyNode")
-                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
-                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.WAVY_SHADER)
                             shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
                             shader.setFloatUniform("intensity", wavyIntensity); shader.setFloatUniform("frequency", wavyFrequency)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
@@ -647,13 +721,13 @@ class ShapeLayer(
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("ParticleNode")
-                            node.setPosition(0, 0, w.toInt(), h.toInt())
-                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.PARTICLE_SHADER)
                             shader.setFloatUniform("particleSize", particleSize); shader.setFloatUniform("spread", particleSpread); shader.setFloatUniform("seed", effectSeed.toFloat())
-                            shader.setFloatUniform("angle", particleDissolveAngle); shader.setFloatUniform("size", w, h)
+                            shader.setFloatUniform("angle", particleDissolveAngle); shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                         } catch (e: Exception) {
                             drawDecaySoftware(targetCanvas, w, h, drawInner)
                         }
@@ -662,37 +736,37 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.MOTION_BLUR -> {
-                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("MotionBlurNode")
-                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
-                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.MOTION_BLUR_SHADER)
                             shader.setFloatUniform("uVelocity", motionBlurVelocityX, motionBlurVelocityY)
                             shader.setIntUniform("uKernelSize", motionBlurKernelSize)
                             shader.setFloatUniform("uOffset", motionBlurOffset)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
                 TextEffectType.RADIAL_BLUR -> {
-                    val pad = calculatePadding()
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("RadialBlurNode")
-                            node.setPosition(0, 0, (w + pad * 2).toInt(), (h + pad * 2).toInt())
-                            val rc = node.beginRecording(); rc.translate(pad, pad); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.RADIAL_BLUR_SHADER)
-                            shader.setFloatUniform("center", w / 2f + pad, h / 2f + pad); shader.setFloatUniform("innerRadius", radialBlurInnerRadius)
-                            shader.setFloatUniform("motionStrength", radialBlurMotionStrength); shader.setFloatUniform("size", w + pad * 2, h + pad * 2)
+                            val centerX = if (hasBounds) nodeW / 2f else w / 2f + pad
+                            val centerY = if (hasBounds) nodeH / 2f else h / 2f + pad
+                            shader.setFloatUniform("center", centerX, centerY); shader.setFloatUniform("innerRadius", radialBlurInnerRadius)
+                            shader.setFloatUniform("motionStrength", radialBlurMotionStrength); shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(-pad, -pad); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
@@ -702,13 +776,13 @@ class ShapeLayer(
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("HalftoneNode")
-                            node.setPosition(0, 0, w.toInt(), h.toInt())
-                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.HALFTONE_SHADER)
                             shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f)); shader.setFloatUniform("threshold", halftoneThreshold)
                             shader.setFloatUniform("dotColor", Color.red(halftoneDotColor)/255f, Color.green(halftoneDotColor)/255f, Color.blue(halftoneDotColor)/255f)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                         } catch (e: Exception) { drawInner(targetCanvas) }
                     } else drawInner(targetCanvas)
                 }
@@ -716,49 +790,20 @@ class ShapeLayer(
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("DecayNode")
-                            node.setPosition(0, 0, w.toInt(), h.toInt())
-                            val rc = node.beginRecording(); drawInner(rc); node.endRecording()
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.TEXT_DECAY_SHADER)
                             shader.setFloatUniform("intensity", decayIntensity)
                             shader.setFloatUniform("fadingLevel", decayFadingLevel)
                             shader.setFloatUniform("seed", (effectSeed % 10000).toFloat())
                             shader.setFloatUniform("size", w, h)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                         } catch (e: Exception) { drawInner(targetCanvas) }
                     } else drawInner(targetCanvas)
                 }
                 else -> drawInner(targetCanvas)
              }
-        }
-
-        if (activeEffects.size == 2) {
-            applyEffect(activeEffects[1], canvas) { innerCanvas -> applyEffect(activeEffects[0], innerCanvas, drawBase) }
-        } else if (activeEffects.size == 1) {
-            applyEffect(activeEffects[0], canvas, drawBase)
-        } else {
-            drawBase(canvas)
-        }
-
-        val pad = calculatePadding()
-        if (eraseMask != null) {
-            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
-        }
-        if (activeErasePath != null) {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                if (activeEraseHardness < 100) {
-                    val r = activeEraseSize / 2f
-                    val b = r * (1f - (activeEraseHardness / 100f))
-                    if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
-                }
-            }
-            canvas.save()
-            canvas.translate(-pad, -pad)
-            canvas.drawPath(activeErasePath!!, p)
-            canvas.restore()
-        }
     }
 
     private fun drawDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
