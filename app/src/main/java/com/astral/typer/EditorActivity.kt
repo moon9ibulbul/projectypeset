@@ -3911,7 +3911,7 @@ class EditorActivity : AppCompatActivity() {
         // Load all .myb brushes from assets
         val assets = this.assets
         val files = assets.list("brushes/classic") ?: emptyArray()
-        val mybFiles = files.filter { it.endsWith(".myb") }.sorted()
+        val mybFiles = files.filter { it.endsWith(".myb") && !it.contains("ink_eraser") }.sorted()
 
         // We will keep a map or list of item views to update their backgrounds when selection changes
         val itemViews = mutableListOf<Pair<String, LinearLayout>>()
