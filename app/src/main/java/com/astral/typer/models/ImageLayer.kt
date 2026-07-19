@@ -85,6 +85,10 @@ class ImageLayer(
     override var longShadowAngle: Float = 45f
     override var motionBlurLength: Float = 0f
     override var motionBlurAngle: Int = 0
+    override var motionBlurKernelSize: Int = 5
+    override var motionBlurOffset: Float = 0f
+    override var motionBlurVelocityX: Float = 0f
+    override var motionBlurVelocityY: Float = 0f
     override var halftoneDotSize: Float = 10f
     override var halftoneDotColor: Int = Color.BLACK
     override var halftoneThreshold: Float = 0.5f

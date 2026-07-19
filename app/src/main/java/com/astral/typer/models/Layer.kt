@@ -68,6 +68,10 @@ interface StylableLayer {
     var longShadowAngle: Float
     var motionBlurLength: Float
     var motionBlurAngle: Int
+    var motionBlurKernelSize: Int
+    var motionBlurOffset: Float
+    var motionBlurVelocityX: Float
+    var motionBlurVelocityY: Float
     var halftoneDotSize: Float
     var halftoneDotColor: Int
     var halftoneThreshold: Float

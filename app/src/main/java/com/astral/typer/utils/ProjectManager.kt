@@ -126,6 +126,10 @@ object ProjectManager {
         val blurRadius: Float? = null,
         val longShadowLength: Float? = null, val longShadowColor: Int? = null, val longShadowAngle: Float? = null,
         val motionBlurLength: Float? = null, val motionBlurAngle: Int? = null,
+        val motionBlurKernelSize: Int? = null,
+        val motionBlurOffset: Float? = null,
+        val motionBlurVelocityX: Float? = null,
+        val motionBlurVelocityY: Float? = null,
         val halftoneDotSize: Float? = null, val halftoneDotColor: Int? = null, val halftoneThreshold: Float? = null,
         val neonRadius: Float? = null, val neonColor: Int? = null,
         val glitchIntensity: Float? = null,
@@ -286,6 +290,10 @@ object ProjectManager {
                         blurRadius = layer.blurRadius,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
+                        motionBlurKernelSize = layer.motionBlurKernelSize,
+                        motionBlurOffset = layer.motionBlurOffset,
+                        motionBlurVelocityX = layer.motionBlurVelocityX,
+                        motionBlurVelocityY = layer.motionBlurVelocityY,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
                         neonRadius = layer.neonRadius, neonColor = layer.neonColor,
                         glitchIntensity = layer.glitchIntensity,
@@ -347,6 +355,10 @@ object ProjectManager {
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+                        motionBlurKernelSize = layer.motionBlurKernelSize,
+                        motionBlurOffset = layer.motionBlurOffset,
+                        motionBlurVelocityX = layer.motionBlurVelocityX,
+                        motionBlurVelocityY = layer.motionBlurVelocityY,
                         isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
                 } else if (layer is ImageLayer) {
@@ -785,6 +797,10 @@ object ProjectManager {
             model.longShadowAngle?.let { layer.longShadowAngle = it }
             model.motionBlurLength?.let { layer.motionBlurLength = it }
             model.motionBlurAngle?.let { layer.motionBlurAngle = it }
+            model.motionBlurKernelSize?.let { layer.motionBlurKernelSize = it }
+            model.motionBlurOffset?.let { layer.motionBlurOffset = it }
+            model.motionBlurVelocityX?.let { layer.motionBlurVelocityX = it }
+            model.motionBlurVelocityY?.let { layer.motionBlurVelocityY = it }
             model.halftoneDotSize?.let { layer.halftoneDotSize = it }
             model.halftoneDotColor?.let { layer.halftoneDotColor = it }
             model.halftoneThreshold?.let { layer.halftoneThreshold = it }
@@ -820,6 +836,10 @@ object ProjectManager {
             return layer
         } else if (model.type == "SHAPE" && model.shapeName != null) {
             val layer = com.astral.typer.models.ShapeLayer(model.shapeName, model.color ?: Color.BLACK)
+            model.motionBlurKernelSize?.let { layer.motionBlurKernelSize = it }
+            model.motionBlurOffset?.let { layer.motionBlurOffset = it }
+            model.motionBlurVelocityX?.let { layer.motionBlurVelocityX = it }
+            model.motionBlurVelocityY?.let { layer.motionBlurVelocityY = it }
             model.shadowColor?.let { layer.shadowColor = it }
             model.shadowRadius?.let { layer.shadowRadius = it }
             model.shadowDx?.let { layer.shadowDx = it }

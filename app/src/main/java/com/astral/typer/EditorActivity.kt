@@ -1013,6 +1013,13 @@ class EditorActivity : AppCompatActivity() {
                 if (stylableLayer.decayIntensity == 0f) stylableLayer.decayIntensity = 0.5f
                 if (stylableLayer.decayFadingLevel == 0f) stylableLayer.decayFadingLevel = 0.5f
             }
+            if (effect == TextEffectType.MOTION_BLUR) {
+                if (stylableLayer.motionBlurKernelSize == 0) stylableLayer.motionBlurKernelSize = 5
+                if (stylableLayer.motionBlurVelocityX == 0f && stylableLayer.motionBlurVelocityY == 0f) {
+                    stylableLayer.motionBlurVelocityX = 20f
+                    stylableLayer.motionBlurVelocityY = 0f
+                }
+            }
 
             canvasView.invalidate()
             showEffectMenu()
@@ -1042,6 +1049,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Wavy", TextEffectType.WAVY)
         addEffectCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR)
         addEffectCard("Radial Blur", TextEffectType.RADIAL_BLUR)
+        addEffectCard("Motion Blur", TextEffectType.MOTION_BLUR)
         addEffectCard("Halftone", TextEffectType.HALFTONE)
         addEffectCard("Multi Gradient", TextEffectType.MULTI_GRADIENT)
         addEffectCard("Text Decay", TextEffectType.TEXT_DECAY)
@@ -1196,6 +1204,86 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s2)
+        }
+        if (isEffectActive(TextEffectType.MOTION_BLUR)) {
+                val currentKernel = stylableLayer.motionBlurKernelSize.coerceIn(5, 101)
+                val initialKernel = if (currentKernel % 2 == 0) currentKernel + 1 else currentKernel
+                val initialProgress = (initialKernel - 5) / 2
+
+                val s1 = createSlider("Kernel Size: $initialKernel", initialProgress, 48) { p ->
+                    val oddKernel = 5 + p * 2
+                    stylableLayer.motionBlurKernelSize = oddKernel
+                    canvasView.invalidate()
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val oddKernel = 5 + p * 2
+                        stylableLayer.motionBlurKernelSize = oddKernel
+                        tv1?.text = "Kernel Size: $oddKernel"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                val currentOffset = stylableLayer.motionBlurOffset.coerceIn(-200f, 200f)
+                val initialOffsetProgress = (currentOffset + 200f).toInt()
+                val s2 = createSlider("Offset: ${currentOffset.toInt()}", initialOffsetProgress, 400) { p ->
+                    stylableLayer.motionBlurOffset = (p - 200).toFloat()
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val offsetVal = (p - 200).toFloat()
+                        stylableLayer.motionBlurOffset = offsetVal
+                        tv2?.text = "Offset: ${offsetVal.toInt()}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                val currentVX = stylableLayer.motionBlurVelocityX.coerceIn(-200f, 200f)
+                val initialVXProgress = (currentVX + 200f).toInt()
+                val s3 = createSlider("Velocity X: ${currentVX.toInt()}", initialVXProgress, 400) { p ->
+                    stylableLayer.motionBlurVelocityX = (p - 200).toFloat()
+                    canvasView.invalidate()
+                }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val vxVal = (p - 200).toFloat()
+                        stylableLayer.motionBlurVelocityX = vxVal
+                        tv3?.text = "Velocity X: ${vxVal.toInt()}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                val currentVY = stylableLayer.motionBlurVelocityY.coerceIn(-200f, 200f)
+                val initialVYProgress = (currentVY + 200f).toInt()
+                val s4 = createSlider("Velocity Y: ${currentVY.toInt()}", initialVYProgress, 400) { p ->
+                    stylableLayer.motionBlurVelocityY = (p - 200).toFloat()
+                    canvasView.invalidate()
+                }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val vyVal = (p - 200).toFloat()
+                        stylableLayer.motionBlurVelocityY = vyVal
+                        tv4?.text = "Velocity Y: ${vyVal.toInt()}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s4)
         }
         if (isEffectActive(TextEffectType.GAUSSIAN_BLUR)) {
                 val currentBlur = stylableLayer.blurRadius
