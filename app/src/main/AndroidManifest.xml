@@ -23,6 +23,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -62,9 +63,16 @@
                 <data android:pathPattern=".*\\.otf" />
             </intent-filter>
         </activity>
-        <activity android:name=".EditorActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".SettingsActivity" />
-        <activity android:name=".RecentActivity" />
+        <activity
+            android:name=".EditorActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".SettingsActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+        <activity
+            android:name=".RecentActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
