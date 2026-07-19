@@ -4479,6 +4479,8 @@ class EditorActivity : AppCompatActivity() {
         var hardnessLabel: TextView? = null
         var opacitySliderBar: SeekBar? = null
         var opacityLabel: TextView? = null
+        var slowTrackingSliderBar: SeekBar? = null
+        var slowTrackingLabel: TextView? = null
 
         fun loadTabBrushes() {
             brushListLayout.removeAllViews()
@@ -4608,6 +4610,9 @@ class EditorActivity : AppCompatActivity() {
 
                     opacitySliderBar?.progress = layer.brushOpacity
                     opacityLabel?.text = "Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%"
+
+                    slowTrackingSliderBar?.progress = (layer.brushSlowTracking * 10).toInt()
+                    slowTrackingLabel?.text = "Slow Tracking: ${String.format(java.util.Locale.US, "%.1f", layer.brushSlowTracking)}"
 
                     selectBrushItem(name)
                     canvasView.invalidate()
@@ -4745,6 +4750,38 @@ class EditorActivity : AppCompatActivity() {
         opacityContainer.addView(opacityLabel)
         opacityContainer.addView(opacitySliderBar)
         mainLayout.addView(opacityContainer)
+
+        // 5. Slow Tracking Slider
+        val slowTrackingContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = 8
+            }
+        }
+        slowTrackingLabel = TextView(this).apply {
+            text = "Slow Tracking: ${String.format(java.util.Locale.US, "%.1f", layer.brushSlowTracking)}"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        slowTrackingSliderBar = SeekBar(this).apply {
+            max = 100
+            progress = (layer.brushSlowTracking * 10).toInt()
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    layer.brushSlowTracking = progress / 10f
+                    slowTrackingLabel?.text = "Slow Tracking: ${String.format(java.util.Locale.US, "%.1f", layer.brushSlowTracking)}"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        slowTrackingContainer.addView(slowTrackingLabel)
+        slowTrackingContainer.addView(slowTrackingSliderBar)
+        mainLayout.addView(slowTrackingContainer)
 
         scroll.addView(mainLayout)
         container.addView(scroll)

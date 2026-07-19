@@ -1346,6 +1346,9 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     }
 
     private fun getBaseValue(preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset, settingName: String): Float {
+        if (settingName == "slow_tracking") {
+            return brushSlowTracking
+        }
         return preset.settings[settingName]?.baseValue ?: when (settingName) {
             "opaque" -> preset.opaque
             "hardness" -> preset.hardness
