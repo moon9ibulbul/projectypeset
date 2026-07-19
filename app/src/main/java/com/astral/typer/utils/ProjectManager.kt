@@ -141,6 +141,30 @@ object ProjectManager {
         val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null,
         val radialBlurInnerRadius: Float? = null, val radialBlurMotionStrength: Float? = null,
         val decayIntensity: Float? = null, val decayFadingLevel: Float? = null,
+
+        // Twist
+        val twistAngle: Float? = null,
+        val twistOffsetX: Float? = null,
+        val twistOffsetY: Float? = null,
+        val twistRadius: Float? = null,
+
+        // Bulge & Pinch
+        val bulgeCenterX: Float? = null,
+        val bulgeCenterY: Float? = null,
+        val bulgeRadius: Float? = null,
+        val bulgeStrength: Float? = null,
+
+        // Reflection
+        val reflectionAlphaStart: Float? = null,
+        val reflectionAlphaEnd: Float? = null,
+        val reflectionAmplitudeStart: Float? = null,
+        val reflectionAmplitudeEnd: Float? = null,
+        val reflectionBoundary: Float? = null,
+        val reflectionMirror: Boolean? = null,
+        val reflectionTime: Float? = null,
+        val reflectionWavelengthStart: Float? = null,
+        val reflectionWavelengthEnd: Float? = null,
+
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -305,6 +329,30 @@ object ProjectManager {
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+
+                        // Twist
+                        twistAngle = layer.twistAngle,
+                        twistOffsetX = layer.twistOffsetX,
+                        twistOffsetY = layer.twistOffsetY,
+                        twistRadius = layer.twistRadius,
+
+                        // Bulge & Pinch
+                        bulgeCenterX = layer.bulgeCenterX,
+                        bulgeCenterY = layer.bulgeCenterY,
+                        bulgeRadius = layer.bulgeRadius,
+                        bulgeStrength = layer.bulgeStrength,
+
+                        // Reflection
+                        reflectionAlphaStart = layer.reflectionAlphaStart,
+                        reflectionAlphaEnd = layer.reflectionAlphaEnd,
+                        reflectionAmplitudeStart = layer.reflectionAmplitudeStart,
+                        reflectionAmplitudeEnd = layer.reflectionAmplitudeEnd,
+                        reflectionBoundary = layer.reflectionBoundary,
+                        reflectionMirror = layer.reflectionMirror,
+                        reflectionTime = layer.reflectionTime,
+                        reflectionWavelengthStart = layer.reflectionWavelengthStart,
+                        reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -355,6 +403,30 @@ object ProjectManager {
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+
+                        // Twist
+                        twistAngle = layer.twistAngle,
+                        twistOffsetX = layer.twistOffsetX,
+                        twistOffsetY = layer.twistOffsetY,
+                        twistRadius = layer.twistRadius,
+
+                        // Bulge & Pinch
+                        bulgeCenterX = layer.bulgeCenterX,
+                        bulgeCenterY = layer.bulgeCenterY,
+                        bulgeRadius = layer.bulgeRadius,
+                        bulgeStrength = layer.bulgeStrength,
+
+                        // Reflection
+                        reflectionAlphaStart = layer.reflectionAlphaStart,
+                        reflectionAlphaEnd = layer.reflectionAlphaEnd,
+                        reflectionAmplitudeStart = layer.reflectionAmplitudeStart,
+                        reflectionAmplitudeEnd = layer.reflectionAmplitudeEnd,
+                        reflectionBoundary = layer.reflectionBoundary,
+                        reflectionMirror = layer.reflectionMirror,
+                        reflectionTime = layer.reflectionTime,
+                        reflectionWavelengthStart = layer.reflectionWavelengthStart,
+                        reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+
                         motionBlurKernelSize = layer.motionBlurKernelSize,
                         motionBlurOffset = layer.motionBlurOffset,
                         motionBlurVelocityX = layer.motionBlurVelocityX,
@@ -822,6 +894,30 @@ object ProjectManager {
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
+
+            // Twist
+            model.twistAngle?.let { layer.twistAngle = it }
+            model.twistOffsetX?.let { layer.twistOffsetX = it }
+            model.twistOffsetY?.let { layer.twistOffsetY = it }
+            model.twistRadius?.let { layer.twistRadius = it }
+
+            // Bulge & Pinch
+            model.bulgeCenterX?.let { layer.bulgeCenterX = it }
+            model.bulgeCenterY?.let { layer.bulgeCenterY = it }
+            model.bulgeRadius?.let { layer.bulgeRadius = it }
+            model.bulgeStrength?.let { layer.bulgeStrength = it }
+
+            // Reflection
+            model.reflectionAlphaStart?.let { layer.reflectionAlphaStart = it }
+            model.reflectionAlphaEnd?.let { layer.reflectionAlphaEnd = it }
+            model.reflectionAmplitudeStart?.let { layer.reflectionAmplitudeStart = it }
+            model.reflectionAmplitudeEnd?.let { layer.reflectionAmplitudeEnd = it }
+            model.reflectionBoundary?.let { layer.reflectionBoundary = it }
+            model.reflectionMirror?.let { layer.reflectionMirror = it }
+            model.reflectionTime?.let { layer.reflectionTime = it }
+            model.reflectionWavelengthStart?.let { layer.reflectionWavelengthStart = it }
+            model.reflectionWavelengthEnd?.let { layer.reflectionWavelengthEnd = it }
+
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -914,6 +1010,30 @@ object ProjectManager {
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
+
+            // Twist
+            model.twistAngle?.let { layer.twistAngle = it }
+            model.twistOffsetX?.let { layer.twistOffsetX = it }
+            model.twistOffsetY?.let { layer.twistOffsetY = it }
+            model.twistRadius?.let { layer.twistRadius = it }
+
+            // Bulge & Pinch
+            model.bulgeCenterX?.let { layer.bulgeCenterX = it }
+            model.bulgeCenterY?.let { layer.bulgeCenterY = it }
+            model.bulgeRadius?.let { layer.bulgeRadius = it }
+            model.bulgeStrength?.let { layer.bulgeStrength = it }
+
+            // Reflection
+            model.reflectionAlphaStart?.let { layer.reflectionAlphaStart = it }
+            model.reflectionAlphaEnd?.let { layer.reflectionAlphaEnd = it }
+            model.reflectionAmplitudeStart?.let { layer.reflectionAmplitudeStart = it }
+            model.reflectionAmplitudeEnd?.let { layer.reflectionAmplitudeEnd = it }
+            model.reflectionBoundary?.let { layer.reflectionBoundary = it }
+            model.reflectionMirror?.let { layer.reflectionMirror = it }
+            model.reflectionTime?.let { layer.reflectionTime = it }
+            model.reflectionWavelengthStart?.let { layer.reflectionWavelengthStart = it }
+            model.reflectionWavelengthEnd?.let { layer.reflectionWavelengthEnd = it }
+
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {
                 layer.globalP1.set(model.globalP1X, model.globalP1Y)

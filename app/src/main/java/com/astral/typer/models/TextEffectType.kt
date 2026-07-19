@@ -15,5 +15,8 @@ enum class TextEffectType {
     PARTICLE_DISSOLVE,
     MULTI_GRADIENT,
     RADIAL_BLUR,
-    TEXT_DECAY
+    TEXT_DECAY,
+    TWIST,
+    BULGE_PINCH,
+    REFLECTION
 }

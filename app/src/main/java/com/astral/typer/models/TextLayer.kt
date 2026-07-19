@@ -238,6 +238,29 @@ class TextLayer(
     override var decayIntensity: Float = 0.5f
     override var decayFadingLevel: Float = 0.5f
 
+    // Twist
+    override var twistAngle: Float = 4.0f
+    override var twistOffsetX: Float = 0.0f
+    override var twistOffsetY: Float = 0.0f
+    override var twistRadius: Float = 200.0f
+
+    // Bulge & Pinch
+    override var bulgeCenterX: Float = 0.5f
+    override var bulgeCenterY: Float = 0.5f
+    override var bulgeRadius: Float = 100.0f
+    override var bulgeStrength: Float = 1.0f
+
+    // Reflection
+    override var reflectionAlphaStart: Float = 1.0f
+    override var reflectionAlphaEnd: Float = 1.0f
+    override var reflectionAmplitudeStart: Float = 0.0f
+    override var reflectionAmplitudeEnd: Float = 20.0f
+    override var reflectionBoundary: Float = 0.5f
+    override var reflectionMirror: Boolean = true
+    override var reflectionTime: Float = 0.0f
+    override var reflectionWavelengthStart: Float = 30.0f
+    override var reflectionWavelengthEnd: Float = 100.0f
+
     // Shape
     var isOval: Boolean = false
 
@@ -398,6 +421,30 @@ class TextLayer(
         result = 31 * result + radialBlurMotionStrength.hashCode()
         result = 31 * result + decayIntensity.hashCode()
         result = 31 * result + decayFadingLevel.hashCode()
+
+        // Twist
+        result = 31 * result + twistAngle.hashCode()
+        result = 31 * result + twistOffsetX.hashCode()
+        result = 31 * result + twistOffsetY.hashCode()
+        result = 31 * result + twistRadius.hashCode()
+
+        // Bulge & Pinch
+        result = 31 * result + bulgeCenterX.hashCode()
+        result = 31 * result + bulgeCenterY.hashCode()
+        result = 31 * result + bulgeRadius.hashCode()
+        result = 31 * result + bulgeStrength.hashCode()
+
+        // Reflection
+        result = 31 * result + reflectionAlphaStart.hashCode()
+        result = 31 * result + reflectionAlphaEnd.hashCode()
+        result = 31 * result + reflectionAmplitudeStart.hashCode()
+        result = 31 * result + reflectionAmplitudeEnd.hashCode()
+        result = 31 * result + reflectionBoundary.hashCode()
+        result = 31 * result + reflectionMirror.hashCode()
+        result = 31 * result + reflectionTime.hashCode()
+        result = 31 * result + reflectionWavelengthStart.hashCode()
+        result = 31 * result + reflectionWavelengthEnd.hashCode()
+
         return result
     }
 
@@ -610,6 +657,29 @@ class TextLayer(
         newLayer.radialBlurMotionStrength = this.radialBlurMotionStrength
         newLayer.decayIntensity = this.decayIntensity
         newLayer.decayFadingLevel = this.decayFadingLevel
+
+        // Twist
+        newLayer.twistAngle = this.twistAngle
+        newLayer.twistOffsetX = this.twistOffsetX
+        newLayer.twistOffsetY = this.twistOffsetY
+        newLayer.twistRadius = this.twistRadius
+
+        // Bulge & Pinch
+        newLayer.bulgeCenterX = this.bulgeCenterX
+        newLayer.bulgeCenterY = this.bulgeCenterY
+        newLayer.bulgeRadius = this.bulgeRadius
+        newLayer.bulgeStrength = this.bulgeStrength
+
+        // Reflection
+        newLayer.reflectionAlphaStart = this.reflectionAlphaStart
+        newLayer.reflectionAlphaEnd = this.reflectionAlphaEnd
+        newLayer.reflectionAmplitudeStart = this.reflectionAmplitudeStart
+        newLayer.reflectionAmplitudeEnd = this.reflectionAmplitudeEnd
+        newLayer.reflectionBoundary = this.reflectionBoundary
+        newLayer.reflectionMirror = this.reflectionMirror
+        newLayer.reflectionTime = this.reflectionTime
+        newLayer.reflectionWavelengthStart = this.reflectionWavelengthStart
+        newLayer.reflectionWavelengthEnd = this.reflectionWavelengthEnd
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -2372,6 +2442,101 @@ class TextLayer(
                         drawTextDecaySoftware(targetCanvas, w, h, drawInner)
                     }
                 }
+                TextEffectType.TWIST -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("TwistNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TWIST_SHADER)
+                            val cx = (if (hasBounds) nodeW / 2f else w / 2f + pad) + twistOffsetX
+                            val cy = (if (hasBounds) nodeH / 2f else h / 2f + pad) + twistOffsetY
+                            shader.setFloatUniform("offset", cx, cy)
+                            shader.setFloatUniform("radius", twistRadius)
+                            shader.setFloatUniform("angle", twistAngle)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
+                TextEffectType.BULGE_PINCH -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("BulgePinchNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(BULGE_PINCH_SHADER)
+                            val cx = (if (hasBounds) nodeW.toFloat() else (w + pad * 2)) * bulgeCenterX
+                            val cy = (if (hasBounds) nodeH.toFloat() else (h + pad * 2)) * bulgeCenterY
+                            shader.setFloatUniform("center", cx, cy)
+                            shader.setFloatUniform("radius", bulgeRadius)
+                            shader.setFloatUniform("strength", bulgeStrength)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
+                TextEffectType.REFLECTION -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ReflectionNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(REFLECTION_SHADER)
+                            shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("mirror", if (reflectionMirror) 1.0f else 0.0f)
+                            shader.setFloatUniform("boundary", reflectionBoundary)
+                            shader.setFloatUniform("amplitude", reflectionAmplitudeStart, reflectionAmplitudeEnd)
+                            shader.setFloatUniform("waveLength", reflectionWavelengthStart, reflectionWavelengthEnd)
+                            shader.setFloatUniform("alpha", reflectionAlphaStart, reflectionAlphaEnd)
+                            shader.setFloatUniform("time", reflectionTime)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
                 else -> {
                     drawInner(targetCanvas)
                 }
@@ -2728,6 +2893,83 @@ class TextLayer(
                 float mask = smoothstep(threshold - softness, threshold + softness, val);
 
                 return half4(c.rgb, c.a * (1.0 - mask));
+            }
+        """
+
+        const val TWIST_SHADER = """
+            uniform shader content;
+            uniform float radius;
+            uniform float angle;
+            uniform float2 offset;
+
+            half4 main(float2 coord) {
+                float2 uv = coord;
+                uv -= offset;
+                float dist = length(uv);
+                if (dist < radius) {
+                    float ratioDist = (radius - dist) / radius;
+                    float angleMod = ratioDist * ratioDist * angle;
+                    float s = sin(angleMod);
+                    float c = cos(angleMod);
+                    uv = float2(uv.x * c - uv.y * s, uv.x * s + uv.y * c);
+                }
+                uv += offset;
+                return content.eval(uv);
+            }
+        """
+
+        const val BULGE_PINCH_SHADER = """
+            uniform shader content;
+            uniform float radius;
+            uniform float strength;
+            uniform float2 center;
+
+            half4 main(float2 coord) {
+                float2 uv = coord;
+                uv -= center;
+                float dist = length(uv);
+                if (dist < radius) {
+                    float percent = dist / radius;
+                    if (strength > 0.0) {
+                        uv *= mix(1.0, smoothstep(0.0, radius / dist, percent), strength * 0.75);
+                    } else {
+                        uv *= mix(1.0, pow(percent, 1.0 + strength * 0.75) * radius / dist, 1.0 - percent);
+                    }
+                }
+                uv += center;
+                return content.eval(uv);
+            }
+        """
+
+        const val REFLECTION_SHADER = """
+            uniform shader content;
+            uniform float2 size;
+            uniform float mirror;
+            uniform float boundary;
+            uniform float2 amplitude;
+            uniform float2 waveLength;
+            uniform float2 alpha;
+            uniform float time;
+
+            half4 main(float2 coord) {
+                float2 normCoord = coord / size;
+                if (normCoord.y < boundary) {
+                    return content.eval(coord);
+                }
+
+                float k = (normCoord.y - boundary) / (1.0 - boundary + 0.0001);
+                float v = boundary + boundary - normCoord.y;
+                float normY = (mirror > 0.5) ? v : normCoord.y;
+                float targetY = normY * size.y;
+
+                float _amplitude = (amplitude.y - amplitude.x) * k + amplitude.x;
+                float _waveLength = (waveLength.y - waveLength.x) * k + waveLength.x;
+                float _alpha = (alpha.y - alpha.x) * k + alpha.x;
+
+                float x = coord.x + cos(v * size.y * 6.28 / _waveLength - time) * _amplitude;
+                x = clamp(x, 0.0, size.x);
+
+                return content.eval(float2(x, targetY)) * _alpha;
             }
         """
 

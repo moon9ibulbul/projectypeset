@@ -132,6 +132,29 @@ object StyleManager {
         val decayIntensity: Float = 0.5f,
         val decayFadingLevel: Float = 0.5f,
 
+        // Twist
+        val twistAngle: Float = 4.0f,
+        val twistOffsetX: Float = 0.0f,
+        val twistOffsetY: Float = 0.0f,
+        val twistRadius: Float = 200.0f,
+
+        // Bulge & Pinch
+        val bulgeCenterX: Float = 0.5f,
+        val bulgeCenterY: Float = 0.5f,
+        val bulgeRadius: Float = 100.0f,
+        val bulgeStrength: Float = 1.0f,
+
+        // Reflection
+        val reflectionAlphaStart: Float = 1.0f,
+        val reflectionAlphaEnd: Float = 1.0f,
+        val reflectionAmplitudeStart: Float = 0.0f,
+        val reflectionAmplitudeEnd: Float = 20.0f,
+        val reflectionBoundary: Float = 0.5f,
+        val reflectionMirror: Boolean = true,
+        val reflectionTime: Float = 0.0f,
+        val reflectionWavelengthStart: Float = 30.0f,
+        val reflectionWavelengthEnd: Float = 100.0f,
+
         // Perspective
         val isPerspective: Boolean = false,
         val perspectivePoints: FloatArray? = null,
@@ -171,6 +194,9 @@ object StyleManager {
             isBold, isItalic, isUnderline, isStrike,
             l.radialBlurInnerRadius, l.radialBlurMotionStrength,
             l.decayIntensity, l.decayFadingLevel,
+            l.twistAngle, l.twistOffsetX, l.twistOffsetY, l.twistRadius,
+            l.bulgeCenterX, l.bulgeCenterY, l.bulgeRadius, l.bulgeStrength,
+            l.reflectionAlphaStart, l.reflectionAlphaEnd, l.reflectionAmplitudeStart, l.reflectionAmplitudeEnd, l.reflectionBoundary, l.reflectionMirror, l.reflectionTime, l.reflectionWavelengthStart, l.reflectionWavelengthEnd,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
@@ -233,6 +259,29 @@ object StyleManager {
         l.radialBlurMotionStrength = m.radialBlurMotionStrength
         l.decayIntensity = m.decayIntensity
         l.decayFadingLevel = m.decayFadingLevel
+
+        // Twist
+        l.twistAngle = m.twistAngle
+        l.twistOffsetX = m.twistOffsetX
+        l.twistOffsetY = m.twistOffsetY
+        l.twistRadius = m.twistRadius
+
+        // Bulge & Pinch
+        l.bulgeCenterX = m.bulgeCenterX
+        l.bulgeCenterY = m.bulgeCenterY
+        l.bulgeRadius = m.bulgeRadius
+        l.bulgeStrength = m.bulgeStrength
+
+        // Reflection
+        l.reflectionAlphaStart = m.reflectionAlphaStart
+        l.reflectionAlphaEnd = m.reflectionAlphaEnd
+        l.reflectionAmplitudeStart = m.reflectionAmplitudeStart
+        l.reflectionAmplitudeEnd = m.reflectionAmplitudeEnd
+        l.reflectionBoundary = m.reflectionBoundary
+        l.reflectionMirror = m.reflectionMirror
+        l.reflectionTime = m.reflectionTime
+        l.reflectionWavelengthStart = m.reflectionWavelengthStart
+        l.reflectionWavelengthEnd = m.reflectionWavelengthEnd
 
         l.isPerspective = m.isPerspective
         l.perspectivePoints = m.perspectivePoints

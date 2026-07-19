@@ -221,6 +221,29 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     override var decayIntensity: Float = 0f
     override var decayFadingLevel: Float = 0f
 
+    // Twist
+    override var twistAngle: Float = 4.0f
+    override var twistOffsetX: Float = 0.0f
+    override var twistOffsetY: Float = 0.0f
+    override var twistRadius: Float = 200.0f
+
+    // Bulge & Pinch
+    override var bulgeCenterX: Float = 0.5f
+    override var bulgeCenterY: Float = 0.5f
+    override var bulgeRadius: Float = 100.0f
+    override var bulgeStrength: Float = 1.0f
+
+    // Reflection
+    override var reflectionAlphaStart: Float = 1.0f
+    override var reflectionAlphaEnd: Float = 1.0f
+    override var reflectionAmplitudeStart: Float = 0.0f
+    override var reflectionAmplitudeEnd: Float = 20.0f
+    override var reflectionBoundary: Float = 0.5f
+    override var reflectionMirror: Boolean = true
+    override var reflectionTime: Float = 0.0f
+    override var reflectionWavelengthStart: Float = 30.0f
+    override var reflectionWavelengthEnd: Float = 100.0f
+
     // Erase support
     override var eraseMask: Bitmap? = null
     override val erasePaths: MutableList<ErasePathData> = mutableListOf()
