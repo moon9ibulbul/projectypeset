@@ -120,6 +120,13 @@ interface StylableLayer {
     var reflectionWavelengthStart: Float
     var reflectionWavelengthEnd: Float
 
+    // Zoom Blur
+    var zoomBlurCenterX: Float
+    var zoomBlurCenterY: Float
+    var zoomBlurInnerRadius: Float
+    var zoomBlurRadius: Float
+    var zoomBlurStrength: Float
+
     // Erase
     var eraseMask: Bitmap?
     val erasePaths: MutableList<ErasePathData>

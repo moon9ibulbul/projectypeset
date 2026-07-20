@@ -18,5 +18,6 @@ enum class TextEffectType {
     TEXT_DECAY,
     TWIST,
     BULGE_PINCH,
-    REFLECTION
+    REFLECTION,
+    ZOOM_BLUR
 }

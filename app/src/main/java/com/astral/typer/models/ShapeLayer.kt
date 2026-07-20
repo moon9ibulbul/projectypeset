@@ -189,6 +189,13 @@ class ShapeLayer(
     override var reflectionWavelengthStart: Float = 30.0f
     override var reflectionWavelengthEnd: Float = 100.0f
 
+    // Zoom Blur
+    override var zoomBlurCenterX: Float = 0.5f
+    override var zoomBlurCenterY: Float = 0.5f
+    override var zoomBlurInnerRadius: Float = 0f
+    override var zoomBlurRadius: Float = -1f
+    override var zoomBlurStrength: Float = 0.1f
+
     override var effectSeed: Long = System.currentTimeMillis()
 
     @Transient
@@ -922,6 +929,38 @@ class ShapeLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.ZOOM_BLUR -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ZoomBlurNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.ZOOM_BLUR_SHADER)
+                            val cx = (if (hasBounds) nodeW.toFloat() else (w + pad * 2)) * zoomBlurCenterX
+                            val cy = (if (hasBounds) nodeH.toFloat() else (h + pad * 2)) * zoomBlurCenterY
+                            shader.setFloatUniform("center", cx, cy)
+                            shader.setFloatUniform("strength", zoomBlurStrength)
+                            shader.setFloatUniform("innerRadius", zoomBlurInnerRadius)
+                            shader.setFloatUniform("radius", zoomBlurRadius)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
                 else -> drawInner(targetCanvas)
              }
     }
@@ -1057,6 +1096,7 @@ class ShapeLayer(
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 20f + 20f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 10f + 10f)
+                TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + zoomBlurStrength * 100f)
                 else -> {}
             }
         }
@@ -1219,6 +1259,13 @@ class ShapeLayer(
         newLayer.reflectionTime = reflectionTime
         newLayer.reflectionWavelengthStart = reflectionWavelengthStart
         newLayer.reflectionWavelengthEnd = reflectionWavelengthEnd
+
+        // Zoom Blur
+        newLayer.zoomBlurCenterX = zoomBlurCenterX
+        newLayer.zoomBlurCenterY = zoomBlurCenterY
+        newLayer.zoomBlurInnerRadius = zoomBlurInnerRadius
+        newLayer.zoomBlurRadius = zoomBlurRadius
+        newLayer.zoomBlurStrength = zoomBlurStrength
 
         return newLayer
     }
