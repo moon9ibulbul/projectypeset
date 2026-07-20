@@ -137,6 +137,13 @@ class ImageLayer(
     override var reflectionWavelengthStart: Float = 30.0f
     override var reflectionWavelengthEnd: Float = 100.0f
 
+    // Zoom Blur
+    override var zoomBlurCenterX: Float = 0.5f
+    override var zoomBlurCenterY: Float = 0.5f
+    override var zoomBlurInnerRadius: Float = 0f
+    override var zoomBlurRadius: Float = -1f
+    override var zoomBlurStrength: Float = 0.1f
+
     // Erase
     override var eraseMask: Bitmap? = null
     override val erasePaths = mutableListOf<ErasePathData>()

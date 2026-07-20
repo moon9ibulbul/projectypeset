@@ -166,6 +166,13 @@ object ProjectManager {
         val reflectionWavelengthStart: Float? = null,
         val reflectionWavelengthEnd: Float? = null,
 
+        // Zoom Blur
+        val zoomBlurCenterX: Float? = null,
+        val zoomBlurCenterY: Float? = null,
+        val zoomBlurInnerRadius: Float? = null,
+        val zoomBlurRadius: Float? = null,
+        val zoomBlurStrength: Float? = null,
+
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -355,6 +362,13 @@ object ProjectManager {
                         reflectionWavelengthStart = layer.reflectionWavelengthStart,
                         reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
 
+                        // Zoom Blur
+                        zoomBlurCenterX = layer.zoomBlurCenterX,
+                        zoomBlurCenterY = layer.zoomBlurCenterY,
+                        zoomBlurInnerRadius = layer.zoomBlurInnerRadius,
+                        zoomBlurRadius = layer.zoomBlurRadius,
+                        zoomBlurStrength = layer.zoomBlurStrength,
+
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -429,6 +443,13 @@ object ProjectManager {
                         reflectionTime = layer.reflectionTime,
                         reflectionWavelengthStart = layer.reflectionWavelengthStart,
                         reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+
+                        // Zoom Blur
+                        zoomBlurCenterX = layer.zoomBlurCenterX,
+                        zoomBlurCenterY = layer.zoomBlurCenterY,
+                        zoomBlurInnerRadius = layer.zoomBlurInnerRadius,
+                        zoomBlurRadius = layer.zoomBlurRadius,
+                        zoomBlurStrength = layer.zoomBlurStrength,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,
                         motionBlurOffset = layer.motionBlurOffset,
@@ -923,6 +944,13 @@ object ProjectManager {
             model.reflectionWavelengthStart?.let { layer.reflectionWavelengthStart = it }
             model.reflectionWavelengthEnd?.let { layer.reflectionWavelengthEnd = it }
 
+            // Zoom Blur
+            model.zoomBlurCenterX?.let { layer.zoomBlurCenterX = it }
+            model.zoomBlurCenterY?.let { layer.zoomBlurCenterY = it }
+            model.zoomBlurInnerRadius?.let { layer.zoomBlurInnerRadius = it }
+            model.zoomBlurRadius?.let { layer.zoomBlurRadius = it }
+            model.zoomBlurStrength?.let { layer.zoomBlurStrength = it }
+
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -1040,6 +1068,13 @@ object ProjectManager {
             model.reflectionTime?.let { layer.reflectionTime = it }
             model.reflectionWavelengthStart?.let { layer.reflectionWavelengthStart = it }
             model.reflectionWavelengthEnd?.let { layer.reflectionWavelengthEnd = it }
+
+            // Zoom Blur
+            model.zoomBlurCenterX?.let { layer.zoomBlurCenterX = it }
+            model.zoomBlurCenterY?.let { layer.zoomBlurCenterY = it }
+            model.zoomBlurInnerRadius?.let { layer.zoomBlurInnerRadius = it }
+            model.zoomBlurRadius?.let { layer.zoomBlurRadius = it }
+            model.zoomBlurStrength?.let { layer.zoomBlurStrength = it }
 
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {

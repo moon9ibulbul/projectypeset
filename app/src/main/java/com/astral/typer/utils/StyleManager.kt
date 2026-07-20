@@ -157,6 +157,13 @@ object StyleManager {
         val reflectionWavelengthStart: Float = 30.0f,
         val reflectionWavelengthEnd: Float = 100.0f,
 
+        // Zoom Blur
+        val zoomBlurCenterX: Float = 0.5f,
+        val zoomBlurCenterY: Float = 0.5f,
+        val zoomBlurInnerRadius: Float = 0f,
+        val zoomBlurRadius: Float = -1f,
+        val zoomBlurStrength: Float = 0.1f,
+
         // Perspective
         val isPerspective: Boolean = false,
         val perspectivePoints: FloatArray? = null,
@@ -200,6 +207,7 @@ object StyleManager {
             l.twistAngle, l.twistOffsetX, l.twistOffsetY, l.twistRadius,
             l.bulgeCenterX, l.bulgeCenterY, l.bulgeRadius, l.bulgeStrength,
             l.reflectionAlphaStart, l.reflectionAlphaEnd, l.reflectionAmplitudeStart, l.reflectionAmplitudeEnd, l.reflectionBoundary, l.reflectionMirror, l.reflectionTime, l.reflectionWavelengthStart, l.reflectionWavelengthEnd,
+            l.zoomBlurCenterX, l.zoomBlurCenterY, l.zoomBlurInnerRadius, l.zoomBlurRadius, l.zoomBlurStrength,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
@@ -287,6 +295,13 @@ object StyleManager {
         l.reflectionTime = m.reflectionTime
         l.reflectionWavelengthStart = m.reflectionWavelengthStart
         l.reflectionWavelengthEnd = m.reflectionWavelengthEnd
+
+        // Zoom Blur
+        l.zoomBlurCenterX = m.zoomBlurCenterX
+        l.zoomBlurCenterY = m.zoomBlurCenterY
+        l.zoomBlurInnerRadius = m.zoomBlurInnerRadius
+        l.zoomBlurRadius = m.zoomBlurRadius
+        l.zoomBlurStrength = m.zoomBlurStrength
 
         l.isPerspective = m.isPerspective
         l.perspectivePoints = m.perspectivePoints

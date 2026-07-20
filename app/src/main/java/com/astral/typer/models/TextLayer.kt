@@ -263,6 +263,13 @@ class TextLayer(
     override var reflectionWavelengthStart: Float = 30.0f
     override var reflectionWavelengthEnd: Float = 100.0f
 
+    // Zoom Blur
+    override var zoomBlurCenterX: Float = 0.5f
+    override var zoomBlurCenterY: Float = 0.5f
+    override var zoomBlurInnerRadius: Float = 0f
+    override var zoomBlurRadius: Float = -1f
+    override var zoomBlurStrength: Float = 0.1f
+
     // Shape
     var isOval: Boolean = false
 
@@ -448,6 +455,13 @@ class TextLayer(
         result = 31 * result + reflectionTime.hashCode()
         result = 31 * result + reflectionWavelengthStart.hashCode()
         result = 31 * result + reflectionWavelengthEnd.hashCode()
+
+        // Zoom Blur
+        result = 31 * result + zoomBlurCenterX.hashCode()
+        result = 31 * result + zoomBlurCenterY.hashCode()
+        result = 31 * result + zoomBlurInnerRadius.hashCode()
+        result = 31 * result + zoomBlurRadius.hashCode()
+        result = 31 * result + zoomBlurStrength.hashCode()
 
         return result
     }
@@ -687,6 +701,13 @@ class TextLayer(
         newLayer.reflectionWavelengthStart = this.reflectionWavelengthStart
         newLayer.reflectionWavelengthEnd = this.reflectionWavelengthEnd
 
+        // Zoom Blur
+        newLayer.zoomBlurCenterX = this.zoomBlurCenterX
+        newLayer.zoomBlurCenterY = this.zoomBlurCenterY
+        newLayer.zoomBlurInnerRadius = this.zoomBlurInnerRadius
+        newLayer.zoomBlurRadius = this.zoomBlurRadius
+        newLayer.zoomBlurStrength = this.zoomBlurStrength
+
         newLayer.x = this.x
         newLayer.y = this.y
         newLayer.rotation = this.rotation
@@ -813,6 +834,7 @@ class TextLayer(
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 20f + 20f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 10f + 10f)
+                TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + zoomBlurStrength * 100f)
                 else -> {}
             }
         }
@@ -2543,6 +2565,38 @@ class TextLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.ZOOM_BLUR -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ZoomBlurNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(ZOOM_BLUR_SHADER)
+                            val cx = (if (hasBounds) nodeW.toFloat() else (w + pad * 2)) * zoomBlurCenterX
+                            val cy = (if (hasBounds) nodeH.toFloat() else (h + pad * 2)) * zoomBlurCenterY
+                            shader.setFloatUniform("center", cx, cy)
+                            shader.setFloatUniform("strength", zoomBlurStrength)
+                            shader.setFloatUniform("innerRadius", zoomBlurInnerRadius)
+                            shader.setFloatUniform("radius", zoomBlurRadius)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
                 else -> {
                     drawInner(targetCanvas)
                 }
@@ -3041,6 +3095,87 @@ class TextLayer(
                 if (n > prob) return half4(0);
 
                 return content.eval(coord);
+            }
+        """
+
+        const val ZOOM_BLUR_SHADER = """
+            uniform shader content;
+            uniform float2 center;
+            uniform float strength;
+            uniform float innerRadius;
+            uniform float radius;
+
+            // author: http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+            float rand(float2 co, float seed) {
+                const float a = 12.9898, b = 78.233, c = 43758.5453;
+                float dt = dot(co + seed, float2(a, b));
+                float sn = mod(dt, 3.14159);
+                return fract(sin(sn) * c + seed);
+            }
+
+            half4 main(float2 coord) {
+                float minGradient = innerRadius * 0.3;
+                float innerRadWithGrad = innerRadius + minGradient * 0.5;
+
+                float gradient = radius * 0.3;
+                float radiusWithGrad = radius - gradient * 0.5;
+
+                float countLimit = 32.0;
+
+                float dist = distance(coord, center);
+                float strengthVal = strength;
+
+                float delta = 0.0;
+                float gap = 0.0;
+                if (dist < innerRadWithGrad) {
+                    delta = innerRadWithGrad - dist;
+                    gap = minGradient;
+                } else if (radius >= 0.0 && dist > radiusWithGrad) { // radius < 0 means it's infinity
+                    delta = dist - radiusWithGrad;
+                    gap = gradient;
+                }
+
+                if (delta > 0.0) {
+                    if (gap <= 0.0001) {
+                        return content.eval(coord);
+                    }
+                    float normalCount = gap;
+                    delta = (normalCount - delta) / normalCount;
+                    countLimit *= delta;
+                    strengthVal *= delta;
+                    if (countLimit < 1.0) {
+                        return content.eval(coord);
+                    }
+                }
+
+                // randomize the lookup values to hide the fixed number of samples
+                float offset = rand(coord, 0.0);
+
+                float total = 0.0;
+                half4 color = half4(0.0);
+
+                float2 dir = center - coord;
+                dir *= strengthVal;
+
+                for (float t = 0.0; t < 32.0; t++) {
+                    float percent = (t + offset) / 32.0;
+                    float weight = 4.0 * (percent - percent * percent);
+                    float2 p = coord + dir * percent;
+                    half4 sampleColor = content.eval(p);
+
+                    color += sampleColor * weight;
+                    total += weight;
+
+                    if (t > countLimit) {
+                        break;
+                    }
+                }
+
+                if (total > 0.0) {
+                    return color / total;
+                } else {
+                    return content.eval(coord);
+                }
             }
         """
     }

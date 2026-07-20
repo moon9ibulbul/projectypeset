@@ -1039,6 +1039,9 @@ class EditorActivity : AppCompatActivity() {
                     stylableLayer.reflectionWavelengthEnd = 100.0f
                 }
             }
+            if (effect == TextEffectType.ZOOM_BLUR) {
+                if (stylableLayer.zoomBlurStrength == 0f) stylableLayer.zoomBlurStrength = 0.1f
+            }
 
             canvasView.invalidate()
             showEffectMenu()
@@ -1075,6 +1078,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Twist", TextEffectType.TWIST)
         addEffectCard("Bulge & Pinch", TextEffectType.BULGE_PINCH)
         addEffectCard("Reflection", TextEffectType.REFLECTION)
+        addEffectCard("Zoom Blur", TextEffectType.ZOOM_BLUR)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -1946,6 +1950,89 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s8)
+        }
+
+        if (isEffectActive(TextEffectType.ZOOM_BLUR)) {
+                // Strength: 0.0 to 1.0 (default 0.1)
+                val currentStr = stylableLayer.zoomBlurStrength
+                val s1 = createSlider("Strength: ${(currentStr * 100).toInt()}%", (currentStr * 100).toInt(), 100) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.zoomBlurStrength = p / 100f
+                        tv1?.text = "Strength: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Inner Radius: 0 to 500 (default 0)
+                val currentInner = stylableLayer.zoomBlurInnerRadius
+                val s2 = createSlider("Inner Radius: ${currentInner.toInt()}", currentInner.toInt(), 500) { }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.zoomBlurInnerRadius = p.toFloat()
+                        tv2?.text = "Inner Radius: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                // Radius: -1 to 1000 (represented on slider as 0 to 1000, where 0 -> -1f)
+                val currentRad = stylableLayer.zoomBlurRadius
+                val initialRadProgress = if (currentRad < 0f) 0 else currentRad.toInt()
+                val s3 = createSlider(
+                    if (currentRad < 0f) "Radius: Max" else "Radius: ${currentRad.toInt()}",
+                    initialRadProgress,
+                    1000
+                ) { }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val radVal = if (p == 0) -1f else p.toFloat()
+                        stylableLayer.zoomBlurRadius = radVal
+                        tv3?.text = if (radVal < 0f) "Radius: Max" else "Radius: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                // Center X: 0% to 100% (default 50%)
+                val currentCX = stylableLayer.zoomBlurCenterX
+                val s4 = createSlider("Center X: ${(currentCX * 100).toInt()}%", (currentCX * 100).toInt(), 100) { }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.zoomBlurCenterX = p / 100f
+                        tv4?.text = "Center X: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s4)
+
+                // Center Y: 0% to 100% (default 50%)
+                val currentCY = stylableLayer.zoomBlurCenterY
+                val s5 = createSlider("Center Y: ${(currentCY * 100).toInt()}%", (currentCY * 100).toInt(), 100) { }
+                val tv5 = s5.findViewWithTag<TextView>("SLIDER_LABEL")
+                s5.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.zoomBlurCenterY = p / 100f
+                        tv5?.text = "Center Y: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s5)
         }
 
         mainLayout.addView(settingsLayout)
