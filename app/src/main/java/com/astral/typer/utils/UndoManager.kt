@@ -14,18 +14,55 @@ object UndoManager {
     private const val MAX_BITMAP_HISTORY = 5 // Bitmaps are large
 
     fun saveState(layers: List<Layer>) {
-        // Deep copy list
-        val snapshot = layers.map { it.clone() }
+        var snapshot: List<Layer>? = null
+        try {
+            snapshot = layers.map { it.clone() }
+        } catch (oom: OutOfMemoryError) {
+            android.util.Log.w("UndoManager", "OOM while saving state, clearing oldest history entries")
+            val clearCount = history.size / 2
+            for (i in 0 until clearCount) {
+                if (history.isNotEmpty()) {
+                    val removed = history.removeAt(0)
+                    removed.forEach { layer ->
+                        if (layer is TextLayer) {
+                            layer.eraseMask?.recycle()
+                            layer.recycleCache()
+                        } else if (layer is com.astral.typer.models.BrushLayer) {
+                            layer.bitmap.recycle()
+                            layer.eraseMask?.recycle()
+                        }
+                    }
+                }
+            }
+            System.gc()
+            try {
+                snapshot = layers.map { it.clone() }
+            } catch (oom2: OutOfMemoryError) {
+                android.util.Log.e("UndoManager", "Still OOM after partial clear, clearing all history")
+                clearMemory()
+                System.gc()
+                try {
+                    snapshot = layers.map { it.clone() }
+                } catch (oom3: OutOfMemoryError) {
+                    android.util.Log.e("UndoManager", "Completely out of memory, skipping saveState")
+                    return
+                }
+            }
+        }
 
-        history.push(snapshot)
-        if (history.size > MAX_HISTORY) {
-            val removed = history.removeAt(0)
-            removed.forEach { layer ->
-                if (layer is TextLayer) {
-                    layer.eraseMask?.recycle()
-                } else if (layer is com.astral.typer.models.BrushLayer) {
-                    layer.bitmap.recycle()
-                    layer.eraseMask?.recycle()
+        if (snapshot != null) {
+            history.push(snapshot)
+            val limit = if (layers.any { it is com.astral.typer.models.BrushLayer }) 15 else MAX_HISTORY
+            while (history.size > limit) {
+                val removed = history.removeAt(0)
+                removed.forEach { layer ->
+                    if (layer is TextLayer) {
+                        layer.eraseMask?.recycle()
+                        layer.recycleCache()
+                    } else if (layer is com.astral.typer.models.BrushLayer) {
+                        layer.bitmap.recycle()
+                        layer.eraseMask?.recycle()
+                    }
                 }
             }
         }
@@ -34,6 +71,7 @@ object UndoManager {
             layersList.forEach { layer ->
                 if (layer is TextLayer) {
                     layer.eraseMask?.recycle()
+                    layer.recycleCache()
                 } else if (layer is com.astral.typer.models.BrushLayer) {
                     layer.bitmap.recycle()
                     layer.eraseMask?.recycle()

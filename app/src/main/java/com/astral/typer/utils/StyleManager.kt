@@ -54,6 +54,14 @@ object StyleManager {
         }
     }
 
+    fun moveStyle(context: Context, fromIndex: Int, toIndex: Int) {
+        if (fromIndex in 0 until savedStyles.size && toIndex in 0 until savedStyles.size) {
+            val style = savedStyles.removeAt(fromIndex)
+            savedStyles.add(toIndex, style)
+            persistStyles(context)
+        }
+    }
+
     fun renameStyle(context: Context, index: Int, newName: String) {
         if (index in 0 until savedStyles.size) {
             savedStyles[index] = savedStyles[index].copy(name = newName)

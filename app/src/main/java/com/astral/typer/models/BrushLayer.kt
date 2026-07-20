@@ -626,7 +626,13 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
 
         val pressure = 1.0f
 
+        var iterations = 0
         while (dabsMoved + totalDabsTodo >= 1.0f) {
+            iterations++
+            if (iterations > 500) {
+                android.util.Log.w("BrushLayer", "Safeguard: broke from loop to prevent excessive rendering dabs ($iterations dabs)")
+                break
+            }
             val stepDdab: Float
             val frac: Float
             if (dabsMoved > 0f) {
