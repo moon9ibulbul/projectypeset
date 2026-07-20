@@ -71,6 +71,9 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var inpaintManager: InpaintManager
     private lateinit var bubbleProcessor: com.astral.typer.utils.BubbleDetectorProcessor
 
+    // Style Rearrange
+    private var isStyleRearrangeMode = false
+
     // Typer
     private var typerAdapter: TyperTextAdapter? = null
     private var typerTextLines: List<String> = emptyList()
@@ -3220,7 +3223,18 @@ class EditorActivity : AppCompatActivity() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer
 
-        // Add "Save Current Style" button
+        // Button row
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(16, 0, 16, 16)
+            }
+        }
+        container.addView(buttonRow)
+
         if (layer != null) {
             val btnSaveStyle = android.widget.Button(this).apply {
                 text = "Save Current Style"
@@ -3229,15 +3243,34 @@ class EditorActivity : AppCompatActivity() {
                     setColor(Color.DKGRAY)
                     cornerRadius = dpToPx(8).toFloat()
                 }
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    setMargins(16,0,16,16)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    setMargins(0, 0, 8, 0)
                 }
                 setOnClickListener {
                     saveCurrentStyle(layer)
                 }
             }
-            container.addView(btnSaveStyle)
+            buttonRow.addView(btnSaveStyle)
         }
+
+        val btnRearrange = android.widget.Button(this).apply {
+            text = if (isStyleRearrangeMode) "Done" else "Rearrange"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                setColor(if (isStyleRearrangeMode) 0xFF4CAF50.toInt() else Color.DKGRAY) // Green when active, otherwise gray
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                if (layer != null) 0 else ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                if (layer != null) 1f else 0f
+            )
+            setOnClickListener {
+                isStyleRearrangeMode = !isStyleRearrangeMode
+                showStyleMenu() // Refresh Style Menu to update UI and Toggle modes
+            }
+        }
+        buttonRow.addView(btnRearrange)
 
         val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
         if (saved.isEmpty()) {
@@ -3254,47 +3287,77 @@ class EditorActivity : AppCompatActivity() {
             }
             container.addView(recyclerView)
 
-            recyclerView.adapter = StyleAdapter(this, lifecycleScope, saved,
+            val adapter = StyleAdapter(this, lifecycleScope, saved,
                 onApply = { style ->
-                    if (layer != null) {
+                    if (!isStyleRearrangeMode && layer != null) {
                         applyStyleToLayer(layer, style)
                         Toast.makeText(this, "Style Applied", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onLongClick = { view, index, style ->
-                    val popup = android.widget.PopupMenu(this, view)
-                    popup.menu.add("Rename")
-                    popup.menu.add("Delete")
-                    popup.setOnMenuItemClickListener { item ->
-                        when(item.title) {
-                            "Rename" -> {
-                                val input = EditText(this)
-                                input.setText(style.name)
-                                android.app.AlertDialog.Builder(this)
-                                    .setTitle("Rename Style")
-                                    .setView(input)
-                                    .setPositiveButton("OK") { _, _ ->
-                                        val newName = input.text.toString()
-                                        if (newName.isNotBlank()) {
-                                            StyleManager.renameStyle(this, index, newName)
-                                            showStyleMenu() // Refresh
+                    if (!isStyleRearrangeMode) {
+                        val popup = android.widget.PopupMenu(this, view)
+                        popup.menu.add("Rename")
+                        popup.menu.add("Delete")
+                        popup.setOnMenuItemClickListener { item ->
+                            when(item.title) {
+                                "Rename" -> {
+                                    val input = EditText(this)
+                                    input.setText(style.name)
+                                    android.app.AlertDialog.Builder(this)
+                                        .setTitle("Rename Style")
+                                        .setView(input)
+                                        .setPositiveButton("OK") { _, _ ->
+                                            val newName = input.text.toString()
+                                            if (newName.isNotBlank()) {
+                                                StyleManager.renameStyle(this, index, newName)
+                                                showStyleMenu() // Refresh
+                                            }
                                         }
-                                    }
-                                    .setNegativeButton("Cancel", null)
-                                    .show()
-                                true
+                                        .setNegativeButton("Cancel", null)
+                                        .show()
+                                    true
+                                }
+                                "Delete" -> {
+                                    StyleManager.deleteStyle(this, index)
+                                    showStyleMenu() // Refresh
+                                    true
+                                }
+                                else -> false
                             }
-                            "Delete" -> {
-                                StyleManager.deleteStyle(this, index)
-                                showStyleMenu() // Refresh
-                                true
-                            }
-                            else -> false
                         }
+                        popup.show()
                     }
-                    popup.show()
                 }
-            )
+            ).apply {
+                isRearrangeMode = this@EditorActivity.isStyleRearrangeMode
+            }
+            recyclerView.adapter = adapter
+
+            if (isStyleRearrangeMode) {
+                val itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                    androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN or androidx.recyclerview.widget.ItemTouchHelper.LEFT or androidx.recyclerview.widget.ItemTouchHelper.RIGHT,
+                    0
+                ) {
+                    override fun onMove(
+                        rv: androidx.recyclerview.widget.RecyclerView,
+                        viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+                        target: androidx.recyclerview.widget.RecyclerView.ViewHolder
+                    ): Boolean {
+                        val fromPos = viewHolder.adapterPosition
+                        val toPos = target.adapterPosition
+                        if (fromPos == androidx.recyclerview.widget.RecyclerView.NO_POSITION || toPos == androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                            return false
+                        }
+                        com.astral.typer.utils.StyleManager.moveStyle(this@EditorActivity, fromPos, toPos)
+                        rv.adapter?.notifyItemMoved(fromPos, toPos)
+                        return true
+                    }
+
+                    override fun onSwiped(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, direction: Int) {}
+                })
+                itemTouchHelper.attachToRecyclerView(recyclerView)
+            }
         }
     }
 

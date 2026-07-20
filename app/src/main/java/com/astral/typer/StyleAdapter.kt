@@ -23,6 +23,8 @@ class StyleAdapter(
     private val onLongClick: (View, Int, StyleModel) -> Unit
 ) : RecyclerView.Adapter<StyleAdapter.ViewHolder>() {
 
+    var isRearrangeMode: Boolean = false
+
     private val previewCache = mutableMapOf<String, Bitmap>()
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -60,8 +62,12 @@ class StyleAdapter(
 
         holder.container.setOnClickListener { onApply(style) }
         holder.container.setOnLongClickListener {
-            onLongClick(it, holder.adapterPosition, style)
-            true
+            if (!isRearrangeMode) {
+                onLongClick(it, holder.adapterPosition, style)
+                true
+            } else {
+                false
+            }
         }
     }
 
