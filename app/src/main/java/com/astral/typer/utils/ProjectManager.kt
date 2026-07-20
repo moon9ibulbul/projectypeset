@@ -803,6 +803,18 @@ object ProjectManager {
 
             model.fontSize?.let { layer.fontSize = it }
             layer.fontPath = model.fontPath
+            val appInstance = TyperApplication.instance
+            if (appInstance != null && !model.fontPath.isNullOrEmpty()) {
+                val availableFonts = FontManager.getStandardFonts(appInstance) + FontManager.getCustomFonts(appInstance)
+                val found = availableFonts.find {
+                    (it.isCustom && it.path == model.fontPath) || (!it.isCustom && it.name == model.fontPath)
+                }
+                if (found != null) {
+                    layer.typeface = found.typeface
+                } else {
+                    layer.typeface = android.graphics.Typeface.DEFAULT
+                }
+            }
             model.textAlign?.let {
                 try { layer.textAlign = Layout.Alignment.valueOf(it) } catch(e:Exception){}
             }
