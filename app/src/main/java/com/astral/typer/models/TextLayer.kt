@@ -832,9 +832,12 @@ class TextLayer(
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
-                TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 20f + 20f)
-                TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 10f + 10f)
-                TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + zoomBlurStrength * 100f)
+                TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
+                TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
+                TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
+                TextEffectType.REFLECTION -> effectExpansion = Math.max(effectExpansion, getHeight() * 1.5f + reflectionAmplitudeEnd)
+                TextEffectType.TWIST -> effectExpansion = Math.max(effectExpansion, twistRadius * 0.5f)
+                TextEffectType.BULGE_PINCH -> effectExpansion = Math.max(effectExpansion, bulgeRadius * 0.5f)
                 else -> {}
             }
         }
