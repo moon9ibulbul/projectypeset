@@ -993,7 +993,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private fun renderToBitmapHardware(): android.graphics.Bitmap? {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return null
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
         try {
             val reader = android.media.ImageReader.newInstance(
                 canvasWidth, canvasHeight,
@@ -1057,7 +1057,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun renderToBitmap(): android.graphics.Bitmap {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             val hwBmp = renderToBitmapHardware()
             if (hwBmp != null) {
                 return hwBmp
