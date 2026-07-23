@@ -1277,7 +1277,7 @@ object ProjectManager {
     }
 
     private fun renderPageToBitmapHardware(data: ProjectData, images: Map<String, Bitmap>, targetWidth: Int, targetHeight: Int, scale: Float): Bitmap? {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return null
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
         try {
             val reader = android.media.ImageReader.newInstance(
                 targetWidth, targetHeight,
@@ -1375,7 +1375,7 @@ object ProjectManager {
 
                     // Intermediate bitmap for rendering
                     var pageBitmap: Bitmap? = null
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                         pageBitmap = renderPageToBitmapHardware(data, images, targetPageWidth, targetHeight, scale)
                     }
 
