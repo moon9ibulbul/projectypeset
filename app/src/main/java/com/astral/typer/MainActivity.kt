@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 val showSavingCard = ProjectManager.isSaving
 
-                if (projects.isNotEmpty() || showSavingCard) {
+                if (true) {
                     binding.tvRecentLabel.visibility = View.VISIBLE
                     binding.recentRecycler.visibility = View.VISIBLE
 
@@ -296,7 +296,7 @@ class MainActivity : AppCompatActivity() {
                             val itemCount = itemCount
                             val isViewAll = position == itemCount - 1
 
-                            if (isViewAll && projects.isNotEmpty()) {
+                            if (isViewAll) {
                                 // View All Card
                                 text.text = "View All"
                                 text.setTextColor(Color.CYAN)
@@ -378,7 +378,7 @@ class MainActivity : AppCompatActivity() {
                         override fun getItemCount(): Int {
                             var count = projects.size
                             if (showSavingCard) count++
-                            if (projects.isNotEmpty()) count++ // For View All
+                            count++ // For View All
                             return count
                         }
                     }

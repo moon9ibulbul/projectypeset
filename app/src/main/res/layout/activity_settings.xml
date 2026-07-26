@@ -85,6 +85,22 @@
                 android:layout_marginStart="8dp"/>
         </LinearLayout>
 
+        <!-- Font Manager -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Font Manager"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnFontManager"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Open Font Manager"
+            android:layout_marginBottom="24dp"/>
+
         <!-- Cache -->
         <TextView
             android:layout_width="wrap_content"
