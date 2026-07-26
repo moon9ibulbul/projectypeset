@@ -3267,24 +3267,31 @@ class TextLayer(
 
             half4 main(float2 coord) {
                 float PI = 3.14159265358979323846264;
-                float ANGLE_STEP_SIZE = min(1.0 / (quality * glowDistance), PI * 2.0);
-                float ANGLE_STEP_NUM = ceil(PI * 2.0 / ANGLE_STEP_SIZE);
-                float MAX_TOTAL_ALPHA = ANGLE_STEP_NUM * glowDistance * (glowDistance + 1.0) / 2.0;
+
+                // Constant limits are mandatory for AGSL/SkSL loop compatibility
+                const int ANGLE_STEPS = 12;
+                const int DIST_STEPS = 10;
 
                 float totalAlpha = 0.0;
+                // Quality scales the step size dynamically
+                float stepSize = max(0.1, (glowDistance / float(DIST_STEPS)) * max(0.1, quality));
 
-                for (float angle = 0.0; angle < PI * 2.0; angle += ANGLE_STEP_SIZE) {
+                float maxPossibleAlpha = float(ANGLE_STEPS) * float(DIST_STEPS) * (float(DIST_STEPS) + 1.0) / 2.0;
+
+                for (int i = 0; i < ANGLE_STEPS; i++) {
+                    float angle = float(i) * (2.0 * PI / float(ANGLE_STEPS));
                     float2 direction = float2(cos(angle), sin(angle));
 
-                    for (float curDistance = 0.0; curDistance < glowDistance; curDistance++) {
-                        float2 displaced = coord + direction * (curDistance + 1.0);
+                    for (int j = 0; j < DIST_STEPS; j++) {
+                        float curDist = float(j + 1) * stepSize;
+                        float2 displaced = coord + direction * curDist;
                         half4 curColor = content.eval(displaced);
-                        totalAlpha += (glowDistance - curDistance) * curColor.a;
+                        totalAlpha += (float(DIST_STEPS) - float(j)) * curColor.a;
                     }
                 }
 
                 half4 curColor = content.eval(coord);
-                float alphaRatio = (totalAlpha / MAX_TOTAL_ALPHA);
+                float alphaRatio = totalAlpha / maxPossibleAlpha;
 
                 float innerGlowAlpha = (1.0 - alphaRatio) * innerStrength * curColor.a;
                 float innerGlowStrength = min(1.0, innerGlowAlpha);
