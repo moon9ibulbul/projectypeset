@@ -202,6 +202,11 @@ class TextLayer(
     // Neon
     override var neonRadius: Float = 30f
     override var neonColor: Int = Color.CYAN
+    override var neonAlpha: Float = 1.0f
+    override var neonInnerStrength: Float = 0.0f
+    override var neonOuterStrength: Float = 4.0f
+    override var neonKnockout: Boolean = false
+    override var neonQuality: Float = 0.1f
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
@@ -417,6 +422,11 @@ class TextLayer(
         result = 31 * result + halftoneThreshold.hashCode()
         result = 31 * result + neonRadius.hashCode()
         result = 31 * result + neonColor
+        result = 31 * result + neonAlpha.hashCode()
+        result = 31 * result + neonInnerStrength.hashCode()
+        result = 31 * result + neonOuterStrength.hashCode()
+        result = 31 * result + neonKnockout.hashCode()
+        result = 31 * result + neonQuality.hashCode()
         result = 31 * result + glitchIntensity.hashCode()
         result = 31 * result + pixelBlockSize.hashCode()
         result = 31 * result + chromaticShift.hashCode()
@@ -660,6 +670,11 @@ class TextLayer(
         newLayer.halftoneThreshold = this.halftoneThreshold
         newLayer.neonRadius = this.neonRadius
         newLayer.neonColor = this.neonColor
+        newLayer.neonAlpha = this.neonAlpha
+        newLayer.neonInnerStrength = this.neonInnerStrength
+        newLayer.neonOuterStrength = this.neonOuterStrength
+        newLayer.neonKnockout = this.neonKnockout
+        newLayer.neonQuality = this.neonQuality
         newLayer.glitchIntensity = this.glitchIntensity
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
@@ -1153,7 +1168,8 @@ class TextLayer(
             it == TextEffectType.BULGE_PINCH ||
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
-            it == TextEffectType.GAUSSIAN_BLUR
+            it == TextEffectType.GAUSSIAN_BLUR ||
+            it == TextEffectType.NEON
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -2066,24 +2082,61 @@ class TextLayer(
                     }
                 }
                 TextEffectType.NEON -> {
-                    val originalColor = paint.color
-                    val originalStyle = paint.style
-                    val originalMaskFilter = paint.maskFilter
-                    val prevSilhouette = silhouetteColor
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("NeonGlowNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
 
-                    paint.style = Paint.Style.FILL
-                    silhouetteColor = if (neonColor != Color.CYAN) neonColor else color
-                    paint.maskFilter = BlurMaskFilter(neonRadius.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
 
-                    drawInner(targetCanvas)
+                            val shader = android.graphics.RuntimeShader(NEON_GLOW_SHADER)
+                            shader.setFloatUniform("outerStrength", neonOuterStrength)
+                            shader.setFloatUniform("innerStrength", neonInnerStrength)
+                            val r = Color.red(neonColor) / 255f
+                            val g = Color.green(neonColor) / 255f
+                            val b = Color.blue(neonColor) / 255f
+                            val a = Color.alpha(neonColor) / 255f
+                            shader.setFloatUniform("glowColor", r, g, b, a)
+                            shader.setFloatUniform("glowDistance", neonRadius.coerceAtLeast(1f))
+                            shader.setFloatUniform("quality", neonQuality.coerceIn(0.01f, 1.0f))
+                            shader.setIntUniform("knockout", if (neonKnockout) 1 else 0)
+                            shader.setFloatUniform("alpha", neonAlpha)
 
-                    paint.maskFilter = null
-                    silhouetteColor = prevSilhouette
-                    drawInner(targetCanvas)
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
 
-                    paint.color = originalColor
-                    paint.style = originalStyle
-                    paint.maskFilter = originalMaskFilter
+                    if (!useRenderEffect) {
+                        val originalColor = paint.color
+                        val originalStyle = paint.style
+                        val originalMaskFilter = paint.maskFilter
+                        val prevSilhouette = silhouetteColor
+
+                        paint.style = Paint.Style.FILL
+                        silhouetteColor = if (neonColor != Color.CYAN) neonColor else color
+                        paint.maskFilter = BlurMaskFilter(neonRadius.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
+
+                        drawInner(targetCanvas)
+
+                        paint.maskFilter = null
+                        silhouetteColor = prevSilhouette
+                        drawInner(targetCanvas)
+
+                        paint.color = originalColor
+                        paint.style = originalStyle
+                        paint.maskFilter = originalMaskFilter
+                    }
                 }
                 TextEffectType.LONG_SHADOW -> {
                     val originalColor = paint.color
@@ -3198,6 +3251,55 @@ class TextLayer(
                     return color / total;
                 } else {
                     return content.eval(coord);
+                }
+            }
+        """
+
+        const val NEON_GLOW_SHADER = """
+            uniform shader content;
+            uniform float outerStrength;
+            uniform float innerStrength;
+            uniform float4 glowColor;
+            uniform float glowDistance;
+            uniform float quality;
+            uniform int knockout;
+            uniform float alpha;
+
+            half4 main(float2 coord) {
+                float PI = 3.14159265358979323846264;
+                float ANGLE_STEP_SIZE = min(1.0 / (quality * glowDistance), PI * 2.0);
+                float ANGLE_STEP_NUM = ceil(PI * 2.0 / ANGLE_STEP_SIZE);
+                float MAX_TOTAL_ALPHA = ANGLE_STEP_NUM * glowDistance * (glowDistance + 1.0) / 2.0;
+
+                float totalAlpha = 0.0;
+
+                for (float angle = 0.0; angle < PI * 2.0; angle += ANGLE_STEP_SIZE) {
+                    float2 direction = float2(cos(angle), sin(angle));
+
+                    for (float curDistance = 0.0; curDistance < glowDistance; curDistance++) {
+                        float2 displaced = coord + direction * (curDistance + 1.0);
+                        half4 curColor = content.eval(displaced);
+                        totalAlpha += (glowDistance - curDistance) * curColor.a;
+                    }
+                }
+
+                half4 curColor = content.eval(coord);
+                float alphaRatio = (totalAlpha / MAX_TOTAL_ALPHA);
+
+                float innerGlowAlpha = (1.0 - alphaRatio) * innerStrength * curColor.a;
+                float innerGlowStrength = min(1.0, innerGlowAlpha);
+
+                half4 innerColor = mix(curColor, glowColor, innerGlowStrength);
+
+                float outerGlowAlpha = alphaRatio * outerStrength * (1.0 - curColor.a);
+                float outerGlowStrength = min(1.0 - innerColor.a, outerGlowAlpha);
+
+                if (knockout != 0) {
+                    float resultAlpha = (outerGlowAlpha + innerGlowAlpha) * alpha;
+                    return half4(glowColor.rgb * resultAlpha, resultAlpha);
+                } else {
+                    half4 outerGlowColor = outerGlowStrength * glowColor * alpha;
+                    return innerColor + outerGlowColor;
                 }
             }
         """

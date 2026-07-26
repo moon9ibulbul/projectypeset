@@ -77,6 +77,11 @@ interface StylableLayer {
     var halftoneThreshold: Float
     var neonRadius: Float
     var neonColor: Int
+    var neonAlpha: Float
+    var neonInnerStrength: Float
+    var neonOuterStrength: Float
+    var neonKnockout: Boolean
+    var neonQuality: Float
     var glitchIntensity: Float
     var pixelBlockSize: Float
     var chromaticShift: Float

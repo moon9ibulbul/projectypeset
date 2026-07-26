@@ -203,6 +203,11 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     override var halftoneThreshold: Float = 0f
     override var neonRadius: Float = 0f
     override var neonColor: Int = Color.TRANSPARENT
+    override var neonAlpha: Float = 1.0f
+    override var neonInnerStrength: Float = 0.0f
+    override var neonOuterStrength: Float = 4.0f
+    override var neonKnockout: Boolean = false
+    override var neonQuality: Float = 0.1f
     override var glitchIntensity: Float = 0f
     override var pixelBlockSize: Float = 0f
     override var chromaticShift: Float = 0f

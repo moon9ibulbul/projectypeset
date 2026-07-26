@@ -94,6 +94,11 @@ class ImageLayer(
     override var halftoneThreshold: Float = 0.5f
     override var neonRadius: Float = 30f
     override var neonColor: Int = Color.CYAN
+    override var neonAlpha: Float = 1.0f
+    override var neonInnerStrength: Float = 0.0f
+    override var neonOuterStrength: Float = 4.0f
+    override var neonKnockout: Boolean = false
+    override var neonQuality: Float = 0.1f
     override var glitchIntensity: Float = 1.0f
     override var pixelBlockSize: Float = 10f
     override var chromaticShift: Float = 5f
