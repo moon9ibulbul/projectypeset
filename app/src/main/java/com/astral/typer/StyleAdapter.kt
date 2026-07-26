@@ -40,7 +40,7 @@ class StyleAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val style = styles[position]
-        holder.tvName.text = style.name.ifEmpty { "Style ${position + 1}" }
+        holder.tvName.text = (style.name ?: "").ifEmpty { "Style ${position + 1}" }
 
         // Clear previous preview to avoid flickering
         holder.ivPreview.setImageBitmap(null)

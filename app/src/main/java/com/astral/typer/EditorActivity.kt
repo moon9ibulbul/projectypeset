@@ -3297,8 +3297,8 @@ class EditorActivity : AppCompatActivity() {
             layer.updateDenseWarpMesh()
         }
 
-        try { layer.currentEffect = TextEffectType.valueOf(style.currentEffect) } catch (e: Exception) {}
-        try { layer.secondaryEffect = TextEffectType.valueOf(style.secondaryEffect) } catch (e: Exception) {}
+        try { layer.currentEffect = TextEffectType.valueOf(style.currentEffect ?: "NONE") } catch (e: Exception) {}
+        try { layer.secondaryEffect = TextEffectType.valueOf(style.secondaryEffect ?: "NONE") } catch (e: Exception) {}
         layer.wavyIntensity = style.wavyIntensity
         layer.wavyFrequency = style.wavyFrequency
         layer.fieryColor = style.fieryColor
@@ -3420,7 +3420,7 @@ class EditorActivity : AppCompatActivity() {
                             when(item.title) {
                                 "Rename" -> {
                                     val input = EditText(this)
-                                    input.setText(style.name)
+                                    input.setText(style.name ?: "")
                                     android.app.AlertDialog.Builder(this)
                                         .setTitle("Rename Style")
                                         .setView(input)
