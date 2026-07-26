@@ -268,6 +268,11 @@ class SettingsActivity : AppCompatActivity() {
             importLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
         }
 
+        findViewById<Button>(R.id.btnFontManager).setOnClickListener {
+            val intent = Intent(this, FontActivity::class.java)
+            startActivity(intent)
+        }
+
         // Donate
         btnDonate.setOnClickListener {
             try {

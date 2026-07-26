@@ -69,6 +69,13 @@
                 android:layout_height="wrap_content"
                 android:text="Load RAW"/>
 
+            <Button
+                android:id="@+id/btnOpenSettings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Open Settings"
+                android:layout_marginTop="16dp"/>
+
             <LinearLayout
                 android:id="@+id/layoutRawControls"
                 android:layout_width="match_parent"

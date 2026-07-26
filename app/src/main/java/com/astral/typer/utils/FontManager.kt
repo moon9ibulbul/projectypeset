@@ -229,4 +229,37 @@ object FontManager {
         }
         return result ?: "font.ttf"
     }
+
+    fun deleteCustomFont(context: Context, item: FontItem): Boolean {
+        if (!item.isCustom || item.path == null) return false
+        try {
+            val file = File(item.path)
+            if (file.exists()) {
+                val success = file.delete()
+                if (success) {
+                    // Remove from favorites if it was there
+                    val favorites = getFavorites(context).toMutableSet()
+                    if (favorites.contains(item.path)) {
+                        favorites.remove(item.path)
+                        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                            .edit()
+                            .putStringSet(KEY_FAVORITES, favorites)
+                            .apply()
+                    }
+                    // Remove from category associations
+                    val fontId = item.path
+                    context.getSharedPreferences("font_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .remove("font_categories_$fontId")
+                        .apply()
+
+                    refreshCache()
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
 }

@@ -73,6 +73,9 @@
         <activity
             android:name=".RecentActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+        <activity
+            android:name=".FontActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

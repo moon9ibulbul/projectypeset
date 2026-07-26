@@ -1,6 +1,8 @@
 package com.astral.typer
 
 import android.content.Context
+import android.content.Intent
+import java.io.File
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -1068,7 +1070,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION)
         addEffectCard("Glitch", TextEffectType.GLITCH)
         addEffectCard("Pixelation", TextEffectType.PIXELATION)
-        addEffectCard("Neon", TextEffectType.NEON)
+        addEffectCard("Glow", TextEffectType.NEON)
         addEffectCard("Long Shadow", TextEffectType.LONG_SHADOW)
         addEffectCard("Fiery", TextEffectType.FIERY)
         addEffectCard("Wavy", TextEffectType.WAVY)
@@ -2547,6 +2549,11 @@ class EditorActivity : AppCompatActivity() {
         // RAW Panel Controls
         sidebarBinding.btnLoadRaw.setOnClickListener {
             loadRawLauncher.launch("image/*")
+        }
+
+        sidebarBinding.btnOpenSettings.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            startActivity(intent)
         }
 
         if (canvasView.isRawPanelLoaded()) {
@@ -4219,15 +4226,22 @@ class EditorActivity : AppCompatActivity() {
 
         container.addView(createInputView(layer, false))
 
-        // Tabs
-        val tabsLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            weightSum = 3f
+        val tabsScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val tabsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { setMargins(0, 8, 0, 8) }
         }
+        tabsScroll.addView(tabsLayout)
 
         val contentContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -4236,8 +4250,55 @@ class EditorActivity : AppCompatActivity() {
             )
         }
 
+        val tabButtons = mutableListOf<TextView>()
+
+        fun updateTabStyles(activeName: String) {
+            for (btn in tabButtons) {
+                if (btn.text == activeName) {
+                    btn.setTextColor(Color.CYAN)
+                    btn.alpha = 1.0f
+                } else {
+                    btn.setTextColor(Color.LTGRAY)
+                    btn.alpha = 0.6f
+                }
+            }
+        }
+
+        fun getSortedFontsForEditor(fontsList: List<com.astral.typer.utils.FontManager.FontItem>): List<com.astral.typer.utils.FontManager.FontItem> {
+            val fontPrefs = getSharedPreferences("font_prefs", MODE_PRIVATE)
+            val orderBy = fontPrefs.getString("font_order_by", "Name") ?: "Name"
+
+            return when (orderBy) {
+                "Latest Installed" -> {
+                    fontsList.sortedWith(compareByDescending<com.astral.typer.utils.FontManager.FontItem> { item ->
+                        if (item.path != null) {
+                            val file = if (item.path.startsWith("std_cache:")) {
+                                File(filesDir, "std_fonts_cache/${item.path.substringAfter("std_cache:")}")
+                            } else {
+                                File(item.path)
+                            }
+                            if (file.exists()) file.lastModified() else 0L
+                        } else {
+                            0L
+                        }
+                    }.thenBy { it.name.lowercase() })
+                }
+                "Most Used" -> {
+                    val usagePrefs = getSharedPreferences("font_usage_prefs", MODE_PRIVATE)
+                    fontsList.sortedWith(compareByDescending<com.astral.typer.utils.FontManager.FontItem> { item ->
+                        val key = item.path ?: item.name
+                        usagePrefs.getInt(key, 0)
+                    }.thenBy { it.name.lowercase() })
+                }
+                else -> { // "Name"
+                    fontsList.sortedBy { it.name.lowercase() }
+                }
+            }
+        }
+
         // Tab Logic
         fun loadTab(type: String) {
+            updateTabStyles(type)
             contentContainer.removeAllViews()
 
             val outerLayout = LinearLayout(this).apply {
@@ -4315,12 +4376,21 @@ class EditorActivity : AppCompatActivity() {
 
             // Async Load
             kotlin.concurrent.thread {
-                val fonts = when(type) {
+                val allFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
+                val fontsRaw = when(type) {
                     "Standard" -> FontManager.getStandardFonts(this)
                     "My Font" -> FontManager.getCustomFonts(this)
                     "Favorite" -> FontManager.getFavoriteFonts(this)
-                    else -> emptyList()
+                    else -> {
+                        val fontPrefs = getSharedPreferences("font_prefs", Context.MODE_PRIVATE)
+                        allFonts.filter { font ->
+                            val fontId = font.path ?: font.name
+                            val assigned = fontPrefs.getStringSet("font_categories_$fontId", emptySet()) ?: emptySet()
+                            assigned.contains(type)
+                        }
+                    }
                 }
+                val fonts = getSortedFontsForEditor(fontsRaw)
 
                 runOnUiThread {
                     if (list.childCount > 0 && list.getChildAt(list.childCount - 1) == progressBar) {
@@ -4358,6 +4428,13 @@ class EditorActivity : AppCompatActivity() {
                                 }
 
                                 setOnClickListener {
+                                    val fontId = if (font.isCustom) font.path else font.name
+                                    if (fontId != null) {
+                                        val usagePrefs = getSharedPreferences("font_usage_prefs", Context.MODE_PRIVATE)
+                                        val currentUsage = usagePrefs.getInt(fontId, 0)
+                                        usagePrefs.edit().putInt(fontId, currentUsage + 1).apply()
+                                    }
+
                                     val et = activeEditText
                                     if (et != null && et.selectionStart != et.selectionEnd) {
                                          val fontPath = if (font.isCustom) font.path else font.name
@@ -4422,6 +4499,13 @@ class EditorActivity : AppCompatActivity() {
                                              }
 
                                              setOnClickListener {
+                                                 val fontId = if (font.isCustom) font.path else font.name
+                                                 if (fontId != null) {
+                                                     val usagePrefs = getSharedPreferences("font_usage_prefs", Context.MODE_PRIVATE)
+                                                     val currentUsage = usagePrefs.getInt(fontId, 0)
+                                                     usagePrefs.edit().putInt(fontId, currentUsage + 1).apply()
+                                                 }
+
                                                  val et = activeEditText
                                                  if (et != null && et.selectionStart != et.selectionEnd) {
                                                      val fontPath = if (font.isCustom) font.path else font.name
@@ -4481,24 +4565,38 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        val tabNames = listOf("Standard", "My Font", "Favorite")
+        val categories = mutableListOf<String>()
+        val prefs = getSharedPreferences("font_prefs", Context.MODE_PRIVATE)
+        val categoryJson = prefs.getString("custom_font_categories", "[]") ?: "[]"
+        try {
+            val jsonArray = org.json.JSONArray(categoryJson)
+            for (i in 0 until jsonArray.length()) {
+                categories.add(jsonArray.getString(i))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        val tabNames = mutableListOf("Standard", "My Font", "Favorite")
+        tabNames.addAll(categories)
+
         for (name in tabNames) {
             val btn = TextView(this).apply {
                 text = name
                 gravity = Gravity.CENTER
                 setTextColor(Color.LTGRAY)
                 textSize = 14f
-                setPadding(12, 12, 12, 12)
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setPadding(24, 12, 24, 12)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setOnClickListener {
                     loadTab(name)
-                    alpha = 1.0f
                 }
             }
             tabsLayout.addView(btn)
+            tabButtons.add(btn)
         }
 
-        container.addView(tabsLayout)
+        container.addView(tabsScroll)
         container.addView(contentContainer)
 
         loadTab("Standard")
