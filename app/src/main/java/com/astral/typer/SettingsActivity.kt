@@ -180,73 +180,89 @@ class SettingsActivity : AppCompatActivity() {
             if (lamaProcessor.isModelAvailable()) {
                 tvModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadModel.text = "Redownload"
-                btnDownloadModel.isEnabled = true
             } else {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
-                btnDownloadModel.isEnabled = true
             }
 
             if (bubbleProcessor.isModelAvailable()) {
                 tvTyperModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadTyperModel.text = "Redownload"
-                btnDownloadTyperModel.isEnabled = true
             } else {
                 tvTyperModelStatus.text = "Status: Not Downloaded"
                 btnDownloadTyperModel.text = "Download Model (170 MB)"
-                btnDownloadTyperModel.isEnabled = true
             }
         }
-        updateModelStatus()
+
+        // Start collecting flows from ModelDownloadManager
+        lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.lamaState.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbModelDownload.visibility = android.view.View.GONE
+                        btnDownloadModel.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadModel.isEnabled = false
+                        pbModelDownload.visibility = android.view.View.VISIBLE
+                        pbModelDownload.progress = (state.progress * 100).toInt()
+                        tvModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbModelDownload.visibility = android.view.View.GONE
+                        btnDownloadModel.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvModelStatus.text = "Status: Download Failed"
+                        pbModelDownload.visibility = android.view.View.GONE
+                        btnDownloadModel.isEnabled = true
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.bubbleState.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbTyperModelDownload.visibility = android.view.View.GONE
+                        btnDownloadTyperModel.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadTyperModel.isEnabled = false
+                        pbTyperModelDownload.visibility = android.view.View.VISIBLE
+                        pbTyperModelDownload.progress = (state.progress * 100).toInt()
+                        tvTyperModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbTyperModelDownload.visibility = android.view.View.GONE
+                        btnDownloadTyperModel.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvTyperModelStatus.text = "Status: Download Failed"
+                        pbTyperModelDownload.visibility = android.view.View.GONE
+                        btnDownloadTyperModel.isEnabled = true
+                    }
+                }
+            }
+        }
 
         btnDownloadModel.setOnClickListener {
-             btnDownloadModel.isEnabled = false
-             pbModelDownload.visibility = android.view.View.VISIBLE
-             tvModelStatus.text = "Status: Downloading..."
-
-             lifecycleScope.launch {
-                 val success = lamaProcessor.downloadModel { progress ->
-                     runOnUiThread {
-                         pbModelDownload.progress = (progress * 100).toInt()
-                         tvModelStatus.text = "Status: Downloading ${(progress * 100).toInt()}%"
-                     }
-                 }
-
-                 if (success) {
-                     updateModelStatus()
-                     Toast.makeText(this@SettingsActivity, "Download Complete", Toast.LENGTH_SHORT).show()
-                 } else {
-                     tvModelStatus.text = "Status: Download Failed"
-                     btnDownloadModel.isEnabled = true
-                     Toast.makeText(this@SettingsActivity, "Download Failed", Toast.LENGTH_SHORT).show()
-                 }
-                 pbModelDownload.visibility = android.view.View.GONE
-             }
+            com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
         }
 
         btnDownloadTyperModel.setOnClickListener {
-            btnDownloadTyperModel.isEnabled = false
-            pbTyperModelDownload.visibility = android.view.View.VISIBLE
-            tvTyperModelStatus.text = "Status: Downloading..."
+            com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
+        }
 
-            lifecycleScope.launch {
-                val success = bubbleProcessor.downloadModel { progress ->
-                    runOnUiThread {
-                        pbTyperModelDownload.progress = (progress * 100).toInt()
-                        tvTyperModelStatus.text = "Status: Downloading ${(progress * 100).toInt()}%"
-                    }
-                }
-
-                if (success) {
-                    updateModelStatus()
-                    Toast.makeText(this@SettingsActivity, "Download Complete", Toast.LENGTH_SHORT).show()
-                } else {
-                    tvTyperModelStatus.text = "Status: Download Failed"
-                    btnDownloadTyperModel.isEnabled = true
-                    Toast.makeText(this@SettingsActivity, "Download Failed", Toast.LENGTH_SHORT).show()
-                }
-                pbTyperModelDownload.visibility = android.view.View.GONE
-            }
+        // Handle auto-download from intent extra
+        if (intent.getBooleanExtra("AUTO_DOWNLOAD", false)) {
+            com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
+            com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
 
         // Cache Logic
