@@ -245,7 +245,7 @@ object StyleManager {
 
     fun fromModel(context: Context, m: StyleModel): TextLayer {
         val l = TextLayer("Abc")
-        l.name = m.name
+        l.name = m.name ?: "Style"
 
         // Resolve Typeface from fontPath to ensure custom fonts are loaded
         if (!m.fontPath.isNullOrEmpty()) {
@@ -289,7 +289,7 @@ object StyleManager {
         l.motionShadowDistance = m.motionDist
         l.motionShadowThickness = m.motionThickness
 
-        l.blendMode = m.blendMode
+        l.blendMode = m.blendMode ?: "NORMAL"
         l.isOpacityGradient = m.isOpacityGradient
         l.opacityStart = m.opacityStart
         l.opacityEnd = m.opacityEnd
@@ -339,8 +339,8 @@ object StyleManager {
         l.warpCols = m.warpCols
         l.warpMesh = m.warpMesh
 
-        try { l.currentEffect = TextEffectType.valueOf(m.currentEffect) } catch (e: Exception) {}
-        try { l.secondaryEffect = TextEffectType.valueOf(m.secondaryEffect) } catch (e: Exception) {}
+        try { l.currentEffect = TextEffectType.valueOf(m.currentEffect ?: "NONE") } catch (e: Exception) {}
+        try { l.secondaryEffect = TextEffectType.valueOf(m.secondaryEffect ?: "NONE") } catch (e: Exception) {}
         l.wavyIntensity = m.wavyIntensity
         l.wavyFrequency = m.wavyFrequency
         l.fieryColor = m.fieryColor

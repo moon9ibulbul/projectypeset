@@ -41,7 +41,7 @@
             android:id="@+id/cbFavorite"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Favorite Fonts"
+            android:text="Favorites &amp; Custom Categories (Fonts)"
             android:textColor="@android:color/white"
             android:checked="true"/>
 

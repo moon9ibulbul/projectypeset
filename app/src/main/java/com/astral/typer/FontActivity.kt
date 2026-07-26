@@ -26,6 +26,7 @@ class FontActivity : AppCompatActivity() {
     private lateinit var btnAddCategory: Button
     private lateinit var layoutCategoriesList: LinearLayout
     private lateinit var btnImportFont: Button
+    private lateinit var etSearchFonts: EditText
     private lateinit var layoutFontsList: LinearLayout
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -56,7 +57,17 @@ class FontActivity : AppCompatActivity() {
         btnAddCategory = findViewById(R.id.btnAddCategory)
         layoutCategoriesList = findViewById(R.id.layoutCategoriesList)
         btnImportFont = findViewById(R.id.btnImportFont)
+        etSearchFonts = findViewById(R.id.etSearchFonts)
         layoutFontsList = findViewById(R.id.layoutFontsList)
+
+        // Setup Search
+        etSearchFonts.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                loadFontsList()
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
 
         // Setup Order By Spinner
         val orderOptions = arrayOf("Name", "Latest Installed", "Most Used")
@@ -348,8 +359,11 @@ class FontActivity : AppCompatActivity() {
             }
             val sorted = getSortedFonts(allFonts)
 
+            val query = etSearchFonts.text.toString().trim()
+            val filtered = if (query.isEmpty()) sorted else sorted.filter { it.name.contains(query, ignoreCase = true) }
+
             withContext(Dispatchers.Main) {
-                if (sorted.isEmpty()) {
+                if (filtered.isEmpty()) {
                     val tvEmpty = TextView(this@FontActivity).apply {
                         text = "No fonts found."
                         setTextColor(Color.GRAY)
@@ -360,7 +374,7 @@ class FontActivity : AppCompatActivity() {
                     return@withContext
                 }
 
-                for (font in sorted) {
+                for (font in filtered) {
                     val card = LinearLayout(this@FontActivity).apply {
                         orientation = LinearLayout.VERTICAL
                         setPadding(12, 12, 12, 12)
@@ -455,6 +469,10 @@ class FontActivity : AppCompatActivity() {
                             setOnClickListener {
                                 showDeleteFontConfirmation(font)
                             }
+                            layoutParams = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT
+                            ).apply { setMargins(0, 0, 4, 0) }
                         }
                         actionsRow.addView(btnDelete)
                     }

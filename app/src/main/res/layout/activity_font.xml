@@ -109,6 +109,20 @@
                 android:textSize="14sp"
                 android:layout_marginBottom="12dp" />
 
+            <!-- Search Fonts -->
+            <EditText
+                android:id="@+id/etSearchFonts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Search fonts..."
+                android:textColor="@color/white"
+                android:textColorHint="@android:color/darker_gray"
+                android:background="@drawable/bg_input_dark"
+                android:padding="12dp"
+                android:layout_marginBottom="12dp"
+                android:maxLines="1"
+                android:inputType="text"/>
+
             <!-- We can populate all fonts dynamically -->
             <LinearLayout
                 android:id="@+id/layoutFontsList"
