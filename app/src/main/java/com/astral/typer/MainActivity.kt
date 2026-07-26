@@ -72,6 +72,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        checkFirstRun()
+
         binding.btnNewProject.setOnClickListener {
             showNewProjectDialog()
         }
@@ -438,6 +440,30 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "Failed to process image", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    private fun checkFirstRun() {
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val isFirstRun = prefs.getBoolean("is_first_run", true)
+        if (isFirstRun) {
+            AlertDialog.Builder(this)
+                .setTitle("Unduh Model AI")
+                .setMessage("Model 'Inpaint Model (LaMa)' dan 'Bubble & Text Detector' diperlukan untuk memunculkan fitur AI pada aplikasi. Apakah Anda ingin mengunduhnya sekarang?")
+                .setPositiveButton("Yes") { dialog, _ ->
+                    prefs.edit().putBoolean("is_first_run", false).apply()
+                    dialog.dismiss()
+                    val intent = Intent(this, SettingsActivity::class.java).apply {
+                        putExtra("AUTO_DOWNLOAD", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("No") { dialog, _ ->
+                    prefs.edit().putBoolean("is_first_run", false).apply()
+                    dialog.dismiss()
+                }
+                .setCancelable(false)
+                .show()
         }
     }
 
