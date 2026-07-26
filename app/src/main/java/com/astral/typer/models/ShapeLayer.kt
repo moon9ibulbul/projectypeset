@@ -332,7 +332,21 @@ class ShapeLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
-        val useHardwareTransformEffects = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
+        val hasHardwareShaderEffect = activeEffects.any {
+            it == TextEffectType.FIERY ||
+            it == TextEffectType.WAVY ||
+            it == TextEffectType.PARTICLE_DISSOLVE ||
+            it == TextEffectType.MOTION_BLUR ||
+            it == TextEffectType.RADIAL_BLUR ||
+            it == TextEffectType.HALFTONE ||
+            it == TextEffectType.TEXT_DECAY ||
+            it == TextEffectType.TWIST ||
+            it == TextEffectType.BULGE_PINCH ||
+            it == TextEffectType.REFLECTION ||
+            it == TextEffectType.ZOOM_BLUR ||
+            it == TextEffectType.GAUSSIAN_BLUR
+        }
+        val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
         if (useHardwareTransformEffects) {
             val drawTransformed = { targetCanvas: Canvas ->

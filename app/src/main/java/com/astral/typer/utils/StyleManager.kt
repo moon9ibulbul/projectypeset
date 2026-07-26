@@ -181,6 +181,14 @@ object StyleManager {
         val warpCols: Int = 2,
         val warpMesh: FloatArray? = null,
 
+        // Effects configuration
+        val currentEffect: String = "NONE",
+        val secondaryEffect: String = "NONE",
+        val wavyIntensity: Float = 0.5f,
+        val wavyFrequency: Float = 5f,
+        val fieryColor: Int = Color.RED,
+        val fieryIntensity: Float = 0.5f,
+
         // Built-in Pattern
         val patternName: String? = null,
         val patternColor: Int? = Color.BLACK,
@@ -218,6 +226,9 @@ object StyleManager {
             l.zoomBlurCenterX, l.zoomBlurCenterY, l.zoomBlurInnerRadius, l.zoomBlurRadius, l.zoomBlurStrength,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
+            l.currentEffect.name, l.secondaryEffect.name,
+            l.wavyIntensity, l.wavyFrequency,
+            l.fieryColor, l.fieryIntensity,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
         )
     }
@@ -317,6 +328,13 @@ object StyleManager {
         l.warpRows = m.warpRows
         l.warpCols = m.warpCols
         l.warpMesh = m.warpMesh
+
+        try { l.currentEffect = TextEffectType.valueOf(m.currentEffect) } catch (e: Exception) {}
+        try { l.secondaryEffect = TextEffectType.valueOf(m.secondaryEffect) } catch (e: Exception) {}
+        l.wavyIntensity = m.wavyIntensity
+        l.wavyFrequency = m.wavyFrequency
+        l.fieryColor = m.fieryColor
+        l.fieryIntensity = m.fieryIntensity
 
         m.patternName?.let { l.patternName = it }
         m.patternColor?.let { l.patternColor = it }

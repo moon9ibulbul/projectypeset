@@ -2425,6 +2425,10 @@ class EditorActivity : AppCompatActivity() {
             sidebarBinding.layoutSaveOptions.visibility = View.GONE
             sidebarBinding.layoutSaveFileForm.visibility = View.VISIBLE
 
+            if (!currentProjectName.isNullOrEmpty()) {
+                sidebarBinding.etFileName.setText(currentProjectName)
+            }
+
             // Setup Spinner
             val formats = arrayOf("PNG", "JPG", "WEBP")
             val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, formats)
@@ -2718,6 +2722,7 @@ class EditorActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 binding.loadingOverlay.visibility = View.GONE
                 if (success) {
+                    currentProjectName = name
                     Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
                     binding.saveSidebar.root.visibility = View.GONE
                 } else {
@@ -3193,6 +3198,13 @@ class EditorActivity : AppCompatActivity() {
         if (layer.isWarp) {
             layer.updateDenseWarpMesh()
         }
+
+        try { layer.currentEffect = TextEffectType.valueOf(style.currentEffect) } catch (e: Exception) {}
+        try { layer.secondaryEffect = TextEffectType.valueOf(style.secondaryEffect) } catch (e: Exception) {}
+        layer.wavyIntensity = style.wavyIntensity
+        layer.wavyFrequency = style.wavyFrequency
+        layer.fieryColor = style.fieryColor
+        layer.fieryIntensity = style.fieryIntensity
 
         // Formatting
         if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size) {
