@@ -91,7 +91,7 @@ object StyleManager {
     }
 
     data class StyleModel(
-        val name: String = "Style",
+        val name: String? = "Style",
         val color: Int,
         val fontSize: Float,
         val fontPath: String?,
@@ -119,7 +119,7 @@ object StyleManager {
         val motionDist: Float,
         val motionThickness: Float = 4f,
         // Opacity
-        val blendMode: String,
+        val blendMode: String?,
         val isOpacityGradient: Boolean,
         val opacityStart: Int,
         val opacityEnd: Int,
@@ -182,8 +182,8 @@ object StyleManager {
         val warpMesh: FloatArray? = null,
 
         // Effects configuration
-        val currentEffect: String = "NONE",
-        val secondaryEffect: String = "NONE",
+        val currentEffect: String? = "NONE",
+        val secondaryEffect: String? = "NONE",
         val wavyIntensity: Float = 0.5f,
         val wavyFrequency: Float = 5f,
         val fieryColor: Int = Color.RED,
@@ -335,8 +335,8 @@ object StyleManager {
         l.isPerspective = m.isPerspective
         l.perspectivePoints = m.perspectivePoints
         l.isWarp = m.isWarp
-        l.warpRows = m.warpRows
-        l.warpCols = m.warpCols
+        l.warpRows = if (m.warpRows > 0) m.warpRows else 2
+        l.warpCols = if (m.warpCols > 0) m.warpCols else 2
         l.warpMesh = m.warpMesh
 
         try { l.currentEffect = TextEffectType.valueOf(m.currentEffect ?: "NONE") } catch (e: Exception) {}
