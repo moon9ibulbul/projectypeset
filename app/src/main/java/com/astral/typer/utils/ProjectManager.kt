@@ -1360,6 +1360,67 @@ object ProjectManager {
         return null
     }
 
+    private fun isBitmapBlankOrBlack(bitmap: Bitmap): Boolean {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= 0 || height <= 0) return true
+
+        val readableBitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+            bitmap.config == android.graphics.Bitmap.Config.HARDWARE) {
+            bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        } else {
+            bitmap
+        }
+
+        if (readableBitmap == null) return true
+
+        val firstPixel = readableBitmap.getPixel(0, 0)
+        if (firstPixel != 0 && firstPixel != Color.BLACK) {
+            if (readableBitmap !== bitmap) {
+                readableBitmap.recycle()
+            }
+            return false
+        }
+
+        val stepX = (width / 20).coerceAtLeast(1)
+        val stepY = (height / 20).coerceAtLeast(1)
+
+        for (y in 0 until height step stepY) {
+            for (x in 0 until width step stepX) {
+                val pixel = readableBitmap.getPixel(x, y)
+                if (pixel != firstPixel) {
+                    if (readableBitmap !== bitmap) {
+                        readableBitmap.recycle()
+                    }
+                    return false
+                }
+            }
+        }
+
+        val checkPoints = arrayOf(
+            0 to 0,
+            width - 1 to 0,
+            0 to height - 1,
+            width - 1 to height - 1,
+            width / 2 to height / 2
+        )
+        for ((cx, cy) in checkPoints) {
+            if (cx in 0 until width && cy in 0 until height) {
+                if (readableBitmap.getPixel(cx, cy) != firstPixel) {
+                    if (readableBitmap !== bitmap) {
+                        readableBitmap.recycle()
+                    }
+                    return false
+                }
+            }
+        }
+
+        if (readableBitmap !== bitmap) {
+            readableBitmap.recycle()
+        }
+        return true
+    }
+
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
         val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
         if (projects.isEmpty()) return false
@@ -1402,7 +1463,10 @@ object ProjectManager {
                     // Intermediate bitmap for rendering
                     var pageBitmap: Bitmap? = null
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                        pageBitmap = renderPageToBitmapHardware(data, images, targetPageWidth, targetHeight, scale)
+                        val hwBmp = renderPageToBitmapHardware(data, images, targetPageWidth, targetHeight, scale)
+                        if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp)) {
+                            pageBitmap = hwBmp
+                        }
                     }
 
                     if (pageBitmap == null) {

@@ -145,6 +145,12 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var sidebarBinding: com.astral.typer.databinding.LayoutSidebarSaveBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+            )
+        }
         super.onCreate(savedInstanceState)
 
         // Clear Undo history from previous sessions if any
