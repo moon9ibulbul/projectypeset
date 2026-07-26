@@ -1453,8 +1453,9 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.NEON)) {
+                // Distance (Glow Radius)
                 val currentNeonRadius = stylableLayer.neonRadius
-                val s1 = createSlider("Glow Radius: ${currentNeonRadius.toInt()}", currentNeonRadius.toInt(), 100) {
+                val s1 = createSlider("Glow Radius (Distance): ${currentNeonRadius.toInt()}", currentNeonRadius.toInt(), 100) {
                     stylableLayer.neonRadius = it.coerceAtLeast(1).toFloat()
                     canvasView.invalidate()
                 }
@@ -1462,14 +1463,104 @@ class EditorActivity : AppCompatActivity() {
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                         stylableLayer.neonRadius = p.coerceAtLeast(1).toFloat()
-                        tv1?.text = "Glow Radius: $p"
+                        tv1?.text = "Glow Radius (Distance): $p"
                         canvasView.invalidate()
                     }
                     override fun onStartTrackingTouch(s: SeekBar?) {}
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s1)
-                val tvColor = TextView(this).apply { text = "Glow Color (Optional)"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+
+                // Alpha
+                val currentAlpha = (stylableLayer.neonAlpha * 100).toInt()
+                val sAlpha = createSlider("Glow Alpha: $currentAlpha%", currentAlpha, 100) {
+                    stylableLayer.neonAlpha = it / 100f
+                    canvasView.invalidate()
+                }
+                val tvAlpha = sAlpha.findViewWithTag<TextView>("SLIDER_LABEL")
+                sAlpha.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.neonAlpha = p / 100f
+                        tvAlpha?.text = "Glow Alpha: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sAlpha)
+
+                // Inner Strength
+                val currentInner = (stylableLayer.neonInnerStrength * 10).toInt()
+                val sInner = createSlider("Inner Strength: ${stylableLayer.neonInnerStrength}", currentInner, 100) {
+                    stylableLayer.neonInnerStrength = it / 10f
+                    canvasView.invalidate()
+                }
+                val tvInner = sInner.findViewWithTag<TextView>("SLIDER_LABEL")
+                sInner.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val valStr = String.format(java.util.Locale.US, "%.1f", p / 10f)
+                        stylableLayer.neonInnerStrength = p / 10f
+                        tvInner?.text = "Inner Strength: $valStr"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sInner)
+
+                // Outer Strength
+                val currentOuter = (stylableLayer.neonOuterStrength * 10).toInt()
+                val sOuter = createSlider("Outer Strength: ${stylableLayer.neonOuterStrength}", currentOuter, 100) {
+                    stylableLayer.neonOuterStrength = it / 10f
+                    canvasView.invalidate()
+                }
+                val tvOuter = sOuter.findViewWithTag<TextView>("SLIDER_LABEL")
+                sOuter.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val valStr = String.format(java.util.Locale.US, "%.1f", p / 10f)
+                        stylableLayer.neonOuterStrength = p / 10f
+                        tvOuter?.text = "Outer Strength: $valStr"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sOuter)
+
+                // Quality
+                val currentQuality = (stylableLayer.neonQuality * 100).toInt()
+                val sQuality = createSlider("Quality: $currentQuality%", currentQuality, 100) {
+                    stylableLayer.neonQuality = it.coerceAtLeast(1) / 100f
+                    canvasView.invalidate()
+                }
+                val tvQuality = sQuality.findViewWithTag<TextView>("SLIDER_LABEL")
+                sQuality.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val valP = p.coerceAtLeast(1)
+                        stylableLayer.neonQuality = valP / 100f
+                        tvQuality?.text = "Quality: $valP%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sQuality)
+
+                // Knockout Switch
+                val swKnockout = android.widget.Switch(this).apply {
+                    text = "Knockout"
+                    setTextColor(Color.LTGRAY)
+                    isChecked = stylableLayer.neonKnockout
+                    setOnCheckedChangeListener { _, isChecked ->
+                        stylableLayer.neonKnockout = isChecked
+                        canvasView.invalidate()
+                    }
+                    setPadding(0, 10, 0, 10)
+                }
+                settingsLayout.addView(swKnockout)
+
+                // Color Picker
+                val tvColor = TextView(this).apply { text = "Glow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.neonColor,
                     { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() },
@@ -2425,6 +2516,10 @@ class EditorActivity : AppCompatActivity() {
             sidebarBinding.layoutSaveOptions.visibility = View.GONE
             sidebarBinding.layoutSaveFileForm.visibility = View.VISIBLE
 
+            if (!currentProjectName.isNullOrEmpty()) {
+                sidebarBinding.etFileName.setText(currentProjectName)
+            }
+
             // Setup Spinner
             val formats = arrayOf("PNG", "JPG", "WEBP")
             val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, formats)
@@ -2718,6 +2813,7 @@ class EditorActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 binding.loadingOverlay.visibility = View.GONE
                 if (success) {
+                    currentProjectName = name
                     Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
                     binding.saveSidebar.root.visibility = View.GONE
                 } else {
@@ -3193,6 +3289,20 @@ class EditorActivity : AppCompatActivity() {
         if (layer.isWarp) {
             layer.updateDenseWarpMesh()
         }
+
+        try { layer.currentEffect = TextEffectType.valueOf(style.currentEffect) } catch (e: Exception) {}
+        try { layer.secondaryEffect = TextEffectType.valueOf(style.secondaryEffect) } catch (e: Exception) {}
+        layer.wavyIntensity = style.wavyIntensity
+        layer.wavyFrequency = style.wavyFrequency
+        layer.fieryColor = style.fieryColor
+        layer.fieryIntensity = style.fieryIntensity
+        layer.neonRadius = style.neonRadius
+        layer.neonColor = style.neonColor
+        layer.neonAlpha = style.neonAlpha
+        layer.neonInnerStrength = style.neonInnerStrength
+        layer.neonOuterStrength = style.neonOuterStrength
+        layer.neonKnockout = style.neonKnockout
+        layer.neonQuality = style.neonQuality
 
         // Formatting
         if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size) {

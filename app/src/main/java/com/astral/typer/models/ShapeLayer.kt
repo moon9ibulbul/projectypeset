@@ -128,6 +128,11 @@ class ShapeLayer(
     // Neon
     override var neonRadius: Float = 30f
     override var neonColor: Int = Color.CYAN
+    override var neonAlpha: Float = 1.0f
+    override var neonInnerStrength: Float = 0.0f
+    override var neonOuterStrength: Float = 4.0f
+    override var neonKnockout: Boolean = false
+    override var neonQuality: Float = 0.1f
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
@@ -332,7 +337,22 @@ class ShapeLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
-        val useHardwareTransformEffects = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
+        val hasHardwareShaderEffect = activeEffects.any {
+            it == TextEffectType.FIERY ||
+            it == TextEffectType.WAVY ||
+            it == TextEffectType.PARTICLE_DISSOLVE ||
+            it == TextEffectType.MOTION_BLUR ||
+            it == TextEffectType.RADIAL_BLUR ||
+            it == TextEffectType.HALFTONE ||
+            it == TextEffectType.TEXT_DECAY ||
+            it == TextEffectType.TWIST ||
+            it == TextEffectType.BULGE_PINCH ||
+            it == TextEffectType.REFLECTION ||
+            it == TextEffectType.ZOOM_BLUR ||
+            it == TextEffectType.GAUSSIAN_BLUR ||
+            it == TextEffectType.NEON
+        }
+        val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
         if (useHardwareTransformEffects) {
             val drawTransformed = { targetCanvas: Canvas ->
@@ -672,14 +692,51 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.NEON -> {
-                    val prevSilhouette = silhouetteColor
-                    silhouetteColor = if (neonColor != Color.CYAN) neonColor else color
-                    val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { maskFilter = BlurMaskFilter(neonRadius.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL) }
-                    targetCanvas.saveLayer(null, p)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
-                    silhouetteColor = prevSilhouette
-                    drawInner(targetCanvas)
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("NeonGlowNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.NEON_GLOW_SHADER)
+                            shader.setFloatUniform("outerStrength", neonOuterStrength)
+                            shader.setFloatUniform("innerStrength", neonInnerStrength)
+                            val r = Color.red(neonColor) / 255f
+                            val g = Color.green(neonColor) / 255f
+                            val b = Color.blue(neonColor) / 255f
+                            val a = Color.alpha(neonColor) / 255f
+                            shader.setFloatUniform("glowColor", r, g, b, a)
+                            shader.setFloatUniform("glowDistance", neonRadius.coerceAtLeast(1f))
+                            shader.setFloatUniform("quality", neonQuality.coerceIn(0.01f, 1.0f))
+                            shader.setIntUniform("knockout", if (neonKnockout) 1 else 0)
+                            shader.setFloatUniform("alpha", neonAlpha)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    if (!useRenderEffect) {
+                        val prevSilhouette = silhouetteColor
+                        silhouetteColor = if (neonColor != Color.CYAN) neonColor else color
+                        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { maskFilter = BlurMaskFilter(neonRadius.coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL) }
+                        targetCanvas.saveLayer(null, p)
+                        drawInner(targetCanvas)
+                        targetCanvas.restore()
+                        silhouetteColor = prevSilhouette
+                        drawInner(targetCanvas)
+                    }
                 }
                 TextEffectType.LONG_SHADOW -> {
                     val prevSilhouette = silhouetteColor
@@ -1237,7 +1294,7 @@ class ShapeLayer(
         for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
-        newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
 
         // Twist

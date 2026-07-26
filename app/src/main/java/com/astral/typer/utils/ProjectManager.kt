@@ -132,6 +132,11 @@ object ProjectManager {
         val motionBlurVelocityY: Float? = null,
         val halftoneDotSize: Float? = null, val halftoneDotColor: Int? = null, val halftoneThreshold: Float? = null,
         val neonRadius: Float? = null, val neonColor: Int? = null,
+        val neonAlpha: Float? = null,
+        val neonInnerStrength: Float? = null,
+        val neonOuterStrength: Float? = null,
+        val neonKnockout: Boolean? = null,
+        val neonQuality: Float? = null,
         val glitchIntensity: Float? = null,
         val pixelBlockSize: Float? = null,
         val chromaticShift: Float? = null,
@@ -328,6 +333,11 @@ object ProjectManager {
                         motionBlurVelocityY = layer.motionBlurVelocityY,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
                         neonRadius = layer.neonRadius, neonColor = layer.neonColor,
+                        neonAlpha = layer.neonAlpha,
+                        neonInnerStrength = layer.neonInnerStrength,
+                        neonOuterStrength = layer.neonOuterStrength,
+                        neonKnockout = layer.neonKnockout,
+                        neonQuality = layer.neonQuality,
                         glitchIntensity = layer.glitchIntensity,
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
@@ -413,7 +423,13 @@ object ProjectManager {
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
-                        neonRadius = layer.neonRadius, neonColor = layer.neonColor, glitchIntensity = layer.glitchIntensity, pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
+                        neonRadius = layer.neonRadius, neonColor = layer.neonColor,
+                        neonAlpha = layer.neonAlpha,
+                        neonInnerStrength = layer.neonInnerStrength,
+                        neonOuterStrength = layer.neonOuterStrength,
+                        neonKnockout = layer.neonKnockout,
+                        neonQuality = layer.neonQuality,
+                        glitchIntensity = layer.glitchIntensity, pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
@@ -914,6 +930,11 @@ object ProjectManager {
             model.halftoneThreshold?.let { layer.halftoneThreshold = it }
             model.neonRadius?.let { layer.neonRadius = it }
             model.neonColor?.let { layer.neonColor = it }
+            model.neonAlpha?.let { layer.neonAlpha = it }
+            model.neonInnerStrength?.let { layer.neonInnerStrength = it }
+            model.neonOuterStrength?.let { layer.neonOuterStrength = it }
+            model.neonKnockout?.let { layer.neonKnockout = it }
+            model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
@@ -1039,6 +1060,11 @@ object ProjectManager {
             model.halftoneThreshold?.let { layer.halftoneThreshold = it }
             model.neonRadius?.let { layer.neonRadius = it }
             model.neonColor?.let { layer.neonColor = it }
+            model.neonAlpha?.let { layer.neonAlpha = it }
+            model.neonInnerStrength?.let { layer.neonInnerStrength = it }
+            model.neonOuterStrength?.let { layer.neonOuterStrength = it }
+            model.neonKnockout?.let { layer.neonKnockout = it }
+            model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }

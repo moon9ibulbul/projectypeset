@@ -181,6 +181,21 @@ object StyleManager {
         val warpCols: Int = 2,
         val warpMesh: FloatArray? = null,
 
+        // Effects configuration
+        val currentEffect: String = "NONE",
+        val secondaryEffect: String = "NONE",
+        val wavyIntensity: Float = 0.5f,
+        val wavyFrequency: Float = 5f,
+        val fieryColor: Int = Color.RED,
+        val fieryIntensity: Float = 0.5f,
+        val neonRadius: Float = 30f,
+        val neonColor: Int = Color.CYAN,
+        val neonAlpha: Float = 1.0f,
+        val neonInnerStrength: Float = 0.0f,
+        val neonOuterStrength: Float = 4.0f,
+        val neonKnockout: Boolean = false,
+        val neonQuality: Float = 0.1f,
+
         // Built-in Pattern
         val patternName: String? = null,
         val patternColor: Int? = Color.BLACK,
@@ -218,6 +233,12 @@ object StyleManager {
             l.zoomBlurCenterX, l.zoomBlurCenterY, l.zoomBlurInnerRadius, l.zoomBlurRadius, l.zoomBlurStrength,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
+            l.currentEffect.name, l.secondaryEffect.name,
+            l.wavyIntensity, l.wavyFrequency,
+            l.fieryColor, l.fieryIntensity,
+            l.neonRadius, l.neonColor,
+            l.neonAlpha, l.neonInnerStrength, l.neonOuterStrength,
+            l.neonKnockout, l.neonQuality,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
         )
     }
@@ -317,6 +338,20 @@ object StyleManager {
         l.warpRows = m.warpRows
         l.warpCols = m.warpCols
         l.warpMesh = m.warpMesh
+
+        try { l.currentEffect = TextEffectType.valueOf(m.currentEffect) } catch (e: Exception) {}
+        try { l.secondaryEffect = TextEffectType.valueOf(m.secondaryEffect) } catch (e: Exception) {}
+        l.wavyIntensity = m.wavyIntensity
+        l.wavyFrequency = m.wavyFrequency
+        l.fieryColor = m.fieryColor
+        l.fieryIntensity = m.fieryIntensity
+        l.neonRadius = m.neonRadius
+        l.neonColor = m.neonColor
+        l.neonAlpha = m.neonAlpha
+        l.neonInnerStrength = m.neonInnerStrength
+        l.neonOuterStrength = m.neonOuterStrength
+        l.neonKnockout = m.neonKnockout
+        l.neonQuality = m.neonQuality
 
         m.patternName?.let { l.patternName = it }
         m.patternColor?.let { l.patternColor = it }
