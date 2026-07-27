@@ -3317,14 +3317,38 @@ class EditorActivity : AppCompatActivity() {
         layer.neonKnockout = style.neonKnockout
         layer.neonQuality = style.neonQuality
 
-        // Formatting
+        // Formatting & caseType assignment
+        layer.caseType = style.caseType ?: "NORMAL"
+        layer.isBold = style.isBold
+        layer.isItalic = style.isItalic
+        layer.isUnderline = style.isUnderline
+        layer.isStrikethrough = style.isStrike
+
         if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size) {
             layer.textAlign = Layout.Alignment.values()[style.textAlign]
         }
         layer.isJustified = style.isJustified
 
+        // Transform case once
+        val currentStr = layer.text.toString()
+        val transformedStr = when (layer.caseType) {
+            "UPPERCASE" -> currentStr.uppercase()
+            "LOWERCASE" -> currentStr.lowercase()
+            "CAPITALIZE" -> {
+                currentStr.split(" ").joinToString(" ") {
+                    it.replaceFirstChar { char -> char.uppercase() }
+                }
+            }
+            else -> currentStr
+        }
+
         // Apply formatting spans from style
-        val text = layer.text
+        val text = if (transformedStr != currentStr) {
+            SpannableStringBuilder(transformedStr)
+        } else {
+            layer.text
+        }
+
         // Remove existing formatting spans
         val existingStyle = text.getSpans(0, text.length, StyleSpan::class.java)
         for (s in existingStyle) text.removeSpan(s)
@@ -3339,6 +3363,7 @@ class EditorActivity : AppCompatActivity() {
         if (style.isUnderline) text.setSpan(UnderlineSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         if (style.isStrike) text.setSpan(StrikethroughSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
 
+        layer.text = text
         canvasView.invalidate()
     }
 
@@ -4189,10 +4214,17 @@ class EditorActivity : AppCompatActivity() {
             popup.menu.add("Capitalize Each Word")
             popup.setOnMenuItemClickListener { item ->
                 val currentText = activeEditText?.text?.toString() ?: ""
-                val newText = when (item.title) {
+                val type = when (item.title) {
+                    "UPPERCASE" -> "UPPERCASE"
+                    "lowercase" -> "LOWERCASE"
+                    "Capitalize Each Word" -> "CAPITALIZE"
+                    else -> "NORMAL"
+                }
+                layer.caseType = type
+                val newText = when (type) {
                     "UPPERCASE" -> currentText.uppercase()
-                    "lowercase" -> currentText.lowercase()
-                    "Capitalize Each Word" -> {
+                    "LOWERCASE" -> currentText.lowercase()
+                    "CAPITALIZE" -> {
                          currentText.split(" ").joinToString(" ") {
                              it.replaceFirstChar { char -> char.uppercase() }
                          }
@@ -4200,6 +4232,7 @@ class EditorActivity : AppCompatActivity() {
                     else -> currentText
                 }
                 activeEditText?.setText(newText)
+                canvasView.invalidate()
                 true
             }
             popup.show()
@@ -5343,28 +5376,28 @@ class EditorActivity : AppCompatActivity() {
                         if (et != null && et.text.isNotEmpty()) {
                             val spans = et.text.getSpans(0, et.text.length, StyleSpan::class.java)
                             spans.any { it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC }
-                        } else layer.typeface.isBold
+                        } else layer.typeface.isBold || layer.isBold
                     }
                     "I" -> {
                         val et = activeEditText
                         if (et != null && et.text.isNotEmpty()) {
                             val spans = et.text.getSpans(0, et.text.length, StyleSpan::class.java)
                             spans.any { it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC }
-                        } else layer.typeface.isItalic
+                        } else layer.typeface.isItalic || layer.isItalic
                     }
                     "U" -> {
                         val et = activeEditText
                         if (et != null && et.text.isNotEmpty()) {
                             val spans = et.text.getSpans(0, et.text.length, UnderlineSpan::class.java)
                             spans.isNotEmpty()
-                        } else false
+                        } else layer.isUnderline
                     }
                     "S" -> {
                         val et = activeEditText
                         if (et != null && et.text.isNotEmpty()) {
                             val spans = et.text.getSpans(0, et.text.length, StrikethroughSpan::class.java)
                             spans.isNotEmpty()
-                        } else false
+                        } else layer.isStrikethrough
                     }
                     else -> false
                 }
@@ -5393,6 +5426,16 @@ class EditorActivity : AppCompatActivity() {
                     1f
                 )
                 setOnClickListener {
+                    val et = activeEditText
+                    val hasSelection = et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd
+                    if (!hasSelection) {
+                        when (type) {
+                            "B" -> layer.isBold = !layer.isBold
+                            "I" -> layer.isItalic = !layer.isItalic
+                            "U" -> layer.isUnderline = !layer.isUnderline
+                            "S" -> layer.isStrikethrough = !layer.isStrikethrough
+                        }
+                    }
                     applySpanToSelection(spanProvider())
                     updateStyleButtons()
                 }

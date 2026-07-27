@@ -2,6 +2,10 @@ package com.astral.typer.models
 
 import com.astral.typer.utils.CustomTypefaceSpan
 import com.astral.typer.utils.LetterSpacingSpan
+import android.text.Spannable
+import android.text.style.StyleSpan
+import android.text.style.UnderlineSpan
+import android.text.style.StrikethroughSpan
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
@@ -31,19 +35,68 @@ class TextLayer(
 ) : Layer(), StylableLayer {
 
     private var _text: SpannableStringBuilder = SpannableStringBuilder(initialText)
+
+    var isBold: Boolean = false
+    var isItalic: Boolean = false
+    var isUnderline: Boolean = false
+    var isStrikethrough: Boolean = false
+    var caseType: String = "NORMAL"
+
     var text: SpannableStringBuilder
         get() = _text
         set(value) {
             val oldStr = _text.toString()
             val newStr = value.toString()
             _text = value
-            if (oldStr != newStr) {
+            if (oldStr != _text.toString()) {
                 letterWarpMeshes.clear()
                 letterWarpRows.clear()
                 letterWarpCols.clear()
                 selectedWarpIndex = -1
             }
+            enforceFormattingStyles()
         }
+
+    fun enforceFormattingStyles() {
+        val len = _text.length
+        if (len > 0) {
+            if (isBold) {
+                val existing = _text.getSpans(0, len, StyleSpan::class.java)
+                if (existing.none { it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC }) {
+                    _text.setSpan(StyleSpan(Typeface.BOLD), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+            if (isItalic) {
+                val existing = _text.getSpans(0, len, StyleSpan::class.java)
+                if (existing.none { it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC }) {
+                    _text.setSpan(StyleSpan(Typeface.ITALIC), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+            if (isUnderline) {
+                val existing = _text.getSpans(0, len, UnderlineSpan::class.java)
+                if (existing.isEmpty()) {
+                    _text.setSpan(UnderlineSpan(), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+            if (isStrikethrough) {
+                val existing = _text.getSpans(0, len, StrikethroughSpan::class.java)
+                if (existing.isEmpty()) {
+                    _text.setSpan(StrikethroughSpan(), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
+    }
+
+    fun syncFlagsFromSpans() {
+        val len = _text.length
+        if (len > 0) {
+            val spans = _text.getSpans(0, len, StyleSpan::class.java)
+            isBold = spans.any { (it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC) && _text.getSpanStart(it) == 0 && _text.getSpanEnd(it) == len } || typeface.isBold
+            isItalic = spans.any { (it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC) && _text.getSpanStart(it) == 0 && _text.getSpanEnd(it) == len } || typeface.isItalic
+            isUnderline = _text.getSpans(0, len, UnderlineSpan::class.java).any { _text.getSpanStart(it) == 0 && _text.getSpanEnd(it) == len }
+            isStrikethrough = _text.getSpans(0, len, StrikethroughSpan::class.java).any { _text.getSpanStart(it) == 0 && _text.getSpanEnd(it) == len }
+        }
+    }
     var fontSize: Float = 100f
     var typeface: Typeface = Typeface.DEFAULT
     var fontPath: String? = null // Identifier for the font (e.g., "Standard:Serif" or "/path/to/font.ttf")
@@ -573,10 +626,16 @@ class TextLayer(
 
     init {
         name = "Text Layer"
+        syncFlagsFromSpans()
     }
 
     override fun clone(): Layer {
         val newLayer = TextLayer(this.text.toString(), this.color)
+        newLayer.isBold = this.isBold
+        newLayer.isItalic = this.isItalic
+        newLayer.isUnderline = this.isUnderline
+        newLayer.isStrikethrough = this.isStrikethrough
+        newLayer.caseType = this.caseType
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
         newLayer.typeface = this.typeface

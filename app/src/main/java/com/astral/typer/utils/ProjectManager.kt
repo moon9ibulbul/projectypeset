@@ -182,7 +182,8 @@ object ProjectManager {
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
         val globalP1X: Float? = null, val globalP1Y: Float? = null,
-        val globalP2X: Float? = null, val globalP2Y: Float? = null
+        val globalP2X: Float? = null, val globalP2Y: Float? = null,
+        val caseType: String? = null
     )
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -383,7 +384,8 @@ object ProjectManager {
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
                         globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y,
-                        globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
+                        globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y,
+                        caseType = layer.caseType
                     ))
 
                 } else if (layer is com.astral.typer.models.ShapeLayer) {
@@ -815,8 +817,10 @@ object ProjectManager {
                      }
                  }
                  layer.text = sb
+                 layer.syncFlagsFromSpans()
             }
 
+            model.caseType?.let { layer.caseType = it }
             model.fontSize?.let { layer.fontSize = it }
             layer.fontPath = model.fontPath
             val appInstance = TyperApplication.instance
