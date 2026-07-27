@@ -47,39 +47,7 @@ class TextLayer(
         set(value) {
             val oldStr = _text.toString()
             val newStr = value.toString()
-
-            val transformedStr = when (caseType) {
-                "UPPERCASE" -> newStr.uppercase()
-                "LOWERCASE" -> newStr.lowercase()
-                "CAPITALIZE" -> {
-                    newStr.split(" ").joinToString(" ") {
-                        it.replaceFirstChar { char -> char.uppercase() }
-                    }
-                }
-                else -> newStr
-            }
-
-            val finalSpannable = if (transformedStr != newStr) {
-                val sb = SpannableStringBuilder(transformedStr)
-                val spans = value.getSpans(0, value.length, Any::class.java)
-                for (span in spans) {
-                    val start = value.getSpanStart(span)
-                    val end = value.getSpanEnd(span)
-                    val flags = value.getSpanFlags(span)
-                    val s = start.coerceIn(0, sb.length)
-                    val e = end.coerceIn(0, sb.length)
-                    if (s <= e) {
-                        try {
-                            sb.setSpan(span, s, e, flags)
-                        } catch (e: Exception) {}
-                    }
-                }
-                sb
-            } else {
-                value
-            }
-
-            _text = finalSpannable
+            _text = value
             if (oldStr != _text.toString()) {
                 letterWarpMeshes.clear()
                 letterWarpRows.clear()

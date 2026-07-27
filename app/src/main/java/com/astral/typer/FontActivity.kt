@@ -410,6 +410,8 @@ class FontActivity : AppCompatActivity() {
                 } else {
                     fontAdapter?.updateItems(filtered)
                 }
+                rv.requestLayout()
+                parentView?.requestLayout()
             }
         }
     }

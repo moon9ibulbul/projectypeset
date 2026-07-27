@@ -3317,14 +3317,38 @@ class EditorActivity : AppCompatActivity() {
         layer.neonKnockout = style.neonKnockout
         layer.neonQuality = style.neonQuality
 
-        // Formatting
+        // Formatting & caseType assignment
+        layer.caseType = style.caseType ?: "NORMAL"
+        layer.isBold = style.isBold
+        layer.isItalic = style.isItalic
+        layer.isUnderline = style.isUnderline
+        layer.isStrikethrough = style.isStrike
+
         if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size) {
             layer.textAlign = Layout.Alignment.values()[style.textAlign]
         }
         layer.isJustified = style.isJustified
 
+        // Transform case once
+        val currentStr = layer.text.toString()
+        val transformedStr = when (layer.caseType) {
+            "UPPERCASE" -> currentStr.uppercase()
+            "LOWERCASE" -> currentStr.lowercase()
+            "CAPITALIZE" -> {
+                currentStr.split(" ").joinToString(" ") {
+                    it.replaceFirstChar { char -> char.uppercase() }
+                }
+            }
+            else -> currentStr
+        }
+
         // Apply formatting spans from style
-        val text = layer.text
+        val text = if (transformedStr != currentStr) {
+            SpannableStringBuilder(transformedStr)
+        } else {
+            layer.text
+        }
+
         // Remove existing formatting spans
         val existingStyle = text.getSpans(0, text.length, StyleSpan::class.java)
         for (s in existingStyle) text.removeSpan(s)
@@ -3339,6 +3363,7 @@ class EditorActivity : AppCompatActivity() {
         if (style.isUnderline) text.setSpan(UnderlineSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         if (style.isStrike) text.setSpan(StrikethroughSpan(), 0, text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
 
+        layer.text = text
         canvasView.invalidate()
     }
 
