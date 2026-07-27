@@ -201,7 +201,8 @@ object StyleManager {
         val patternColor: Int? = Color.BLACK,
         val patternAlpha: Int? = 255,
         val patternScale: Float? = 1.0f,
-        val patternRotation: Float? = 0f
+        val patternRotation: Float? = 0f,
+        val caseType: String? = "NORMAL"
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -239,12 +240,14 @@ object StyleManager {
             l.neonRadius, l.neonColor,
             l.neonAlpha, l.neonInnerStrength, l.neonOuterStrength,
             l.neonKnockout, l.neonQuality,
-            l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation
+            l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
+            l.caseType
         )
     }
 
     fun fromModel(context: Context, m: StyleModel): TextLayer {
         val l = TextLayer("Abc")
+        l.caseType = m.caseType ?: "NORMAL"
         l.name = m.name ?: "Style"
 
         // Resolve Typeface from fontPath to ensure custom fonts are loaded

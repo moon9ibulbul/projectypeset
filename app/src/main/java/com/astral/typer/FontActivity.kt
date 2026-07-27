@@ -19,6 +19,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.io.File
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
 
 class FontActivity : AppCompatActivity() {
 
@@ -27,7 +29,8 @@ class FontActivity : AppCompatActivity() {
     private lateinit var layoutCategoriesList: LinearLayout
     private lateinit var btnImportFont: Button
     private lateinit var etSearchFonts: EditText
-    private lateinit var layoutFontsList: LinearLayout
+    private lateinit var layoutFontsList: RecyclerView
+    private var fontAdapter: FontAdapter? = null
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -65,6 +68,8 @@ class FontActivity : AppCompatActivity() {
         btnImportFont = findViewById(R.id.btnImportFont)
         etSearchFonts = findViewById(R.id.etSearchFonts)
         layoutFontsList = findViewById(R.id.layoutFontsList)
+        layoutFontsList.layoutManager = LinearLayoutManager(this)
+        layoutFontsList.isNestedScrollingEnabled = false
 
         // Setup Search
         etSearchFonts.addTextChangedListener(object : android.text.TextWatcher {
@@ -357,8 +362,6 @@ class FontActivity : AppCompatActivity() {
     }
 
     private fun loadFontsList() {
-        layoutFontsList.removeAllViews()
-
         lifecycleScope.launch {
             val allFonts = withContext(Dispatchers.IO) {
                 FontManager.getStandardFonts(this@FontActivity) + FontManager.getCustomFonts(this@FontActivity)
@@ -369,128 +372,49 @@ class FontActivity : AppCompatActivity() {
             val filtered = if (query.isEmpty()) sorted else sorted.filter { it.name.contains(query, ignoreCase = true) }
 
             withContext(Dispatchers.Main) {
+                val rv = findViewById<RecyclerView>(R.id.layoutFontsList)
+                val parentView = rv.parent as? ViewGroup
+                var tvEmpty = parentView?.findViewWithTag<TextView>("tvFontsEmpty")
                 if (filtered.isEmpty()) {
-                    val tvEmpty = TextView(this@FontActivity).apply {
-                        text = "No fonts found."
-                        setTextColor(Color.GRAY)
-                        setPadding(0, 16, 0, 16)
-                        textSize = 14f
+                    rv.visibility = View.GONE
+                    if (tvEmpty == null) {
+                        tvEmpty = TextView(this@FontActivity).apply {
+                            tag = "tvFontsEmpty"
+                            text = "No fonts found."
+                            setTextColor(Color.GRAY)
+                            setPadding(0, 16, 0, 16)
+                            textSize = 14f
+                        }
+                        parentView?.addView(tvEmpty)
+                    } else {
+                        tvEmpty.visibility = View.VISIBLE
                     }
-                    layoutFontsList.addView(tvEmpty)
                     return@withContext
+                } else {
+                    rv.visibility = View.VISIBLE
+                    tvEmpty?.visibility = View.GONE
                 }
 
-                for (font in filtered) {
-                    val card = LinearLayout(this@FontActivity).apply {
-                        orientation = LinearLayout.VERTICAL
-                        setPadding(12, 12, 12, 12)
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        ).apply { setMargins(0, 6, 0, 6) }
-                        background = GradientDrawable().apply {
-                            setColor(Color.parseColor("#1E1E1E"))
-                            cornerRadius = 10f
-                            setStroke(1, Color.parseColor("#333333"))
+                if (fontAdapter == null) {
+                    fontAdapter = FontAdapter(
+                        this@FontActivity,
+                        filtered,
+                        onManageCategories = { font, pos ->
+                            showManageFontCategoriesDialog(font, pos)
+                        },
+                        onDelete = { font, pos ->
+                            showDeleteFontConfirmation(font, pos)
                         }
-                    }
-
-                    // Font Info row
-                    val infoRow = LinearLayout(this@FontActivity).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                    }
-
-                    val tvName = TextView(this@FontActivity).apply {
-                        text = font.name
-                        try {
-                            typeface = font.typeface
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                        setTextColor(Color.WHITE)
-                        textSize = 18f
-                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    }
-
-                    val tvType = TextView(this@FontActivity).apply {
-                        text = if (font.isCustom) "Custom" else "Standard"
-                        setTextColor(if (font.isCustom) Color.CYAN else Color.GRAY)
-                        textSize = 12f
-                        setPadding(12, 4, 12, 4)
-                        background = GradientDrawable().apply {
-                            setColor(Color.parseColor("#2A2A2A"))
-                            cornerRadius = 4f
-                        }
-                    }
-
-                    infoRow.addView(tvName)
-                    infoRow.addView(tvType)
-                    card.addView(infoRow)
-
-                    // Actions Row
-                    val actionsRow = LinearLayout(this@FontActivity).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        ).apply { setMargins(0, 8, 0, 0) }
-                    }
-
-                    // Display assigned categories
-                    val fontId = font.path ?: font.name
-                    val prefs = getSharedPreferences("font_prefs", MODE_PRIVATE)
-                    val assigned = prefs.getStringSet("font_categories_$fontId", emptySet()) ?: emptySet()
-                    val categoriesText = if (assigned.isEmpty()) "None" else assigned.joinToString(", ")
-
-                    val tvAssigned = TextView(this@FontActivity).apply {
-                        text = "Categories: $categoriesText"
-                        setTextColor(Color.parseColor("#A0A0A0"))
-                        textSize = 12f
-                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    }
-
-                    val btnManageCategories = Button(this@FontActivity).apply {
-                        text = "Categories"
-                        textSize = 11f
-                        setOnClickListener {
-                            showManageFontCategoriesDialog(font)
-                        }
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        ).apply { setMargins(0, 0, 4, 0) }
-                    }
-
-                    actionsRow.addView(tvAssigned)
-                    actionsRow.addView(btnManageCategories)
-
-                    if (font.isCustom) {
-                        val btnDelete = Button(this@FontActivity).apply {
-                            text = "Delete"
-                            textSize = 11f
-                            setBackgroundColor(Color.parseColor("#D32F2F"))
-                            setTextColor(Color.WHITE)
-                            setOnClickListener {
-                                showDeleteFontConfirmation(font)
-                            }
-                            layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT
-                            ).apply { setMargins(0, 0, 4, 0) }
-                        }
-                        actionsRow.addView(btnDelete)
-                    }
-
-                    card.addView(actionsRow)
-                    layoutFontsList.addView(card)
+                    )
+                    rv.adapter = fontAdapter
+                } else {
+                    fontAdapter?.updateItems(filtered)
                 }
             }
         }
     }
 
-    private fun showManageFontCategoriesDialog(font: com.astral.typer.utils.FontManager.FontItem) {
+    private fun showManageFontCategoriesDialog(font: com.astral.typer.utils.FontManager.FontItem, position: Int) {
         val categories = getCustomCategories()
         if (categories.isEmpty()) {
             AlertDialog.Builder(this)
@@ -522,13 +446,13 @@ class FontActivity : AppCompatActivity() {
                     }
                 }
                 prefs.edit().putStringSet("font_categories_$fontId", newAssignedSet).apply()
-                loadFontsList()
+                fontAdapter?.notifyItemChanged(position)
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun showDeleteFontConfirmation(font: com.astral.typer.utils.FontManager.FontItem) {
+    private fun showDeleteFontConfirmation(font: com.astral.typer.utils.FontManager.FontItem, position: Int) {
         AlertDialog.Builder(this)
             .setTitle("Delete Custom Font")
             .setMessage("Are you sure you want to delete font '${font.name}'?")
@@ -543,5 +467,147 @@ class FontActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    class FontAdapter(
+        private val context: Context,
+        private var items: List<com.astral.typer.utils.FontManager.FontItem>,
+        private val onManageCategories: (com.astral.typer.utils.FontManager.FontItem, Int) -> Unit,
+        private val onDelete: (com.astral.typer.utils.FontManager.FontItem, Int) -> Unit
+    ) : RecyclerView.Adapter<FontAdapter.FontViewHolder>() {
+
+        fun updateItems(newItems: List<com.astral.typer.utils.FontManager.FontItem>) {
+            items = newItems
+            notifyDataSetChanged()
+        }
+
+        class FontViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
+            val tvName: TextView = view.findViewWithTag("tvName")
+            val tvType: TextView = view.findViewWithTag("tvType")
+            val tvAssigned: TextView = view.findViewWithTag("tvAssigned")
+            val btnManageCategories: Button = view.findViewWithTag("btnManageCategories")
+            val btnDelete: Button? = view.findViewWithTag("btnDelete")
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FontViewHolder {
+            val card = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(12, 12, 12, 12)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 6, 0, 6) }
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#1E1E1E"))
+                    cornerRadius = 10f
+                    setStroke(1, Color.parseColor("#333333"))
+                }
+            }
+
+            val infoRow = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val tvName = TextView(context).apply {
+                tag = "tvName"
+                setTextColor(Color.WHITE)
+                textSize = 18f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val tvType = TextView(context).apply {
+                tag = "tvType"
+                textSize = 12f
+                setPadding(12, 4, 12, 4)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#2A2A2A"))
+                    cornerRadius = 4f
+                }
+            }
+
+            infoRow.addView(tvName)
+            infoRow.addView(tvType)
+            card.addView(infoRow)
+
+            val actionsRow = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 8, 0, 0) }
+            }
+
+            val tvAssigned = TextView(context).apply {
+                tag = "tvAssigned"
+                setTextColor(Color.parseColor("#A0A0A0"))
+                textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val btnManageCategories = Button(context).apply {
+                tag = "btnManageCategories"
+                text = "Categories"
+                textSize = 11f
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 4, 0) }
+            }
+
+            actionsRow.addView(tvAssigned)
+            actionsRow.addView(btnManageCategories)
+
+            val btnDelete = Button(context).apply {
+                tag = "btnDelete"
+                text = "Delete"
+                textSize = 11f
+                setBackgroundColor(Color.parseColor("#D32F2F"))
+                setTextColor(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 4, 0) }
+            }
+            actionsRow.addView(btnDelete)
+
+            card.addView(actionsRow)
+            return FontViewHolder(card)
+        }
+
+        override fun onBindViewHolder(holder: FontViewHolder, position: Int) {
+            val font = items[position]
+            holder.tvName.text = font.name
+            try {
+                holder.tvName.typeface = font.typeface
+            } catch (e: Exception) {
+                holder.tvName.typeface = null
+            }
+
+            holder.tvType.text = if (font.isCustom) "Custom" else "Standard"
+            holder.tvType.setTextColor(if (font.isCustom) Color.CYAN else Color.GRAY)
+
+            val fontId = font.path ?: font.name
+            val prefs = context.getSharedPreferences("font_prefs", Context.MODE_PRIVATE)
+            val assigned = prefs.getStringSet("font_categories_$fontId", emptySet()) ?: emptySet()
+            val categoriesText = if (assigned.isEmpty()) "None" else assigned.joinToString(", ")
+            holder.tvAssigned.text = "Categories: $categoriesText"
+
+            holder.btnManageCategories.setOnClickListener {
+                onManageCategories(font, holder.adapterPosition)
+            }
+
+            if (font.isCustom) {
+                holder.btnDelete?.visibility = View.VISIBLE
+                holder.btnDelete?.setOnClickListener {
+                    onDelete(font, holder.adapterPosition)
+                }
+            } else {
+                holder.btnDelete?.visibility = View.GONE
+            }
+        }
+
+        override fun getItemCount(): Int = items.size
     }
 }
