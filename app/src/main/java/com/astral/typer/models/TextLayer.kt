@@ -1037,7 +1037,24 @@ class TextLayer(
         }
     }
 
-    private fun getGradientShader(w: Float, h: Float): Shader? {
+    private fun getTextHorizontalBounds(layout: StaticLayout, defaultW: Float): Pair<Float, Float> {
+        val linesCount = layout.lineCount
+        if (linesCount == 0) return Pair(0f, defaultW)
+        var actualLeft = Float.MAX_VALUE
+        var actualRight = -Float.MAX_VALUE
+        for (i in 0 until linesCount) {
+            val lineLeft = layout.getLineLeft(i)
+            val lineRight = layout.getLineRight(i)
+            if (lineLeft < actualLeft) actualLeft = lineLeft
+            if (lineRight > actualRight) actualRight = lineRight
+        }
+        if (actualLeft >= actualRight) {
+            return Pair(0f, defaultW)
+        }
+        return Pair(actualLeft, actualRight)
+    }
+
+    private fun getGradientShader(w: Float, h: Float, layout: StaticLayout): Shader? {
         if (!isGradient) return null
         if (isGlobalGradient) {
             val inverse = Matrix()
@@ -1056,24 +1073,31 @@ class TextLayer(
                 return LinearGradient(x0, y0, x1, y1, gradientStartColor, gradientEndColor, Shader.TileMode.CLAMP)
             }
         }
-        return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor)
+        return createGradient(w, h, layout, gradientAngle, gradientStartColor, gradientEndColor)
     }
 
-    private fun getOpacityGradientShader(w: Float, h: Float): Shader {
+    private fun getOpacityGradientShader(w: Float, h: Float, layout: StaticLayout): Shader {
         val startColor = (opacityStart shl 24) or 0x000000
         val endColor = (opacityEnd shl 24) or 0x000000
-        return createGradient(w, h, opacityAngle, startColor, endColor)
+        return createGradient(w, h, layout, opacityAngle, startColor, endColor)
     }
 
-    private fun createGradient(w: Float, h: Float, angle: Int, startColor: Int, endColor: Int): Shader {
-        val cx = w / 2f
+    private fun createGradient(w: Float, h: Float, layout: StaticLayout, angle: Int, startColor: Int, endColor: Int): Shader {
+        val bounds = getTextHorizontalBounds(layout, w)
+        val actualLeft = bounds.first
+        val actualRight = bounds.second
+
+        val cx = (actualLeft + actualRight) / 2f
         val cy = h / 2f
+        val halfW = (actualRight - actualLeft) / 2f
+        val halfH = h / 2f
+
         val angleRad = Math.toRadians(angle.toDouble())
         val cos = Math.cos(angleRad).toFloat()
         val sin = Math.sin(angleRad).toFloat()
 
         val corners = listOf(
-            Pair(-cx, -cy), Pair(cx, -cy), Pair(-cx, cy), Pair(cx, cy)
+            Pair(-halfW, -halfH), Pair(halfW, -halfH), Pair(-halfW, halfH), Pair(halfW, halfH)
         )
 
         var minP = Float.MAX_VALUE
@@ -1094,15 +1118,22 @@ class TextLayer(
         return LinearGradient(x0, y0, x1, y1, startColor, endColor, Shader.TileMode.CLAMP)
     }
 
-    private fun getMultiGradientShader(w: Float, h: Float): Shader {
-        val cx = w / 2f
+    private fun getMultiGradientShader(w: Float, h: Float, layout: StaticLayout): Shader {
+        val bounds = getTextHorizontalBounds(layout, w)
+        val actualLeft = bounds.first
+        val actualRight = bounds.second
+
+        val cx = (actualLeft + actualRight) / 2f
         val cy = h / 2f
+        val halfW = (actualRight - actualLeft) / 2f
+        val halfH = h / 2f
+
         val angleRad = Math.toRadians(multiGradientAngle.toDouble())
         val cos = Math.cos(angleRad).toFloat()
         val sin = Math.sin(angleRad).toFloat()
 
         val corners = listOf(
-            Pair(-cx, -cy), Pair(cx, -cy), Pair(-cx, cy), Pair(cx, cy)
+            Pair(-halfW, -halfH), Pair(halfW, -halfH), Pair(-halfW, halfH), Pair(halfW, halfH)
         )
 
         var minP = Float.MAX_VALUE
@@ -1283,7 +1314,7 @@ class TextLayer(
             val maskPaint = Paint()
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
             val size = Math.max(w, h) * 3
-            maskPaint.shader = getOpacityGradientShader(w, h)
+            maskPaint.shader = getOpacityGradientShader(w, h, layout)
             canvas.drawRect(-size, -size, size, size, maskPaint)
         }
 
@@ -1755,7 +1786,7 @@ class TextLayer(
         val fullH = getContentHeight()
 
         val gradientShader = if (isCharByChar) {
-            val shader = getGradientShader(fullW, fullH)
+            val shader = getGradientShader(fullW, fullH, layout)
             if (shader != null) {
                 val mat = Matrix()
                 mat.postTranslate(-charLeft, -charTop)
@@ -1763,7 +1794,7 @@ class TextLayer(
             }
             shader
         } else {
-            getGradientShader(w, h)
+            getGradientShader(w, h, layout)
         }
 
         silhouetteColor = null
@@ -1831,13 +1862,13 @@ class TextLayer(
                 val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
                 if (hasMultiGradient) {
                     val mShader = if (isCharByChar) {
-                        val shader = getMultiGradientShader(fullW, fullH)
+                        val shader = getMultiGradientShader(fullW, fullH, layout)
                         val mat = Matrix()
                         mat.postTranslate(-charLeft, -charTop)
                         shader.setLocalMatrix(mat)
                         shader
                     } else {
-                        getMultiGradientShader(w, h)
+                        getMultiGradientShader(w, h, layout)
                     }
                     paint.shader = mShader
                     paint.color = Color.WHITE

@@ -21,6 +21,7 @@ import android.view.View
 import com.astral.typer.models.Layer
 import com.astral.typer.models.TextLayer
 import com.astral.typer.models.ImageLayer
+import com.astral.typer.models.ShapeLayer
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
@@ -1599,7 +1600,7 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
-        if (currentMode == Mode.RESIZE_LAYER && layer is TextLayer && this.selectedLayer == layer) {
+        if (currentMode == Mode.RESIZE_LAYER && (layer is TextLayer || layer is ShapeLayer || layer is ImageLayer) && this.selectedLayer == layer) {
              canvas.save()
              // Move to top-right handle position
              canvas.translate(halfW + handleOffset, -halfH - handleOffset)
