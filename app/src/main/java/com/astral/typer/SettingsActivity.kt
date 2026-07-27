@@ -298,7 +298,7 @@ class SettingsActivity : AppCompatActivity() {
         // Donate
         btnDonate.setOnClickListener {
             try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://trakteer.id/astralexpresscrew/tip"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://parlor.astralscans.top/donasi.html"))
                 startActivity(intent)
             } catch (e: Exception) {
                 Toast.makeText(this, "Could not open browser", Toast.LENGTH_SHORT).show()
