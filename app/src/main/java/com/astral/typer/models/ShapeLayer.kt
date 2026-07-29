@@ -1279,7 +1279,7 @@ class ShapeLayer(
     override fun clone(): Layer {
         val newLayer = ShapeLayer(shapeName, color)
         newLayer.x = x; newLayer.y = y; newLayer.rotation = rotation; newLayer.scaleX = scaleX; newLayer.scaleY = scaleY
-        newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.name = name
+        newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
         newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness

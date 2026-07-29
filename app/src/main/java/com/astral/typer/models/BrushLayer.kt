@@ -333,6 +333,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
             scaleY = this@BrushLayer.scaleY
             isVisible = this@BrushLayer.isVisible
             isLocked = this@BrushLayer.isLocked
+            isClipped = this@BrushLayer.isClipped
             name = this@BrushLayer.name
             opacity = this@BrushLayer.opacity
             blendMode = this@BrushLayer.blendMode

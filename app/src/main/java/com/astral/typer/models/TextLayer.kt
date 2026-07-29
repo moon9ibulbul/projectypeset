@@ -795,6 +795,7 @@ class TextLayer(
         newLayer.scaleY = this.scaleY
         newLayer.isVisible = this.isVisible
         newLayer.isLocked = this.isLocked
+        newLayer.isClipped = this.isClipped
         newLayer.name = this.name
 
         return newLayer

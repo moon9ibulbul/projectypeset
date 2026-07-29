@@ -159,6 +159,7 @@ abstract class Layer {
     // New Properties for Layer Management
     var isVisible: Boolean = true
     var isLocked: Boolean = false
+    var isClipped: Boolean = false
     var name: String = "Layer"
 
     // Opacity & Blend

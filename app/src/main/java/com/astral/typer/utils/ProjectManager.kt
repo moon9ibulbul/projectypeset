@@ -45,7 +45,7 @@ object ProjectManager {
     data class LayerModel(
         val type: String, // "TEXT" or "IMAGE"
         val x: Float, val y: Float, val rotation: Float, val scaleX: Float, val scaleY: Float,
-        val isVisible: Boolean, val isLocked: Boolean, val name: String,
+        val isVisible: Boolean, val isLocked: Boolean, val isClipped: Boolean? = null, val name: String,
         val opacity: Int, val blendMode: String,
         val isOpacityGradient: Boolean, val opacityStart: Int, val opacityEnd: Int, val opacityAngle: Int,
 
@@ -285,7 +285,7 @@ object ProjectManager {
                     layerModels.add(LayerModel(
                         type = "TEXT",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
-                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
 
@@ -404,7 +404,7 @@ object ProjectManager {
                     layerModels.add(LayerModel(
                         type = "SHAPE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
-                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         shapeName = layer.shapeName, color = layer.color,
@@ -489,7 +489,7 @@ object ProjectManager {
                     layerModels.add(LayerModel(
                         type = "IMAGE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
-                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         imagePath = "images/$imgName",
@@ -512,7 +512,7 @@ object ProjectManager {
                     layerModels.add(LayerModel(
                         type = "BRUSH",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
-                        isVisible = layer.isVisible, isLocked = layer.isLocked, name = layer.name,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         brushPath = "images/$brushImgName",
@@ -557,8 +557,14 @@ object ProjectManager {
         // Invalidate Thumbnail Cache for this project
         try {
             val cacheDir = File(context.cacheDir, "thumbnails")
-            val cacheFile = File(cacheDir, "$cleanName.atd.png")
-            if (cacheFile.exists()) cacheFile.delete()
+            val cachePrefix = "$cleanName.atd_"
+            cacheDir.listFiles()?.forEach { f ->
+                if (f.name.startsWith(cachePrefix)) {
+                    f.delete()
+                }
+            }
+            val legacyCacheFile = File(cacheDir, "$cleanName.atd.png")
+            if (legacyCacheFile.exists()) legacyCacheFile.delete()
         } catch (e: Exception) { e.printStackTrace() }
 
         var success = false
@@ -717,7 +723,8 @@ object ProjectManager {
         // First check cache
         val cacheDir = File(context.cacheDir, "thumbnails")
         if (!cacheDir.exists()) cacheDir.mkdirs()
-        val cacheFile = File(cacheDir, "${file.name}.png")
+        val pathHash = file.absolutePath.hashCode().toString()
+        val cacheFile = File(cacheDir, "${file.name}_${pathHash}.png")
 
         if (cacheFile.exists()) {
              return BitmapFactory.decodeFile(cacheFile.absolutePath)
@@ -1166,6 +1173,7 @@ object ProjectManager {
         layer.scaleY = model.scaleY
         layer.isVisible = model.isVisible
         layer.isLocked = model.isLocked
+        layer.isClipped = model.isClipped ?: false
         layer.name = model.name
         layer.opacity = model.opacity
         layer.blendMode = model.blendMode
@@ -1691,7 +1699,20 @@ object ProjectManager {
                 if (!unzip(input, extractDir)) return false
             } ?: return false
 
-            val targetFolder = File(context.getExternalFilesDir("Projects"), zipName)
+            var uniqueZipName = zipName
+            val privateRoot = context.getExternalFilesDir("Projects")
+            val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+
+            var targetFolder = File(privateRoot, uniqueZipName)
+            var publicFolder = File(publicRoot, uniqueZipName)
+            var counter = 1
+            while ((targetFolder.exists() && targetFolder.list()?.isNotEmpty() == true) ||
+                   (publicFolder.exists() && publicFolder.list()?.isNotEmpty() == true)) {
+                uniqueZipName = "${zipName}_$counter"
+                targetFolder = File(privateRoot, uniqueZipName)
+                publicFolder = File(publicRoot, uniqueZipName)
+                counter++
+            }
             targetFolder.mkdirs()
 
             val files = extractDir.listFiles() ?: return false
@@ -1701,7 +1722,7 @@ object ProjectManager {
             if (images.isNotEmpty()) {
                 for ((index, imgFile) in images.withIndex()) {
                     // Highly optimized save using image file copying & sampled thumbnail (OOM-proof)
-                    saveProjectWithImageFile(context, imgFile, imgFile.nameWithoutExtension, zipName)
+                    saveProjectWithImageFile(context, imgFile, imgFile.nameWithoutExtension, uniqueZipName)
                     onProgress(index + 1, images.size)
                 }
                 return true

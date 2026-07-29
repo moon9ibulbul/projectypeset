@@ -1020,9 +1020,7 @@ class AstralCanvasView @JvmOverloads constructor(
             }
 
             // Draw Layers
-            for (layer in layers) {
-                 layer.draw(canvas)
-            }
+            drawLayers(canvas, layers)
             rootNode.endRecording()
 
             val renderer = android.graphics.HardwareRenderer()
@@ -1142,9 +1140,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         // Draw Layers
-        for (layer in layers) {
-             layer.draw(canvas)
-        }
+        drawLayers(canvas, layers)
 
         return bitmap
     }
@@ -1384,9 +1380,7 @@ class AstralCanvasView @JvmOverloads constructor(
                  canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
              }
 
-             for (layer in layers) {
-                 layer.draw(canvas)
-             }
+             drawLayers(canvas, layers)
 
              // Draw RAW Panel in Magnifying Glass
              if (rawPanelTiles.isNotEmpty()) {
@@ -1420,10 +1414,53 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun drawScene(canvas: Canvas) {
-        for (layer in layers) {
-            layer.draw(canvas)
+    private fun drawChain(canvas: Canvas, layersList: List<Layer>, index: Int): Int {
+        val layer = layersList[index]
+        val saveCount = canvas.saveLayer(null, null)
+        layer.draw(canvas)
+
+        val nextIndex = index + 1
+        if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
+            if (layersList[nextIndex].isVisible) {
+                val clipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
+                }
+                canvas.saveLayer(null, clipPaint)
+                val finalIndex = drawChain(canvas, layersList, nextIndex)
+                canvas.restore()
+                canvas.restoreToCount(saveCount)
+                return finalIndex
+            } else {
+                var scan = nextIndex
+                while (scan < layersList.size && layersList[scan].isClipped) {
+                    scan++
+                }
+                canvas.restoreToCount(saveCount)
+                return scan
+            }
         }
+
+        canvas.restoreToCount(saveCount)
+        return nextIndex
+    }
+
+    private fun drawLayers(canvas: Canvas, layersList: List<Layer>) {
+        var i = 0
+        while (i < layersList.size) {
+            val layer = layersList[i]
+            if (!layer.isVisible) {
+                i++
+                while (i < layersList.size && layersList[i].isClipped) {
+                    i++
+                }
+                continue
+            }
+            i = drawChain(canvas, layersList, i)
+        }
+    }
+
+    private fun drawScene(canvas: Canvas) {
+        drawLayers(canvas, layers)
     }
 
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {

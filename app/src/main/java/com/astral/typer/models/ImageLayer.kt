@@ -524,6 +524,7 @@ class ImageLayer(
         newLayer.scaleY = scaleY
         newLayer.isVisible = isVisible
         newLayer.isLocked = isLocked
+        newLayer.isClipped = isClipped
         newLayer.name = name
 
         newLayer.opacity = opacity
