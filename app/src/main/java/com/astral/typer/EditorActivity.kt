@@ -3237,9 +3237,10 @@ class EditorActivity : AppCompatActivity() {
             override fun onMove(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, target: androidx.recyclerview.widget.RecyclerView.ViewHolder): Boolean {
                 val from = vh.adapterPosition
                 val to = target.adapterPosition
-                java.util.Collections.swap(canvasView.getLayers(), from, to)
-                adapter.notifyItemMoved(from, to)
-                canvasView.invalidate()
+                val changed = canvasView.moveLayerBlock(from, to)
+                if (changed) {
+                    adapter.notifyDataSetChanged()
+                }
                 return true
             }
             override fun onSwiped(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, dir: Int) {}

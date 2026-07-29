@@ -967,6 +967,58 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
+    fun moveLayerBlock(fromAdapterPos: Int, toAdapterPos: Int): Boolean {
+        val fromListIdx = layers.size - 1 - fromAdapterPos
+        val toListIdx = layers.size - 1 - toAdapterPos
+
+        if (fromListIdx < 0 || fromListIdx >= layers.size || toListIdx < 0 || toListIdx >= layers.size) return false
+        if (fromListIdx == toListIdx) return false
+
+        com.astral.typer.utils.UndoManager.saveState(layers)
+
+        // Find block size at fromListIdx
+        var blockSize = 1
+        while (fromListIdx + blockSize < layers.size && layers[fromListIdx + blockSize].isClipped) {
+            blockSize++
+        }
+
+        // Check if toListIdx is inside the block
+        val isTargetInBlock = toListIdx >= fromListIdx && toListIdx < fromListIdx + blockSize
+
+        if (isTargetInBlock) {
+            // Target is inside the block. Just do a standard swap to allow internal rearrangement of the block
+            java.util.Collections.swap(layers, fromListIdx, toListIdx)
+            invalidate()
+            return true
+        }
+
+        // Target is outside the block. Move the entire block!
+        val targetLayer = layers[toListIdx]
+
+        // Extract block
+        val block = ArrayList<Layer>()
+        for (i in 0 until blockSize) {
+            block.add(layers[fromListIdx + i])
+        }
+        for (i in 0 until blockSize) {
+            layers.removeAt(fromListIdx)
+        }
+
+        // Find target index in remaining list
+        val remIdx = layers.indexOf(targetLayer)
+        if (remIdx != -1) {
+            val insertIdx = if (toListIdx > fromListIdx) remIdx + 1 else remIdx
+            layers.addAll(insertIdx, block)
+        } else {
+            // Fallback
+            val insertIdx = toListIdx.coerceIn(0, layers.size)
+            layers.addAll(insertIdx, block)
+        }
+
+        invalidate()
+        return true
+    }
+
     fun initCanvas(width: Int, height: Int, color: Int) {
         canvasWidth = width
         canvasHeight = height
