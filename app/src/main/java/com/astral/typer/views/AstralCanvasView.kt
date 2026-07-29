@@ -927,18 +927,96 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun deleteSelectedLayer() {
         selectedLayer?.let {
-            layers.remove(it)
-            selectLayer(null)
+            com.astral.typer.utils.UndoManager.saveState(layers)
+            removeLayerAndClipped(it)
         }
     }
 
     fun removeLayer(layer: Layer) {
-        layers.remove(layer)
-        if (selectedLayer == layer) {
-            selectLayer(null)
-        } else {
-            invalidate()
+        com.astral.typer.utils.UndoManager.saveState(layers)
+        removeLayerAndClipped(layer)
+    }
+
+    private fun removeLayerAndClipped(layer: Layer) {
+        val index = layers.indexOf(layer)
+        if (index != -1) {
+            var countToDelete = 1
+            while (index + countToDelete < layers.size && layers[index + countToDelete].isClipped) {
+                countToDelete++
+            }
+
+            // Check if selectedLayer is one of the layers to be deleted
+            var shouldDeselect = false
+            for (i in 0 until countToDelete) {
+                if (selectedLayer == layers[index + i]) {
+                    shouldDeselect = true
+                    break
+                }
+            }
+
+            // Delete them
+            for (i in 0 until countToDelete) {
+                layers.removeAt(index)
+            }
+
+            if (shouldDeselect) {
+                selectLayer(null)
+            } else {
+                invalidate()
+            }
         }
+    }
+
+    fun moveLayerBlock(fromAdapterPos: Int, toAdapterPos: Int): Boolean {
+        val fromListIdx = layers.size - 1 - fromAdapterPos
+        val toListIdx = layers.size - 1 - toAdapterPos
+
+        if (fromListIdx < 0 || fromListIdx >= layers.size || toListIdx < 0 || toListIdx >= layers.size) return false
+        if (fromListIdx == toListIdx) return false
+
+        com.astral.typer.utils.UndoManager.saveState(layers)
+
+        // Find block size at fromListIdx
+        var blockSize = 1
+        while (fromListIdx + blockSize < layers.size && layers[fromListIdx + blockSize].isClipped) {
+            blockSize++
+        }
+
+        // Check if toListIdx is inside the block
+        val isTargetInBlock = toListIdx >= fromListIdx && toListIdx < fromListIdx + blockSize
+
+        if (isTargetInBlock) {
+            // Target is inside the block. Just do a standard swap to allow internal rearrangement of the block
+            java.util.Collections.swap(layers, fromListIdx, toListIdx)
+            invalidate()
+            return true
+        }
+
+        // Target is outside the block. Move the entire block!
+        val targetLayer = layers[toListIdx]
+
+        // Extract block
+        val block = ArrayList<Layer>()
+        for (i in 0 until blockSize) {
+            block.add(layers[fromListIdx + i])
+        }
+        for (i in 0 until blockSize) {
+            layers.removeAt(fromListIdx)
+        }
+
+        // Find target index in remaining list
+        val remIdx = layers.indexOf(targetLayer)
+        if (remIdx != -1) {
+            val insertIdx = if (toListIdx > fromListIdx) remIdx + 1 else remIdx
+            layers.addAll(insertIdx, block)
+        } else {
+            // Fallback
+            val insertIdx = toListIdx.coerceIn(0, layers.size)
+            layers.addAll(insertIdx, block)
+        }
+
+        invalidate()
+        return true
     }
 
     fun initCanvas(width: Int, height: Int, color: Int) {
