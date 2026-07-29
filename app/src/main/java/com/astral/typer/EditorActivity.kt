@@ -55,6 +55,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 
+enum class InpaintSelectionMode {
+    TOUCH, LASSO, MAGIC_WAND
+}
+
 class EditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityEditorBinding
@@ -2983,7 +2987,7 @@ class EditorActivity : AppCompatActivity() {
             inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
         }
 
-        // 1. Brush Size Slider
+        // 1. Brush Size / Sensitivity Slider
         val sizeLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -2997,14 +3001,21 @@ class EditorActivity : AppCompatActivity() {
             textSize = 12f
             setPadding(0,0,8,0)
         }
+
+        var inpaintSelectionMode = InpaintSelectionMode.TOUCH
+
         val sbSize = SeekBar(this).apply {
             max = 100
             progress = canvasView.brushSize.toInt()
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    val size = p.coerceAtLeast(1).toFloat()
-                    canvasView.brushSize = size
+                    if (inpaintSelectionMode == InpaintSelectionMode.MAGIC_WAND) {
+                        canvasView.magicWandSensitivity = p.coerceIn(0, 100)
+                    } else {
+                        val size = p.coerceAtLeast(1).toFloat()
+                        canvasView.brushSize = size
+                    }
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
@@ -3066,29 +3077,7 @@ class EditorActivity : AppCompatActivity() {
         val tvBE = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f; gravity = Gravity.CENTER }
         btnBrushEraser.addView(ivBE); btnBrushEraser.addView(tvBE)
 
-        fun updateBrushEraserState() {
-            if (canvasView.currentInpaintTool == AstralCanvasView.InpaintTool.BRUSH) {
-                // Current is Brush -> Show Eraser
-                updateButtonVisual(btnBrushEraser, R.drawable.ic_eraser, "Eraser")
-            } else {
-                // Current is Eraser (or others, but we treat this pair) -> Show Brush
-                updateButtonVisual(btnBrushEraser, R.drawable.ic_pencil, "Brush")
-            }
-        }
-
-        btnBrushEraser.setOnClickListener {
-             if (canvasView.currentInpaintTool == AstralCanvasView.InpaintTool.BRUSH) {
-                 canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
-                 // Toast.makeText(this, "Eraser Selected", Toast.LENGTH_SHORT).show()
-             } else {
-                 canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                 // Toast.makeText(this, "Brush Selected", Toast.LENGTH_SHORT).show()
-             }
-             updateBrushEraserState()
-        }
-        updateBrushEraserState() // Init
-
-        // --- Pair 2: Lasso <-> Touch ---
+        // --- Pair 2: Touch <-> Lasso <-> Magic Wand ---
         val btnLassoTouch = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -3099,7 +3088,6 @@ class EditorActivity : AppCompatActivity() {
         val tvLT = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f; gravity = Gravity.CENTER }
         btnLassoTouch.addView(ivLT); btnLassoTouch.addView(tvLT)
 
-        var isLassoActive = false
         var isBaseToolEraser = false // true if Eraser, false if Brush
 
         fun updateState() {
@@ -3113,28 +3101,46 @@ class EditorActivity : AppCompatActivity() {
              }
 
              // Button 2 Visuals
-             if (isLassoActive) {
-                 updateButtonVisual(btnLassoTouch, R.drawable.ic_menu_palette, "Touch")
-             } else {
-                 updateButtonVisual(btnLassoTouch, R.drawable.ic_pencil, "Lasso")
+             when (inpaintSelectionMode) {
+                 InpaintSelectionMode.TOUCH -> {
+                     updateButtonVisual(btnLassoTouch, R.drawable.ic_hand, "Touch")
+                     tvSize.text = "Size"
+                     sbSize.progress = canvasView.brushSize.toInt()
+                 }
+                 InpaintSelectionMode.LASSO -> {
+                     updateButtonVisual(btnLassoTouch, R.drawable.ic_lasso, "Lasso")
+                     tvSize.text = "Size"
+                     sbSize.progress = canvasView.brushSize.toInt()
+                 }
+                 InpaintSelectionMode.MAGIC_WAND -> {
+                     updateButtonVisual(btnLassoTouch, R.drawable.ic_magic_wand, "Magic Wand")
+                     tvSize.text = "Sensitivity"
+                     sbSize.progress = canvasView.magicWandSensitivity
+                 }
              }
 
-             // Apply Tool
-             if (isLassoActive) {
-                 if (isBaseToolEraser) {
-                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO_ERASER
-                     // Toast.makeText(this, "Lasso Eraser", Toast.LENGTH_SHORT).show()
-                 } else {
-                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
-                     // Toast.makeText(this, "Lasso Brush", Toast.LENGTH_SHORT).show()
+             // Apply Tool to Canvas
+             when (inpaintSelectionMode) {
+                 InpaintSelectionMode.TOUCH -> {
+                     if (isBaseToolEraser) {
+                         canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
+                     } else {
+                         canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
+                     }
                  }
-             } else {
-                 if (isBaseToolEraser) {
-                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.ERASER
-                     // Toast.makeText(this, "Eraser", Toast.LENGTH_SHORT).show()
-                 } else {
-                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.BRUSH
-                     // Toast.makeText(this, "Brush", Toast.LENGTH_SHORT).show()
+                 InpaintSelectionMode.LASSO -> {
+                     if (isBaseToolEraser) {
+                         canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO_ERASER
+                     } else {
+                         canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.LASSO
+                     }
+                 }
+                 InpaintSelectionMode.MAGIC_WAND -> {
+                     if (isBaseToolEraser) {
+                         canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.MAGIC_WAND_ERASER
+                     } else {
+                         canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.MAGIC_WAND
+                     }
                  }
              }
         }
@@ -3145,14 +3151,25 @@ class EditorActivity : AppCompatActivity() {
         }
 
         btnLassoTouch.setOnClickListener {
-             isLassoActive = !isLassoActive
+             inpaintSelectionMode = when (inpaintSelectionMode) {
+                 InpaintSelectionMode.TOUCH -> InpaintSelectionMode.LASSO
+                 InpaintSelectionMode.LASSO -> InpaintSelectionMode.MAGIC_WAND
+                 InpaintSelectionMode.MAGIC_WAND -> InpaintSelectionMode.TOUCH
+             }
              updateState()
         }
 
-        // Initial state update
-        // Check current canvas tool to sync
-        if (canvasView.currentInpaintTool == AstralCanvasView.InpaintTool.ERASER) {
+        // Initial state sync and update
+        val currentTool = canvasView.currentInpaintTool
+        if (currentTool == AstralCanvasView.InpaintTool.ERASER ||
+            currentTool == AstralCanvasView.InpaintTool.LASSO_ERASER ||
+            currentTool == AstralCanvasView.InpaintTool.MAGIC_WAND_ERASER) {
             isBaseToolEraser = true
+        }
+        inpaintSelectionMode = when (currentTool) {
+            AstralCanvasView.InpaintTool.LASSO, AstralCanvasView.InpaintTool.LASSO_ERASER -> InpaintSelectionMode.LASSO
+            AstralCanvasView.InpaintTool.MAGIC_WAND, AstralCanvasView.InpaintTool.MAGIC_WAND_ERASER -> InpaintSelectionMode.MAGIC_WAND
+            else -> InpaintSelectionMode.TOUCH
         }
         updateState()
 
