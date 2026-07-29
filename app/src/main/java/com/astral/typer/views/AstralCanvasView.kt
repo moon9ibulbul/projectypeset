@@ -927,17 +927,43 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun deleteSelectedLayer() {
         selectedLayer?.let {
-            layers.remove(it)
-            selectLayer(null)
+            com.astral.typer.utils.UndoManager.saveState(layers)
+            removeLayerAndClipped(it)
         }
     }
 
     fun removeLayer(layer: Layer) {
-        layers.remove(layer)
-        if (selectedLayer == layer) {
-            selectLayer(null)
-        } else {
-            invalidate()
+        com.astral.typer.utils.UndoManager.saveState(layers)
+        removeLayerAndClipped(layer)
+    }
+
+    private fun removeLayerAndClipped(layer: Layer) {
+        val index = layers.indexOf(layer)
+        if (index != -1) {
+            var countToDelete = 1
+            while (index + countToDelete < layers.size && layers[index + countToDelete].isClipped) {
+                countToDelete++
+            }
+
+            // Check if selectedLayer is one of the layers to be deleted
+            var shouldDeselect = false
+            for (i in 0 until countToDelete) {
+                if (selectedLayer == layers[index + i]) {
+                    shouldDeselect = true
+                    break
+                }
+            }
+
+            // Delete them
+            for (i in 0 until countToDelete) {
+                layers.removeAt(index)
+            }
+
+            if (shouldDeselect) {
+                selectLayer(null)
+            } else {
+                invalidate()
+            }
         }
     }
 

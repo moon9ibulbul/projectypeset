@@ -2148,7 +2148,7 @@ class EditorActivity : AppCompatActivity() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            setPadding(16, 8, 16, 8)
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
         }
 
         val btnRow = LinearLayout(this).apply {
@@ -2166,7 +2166,7 @@ class EditorActivity : AppCompatActivity() {
                 cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                setMargins(0, 0, 8, 0)
+                setMargins(0, 0, dpToPx(8), 0)
             }
             setOnClickListener {
                 importTextureLauncher.launch("image/*")
@@ -2183,7 +2183,7 @@ class EditorActivity : AppCompatActivity() {
                 cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                setMargins(8, 0, 0, 0)
+                setMargins(dpToPx(8), 0, 0, 0)
             }
             setOnClickListener {
                 showPatternBrowser()
@@ -3378,7 +3378,7 @@ class EditorActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(16, 0, 16, 16)
+                setMargins(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
             }
         }
         container.addView(buttonRow)
@@ -3392,7 +3392,7 @@ class EditorActivity : AppCompatActivity() {
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    setMargins(0, 0, 8, 0)
+                    setMargins(0, 0, dpToPx(8), 0)
                 }
                 setOnClickListener {
                     saveCurrentStyle(layer)
@@ -4656,20 +4656,20 @@ class EditorActivity : AppCompatActivity() {
         }
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(16, 16, 16, 16)
+            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
             gravity = Gravity.CENTER_VERTICAL
         }
 
         val btnEyedropper = android.widget.ImageView(this).apply {
             setImageResource(R.drawable.ic_menu_eyedropper)
             setColorFilter(Color.WHITE)
-            setPadding(24, 16, 24, 16)
+            setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 0, 16, 0)
+                setMargins(0, 0, dpToPx(16), 0)
             }
             setOnClickListener {
                  canvasView.setEyedropperMode(true)
@@ -5232,7 +5232,7 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { setMargins(0, 8, 0, 8) }
+            ).apply { setMargins(0, dpToPx(8), 0, dpToPx(8)) }
         }
 
         val contentContainer = FrameLayout(this).apply {
@@ -5296,7 +5296,7 @@ class EditorActivity : AppCompatActivity() {
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 8, 16, 8)
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
         }
 
         // Letter Spacing
