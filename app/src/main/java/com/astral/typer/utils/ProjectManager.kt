@@ -1605,35 +1605,110 @@ object ProjectManager {
         }
     }
 
+    fun saveProjectWithImageFile(
+        context: Context,
+        imgFile: File,
+        projectName: String,
+        subFolder: String? = null
+    ): Boolean {
+        val tempDir = File(context.cacheDir, "temp_save_import")
+        if (tempDir.exists()) tempDir.deleteRecursively()
+        if (!tempDir.mkdirs() && !tempDir.exists()) return false
+
+        try {
+            val imagesDir = File(tempDir, "images")
+            if (!imagesDir.mkdirs() && !imagesDir.exists()) return false
+
+            // Get original image bounds
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeFile(imgFile.absolutePath, options)
+            val width = options.outWidth
+            val height = options.outHeight
+
+            if (width <= 0 || height <= 0) return false
+
+            // Copy original image directly to images/background.png (bypass bitmap decode + compress)
+            val destBg = File(imagesDir, "background.png")
+            imgFile.copyTo(destBg, overwrite = true)
+
+            // Create scaled thumbnail to avoid OOM and save CPU/disk
+            val thumbFile = File(tempDir, "thumbnail.png")
+            val thumbBmp = decodeSampledBitmapFromFile(imgFile, 300, 300)
+            if (thumbBmp != null) {
+                saveBitmap(thumbBmp, thumbFile)
+                thumbBmp.recycle()
+            }
+
+            val projectData = ProjectData(width, height, Color.TRANSPARENT, emptyList())
+            File(tempDir, "project.json").writeText(gson.toJson(projectData))
+
+            return finalizeSave(context, tempDir, projectName, subFolder)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    private fun decodeSampledBitmapFromFile(file: File, reqWidth: Int, reqHeight: Int): Bitmap? {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+        options.inJustDecodeBounds = false
+        return BitmapFactory.decodeFile(file.absolutePath, options)
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val (height: Int, width: Int) = options.outHeight to options.outWidth
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
+    }
+
     fun importZipContent(context: Context, zipUri: android.net.Uri, zipName: String, onProgress: (Int, Int) -> Unit): Boolean {
         val tempDir = File(context.cacheDir, "import_zip_temp")
         if (tempDir.exists()) tempDir.deleteRecursively()
         tempDir.mkdirs()
 
-        val zipFile = File(tempDir, "temp.zip")
         try {
-            context.contentResolver.openInputStream(zipUri)?.use { input ->
-                zipFile.outputStream().use { output -> input.copyTo(output) }
-            }
-
             val extractDir = File(tempDir, "extracted")
             extractDir.mkdirs()
-            if (!unzip(zipFile, extractDir)) return false
+
+            // Unzip directly from InputStream to save memory and avoid writing temp ZIP to disk
+            context.contentResolver.openInputStream(zipUri)?.use { input ->
+                if (!unzip(input, extractDir)) return false
+            } ?: return false
+
+            // Find source folder (handling potential nested single directory without copyRecursively)
+            var sourceDir = extractDir
+            val children = extractDir.listFiles()
+            if (children != null && children.size == 1 && children[0].isDirectory) {
+                sourceDir = children[0]
+            }
 
             val targetFolder = File(context.getExternalFilesDir("Projects"), zipName)
             targetFolder.mkdirs()
 
-            val files = extractDir.listFiles() ?: return false
+            val files = sourceDir.listFiles() ?: return false
             val images = files.filter { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }
             val projects = files.filter { it.extension.lowercase() == "atd" }
 
             if (images.isNotEmpty()) {
                 for ((index, imgFile) in images.withIndex()) {
-                    val bmp = BitmapFactory.decodeFile(imgFile.absolutePath)
-                    if (bmp != null) {
-                        saveProject(context, emptyList(), bmp.width, bmp.height, Color.TRANSPARENT, bmp, imgFile.nameWithoutExtension, bmp, zipName)
-                        bmp.recycle()
-                    }
+                    // Highly optimized save using image file copying & sampled thumbnail (OOM-proof)
+                    saveProjectWithImageFile(context, imgFile, imgFile.nameWithoutExtension, zipName)
                     onProgress(index + 1, images.size)
                 }
                 return true
@@ -1653,9 +1728,9 @@ object ProjectManager {
         }
     }
 
-    private fun unzip(zipFile: File, targetDirectory: File): Boolean {
+    private fun unzip(inputStream: java.io.InputStream, targetDirectory: File): Boolean {
         try {
-            ZipInputStream(FileInputStream(zipFile)).use { zis ->
+            ZipInputStream(inputStream).use { zis ->
                 var zipEntry = zis.nextEntry
                 while (zipEntry != null) {
                     val fileName = zipEntry.name
@@ -1672,17 +1747,21 @@ object ProjectManager {
                     zipEntry = zis.nextEntry
                 }
             }
-            // Move content up if nested in single dir
-            val children = targetDirectory.listFiles()
-            if (children != null && children.size == 1 && children[0].isDirectory) {
-                val sub = children[0]
-                sub.copyRecursively(targetDirectory, overwrite = true)
-                sub.deleteRecursively()
-            }
             return true
         } catch (e: Exception) {
             e.printStackTrace()
             return false
+        }
+    }
+
+    private fun unzip(zipFile: File, targetDirectory: File): Boolean {
+        return try {
+            FileInputStream(zipFile).use { fis ->
+                unzip(fis, targetDirectory)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }
