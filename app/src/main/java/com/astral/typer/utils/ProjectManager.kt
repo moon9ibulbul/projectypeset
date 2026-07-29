@@ -1691,17 +1691,10 @@ object ProjectManager {
                 if (!unzip(input, extractDir)) return false
             } ?: return false
 
-            // Find source folder (handling potential nested single directory without copyRecursively)
-            var sourceDir = extractDir
-            val children = extractDir.listFiles()
-            if (children != null && children.size == 1 && children[0].isDirectory) {
-                sourceDir = children[0]
-            }
-
             val targetFolder = File(context.getExternalFilesDir("Projects"), zipName)
             targetFolder.mkdirs()
 
-            val files = sourceDir.listFiles() ?: return false
+            val files = extractDir.listFiles() ?: return false
             val images = files.filter { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }
             val projects = files.filter { it.extension.lowercase() == "atd" }
 
@@ -1746,6 +1739,16 @@ object ProjectManager {
                     }
                     zipEntry = zis.nextEntry
                 }
+            }
+            // Move content up if nested in single dir (fast, instant, OOM-proof using renameTo)
+            val children = targetDirectory.listFiles()
+            if (children != null && children.size == 1 && children[0].isDirectory) {
+                val sub = children[0]
+                sub.listFiles()?.forEach { child ->
+                    val dest = File(targetDirectory, child.name)
+                    child.renameTo(dest)
+                }
+                sub.delete()
             }
             return true
         } catch (e: Exception) {
