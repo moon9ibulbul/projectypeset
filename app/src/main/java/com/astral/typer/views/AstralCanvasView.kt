@@ -141,6 +141,7 @@ class AstralCanvasView @JvmOverloads constructor(
     var targetGradientShadow: Boolean = false
 
     var magicWandSensitivity: Int = 30
+    var magicWandExpand: Int = 0
 
     var brushSize = 50f
         set(value) {
@@ -267,13 +268,57 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
+        val expandAmount = magicWandExpand // e.g. -10 to +10
+        var finalVisited = visited
+
+        if (expandAmount > 0) {
+            // Dilate (Expand selection)
+            for (step in 0 until expandAmount) {
+                val nextVisited = java.util.BitSet(w * h)
+                for (y in 0 until h) {
+                    for (x in 0 until w) {
+                        val idx = y * w + x
+                        if (finalVisited.get(idx)) {
+                            nextVisited.set(idx)
+                            if (x > 0) nextVisited.set(idx - 1)
+                            if (x < w - 1) nextVisited.set(idx + 1)
+                            if (y > 0) nextVisited.set(idx - w)
+                            if (y < h - 1) nextVisited.set(idx + w)
+                        }
+                    }
+                }
+                finalVisited = nextVisited
+            }
+        } else if (expandAmount < 0) {
+            // Erode (Reduce selection)
+            val shrinkAmount = -expandAmount
+            for (step in 0 until shrinkAmount) {
+                val nextVisited = java.util.BitSet(w * h)
+                for (y in 0 until h) {
+                    for (x in 0 until w) {
+                        val idx = y * w + x
+                        if (finalVisited.get(idx)) {
+                            val left = x > 0 && finalVisited.get(idx - 1)
+                            val right = x < w - 1 && finalVisited.get(idx + 1)
+                            val top = y > 0 && finalVisited.get(idx - w)
+                            val bottom = y < h - 1 && finalVisited.get(idx + w)
+                            if (left && right && top && bottom) {
+                                nextVisited.set(idx)
+                            }
+                        }
+                    }
+                }
+                finalVisited = nextVisited
+            }
+        }
+
         // Group into horizontal segments to build path efficiently
         for (y in 0 until h) {
             var x = 0
             while (x < w) {
-                if (visited.get(y * w + x)) {
+                if (finalVisited.get(y * w + x)) {
                     var xEnd = x
-                    while (xEnd < w && visited.get(y * w + xEnd)) {
+                    while (xEnd < w && finalVisited.get(y * w + xEnd)) {
                         xEnd++
                     }
                     path.addRect(x.toFloat(), y.toFloat(), xEnd.toFloat(), y.toFloat() + 1f, Path.Direction.CW)
@@ -1118,8 +1163,6 @@ class AstralCanvasView @JvmOverloads constructor(
 
         if (fromListIdx < 0 || fromListIdx >= layers.size || toListIdx < 0 || toListIdx >= layers.size) return false
         if (fromListIdx == toListIdx) return false
-
-        com.astral.typer.utils.UndoManager.saveState(layers)
 
         // Group into blocks
         val blocks = mutableListOf<MutableList<Layer>>()

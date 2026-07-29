@@ -3025,6 +3025,39 @@ class EditorActivity : AppCompatActivity() {
         sizeLayout.addView(sbSize)
         toolbar.addView(sizeLayout)
 
+        // 1.5. Expand / Reduce Slider (Only visible for Magic Wand)
+        val expandLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(200), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0,0,0,16)
+            }
+            visibility = View.GONE
+        }
+        val tvExpand = TextView(this).apply {
+            text = "Expand: 0"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            setPadding(0,0,8,0)
+        }
+        val sbExpand = SeekBar(this).apply {
+            max = 20 // -10 to +10, mapped as (progress - 10)
+            progress = 10 // default 0 (10 - 10 = 0)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    val value = p - 10
+                    canvasView.magicWandExpand = value
+                    tvExpand.text = if (value < 0) "Reduce: $value" else "Expand: $value"
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+        }
+        expandLayout.addView(tvExpand)
+        expandLayout.addView(sbExpand)
+        toolbar.addView(expandLayout)
+
         // 2. Button Container
         val btnContainer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -3106,16 +3139,21 @@ class EditorActivity : AppCompatActivity() {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_hand, "Touch")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
+                     expandLayout.visibility = View.GONE
                  }
                  InpaintSelectionMode.LASSO -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_lasso, "Lasso")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
+                     expandLayout.visibility = View.GONE
                  }
                  InpaintSelectionMode.MAGIC_WAND -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_magic_wand, "Magic Wand")
                      tvSize.text = "Sensitivity"
                      sbSize.progress = canvasView.magicWandSensitivity
+                     tvExpand.text = if (canvasView.magicWandExpand < 0) "Reduce: ${canvasView.magicWandExpand}" else "Expand: ${canvasView.magicWandExpand}"
+                     sbExpand.progress = canvasView.magicWandExpand + 10
+                     expandLayout.visibility = View.VISIBLE
                  }
              }
 
@@ -3251,15 +3289,34 @@ class EditorActivity : AppCompatActivity() {
         val callback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
             androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0
         ) {
+            private var dragOccurred = false
+
+            override fun onSelectedChanged(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(vh, actionState)
+                if (actionState == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_DRAG) {
+                    com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+                    dragOccurred = true
+                }
+            }
+
             override fun onMove(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, target: androidx.recyclerview.widget.RecyclerView.ViewHolder): Boolean {
                 val from = vh.adapterPosition
                 val to = target.adapterPosition
                 val changed = canvasView.moveLayerBlock(from, to)
                 if (changed) {
-                    adapter.notifyDataSetChanged()
+                    adapter.notifyItemMoved(from, to)
                 }
                 return true
             }
+
+            override fun clearView(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder) {
+                super.clearView(rv, vh)
+                if (dragOccurred) {
+                    adapter.notifyDataSetChanged()
+                    dragOccurred = false
+                }
+            }
+
             override fun onSwiped(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, dir: Int) {}
         }
         val itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(callback)
