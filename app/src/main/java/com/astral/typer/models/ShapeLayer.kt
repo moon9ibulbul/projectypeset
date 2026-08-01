@@ -143,7 +143,7 @@ class ShapeLayer(
 
     // Chromatic Aberration
     override var chromaticShift: Float = 5f
-    override var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())
+    override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFF00FF.toInt(), 0xFFFFFF00.toInt())
 
     // Fiery
     override var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -673,9 +673,66 @@ class ShapeLayer(
                         targetCanvas.restore()
                     }
 
-                    // Pass 4: Base Pass - Original Color & Style on top
-                    silhouetteColor = null
-                    drawInner(targetCanvas)
+                    // Pass 4: Base Pass - Only rendered on top of the intersection (L intersect R intersect C)
+                    var maskBitmap: android.graphics.Bitmap? = null
+                    try {
+                        maskBitmap = android.graphics.Bitmap.createBitmap(nodeW, nodeH, android.graphics.Bitmap.Config.ARGB_8888)
+                        val maskCanvas = android.graphics.Canvas(maskBitmap)
+                        val pIn = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
+
+                        // Draw Pass 1 (Left) on mask
+                        silhouetteColor = chromaticColors[0]
+                        maskCanvas.save()
+                        maskCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
+                        drawInner(maskCanvas)
+                        maskCanvas.restore()
+
+                        // Intersect Pass 2 (Right) on mask
+                        maskCanvas.save()
+                        maskCanvas.saveLayer(null, pIn)
+                        silhouetteColor = chromaticColors[1]
+                        maskCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
+                        drawInner(maskCanvas)
+                        maskCanvas.restore()
+                        maskCanvas.restore()
+
+                        // Intersect Pass 3 (Center) on mask if size > 2
+                        if (chromaticColors.size > 2) {
+                            maskCanvas.save()
+                            maskCanvas.saveLayer(null, pIn)
+                            silhouetteColor = chromaticColors[2]
+                            maskCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(maskCanvas)
+                            maskCanvas.restore()
+                            maskCanvas.restore()
+                        }
+                    } catch(e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    if (maskBitmap != null) {
+                        targetCanvas.save()
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+
+                        targetCanvas.saveLayer(null, null)
+                        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                        targetCanvas.drawBitmap(maskBitmap, 0f, 0f, maskPaint)
+
+                        val pSrcIn = Paint().apply {
+                            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                        }
+                        targetCanvas.saveLayer(null, pSrcIn)
+                        targetCanvas.translate(recordTranslateX, recordTranslateY)
+
+                        silhouetteColor = null
+                        drawInner(targetCanvas)
+
+                        targetCanvas.restore()
+                        targetCanvas.restore()
+                        targetCanvas.restore()
+
+                        maskBitmap.recycle()
+                    }
 
                     silhouetteColor = prevSilhouette
                 }

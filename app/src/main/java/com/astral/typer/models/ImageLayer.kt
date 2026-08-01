@@ -103,7 +103,7 @@ class ImageLayer(
     override var glitchIntensity: Float = 1.0f
     override var pixelBlockSize: Float = 10f
     override var chromaticShift: Float = 5f
-    override var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())
+    override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFF00FF.toInt(), 0xFFFFFF00.toInt())
     override var fieryColor: Int = Color.rgb(255, 100, 0)
     override var fieryIntensity: Float = 0.5f
     override var wavyIntensity: Float = 0.5f
