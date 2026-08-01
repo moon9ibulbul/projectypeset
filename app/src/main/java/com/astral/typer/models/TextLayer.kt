@@ -230,6 +230,7 @@ class TextLayer(
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
+    override var tertiaryEffect: TextEffectType = TextEffectType.NONE
 
     // Gaussian Blur
     override var blurRadius: Float = 0f
@@ -459,6 +460,7 @@ class TextLayer(
         result = 31 * result + patternRotation.hashCode()
         result = 31 * result + currentEffect.hashCode()
         result = 31 * result + secondaryEffect.hashCode()
+        result = 31 * result + tertiaryEffect.hashCode()
         result = 31 * result + effectSeed.hashCode()
         result = 31 * result + blurRadius.hashCode()
         result = 31 * result + longShadowLength.hashCode()
@@ -714,6 +716,7 @@ class TextLayer(
 
         newLayer.currentEffect = this.currentEffect
         newLayer.secondaryEffect = this.secondaryEffect
+        newLayer.tertiaryEffect = this.tertiaryEffect
         newLayer.blurRadius = this.blurRadius
         newLayer.longShadowLength = this.longShadowLength
         newLayer.longShadowColor = this.longShadowColor
@@ -924,6 +927,7 @@ class TextLayer(
         }
         checkEffect(currentEffect)
         checkEffect(secondaryEffect)
+        checkEffect(tertiaryEffect)
 
         return (p + effectExpansion + 20f).coerceAtLeast(0f)
     }
@@ -1245,6 +1249,7 @@ class TextLayer(
         val activeEffects = mutableListOf<TextEffectType>()
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(tertiaryEffect)
 
         val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
@@ -1278,13 +1283,16 @@ class TextLayer(
                 }
             }
 
-            if (activeEffects.size == 2) {
-                applyEffect(activeEffects[1], canvas, w, h, layout.paint, bounds) { innerCanvas ->
-                    applyEffect(activeEffects[0], innerCanvas, w, h, layout.paint, bounds, drawTransformed)
+            fun renderChain(index: Int, targetCanvas: Canvas) {
+                if (index < 0) {
+                    drawTransformed(targetCanvas)
+                } else {
+                    applyEffect(activeEffects[index], targetCanvas, w, h, layout.paint, bounds) { innerCanvas ->
+                        renderChain(index - 1, innerCanvas)
+                    }
                 }
-            } else {
-                applyEffect(activeEffects[0], canvas, w, h, layout.paint, bounds, drawTransformed)
             }
+            renderChain(activeEffects.size - 1, canvas)
         } else {
             if (isWarpActive) {
                 val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
@@ -1860,7 +1868,7 @@ class TextLayer(
                 paint.clearShadowLayer()
                 layout.draw(targetCanvas)
             } else {
-                val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
+                val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                 if (hasMultiGradient) {
                     val mShader = if (isCharByChar) {
                         val shader = getMultiGradientShader(fullW, fullH, layout)
@@ -2030,16 +2038,20 @@ class TextLayer(
         val activeEffects = mutableListOf<TextEffectType>()
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(tertiaryEffect)
 
         val hasEffects = activeEffects.isNotEmpty() && !skipEffects
         if (hasEffects) {
-            if (activeEffects.size == 2) {
-                applyEffect(activeEffects[1], canvas, w, h, paint, bounds = null) { innerCanvas ->
-                    applyEffect(activeEffects[0], innerCanvas, w, h, paint, bounds = null, drawInner = drawBase)
+            fun renderChain(index: Int, targetCanvas: Canvas) {
+                if (index < 0) {
+                    drawBase(targetCanvas)
+                } else {
+                    applyEffect(activeEffects[index], targetCanvas, w, h, paint, bounds = null) { innerCanvas ->
+                        renderChain(index - 1, innerCanvas)
+                    }
                 }
-            } else {
-                applyEffect(activeEffects[0], canvas, w, h, paint, bounds = null, drawInner = drawBase)
             }
+            renderChain(activeEffects.size - 1, canvas)
         } else {
             drawBase(canvas)
         }
@@ -2062,27 +2074,30 @@ class TextLayer(
                     val originalXfermode = paint.xfermode
                     val originalColor = paint.color
                     val originalShader = paint.shader
+                    val originalColorFilter = paint.colorFilter
                     val prevSilhouette = silhouetteColor
 
-                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-                    paint.shader = null
+                    silhouetteColor = null
 
-                    // Left Layer
-                    silhouetteColor = chromaticColors[0]
+                    // Left Pass: Shifted Left
+                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], PorterDuff.Mode.MULTIPLY)
+                    paint.xfermode = null
                     targetCanvas.save()
                     targetCanvas.translate(-chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
-                    // Right Layer
-                    silhouetteColor = chromaticColors[1]
+                    // Right Pass: Shifted Right
+                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], PorterDuff.Mode.MULTIPLY)
+                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
                     targetCanvas.save()
                     targetCanvas.translate(chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
-                    // Center Layer
-                    silhouetteColor = chromaticColors[2]
+                    // Center Pass
+                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], PorterDuff.Mode.MULTIPLY)
+                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
                     drawInner(targetCanvas)
 
                     silhouetteColor = prevSilhouette
@@ -2090,6 +2105,7 @@ class TextLayer(
                     paint.xfermode = originalXfermode
                     paint.color = originalColor
                     paint.shader = originalShader
+                    paint.colorFilter = originalColorFilter
                 }
                 TextEffectType.PIXELATION -> {
                     val safeBlockSize = pixelBlockSize.coerceAtLeast(1f)
@@ -2268,9 +2284,14 @@ class TextLayer(
                             val b = Color.blue(fieryColor) / 255f
                             shader.setFloatUniform("color", r, g, b)
 
-                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            val pts = floatArrayOf(0f, 0f)
+                            targetCanvas.matrix.mapPoints(pts)
+                            shader.setFloatUniform("offsetX", pts[0])
+                            shader.setFloatUniform("offsetY", pts[1])
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
                             targetCanvas.restore()
                             useRenderEffect = true
@@ -2295,9 +2316,13 @@ class TextLayer(
                             shader.setFloatUniform("intensity", wavyIntensity)
                             shader.setFloatUniform("frequency", wavyFrequency)
 
-                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            val pts = floatArrayOf(0f, 0f)
+                            targetCanvas.matrix.mapPoints(pts)
+                            shader.setFloatUniform("offsetY", pts[1])
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
                             targetCanvas.restore()
                             useRenderEffect = true
@@ -2985,25 +3010,37 @@ class TextLayer(
             uniform float time;
             uniform float intensity;
             uniform float3 color;
+            uniform float offsetX;
+            uniform float offsetY;
 
-            // Simple noise function (placeholder)
-            float noise(float2 co) {
-                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            float hash(float2 p) {
+                return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
+            }
+
+            float noise(float2 p) {
+                float2 i = floor(p);
+                float2 f = fract(p);
+                float2 u = f * f * (3.0 - 2.0 * f);
+                return mix(mix(hash(i + float2(0.0,0.0)), hash(i + float2(1.0,0.0)), u.x),
+                           mix(hash(i + float2(0.0,1.0)), hash(i + float2(1.0,1.0)), u.x), u.y);
             }
 
             half4 main(float2 coord) {
-                half4 c = content.eval(coord);
-                if (c.a == 0.0) return half4(0);
+                float2 localCoord = coord - float2(offsetX, offsetY);
+                float2 noiseCoord = localCoord * 0.02 + float2(0.0, -time * 2.0);
+                float n = noise(noiseCoord);
+                float n2 = noise(localCoord * 0.05 + float2(0.0, -time * 3.5));
 
-                // Displace coordinate upwards with noise
                 float2 uv = coord;
-                float n = noise(uv * 0.01 + float2(0, time));
-                uv.y += n * intensity * 20.0;
+                uv.y += (n * 0.7 + n2 * 0.3) * intensity * 40.0;
+                uv.x += sin(localCoord.y * 0.05 - time * 6.0) * intensity * 8.0;
 
                 half4 displaced = content.eval(uv);
+                if (displaced.a == 0.0) return half4(0.0);
 
-                // Mix with fire color
-                return mix(c, half4(color, 1.0) * c.a, intensity * n);
+                float flameFactor = n * intensity;
+                half4 fireColor = half4(color, displaced.a);
+                return mix(displaced, fireColor, flameFactor);
             }
         """
 
@@ -3012,9 +3049,10 @@ class TextLayer(
             uniform float time;
             uniform float intensity;
             uniform float frequency;
+            uniform float offsetY;
 
             half4 main(float2 coord) {
-                float offset = sin(coord.y * 0.05 * frequency + time * 5.0) * intensity * 10.0;
+                float offset = sin((coord.y - offsetY) * 0.05 * frequency + time * 5.0) * intensity * 10.0;
                 return content.eval(coord + float2(offset, 0));
             }
         """

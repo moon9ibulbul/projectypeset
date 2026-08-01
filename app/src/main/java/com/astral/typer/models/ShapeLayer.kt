@@ -103,6 +103,7 @@ class ShapeLayer(
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
+    override var tertiaryEffect: TextEffectType = TextEffectType.NONE
 
     // Gaussian Blur
     override var blurRadius: Float = 0f
@@ -335,6 +336,7 @@ class ShapeLayer(
         val activeEffects = mutableListOf<TextEffectType>()
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(tertiaryEffect)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
@@ -364,13 +366,16 @@ class ShapeLayer(
                 }
             }
 
-            if (activeEffects.size == 2) {
-                applyEffect(activeEffects[1], canvas, w, h, bounds) { innerCanvas ->
-                    applyEffect(activeEffects[0], innerCanvas, w, h, bounds, drawTransformed)
+            fun renderChain(index: Int, targetCanvas: Canvas) {
+                if (index < 0) {
+                    drawTransformed(targetCanvas)
+                } else {
+                    applyEffect(activeEffects[index], targetCanvas, w, h, bounds) { innerCanvas ->
+                        renderChain(index - 1, innerCanvas)
+                    }
                 }
-            } else {
-                applyEffect(activeEffects[0], canvas, w, h, bounds, drawTransformed)
             }
+            renderChain(activeEffects.size - 1, canvas)
         } else {
             if (isWarp && warpMesh != null) {
                 val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
@@ -468,7 +473,7 @@ class ShapeLayer(
                 val shaderToUse = if (isGradient && isGradientShadow) gradientShader else null
                 renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = shaderToUse)
             } else {
-                val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT
+                val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                 val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
                                   else if (isGradient && isGradientText) gradientShader
                                   else if (textureBitmap != null) {
@@ -581,14 +586,20 @@ class ShapeLayer(
         val activeEffects = mutableListOf<TextEffectType>()
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT) activeEffects.add(tertiaryEffect)
 
         val hasEffects = activeEffects.isNotEmpty() && !skipEffects
         if (hasEffects) {
-            if (activeEffects.size == 2) {
-                applyEffect(activeEffects[1], canvas, w, h, bounds = null) { innerCanvas -> applyEffect(activeEffects[0], innerCanvas, w, h, bounds = null, drawInner = drawBase) }
-            } else {
-                applyEffect(activeEffects[0], canvas, w, h, bounds = null, drawInner = drawBase)
+            fun renderChain(index: Int, targetCanvas: Canvas) {
+                if (index < 0) {
+                    drawBase(targetCanvas)
+                } else {
+                    applyEffect(activeEffects[index], targetCanvas, w, h, bounds = null) { innerCanvas ->
+                        renderChain(index - 1, innerCanvas)
+                    }
+                }
             }
+            renderChain(activeEffects.size - 1, canvas)
         } else {
             drawBase(canvas)
         }
@@ -629,20 +640,42 @@ class ShapeLayer(
         when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     val prevSilhouette = silhouetteColor
-                    silhouetteColor = chromaticColors[0]
+                    silhouetteColor = null
+
+                    // Pass 1: Shifted Left (chromaticColors[0])
                     targetCanvas.save()
+                    val p1 = Paint().apply {
+                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], PorterDuff.Mode.MULTIPLY)
+                    }
+                    targetCanvas.saveLayer(null, p1)
                     targetCanvas.translate(-chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
+                    targetCanvas.restore()
 
-                    silhouetteColor = chromaticColors[1]
+                    // Pass 2: Shifted Right (chromaticColors[1])
                     targetCanvas.save()
+                    val p2 = Paint().apply {
+                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], PorterDuff.Mode.MULTIPLY)
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                    }
+                    targetCanvas.saveLayer(null, p2)
                     targetCanvas.translate(chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
+                    targetCanvas.restore()
 
-                    silhouetteColor = chromaticColors[2]
+                    // Pass 3: Center (chromaticColors[2])
+                    targetCanvas.save()
+                    val p3 = Paint().apply {
+                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], PorterDuff.Mode.MULTIPLY)
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                    }
+                    targetCanvas.saveLayer(null, p3)
                     drawInner(targetCanvas)
+                    targetCanvas.restore()
+                    targetCanvas.restore()
+
                     silhouetteColor = prevSilhouette
                 }
                 TextEffectType.PIXELATION -> {
@@ -782,8 +815,17 @@ class ShapeLayer(
                             shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
                             shader.setFloatUniform("intensity", fieryIntensity)
                             shader.setFloatUniform("color", Color.red(fieryColor)/255f, Color.green(fieryColor)/255f, Color.blue(fieryColor)/255f)
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            val pts = floatArrayOf(0f, 0f)
+                            targetCanvas.matrix.mapPoints(pts)
+                            shader.setFloatUniform("offsetX", pts[0])
+                            shader.setFloatUniform("offsetY", pts[1])
+
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
@@ -799,8 +841,16 @@ class ShapeLayer(
                             val shader = android.graphics.RuntimeShader(TextLayer.WAVY_SHADER)
                             shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
                             shader.setFloatUniform("intensity", wavyIntensity); shader.setFloatUniform("frequency", wavyFrequency)
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            val pts = floatArrayOf(0f, 0f)
+                            targetCanvas.matrix.mapPoints(pts)
+                            shader.setFloatUniform("offsetY", pts[1])
+
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
@@ -1162,6 +1212,7 @@ class ShapeLayer(
         }
         checkEffect(currentEffect)
         checkEffect(secondaryEffect)
+        checkEffect(tertiaryEffect)
 
         return (p + effectExpansion + 20f).coerceAtLeast(0f)
     }
@@ -1292,7 +1343,7 @@ class ShapeLayer(
         newLayer.patternName = patternName; newLayer.patternColor = patternColor; newLayer.patternAlpha = patternAlpha; newLayer.patternScale = patternScale; newLayer.patternRotation = patternRotation
         if (eraseMask != null) newLayer.eraseMask = eraseMask!!.copy(eraseMask!!.config, true)
         for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
-        newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
+        newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
