@@ -2086,8 +2086,7 @@ class TextLayer(
                         offscreenCanvas.drawColor(android.graphics.Color.WHITE)
 
                         // 1. Draw Left Pass (Cyan)
-                        silhouetteColor = chromaticColors[0]
-                        paint.colorFilter = null
+                        paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], android.graphics.PorterDuff.Mode.SRC_IN)
                         paint.xfermode = null
                         offscreenCanvas.save()
                         offscreenCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
@@ -2100,8 +2099,7 @@ class TextLayer(
                             xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
                         }
                         offscreenCanvas.saveLayer(null, pMult)
-                        silhouetteColor = chromaticColors[1]
-                        paint.colorFilter = null
+                        paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], android.graphics.PorterDuff.Mode.SRC_IN)
                         paint.xfermode = null
                         offscreenCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
                         drawInner(offscreenCanvas)
@@ -2112,8 +2110,7 @@ class TextLayer(
                         if (chromaticColors.size > 2) {
                             offscreenCanvas.save()
                             offscreenCanvas.saveLayer(null, pMult)
-                            silhouetteColor = chromaticColors[2]
-                            paint.colorFilter = null
+                            paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], android.graphics.PorterDuff.Mode.SRC_IN)
                             paint.xfermode = null
                             offscreenCanvas.translate(recordTranslateX, recordTranslateY)
                             drawInner(offscreenCanvas)
@@ -2124,8 +2121,7 @@ class TextLayer(
                         // 4. Now, mask offscreenBitmap with the union of L, R, and C to make the outside transparent.
                         val unionBitmap = android.graphics.Bitmap.createBitmap(nodeW, nodeH, android.graphics.Bitmap.Config.ARGB_8888)
                         val unionCanvas = android.graphics.Canvas(unionBitmap)
-                        silhouetteColor = android.graphics.Color.WHITE
-                        paint.colorFilter = null
+                        paint.colorFilter = android.graphics.PorterDuffColorFilter(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
                         paint.xfermode = null
 
                         // Draw L on union
@@ -2157,7 +2153,8 @@ class TextLayer(
                         val pIn = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
 
                         // Draw L on intersection
-                        silhouetteColor = android.graphics.Color.WHITE
+                        paint.colorFilter = android.graphics.PorterDuffColorFilter(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
+                        paint.xfermode = null
                         intersectionCanvas.save()
                         intersectionCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
                         drawInner(intersectionCanvas)
@@ -2166,6 +2163,8 @@ class TextLayer(
                         // Intersect R
                         intersectionCanvas.save()
                         intersectionCanvas.saveLayer(null, pIn)
+                        paint.colorFilter = android.graphics.PorterDuffColorFilter(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
+                        paint.xfermode = null
                         intersectionCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
                         drawInner(intersectionCanvas)
                         intersectionCanvas.restore()
@@ -2175,6 +2174,8 @@ class TextLayer(
                         if (chromaticColors.size > 2) {
                             intersectionCanvas.save()
                             intersectionCanvas.saveLayer(null, pIn)
+                            paint.colorFilter = android.graphics.PorterDuffColorFilter(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
+                            paint.xfermode = null
                             intersectionCanvas.translate(recordTranslateX, recordTranslateY)
                             drawInner(intersectionCanvas)
                             intersectionCanvas.restore()
@@ -2191,7 +2192,6 @@ class TextLayer(
                         offscreenCanvas.saveLayer(null, pSrcIn)
                         offscreenCanvas.translate(recordTranslateX, recordTranslateY)
 
-                        silhouetteColor = null
                         paint.colorFilter = originalColorFilter
                         paint.xfermode = null
                         drawInner(offscreenCanvas)
