@@ -111,7 +111,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Inpaint Tools
     enum class InpaintTool {
-        BRUSH, ERASER, LASSO, LASSO_ERASER
+        BRUSH, ERASER, LASSO, LASSO_ERASER, MAGIC_WAND, MAGIC_WAND_ERASER
     }
 
     enum class TyperTool {
@@ -140,6 +140,9 @@ class AstralCanvasView @JvmOverloads constructor(
     var targetGradientStroke: Boolean = false
     var targetGradientShadow: Boolean = false
 
+    var magicWandSensitivity: Int = 30
+    var magicWandExpand: Int = 0
+
     var brushSize = 50f
         set(value) {
             field = value
@@ -147,6 +150,191 @@ class AstralCanvasView @JvmOverloads constructor(
             eraserPaint.strokeWidth = value
             invalidate()
         }
+
+    fun performMagicWand(startX: Int, startY: Int) {
+        val bg = getBackgroundImage() ?: return
+        val w = bg.width
+        val h = bg.height
+        if (startX !in 0 until w || startY !in 0 until h) {
+            bg.recycle()
+            return
+        }
+
+        val targetColor = bg.getPixel(startX, startY)
+        val path = Path()
+
+        // Map sensitivity 0..100 to Manhattan color distance threshold in 0..300
+        val maxDiff = (magicWandSensitivity / 100f * 300f).toInt()
+
+        val pixels = IntArray(w * h)
+        bg.getPixels(pixels, 0, w, 0, 0, w, h)
+        bg.recycle()
+
+        val visited = java.util.BitSet(w * h)
+        val queueX = IntArray(w * h)
+        val queueY = IntArray(w * h)
+        var head = 0
+        var tail = 0
+
+        queueX[tail] = startX
+        queueY[tail] = startY
+        visited.set(startY * w + startX)
+        tail++
+
+        val r1 = (targetColor shr 16) and 0xFF
+        val g1 = (targetColor shr 8) and 0xFF
+        val b1 = targetColor and 0xFF
+
+        while (head < tail) {
+            val cx = queueX[head]
+            val cy = queueY[head]
+            head++
+
+            // Check Left neighbor
+            if (cx > 0) {
+                val nx = cx - 1
+                val ny = cy
+                val idx = ny * w + nx
+                if (!visited.get(idx)) {
+                    val c2 = pixels[idx]
+                    val r2 = (c2 shr 16) and 0xFF
+                    val g2 = (c2 shr 8) and 0xFF
+                    val b2 = c2 and 0xFF
+                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                    if (diff <= maxDiff) {
+                        visited.set(idx)
+                        queueX[tail] = nx
+                        queueY[tail] = ny
+                        tail++
+                    }
+                }
+            }
+            // Check Right neighbor
+            if (cx < w - 1) {
+                val nx = cx + 1
+                val ny = cy
+                val idx = ny * w + nx
+                if (!visited.get(idx)) {
+                    val c2 = pixels[idx]
+                    val r2 = (c2 shr 16) and 0xFF
+                    val g2 = (c2 shr 8) and 0xFF
+                    val b2 = c2 and 0xFF
+                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                    if (diff <= maxDiff) {
+                        visited.set(idx)
+                        queueX[tail] = nx
+                        queueY[tail] = ny
+                        tail++
+                    }
+                }
+            }
+            // Check Top neighbor
+            if (cy > 0) {
+                val nx = cx
+                val ny = cy - 1
+                val idx = ny * w + nx
+                if (!visited.get(idx)) {
+                    val c2 = pixels[idx]
+                    val r2 = (c2 shr 16) and 0xFF
+                    val g2 = (c2 shr 8) and 0xFF
+                    val b2 = c2 and 0xFF
+                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                    if (diff <= maxDiff) {
+                        visited.set(idx)
+                        queueX[tail] = nx
+                        queueY[tail] = ny
+                        tail++
+                    }
+                }
+            }
+            // Check Bottom neighbor
+            if (cy < h - 1) {
+                val nx = cx
+                val ny = cy + 1
+                val idx = ny * w + nx
+                if (!visited.get(idx)) {
+                    val c2 = pixels[idx]
+                    val r2 = (c2 shr 16) and 0xFF
+                    val g2 = (c2 shr 8) and 0xFF
+                    val b2 = c2 and 0xFF
+                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                    if (diff <= maxDiff) {
+                        visited.set(idx)
+                        queueX[tail] = nx
+                        queueY[tail] = ny
+                        tail++
+                    }
+                }
+            }
+        }
+
+        val expandAmount = magicWandExpand // e.g. -10 to +10
+        var finalVisited = visited
+
+        if (expandAmount > 0) {
+            // Dilate (Expand selection)
+            for (step in 0 until expandAmount) {
+                val nextVisited = java.util.BitSet(w * h)
+                for (y in 0 until h) {
+                    for (x in 0 until w) {
+                        val idx = y * w + x
+                        if (finalVisited.get(idx)) {
+                            nextVisited.set(idx)
+                            if (x > 0) nextVisited.set(idx - 1)
+                            if (x < w - 1) nextVisited.set(idx + 1)
+                            if (y > 0) nextVisited.set(idx - w)
+                            if (y < h - 1) nextVisited.set(idx + w)
+                        }
+                    }
+                }
+                finalVisited = nextVisited
+            }
+        } else if (expandAmount < 0) {
+            // Erode (Reduce selection)
+            val shrinkAmount = -expandAmount
+            for (step in 0 until shrinkAmount) {
+                val nextVisited = java.util.BitSet(w * h)
+                for (y in 0 until h) {
+                    for (x in 0 until w) {
+                        val idx = y * w + x
+                        if (finalVisited.get(idx)) {
+                            val left = x > 0 && finalVisited.get(idx - 1)
+                            val right = x < w - 1 && finalVisited.get(idx + 1)
+                            val top = y > 0 && finalVisited.get(idx - w)
+                            val bottom = y < h - 1 && finalVisited.get(idx + w)
+                            if (left && right && top && bottom) {
+                                nextVisited.set(idx)
+                            }
+                        }
+                    }
+                }
+                finalVisited = nextVisited
+            }
+        }
+
+        // Group into horizontal segments to build path efficiently
+        for (y in 0 until h) {
+            var x = 0
+            while (x < w) {
+                if (finalVisited.get(y * w + x)) {
+                    var xEnd = x
+                    while (xEnd < w && finalVisited.get(y * w + xEnd)) {
+                        xEnd++
+                    }
+                    path.addRect(x.toFloat(), y.toFloat(), xEnd.toFloat(), y.toFloat() + 1f, Path.Direction.CW)
+                    x = xEnd
+                } else {
+                    x++
+                }
+            }
+        }
+
+        if (!path.isEmpty) {
+            inpaintOps.add(Pair(path, currentInpaintTool))
+            redoOps.clear()
+            invalidate()
+        }
+    }
 
     private val inpaintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
@@ -228,6 +416,8 @@ class AstralCanvasView @JvmOverloads constructor(
                 InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
                 InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
                 InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
+                InpaintTool.MAGIC_WAND -> canvas.drawPath(path, lassoP)
+                InpaintTool.MAGIC_WAND_ERASER -> canvas.drawPath(path, lassoEraseP)
             }
         }
         // Draw current path if any? (Usually getInpaintMask is called after lifting finger)
@@ -974,45 +1164,57 @@ class AstralCanvasView @JvmOverloads constructor(
         if (fromListIdx < 0 || fromListIdx >= layers.size || toListIdx < 0 || toListIdx >= layers.size) return false
         if (fromListIdx == toListIdx) return false
 
-        com.astral.typer.utils.UndoManager.saveState(layers)
-
-        // Find block size at fromListIdx
-        var blockSize = 1
-        while (fromListIdx + blockSize < layers.size && layers[fromListIdx + blockSize].isClipped) {
-            blockSize++
+        // Group into blocks
+        val blocks = mutableListOf<MutableList<Layer>>()
+        var currentBlock: MutableList<Layer>? = null
+        for (layer in layers) {
+            if (!layer.isClipped || currentBlock == null) {
+                currentBlock = mutableListOf(layer)
+                blocks.add(currentBlock)
+            } else {
+                currentBlock.add(layer)
+            }
         }
 
-        // Check if toListIdx is inside the block
-        val isTargetInBlock = toListIdx >= fromListIdx && toListIdx < fromListIdx + blockSize
+        val fromLayer = layers[fromListIdx]
+        val toLayer = layers[toListIdx]
 
-        if (isTargetInBlock) {
-            // Target is inside the block. Just do a standard swap to allow internal rearrangement of the block
-            java.util.Collections.swap(layers, fromListIdx, toListIdx)
-            invalidate()
-            return true
+        var fromBlockIdx = -1
+        var toBlockIdx = -1
+        for (i in 0 until blocks.size) {
+            if (blocks[i].contains(fromLayer)) {
+                fromBlockIdx = i
+            }
+            if (blocks[i].contains(toLayer)) {
+                toBlockIdx = i
+            }
         }
 
-        // Target is outside the block. Move the entire block!
-        val targetLayer = layers[toListIdx]
+        if (fromBlockIdx == -1 || toBlockIdx == -1) return false
 
-        // Extract block
-        val block = ArrayList<Layer>()
-        for (i in 0 until blockSize) {
-            block.add(layers[fromListIdx + i])
-        }
-        for (i in 0 until blockSize) {
-            layers.removeAt(fromListIdx)
-        }
-
-        // Find target index in remaining list
-        val remIdx = layers.indexOf(targetLayer)
-        if (remIdx != -1) {
-            val insertIdx = if (toListIdx > fromListIdx) remIdx + 1 else remIdx
-            layers.addAll(insertIdx, block)
+        if (fromBlockIdx == toBlockIdx) {
+            // Internal rearrangement within the same block
+            val block = blocks[fromBlockIdx]
+            val fromInBlockIdx = block.indexOf(fromLayer)
+            val toInBlockIdx = block.indexOf(toLayer)
+            if (fromInBlockIdx != -1 && toInBlockIdx != -1) {
+                block.removeAt(fromInBlockIdx)
+                block.add(toInBlockIdx, fromLayer)
+                // Enforce clipping rules
+                for (j in 0 until block.size) {
+                    block[j].isClipped = (j > 0)
+                }
+            }
         } else {
-            // Fallback
-            val insertIdx = toListIdx.coerceIn(0, layers.size)
-            layers.addAll(insertIdx, block)
+            // Move block to new position
+            val blockToMove = blocks.removeAt(fromBlockIdx)
+            blocks.add(toBlockIdx, blockToMove)
+        }
+
+        // Reconstruct layers list
+        layers.clear()
+        for (b in blocks) {
+            layers.addAll(b)
         }
 
         invalidate()
@@ -1377,6 +1579,8 @@ class AstralCanvasView @JvmOverloads constructor(
                     InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
                     InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
                     InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
+                    InpaintTool.MAGIC_WAND -> canvas.drawPath(path, lassoP)
+                    InpaintTool.MAGIC_WAND_ERASER -> canvas.drawPath(path, lassoEraseP)
                 }
             }
 
@@ -1387,6 +1591,8 @@ class AstralCanvasView @JvmOverloads constructor(
                     InpaintTool.ERASER -> canvas.drawPath(currentInpaintPath, eraserPaint)
                     InpaintTool.LASSO -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
                     InpaintTool.LASSO_ERASER -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
+                    InpaintTool.MAGIC_WAND -> {}
+                    InpaintTool.MAGIC_WAND_ERASER -> {}
                 }
             }
             canvas.restoreToCount(saveCount)
@@ -2029,24 +2235,30 @@ class AstralCanvasView @JvmOverloads constructor(
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    currentInpaintPath.reset()
-                    currentInpaintPath.moveTo(cx, cy)
+                    if (currentInpaintTool != InpaintTool.MAGIC_WAND && currentInpaintTool != InpaintTool.MAGIC_WAND_ERASER) {
+                        currentInpaintPath.reset()
+                        currentInpaintPath.moveTo(cx, cy)
+                    }
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (event.pointerCount == 1) {
+                    if (event.pointerCount == 1 && currentInpaintTool != InpaintTool.MAGIC_WAND && currentInpaintTool != InpaintTool.MAGIC_WAND_ERASER) {
                         currentInpaintPath.lineTo(cx, cy)
                         invalidate()
                     }
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!currentInpaintPath.isEmpty) {
-                         if (currentInpaintTool == InpaintTool.LASSO || currentInpaintTool == InpaintTool.LASSO_ERASER) {
-                             currentInpaintPath.close()
-                         }
-                         inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
-                         redoOps.clear()
-                         currentInpaintPath.reset()
+                    if (currentInpaintTool == InpaintTool.MAGIC_WAND || currentInpaintTool == InpaintTool.MAGIC_WAND_ERASER) {
+                        performMagicWand(cx.toInt(), cy.toInt())
+                    } else {
+                        if (!currentInpaintPath.isEmpty) {
+                             if (currentInpaintTool == InpaintTool.LASSO || currentInpaintTool == InpaintTool.LASSO_ERASER) {
+                                 currentInpaintPath.close()
+                             }
+                             inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
+                             redoOps.clear()
+                             currentInpaintPath.reset()
+                        }
                     }
                     invalidate()
                 }
