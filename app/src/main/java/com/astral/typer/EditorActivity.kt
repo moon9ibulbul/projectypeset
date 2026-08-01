@@ -3041,12 +3041,12 @@ class EditorActivity : AppCompatActivity() {
             setPadding(0,0,8,0)
         }
         val sbExpand = SeekBar(this).apply {
-            max = 20 // -10 to +10, mapped as (progress - 10)
-            progress = 10 // default 0 (10 - 10 = 0)
+            max = 40 // -20 to +20, mapped as (progress - 20)
+            progress = 20 // default 0 (20 - 20 = 0)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    val value = p - 10
+                    val value = p - 20
                     canvasView.magicWandExpand = value
                     tvExpand.text = if (value < 0) "Reduce: $value" else "Expand: $value"
                 }
@@ -3152,7 +3152,7 @@ class EditorActivity : AppCompatActivity() {
                      tvSize.text = "Sensitivity"
                      sbSize.progress = canvasView.magicWandSensitivity
                      tvExpand.text = if (canvasView.magicWandExpand < 0) "Reduce: ${canvasView.magicWandExpand}" else "Expand: ${canvasView.magicWandExpand}"
-                     sbExpand.progress = canvasView.magicWandExpand + 10
+                     sbExpand.progress = canvasView.magicWandExpand + 20
                      expandLayout.visibility = View.VISIBLE
                  }
              }

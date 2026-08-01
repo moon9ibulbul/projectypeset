@@ -1434,10 +1434,11 @@ object ProjectManager {
     }
 
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
-        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
-        if (projects.isEmpty()) return false
-
+        com.astral.typer.models.Layer.isExporting = true
         try {
+            val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
+            if (projects.isEmpty()) return false
+
             // Pass 1: Find max width
             var maxWidth = 0
             for (projectFile in projects) {
@@ -1610,6 +1611,8 @@ object ProjectManager {
         } catch (e: Exception) {
             e.printStackTrace()
             return false
+        } finally {
+            com.astral.typer.models.Layer.isExporting = false
         }
     }
 

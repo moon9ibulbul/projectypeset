@@ -2448,7 +2448,7 @@ class TextLayer(
                 }
                 TextEffectType.RADIAL_BLUR -> {
                     var useRenderEffect = false
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                    if (!Layer.isExporting && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("RadialBlurNode")
                             node.setPosition(0, 0, nodeW, nodeH)
