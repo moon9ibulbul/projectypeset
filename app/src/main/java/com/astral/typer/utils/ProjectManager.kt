@@ -140,6 +140,7 @@ object ProjectManager {
         val glitchIntensity: Float? = null,
         val pixelBlockSize: Float? = null,
         val chromaticShift: Float? = null,
+        val chromaticAngle: Float? = null,
         val fieryColor: Int? = null, val fieryIntensity: Float? = null,
         val wavyIntensity: Float? = null, val wavyFrequency: Float? = null,
         val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
@@ -342,6 +343,7 @@ object ProjectManager {
                         glitchIntensity = layer.glitchIntensity,
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
+                        chromaticAngle = layer.chromaticAngle,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity,
                         wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
@@ -432,6 +434,7 @@ object ProjectManager {
                         neonKnockout = layer.neonKnockout,
                         neonQuality = layer.neonQuality,
                         glitchIntensity = layer.glitchIntensity, pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
+                        chromaticAngle = layer.chromaticAngle,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
@@ -952,6 +955,7 @@ object ProjectManager {
             model.glitchIntensity?.let { layer.glitchIntensity = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
+            model.chromaticAngle?.let { layer.chromaticAngle = it }
             model.fieryColor?.let { layer.fieryColor = it }
             model.fieryIntensity?.let { layer.fieryIntensity = it }
             model.wavyIntensity?.let { layer.wavyIntensity = it }
@@ -1085,6 +1089,7 @@ object ProjectManager {
             model.glitchIntensity?.let { layer.glitchIntensity = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
+            model.chromaticAngle?.let { layer.chromaticAngle = it }
             model.fieryColor?.let { layer.fieryColor = it }
             model.fieryIntensity?.let { layer.fieryIntensity = it }
             model.wavyIntensity?.let { layer.wavyIntensity = it }

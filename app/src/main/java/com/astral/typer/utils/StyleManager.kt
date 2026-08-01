@@ -203,7 +203,8 @@ object StyleManager {
         val patternAlpha: Int? = 255,
         val patternScale: Float? = 1.0f,
         val patternRotation: Float? = 0f,
-        val caseType: String? = "NORMAL"
+        val caseType: String? = "NORMAL",
+        val chromaticAngle: Float? = 0f
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -242,7 +243,7 @@ object StyleManager {
             l.neonAlpha, l.neonInnerStrength, l.neonOuterStrength,
             l.neonKnockout, l.neonQuality,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType
+            l.caseType, l.chromaticAngle
         )
     }
 
@@ -357,6 +358,7 @@ object StyleManager {
         l.neonOuterStrength = m.neonOuterStrength
         l.neonKnockout = m.neonKnockout
         l.neonQuality = m.neonQuality
+        m.chromaticAngle?.let { l.chromaticAngle = it }
 
         m.patternName?.let { l.patternName = it }
         m.patternColor?.let { l.patternColor = it }

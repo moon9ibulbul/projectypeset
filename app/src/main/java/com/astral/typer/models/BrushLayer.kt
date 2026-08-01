@@ -213,6 +213,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     override var pixelBlockSize: Float = 0f
     override var chromaticShift: Float = 0f
     override var chromaticColors: IntArray = intArrayOf()
+    override var chromaticAngle: Float = 0f
     override var fieryColor: Int = Color.TRANSPARENT
     override var fieryIntensity: Float = 0f
     override var wavyIntensity: Float = 0f
