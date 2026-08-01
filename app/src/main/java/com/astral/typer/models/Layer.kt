@@ -149,6 +149,9 @@ interface StylableLayer {
 data class ErasePathData(val path: Path, val size: Float, val opacity: Int, val hardness: Float)
 
 abstract class Layer {
+    companion object {
+        var isExporting: Boolean = false
+    }
     var x: Float = 0f
     var y: Float = 0f
     var rotation: Float = 0f

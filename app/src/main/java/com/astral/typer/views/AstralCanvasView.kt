@@ -1397,32 +1397,37 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun renderToBitmap(): android.graphics.Bitmap {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            val hwBmp = renderToBitmapHardware()
-            if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp)) {
-                return hwBmp
+        com.astral.typer.models.Layer.isExporting = true
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                val hwBmp = renderToBitmapHardware()
+                if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp)) {
+                    return hwBmp
+                }
             }
+
+            val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            // Draw Background
+            val bgPaint = Paint()
+            bgPaint.color = canvasColor
+            bgPaint.style = Paint.Style.FILL
+            canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), bgPaint)
+
+            // Draw Background Tiles
+            val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            for (tile in backgroundTiles) {
+                canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+            }
+
+            // Draw Layers
+            drawLayers(canvas, layers)
+
+            return bitmap
+        } finally {
+            com.astral.typer.models.Layer.isExporting = false
         }
-
-        val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-
-        // Draw Background
-        val bgPaint = Paint()
-        bgPaint.color = canvasColor
-        bgPaint.style = Paint.Style.FILL
-        canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), bgPaint)
-
-        // Draw Background Tiles
-        val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        for (tile in backgroundTiles) {
-            canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
-        }
-
-        // Draw Layers
-        drawLayers(canvas, layers)
-
-        return bitmap
     }
 
     private fun centerCanvas() {

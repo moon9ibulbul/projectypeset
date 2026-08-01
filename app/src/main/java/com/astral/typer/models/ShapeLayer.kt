@@ -844,7 +844,7 @@ class ShapeLayer(
                 }
                 TextEffectType.RADIAL_BLUR -> {
                     var useRenderEffect = false
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                    if (!Layer.isExporting && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("RadialBlurNode")
                             node.setPosition(0, 0, nodeW, nodeH)
@@ -859,7 +859,102 @@ class ShapeLayer(
                             useRenderEffect = true
                         } catch (e: Exception) {}
                     }
-                    if (!useRenderEffect) drawInner(targetCanvas)
+                    if (!useRenderEffect) {
+                        // Software Fallback for Warp/Perspective or older devices or exporting
+                        val bmpW = nodeW
+                        val bmpH = nodeH
+                        if (bmpW > 0 && bmpH > 0) {
+                            val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val c = Canvas(bitmap)
+                            c.translate(recordTranslateX, recordTranslateY)
+                            drawInner(c)
+
+                            val center = PointF(bmpW * radialBlurCenterX, bmpH * radialBlurCenterY)
+                            val motionRad = Math.toRadians(radialBlurMotionStrength.toDouble())
+                            val zoomBase = (1.0 - (radialBlurMotionStrength / 180.0).coerceIn(0.0, 1.0)) * 0.03
+
+                            val fbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+
+                            // Multi-pass iterative rendering for software fallback (Warp/Perspective)
+                            // We need to blend multiple blurred copies to avoid "ghosting" artifacts
+
+                            // 1. Create a pre-blurred source to smooth out iterations
+                            val preBlurredBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val preBlurCanvas = Canvas(preBlurredBmp)
+                            val preBlurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                // Add a light blur to the source to smear iterations together
+                                maskFilter = BlurMaskFilter(5f, BlurMaskFilter.Blur.NORMAL)
+                            }
+                            preBlurCanvas.drawBitmap(bitmap, 0f, 0f, preBlurPaint)
+
+                            // 2. Iterative Drawing
+                            val blurBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val blurCanvas = Canvas(blurBitmap)
+                            val iterations = 15 // Increased iterations for smoothness
+                            val itPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+                            // Boost zoomBase slightly for software fallback to make it more noticeable
+                            val effectiveZoomBase = zoomBase * 1.5
+
+                            for (i in -iterations..iterations) {
+                                val t = i / iterations.toFloat()
+                                val angle = t * motionRad
+                                val zoom = 1.0 + (t * effectiveZoomBase)
+
+                                val m = Matrix()
+                                m.postTranslate(-center.x, -center.y)
+                                m.postScale(zoom.toFloat(), zoom.toFloat())
+                                m.postRotate(Math.toDegrees(angle).toFloat())
+                                m.postTranslate(center.x, center.y)
+
+                                // Exponential falloff for weights to favor the center
+                                val weight = (1.0 - Math.abs(t) * 0.5) / (iterations * 1.5)
+                                itPaint.alpha = (weight * 255).toInt().coerceIn(1, 255)
+                                blurCanvas.drawBitmap(preBlurredBmp, m, itPaint)
+                            }
+
+                            // 3. Prepare Final Composite
+                            val finalBitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val finalCanvas = Canvas(finalBitmap)
+
+                            // a. Draw Blurred Base
+                            finalCanvas.drawBitmap(blurBitmap, 0f, 0f, null)
+
+                            // b. Draw Sharp Center using masking
+                            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+
+                            val sharpBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                            val sharpCanvas = Canvas(sharpBitmap)
+
+                            val transitionWidth = Math.max(80f, radialBlurInnerRadius * 0.4f)
+                            val grad = android.graphics.RadialGradient(
+                                center.x, center.y, radialBlurInnerRadius + transitionWidth,
+                                intArrayOf(Color.TRANSPARENT, Color.BLACK),
+                                floatArrayOf(radialBlurInnerRadius / (radialBlurInnerRadius + transitionWidth), 1f),
+                                Shader.TileMode.CLAMP
+                            )
+                            maskPaint.shader = grad
+                            sharpCanvas.drawCircle(center.x, center.y, radialBlurInnerRadius + transitionWidth, maskPaint)
+
+                            finalCanvas.drawBitmap(sharpBitmap, 0f, 0f, null)
+
+                            // 4. Output to target
+                            targetCanvas.drawBitmap(finalBitmap, 0f, 0f, fbPaint)
+
+                            // Cleanup
+                            preBlurredBmp.recycle()
+                            blurBitmap.recycle()
+                            finalBitmap.recycle()
+                            sharpBitmap.recycle()
+
+                            targetCanvas.restore()
+                            bitmap.recycle()
+                        }
+                    }
                 }
                 TextEffectType.HALFTONE -> {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
