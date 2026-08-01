@@ -131,6 +131,12 @@ object ProjectManager {
         val motionBlurVelocityX: Float? = null,
         val motionBlurVelocityY: Float? = null,
         val halftoneDotSize: Float? = null, val halftoneDotColor: Int? = null, val halftoneThreshold: Float? = null,
+        val halftoneType: String? = null,
+        val halftoneAlpha: Float? = null,
+        val halftoneRange: Float? = null,
+        val halftoneDensity: Float? = null,
+        val halftoneFadingIntensity: Float? = null,
+        val halftoneShape: String? = null,
         val neonRadius: Float? = null, val neonColor: Int? = null,
         val neonAlpha: Float? = null,
         val neonInnerStrength: Float? = null,
@@ -334,6 +340,8 @@ object ProjectManager {
                         motionBlurVelocityX = layer.motionBlurVelocityX,
                         motionBlurVelocityY = layer.motionBlurVelocityY,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
+                        halftoneType = layer.halftoneType, halftoneAlpha = layer.halftoneAlpha, halftoneRange = layer.halftoneRange,
+                        halftoneDensity = layer.halftoneDensity, halftoneFadingIntensity = layer.halftoneFadingIntensity, halftoneShape = layer.halftoneShape,
                         neonRadius = layer.neonRadius, neonColor = layer.neonColor,
                         neonAlpha = layer.neonAlpha,
                         neonInnerStrength = layer.neonInnerStrength,
@@ -427,6 +435,8 @@ object ProjectManager {
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
+                        halftoneType = layer.halftoneType, halftoneAlpha = layer.halftoneAlpha, halftoneRange = layer.halftoneRange,
+                        halftoneDensity = layer.halftoneDensity, halftoneFadingIntensity = layer.halftoneFadingIntensity, halftoneShape = layer.halftoneShape,
                         neonRadius = layer.neonRadius, neonColor = layer.neonColor,
                         neonAlpha = layer.neonAlpha,
                         neonInnerStrength = layer.neonInnerStrength,
@@ -945,6 +955,12 @@ object ProjectManager {
             model.halftoneDotSize?.let { layer.halftoneDotSize = it }
             model.halftoneDotColor?.let { layer.halftoneDotColor = it }
             model.halftoneThreshold?.let { layer.halftoneThreshold = it }
+            model.halftoneType?.let { layer.halftoneType = it }
+            model.halftoneAlpha?.let { layer.halftoneAlpha = it }
+            model.halftoneRange?.let { layer.halftoneRange = it }
+            model.halftoneDensity?.let { layer.halftoneDensity = it }
+            model.halftoneFadingIntensity?.let { layer.halftoneFadingIntensity = it }
+            model.halftoneShape?.let { layer.halftoneShape = it }
             model.neonRadius?.let { layer.neonRadius = it }
             model.neonColor?.let { layer.neonColor = it }
             model.neonAlpha?.let { layer.neonAlpha = it }
@@ -1079,6 +1095,12 @@ object ProjectManager {
             model.halftoneDotSize?.let { layer.halftoneDotSize = it }
             model.halftoneDotColor?.let { layer.halftoneDotColor = it }
             model.halftoneThreshold?.let { layer.halftoneThreshold = it }
+            model.halftoneType?.let { layer.halftoneType = it }
+            model.halftoneAlpha?.let { layer.halftoneAlpha = it }
+            model.halftoneRange?.let { layer.halftoneRange = it }
+            model.halftoneDensity?.let { layer.halftoneDensity = it }
+            model.halftoneFadingIntensity?.let { layer.halftoneFadingIntensity = it }
+            model.halftoneShape?.let { layer.halftoneShape = it }
             model.neonRadius?.let { layer.neonRadius = it }
             model.neonColor?.let { layer.neonColor = it }
             model.neonAlpha?.let { layer.neonAlpha = it }

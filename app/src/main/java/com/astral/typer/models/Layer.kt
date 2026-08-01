@@ -76,6 +76,12 @@ interface StylableLayer {
     var halftoneDotSize: Float
     var halftoneDotColor: Int
     var halftoneThreshold: Float
+    var halftoneType: String
+    var halftoneAlpha: Float
+    var halftoneRange: Float
+    var halftoneDensity: Float
+    var halftoneFadingIntensity: Float
+    var halftoneShape: String
     var neonRadius: Float
     var neonColor: Int
     var neonAlpha: Float

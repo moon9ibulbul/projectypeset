@@ -252,6 +252,12 @@ class TextLayer(
     override var halftoneDotSize: Float = 10f
     override var halftoneDotColor: Int = Color.BLACK
     override var halftoneThreshold: Float = 0.5f
+    override var halftoneType: String = "INNER"
+    override var halftoneAlpha: Float = 1.0f
+    override var halftoneRange: Float = 20f
+    override var halftoneDensity: Float = 10f
+    override var halftoneFadingIntensity: Float = 1.0f
+    override var halftoneShape: String = "DOT"
 
     // Neon
     override var neonRadius: Float = 30f
@@ -476,6 +482,12 @@ class TextLayer(
         result = 31 * result + halftoneDotSize.hashCode()
         result = 31 * result + halftoneDotColor
         result = 31 * result + halftoneThreshold.hashCode()
+        result = 31 * result + halftoneType.hashCode()
+        result = 31 * result + halftoneAlpha.hashCode()
+        result = 31 * result + halftoneRange.hashCode()
+        result = 31 * result + halftoneDensity.hashCode()
+        result = 31 * result + halftoneFadingIntensity.hashCode()
+        result = 31 * result + halftoneShape.hashCode()
         result = 31 * result + neonRadius.hashCode()
         result = 31 * result + neonColor
         result = 31 * result + neonAlpha.hashCode()
@@ -732,6 +744,12 @@ class TextLayer(
         newLayer.halftoneDotSize = this.halftoneDotSize
         newLayer.halftoneDotColor = this.halftoneDotColor
         newLayer.halftoneThreshold = this.halftoneThreshold
+        newLayer.halftoneType = this.halftoneType
+        newLayer.halftoneAlpha = this.halftoneAlpha
+        newLayer.halftoneRange = this.halftoneRange
+        newLayer.halftoneDensity = this.halftoneDensity
+        newLayer.halftoneFadingIntensity = this.halftoneFadingIntensity
+        newLayer.halftoneShape = this.halftoneShape
         newLayer.neonRadius = this.neonRadius
         newLayer.neonColor = this.neonColor
         newLayer.neonAlpha = this.neonAlpha
@@ -925,6 +943,11 @@ class TextLayer(
                 TextEffectType.REFLECTION -> effectExpansion = Math.max(effectExpansion, getHeight() * 1.5f + reflectionAmplitudeEnd)
                 TextEffectType.TWIST -> effectExpansion = Math.max(effectExpansion, twistRadius * 0.5f)
                 TextEffectType.BULGE_PINCH -> effectExpansion = Math.max(effectExpansion, bulgeRadius * 0.5f)
+                TextEffectType.HALFTONE -> {
+                    if (halftoneType == "OUTER") {
+                        effectExpansion = Math.max(effectExpansion, halftoneRange + 20f)
+                    }
+                }
                 else -> {}
             }
         }
@@ -2726,12 +2749,22 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(HALFTONE_SHADER)
-                            shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f))
                             shader.setFloatUniform("threshold", halftoneThreshold)
                             val r = Color.red(halftoneDotColor) / 255f
                             val g = Color.green(halftoneDotColor) / 255f
                             val b = Color.blue(halftoneDotColor) / 255f
                             shader.setFloatUniform("dotColor", r, g, b)
+                            shader.setFloatUniform("halftoneType", if (halftoneType == "OUTER") 1f else 0f)
+                            shader.setFloatUniform("alpha", halftoneAlpha)
+                            shader.setFloatUniform("range", halftoneRange)
+                            shader.setFloatUniform("density", halftoneDensity.coerceAtLeast(1f))
+                            shader.setFloatUniform("fadingIntensity", halftoneFadingIntensity)
+                            val shapeVal = when (halftoneShape) {
+                                "SQUARE" -> 1f
+                                "LINE" -> 2f
+                                else -> 0f // "DOT"
+                            }
+                            shader.setFloatUniform("shapeType", shapeVal)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -2743,7 +2776,152 @@ class TextLayer(
                     }
 
                     if (!useRenderEffect) {
-                        drawInner(targetCanvas)
+                        val bmpW = nodeW
+                        val bmpH = nodeH
+                        if (bmpW > 0 && bmpH > 0) {
+                            val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val srcCanvas = Canvas(srcBmp)
+                            srcCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(srcCanvas)
+
+                            val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val pixels = IntArray(bmpW * bmpH)
+                            srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                            val outPixels = IntArray(bmpW * bmpH)
+
+                            val gridSpacing = Math.max(1f, 100f / halftoneDensity)
+                            val threshold = halftoneThreshold
+                            val r = Color.red(halftoneDotColor)
+                            val g = Color.green(halftoneDotColor)
+                            val b = Color.blue(halftoneDotColor)
+
+                            for (y in 0 until bmpH) {
+                                for (x in 0 until bmpW) {
+                                    val cellX = Math.floor(x / gridSpacing.toDouble()).toFloat()
+                                    val cellY = Math.floor(y / gridSpacing.toDouble()).toFloat()
+                                    val centerX = (cellX + 0.5f) * gridSpacing
+                                    val centerY = (cellY + 0.5f) * gridSpacing
+                                    val dist = Math.hypot((x - centerX).toDouble(), (y - centerY).toDouble()).toFloat()
+
+                                    val originalPixel = pixels[y * bmpW + x]
+                                    val originalAlpha = (originalPixel ushr 24) / 255f
+
+                                    if (halftoneType == "INNER") {
+                                        if (originalAlpha == 0f) continue
+                                        val radius = gridSpacing * 0.5f * threshold * originalAlpha
+                                        val insideShape = when (halftoneShape) {
+                                            "SQUARE" -> {
+                                                val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
+                                                sqDist < radius
+                                            }
+                                            "LINE" -> {
+                                                val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
+                                                lineDist < radius
+                                            }
+                                            else -> { // "DOT"
+                                                dist < radius
+                                            }
+                                        }
+                                        if (insideShape) {
+                                            val finalAlpha = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                            val outA = (finalAlpha * 255f).toInt()
+                                            val outR = (r * finalAlpha).toInt()
+                                            val outG = (g * finalAlpha).toInt()
+                                            val outB = (b * finalAlpha).toInt()
+                                            outPixels[y * bmpW + x] = (outA shl 24) or (outR shl 16) or (outG shl 8) or outB
+                                        }
+                                    } else { // "OUTER"
+                                        val range = halftoneRange
+                                        if (range <= 0f) {
+                                            outPixels[y * bmpW + x] = originalPixel
+                                            continue
+                                        }
+
+                                        // Find nearest text pixel using a multi-directional search in 12 directions, 3 steps each
+                                        var minDist = range
+                                        val dirSteps = 12
+                                        val stepCount = 3
+                                        for (d in 0 until dirSteps) {
+                                            val angle = d * (2.0 * Math.PI / dirSteps)
+                                            val cosA = Math.cos(angle)
+                                            val sinA = Math.sin(angle)
+                                            for (s in 1..stepCount) {
+                                                val stepDist = (s.toFloat() / stepCount) * range
+                                                val sx = Math.round(x - cosA * stepDist).toInt()
+                                                val sy = Math.round(y - sinA * stepDist).toInt()
+                                                if (sx in 0 until bmpW && sy in 0 until bmpH) {
+                                                    val samplePixel = pixels[sy * bmpW + sx]
+                                                    val sampleAlpha = (samplePixel ushr 24) / 255f
+                                                    if (sampleAlpha > 0f) {
+                                                        if (stepDist < minDist) {
+                                                            minDist = stepDist
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if (minDist < range) {
+                                            val closeness = 1f - (minDist / range)
+                                            val fadeWeight = if (halftoneFadingIntensity > 0f) {
+                                                Math.pow(closeness.toDouble(), halftoneFadingIntensity.toDouble()).toFloat()
+                                            } else {
+                                                1f
+                                            }
+
+                                            val radius = gridSpacing * 0.5f * threshold * fadeWeight
+                                            val insideShape = when (halftoneShape) {
+                                                "SQUARE" -> {
+                                                    val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
+                                                    sqDist < radius
+                                                }
+                                                "LINE" -> {
+                                                    val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
+                                                    lineDist < radius
+                                                }
+                                                else -> { // "DOT"
+                                                    dist < radius
+                                                }
+                                            }
+
+                                            if (insideShape) {
+                                                val shadowAlpha = (halftoneAlpha * fadeWeight).coerceIn(0f, 1f)
+                                                // Blend original text on top of halftone shadow
+                                                val outA = (shadowAlpha + originalAlpha * (1f - shadowAlpha)).coerceIn(0f, 1f)
+                                                if (outA > 0f) {
+                                                    // Blend color: original color on top of shadow color
+                                                    val origR = Color.red(originalPixel)
+                                                    val origG = Color.green(originalPixel)
+                                                    val origB = Color.blue(originalPixel)
+
+                                                    val blendedR = (origR * originalAlpha + r * shadowAlpha * (1f - originalAlpha)) / outA
+                                                    val blendedG = (origG * originalAlpha + g * shadowAlpha * (1f - originalAlpha)) / outA
+                                                    val blendedB = (origB * originalAlpha + b * shadowAlpha * (1f - originalAlpha)) / outA
+
+                                                    outPixels[y * bmpW + x] = ((outA * 255f).toInt() shl 24) or
+                                                            (blendedR.toInt().coerceIn(0, 255) shl 16) or
+                                                            (blendedG.toInt().coerceIn(0, 255) shl 8) or
+                                                            blendedB.toInt().coerceIn(0, 255)
+                                                }
+                                            } else {
+                                                // No shadow pixel, just use original
+                                                outPixels[y * bmpW + x] = originalPixel
+                                            }
+                                        } else {
+                                            outPixels[y * bmpW + x] = originalPixel
+                                        }
+                                    }
+                                }
+                            }
+
+                            outBmp.setPixels(outPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                            targetCanvas.restore()
+                            srcBmp.recycle()
+                            outBmp.recycle()
+                        }
                     }
                 }
                 TextEffectType.TEXT_DECAY -> {
@@ -3119,23 +3297,113 @@ class TextLayer(
 
         const val HALFTONE_SHADER = """
             uniform shader content;
-            uniform float dotSize;
             uniform float threshold;
             uniform float3 dotColor;
+            uniform float halftoneType; // 0.0 for INNER, 1.0 for OUTER
+            uniform float alpha;
+            uniform float range;
+            uniform float density; // spacing = 100.0 / density
+            uniform float fadingIntensity;
+            uniform float shapeType; // 0.0 for DOT, 1.0 for SQUARE, 2.0 for LINE
 
             half4 main(float2 coord) {
-                half4 c = content.eval(coord);
-                if (c.a == 0.0) return half4(0);
+                half4 original = content.eval(coord);
 
-                float2 gridPos = floor(coord / dotSize);
-                float2 center = (gridPos + 0.5) * dotSize;
+                // Spacing calculation based on density
+                float spacing = max(1.0, 100.0 / density);
+
+                // Find grid cell center
+                float2 gridPos = floor(coord / spacing);
+                float2 center = (gridPos + 0.5) * spacing;
                 float dist = distance(coord, center);
-                float radius = dotSize * 0.5 * threshold;
 
-                if (dist < radius) {
-                    return half4(dotColor * c.a, c.a);
+                if (halftoneType < 0.5) {
+                    // INNER Halftone
+                    if (original.a == 0.0) {
+                        return half4(0.0);
+                    }
+
+                    // For inner halftone, the size depends on original pixel alpha and the threshold
+                    float radius = spacing * 0.5 * threshold * original.a;
+                    bool insideShape = false;
+
+                    if (shapeType < 0.5) {
+                        // DOT (Circle)
+                        insideShape = (dist < radius);
+                    } else if (shapeType < 1.5) {
+                        // SQUARE
+                        float sqDist = max(abs(coord.x - center.x), abs(coord.y - center.y));
+                        insideShape = (sqDist < radius);
+                    } else {
+                        // LINE (Diagonal)
+                        float lineDist = abs((coord.x - center.x) - (coord.y - center.y)) * 0.707106;
+                        insideShape = (lineDist < radius);
+                    }
+
+                    if (insideShape) {
+                        return half4(dotColor * alpha * original.a, alpha * original.a);
+                    }
+                    return half4(0.0);
+                } else {
+                    // OUTER Halftone
+                    if (range <= 0.0) {
+                        return original;
+                    }
+
+                    // Multidirectional lookup around coord up to 'range' to find closeness to original shape
+                    float min_dist = range;
+                    float max_alpha = 0.0;
+                    const int DIR_STEPS = 12;
+                    const int STEP_COUNT = 3;
+
+                    for (int d = 0; d < DIR_STEPS; d++) {
+                        float angle = float(d) * (2.0 * 3.14159265 / float(DIR_STEPS));
+                        float2 dir = float2(cos(angle), sin(angle));
+                        for (int s = 1; s <= STEP_COUNT; s++) {
+                            float stepDist = (float(s) / float(STEP_COUNT)) * range;
+                            float2 sampleCoord = coord - dir * stepDist;
+                            float sampleAlpha = content.eval(sampleCoord).a;
+                            if (sampleAlpha > 0.0) {
+                                min_dist = min(min_dist, stepDist);
+                                max_alpha = max(max_alpha, sampleAlpha);
+                            }
+                        }
+                    }
+
+                    if (min_dist < range) {
+                        // Closeness factor starts at 1.0 (text edge) and decreases to 0.0 (range limit)
+                        float closeness = 1.0 - (min_dist / range);
+                        float fadeWeight = 1.0;
+                        if (fadingIntensity > 0.0) {
+                            fadeWeight = pow(closeness, fadingIntensity);
+                        }
+
+                        // Determine the halftone dot size/radius at this cell
+                        float radius = spacing * 0.5 * threshold * fadeWeight;
+                        bool insideShape = false;
+
+                        if (shapeType < 0.5) {
+                            // DOT (Circle)
+                            insideShape = (dist < radius);
+                        } else if (shapeType < 1.5) {
+                            // SQUARE
+                            float sqDist = max(abs(coord.x - center.x), abs(coord.y - center.y));
+                            insideShape = (sqDist < radius);
+                        } else {
+                            // LINE (Diagonal)
+                            float lineDist = abs((coord.x - center.x) - (coord.y - center.y)) * 0.707106;
+                            insideShape = (lineDist < radius);
+                        }
+
+                        if (insideShape) {
+                            half4 shadowDot = half4(dotColor * alpha * fadeWeight, alpha * fadeWeight);
+                            // Blend original text on top of the outer halftone shadow
+                            return mix(shadowDot, original, original.a);
+                        }
+                    }
+
+                    return original;
                 }
-                return half4(0);
             }
         """
 

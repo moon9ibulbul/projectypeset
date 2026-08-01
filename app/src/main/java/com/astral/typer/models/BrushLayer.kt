@@ -202,6 +202,12 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
     override var halftoneDotSize: Float = 0f
     override var halftoneDotColor: Int = Color.TRANSPARENT
     override var halftoneThreshold: Float = 0f
+    override var halftoneType: String = "INNER"
+    override var halftoneAlpha: Float = 1.0f
+    override var halftoneRange: Float = 20f
+    override var halftoneDensity: Float = 10f
+    override var halftoneFadingIntensity: Float = 1.0f
+    override var halftoneShape: String = "DOT"
     override var neonRadius: Float = 0f
     override var neonColor: Int = Color.TRANSPARENT
     override var neonAlpha: Float = 1.0f
