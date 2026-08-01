@@ -152,15 +152,23 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
     fun performMagicWand(startX: Int, startY: Int) {
-        val bg = getBackgroundImage() ?: return
-        val w = bg.width
-        val h = bg.height
-        if (startX !in 0 until w || startY !in 0 until h) {
-            bg.recycle()
-            return
+        val maxDim = 1024
+        val originalW = canvasWidth
+        val originalH = canvasHeight
+        val scale = if (originalW > maxDim || originalH > maxDim) {
+            maxDim.toFloat() / max(originalW, originalH)
+        } else {
+            1.0f
         }
 
-        val targetColor = bg.getPixel(startX, startY)
+        val bg = getDownsampledBackgroundImage(maxDim) ?: return
+        val w = bg.width
+        val h = bg.height
+
+        val dsStartX = (startX * scale).toInt().coerceIn(0, w - 1)
+        val dsStartY = (startY * scale).toInt().coerceIn(0, h - 1)
+
+        val targetColor = bg.getPixel(dsStartX, dsStartY)
         val path = Path()
 
         // Map sensitivity 0..100 to Manhattan color distance threshold in 0..300
@@ -176,9 +184,9 @@ class AstralCanvasView @JvmOverloads constructor(
         var head = 0
         var tail = 0
 
-        queueX[tail] = startX
-        queueY[tail] = startY
-        visited.set(startY * w + startX)
+        queueX[tail] = dsStartX
+        queueY[tail] = dsStartY
+        visited.set(dsStartY * w + dsStartX)
         tail++
 
         val r1 = (targetColor shr 16) and 0xFF
@@ -268,7 +276,7 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
-        val expandAmount = magicWandExpand // e.g. -10 to +10
+        val expandAmount = (magicWandExpand * scale).toInt()
         var finalVisited = visited
 
         if (expandAmount > 0) {
@@ -312,6 +320,7 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
+        val invScale = 1f / scale
         // Group into horizontal segments to build path efficiently
         for (y in 0 until h) {
             var x = 0
@@ -321,7 +330,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     while (xEnd < w && finalVisited.get(y * w + xEnd)) {
                         xEnd++
                     }
-                    path.addRect(x.toFloat(), y.toFloat(), xEnd.toFloat(), y.toFloat() + 1f, Path.Direction.CW)
+                    path.addRect(x * invScale, y * invScale, xEnd * invScale, (y + 1f) * invScale, Path.Direction.CW)
                     x = xEnd
                 } else {
                     x++
@@ -600,6 +609,31 @@ class AstralCanvasView @JvmOverloads constructor(
             return bitmap
         } catch (e: OutOfMemoryError) {
             android.util.Log.e("AstralCanvasView", "OOM in getBackgroundImage")
+            return null
+        }
+    }
+
+    fun getDownsampledBackgroundImage(maxDim: Int): android.graphics.Bitmap? {
+        if (backgroundTiles.isEmpty()) return null
+        val originalW = canvasWidth
+        val originalH = canvasHeight
+        if (originalW <= maxDim && originalH <= maxDim) {
+            return getBackgroundImage()
+        }
+        val scale = maxDim.toFloat() / max(originalW, originalH)
+        val dstW = (originalW * scale).toInt().coerceAtLeast(1)
+        val dstH = (originalH * scale).toInt().coerceAtLeast(1)
+        try {
+            val bitmap = android.graphics.Bitmap.createBitmap(dstW, dstH, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            canvas.scale(scale, scale)
+            val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            for (tile in backgroundTiles) {
+                canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+            }
+            return bitmap
+        } catch (e: Throwable) {
+            android.util.Log.e("AstralCanvasView", "Error in getDownsampledBackgroundImage", e)
             return null
         }
     }
@@ -2831,7 +2865,10 @@ class AstralCanvasView @JvmOverloads constructor(
                                 var snappedY = false
                                 val currentSnapThreshold = 6f
 
-                                if (abs(nextX - canvasWidth / 2f) < currentSnapThreshold) {
+                                val sharedPrefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+                                val disableSnap = sharedPrefs.getBoolean("disable_snap_to_center", false)
+
+                                if (!disableSnap && abs(nextX - canvasWidth / 2f) < currentSnapThreshold) {
                                     dx = (canvasWidth / 2f) - layer.x
                                     showVerticalCenterLine = true
                                     snappedX = true
@@ -2839,7 +2876,7 @@ class AstralCanvasView @JvmOverloads constructor(
                                     showVerticalCenterLine = false
                                 }
 
-                                if (abs(nextY - canvasHeight / 2f) < currentSnapThreshold) {
+                                if (!disableSnap && abs(nextY - canvasHeight / 2f) < currentSnapThreshold) {
                                     dy = (canvasHeight / 2f) - layer.y
                                     showHorizontalCenterLine = true
                                     snappedY = true

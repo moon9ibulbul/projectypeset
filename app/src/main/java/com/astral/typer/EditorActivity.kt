@@ -2758,6 +2758,18 @@ class EditorActivity : AppCompatActivity() {
             addWatermarkLayer(false)
         }
 
+        sidebarBinding.btnSuperResolution.setOnClickListener {
+            val activeLayer = canvasView.getSelectedLayer()
+            if (activeLayer != null) {
+                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+                activeLayer.doubleResolution()
+                canvasView.invalidate()
+                Toast.makeText(this, "Super Resolution applied successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Silakan pilih layer terlebih dahulu!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         sidebarBinding.btnFlattenLayers.setOnClickListener {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Flatten All Layers")
