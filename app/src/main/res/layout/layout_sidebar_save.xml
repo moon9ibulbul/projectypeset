@@ -64,6 +64,13 @@
                 android:layout_marginBottom="16dp"/>
 
             <Button
+                android:id="@+id/btnSuperResolution"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Super Resolution"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
                 android:id="@+id/btnLoadRaw"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

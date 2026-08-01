@@ -230,4 +230,6 @@ abstract class Layer {
         }
         return false
     }
+
+    open fun doubleResolution() {}
 }

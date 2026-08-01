@@ -100,6 +100,9 @@ class ShapeLayer(
 
     private var silhouetteColor: Int? = null
 
+    var customWidth: Float? = null
+    var customHeight: Float? = null
+
     // Effect
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
@@ -238,6 +241,7 @@ class ShapeLayer(
     }
 
     override fun getWidth(): Float {
+        if (customWidth != null) return customWidth!!
         ensureShapeLoaded()
         val w = svg?.documentWidth ?: -1f
         if (w > 0) return w
@@ -245,6 +249,7 @@ class ShapeLayer(
     }
 
     override fun getHeight(): Float {
+        if (customHeight != null) return customHeight!!
         ensureShapeLoaded()
         val h = svg?.documentHeight ?: -1f
         if (h > 0) return h
@@ -1623,6 +1628,8 @@ class ShapeLayer(
 
     override fun clone(): Layer {
         val newLayer = ShapeLayer(shapeName, color)
+        newLayer.customWidth = customWidth
+        newLayer.customHeight = customHeight
         newLayer.x = x; newLayer.y = y; newLayer.rotation = rotation; newLayer.scaleX = scaleX; newLayer.scaleY = scaleY
         newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
@@ -1689,5 +1696,62 @@ class ShapeLayer(
                 denseRenderMesh!![idx++] = outPoint[0]; denseRenderMesh!![idx++] = outPoint[1]
             }
         }
+    }
+
+    override fun doubleResolution() {
+        customWidth = getWidth() * 2f
+        customHeight = getHeight() * 2f
+
+        strokeWidth *= 2f
+        doubleStrokeWidth *= 2f
+        shadowRadius *= 2f
+        shadowDx *= 2f
+        shadowDy *= 2f
+        motionShadowDistance *= 2f
+        motionShadowThickness *= 2f
+        blurRadius *= 2f
+        longShadowLength *= 2f
+        neonRadius *= 2f
+        chromaticShift *= 2f
+        pixelBlockSize *= 2f
+        twistRadius *= 2f
+        twistOffsetX *= 2f
+        twistOffsetY *= 2f
+        bulgeRadius *= 2f
+        reflectionAmplitudeStart *= 2f
+        reflectionAmplitudeEnd *= 2f
+        reflectionWavelengthStart *= 2f
+        reflectionWavelengthEnd *= 2f
+        zoomBlurRadius *= 2f
+
+        perspectivePoints?.let { pts ->
+            for (i in pts.indices) {
+                pts[i] *= 2f
+            }
+        }
+
+        warpMesh?.let { mesh ->
+            for (i in mesh.indices) {
+                mesh[i] *= 2f
+            }
+        }
+
+        if (erasePaths.isNotEmpty()) {
+            val matrix = Matrix()
+            matrix.setScale(2f, 2f)
+            val scaledPaths = erasePaths.map { ep ->
+                val newPath = Path(ep.path)
+                newPath.transform(matrix)
+                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness)
+            }
+            erasePaths.clear()
+            erasePaths.addAll(scaledPaths)
+            if (eraseMask != null) {
+                rebuildEraseMask(null)
+            }
+        }
+
+        scaleX /= 2f
+        scaleY /= 2f
     }
 }

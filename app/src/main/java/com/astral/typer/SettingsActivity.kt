@@ -81,6 +81,12 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("enable_autosave", isChecked).apply()
         }
 
+        val cbDisableSnap = findViewById<CheckBox>(R.id.cbDisableSnap)
+        cbDisableSnap.isChecked = settingsPrefs.getBoolean("disable_snap_to_center", false)
+        cbDisableSnap.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("disable_snap_to_center", isChecked).apply()
+        }
+
         // Watermark Logic
         cbEnableWatermark = findViewById(R.id.cbEnableWatermark)
         layoutWatermarkOptions = findViewById(R.id.layoutWatermarkOptions)

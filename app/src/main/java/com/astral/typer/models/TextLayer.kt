@@ -3858,4 +3858,72 @@ class TextLayer(
             }
         """
     }
+
+    override fun doubleResolution() {
+        fontSize *= 2f
+        letterSpacing *= 2f
+        lineSpacing *= 2f
+        boxWidth?.let { boxWidth = it * 2f }
+        fixedHeight?.let { fixedHeight = it * 2f }
+
+        for ((key, value) in letterWarpMeshes) {
+            for (i in value.indices) {
+                value[i] *= 2f
+            }
+        }
+
+        strokeWidth *= 2f
+        doubleStrokeWidth *= 2f
+        shadowRadius *= 2f
+        shadowDx *= 2f
+        shadowDy *= 2f
+        motionShadowDistance *= 2f
+        motionShadowThickness *= 2f
+        blurRadius *= 2f
+        longShadowLength *= 2f
+        neonRadius *= 2f
+        chromaticShift *= 2f
+        pixelBlockSize *= 2f
+        twistRadius *= 2f
+        twistOffsetX *= 2f
+        twistOffsetY *= 2f
+        bulgeRadius *= 2f
+        reflectionAmplitudeStart *= 2f
+        reflectionAmplitudeEnd *= 2f
+        reflectionWavelengthStart *= 2f
+        reflectionWavelengthEnd *= 2f
+        zoomBlurRadius *= 2f
+
+        perspectivePoints?.let { pts ->
+            for (i in pts.indices) {
+                pts[i] *= 2f
+            }
+        }
+
+        warpMesh?.let { mesh ->
+            for (i in mesh.indices) {
+                mesh[i] *= 2f
+            }
+        }
+
+        if (erasePaths.isNotEmpty()) {
+            val matrix = Matrix()
+            matrix.setScale(2f, 2f)
+            val scaledPaths = erasePaths.map { ep ->
+                val newPath = Path(ep.path)
+                newPath.transform(matrix)
+                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness)
+            }
+            erasePaths.clear()
+            erasePaths.addAll(scaledPaths)
+            if (eraseMask != null) {
+                rebuildEraseMask(null)
+            }
+        }
+
+        recycleCache()
+
+        scaleX /= 2f
+        scaleY /= 2f
+    }
 }
