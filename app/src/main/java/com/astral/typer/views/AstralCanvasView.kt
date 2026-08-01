@@ -1275,17 +1275,107 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun renderToBitmapHardware(): android.graphics.Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
+        val maxDim = 16383
+        if (canvasWidth <= maxDim && canvasHeight <= maxDim) {
+            try {
+                val reader = android.media.ImageReader.newInstance(
+                    canvasWidth, canvasHeight,
+                    android.graphics.PixelFormat.RGBA_8888, 1,
+                    android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
+                )
+                val surface = reader.surface
+
+                val rootNode = android.graphics.RenderNode("RootNode")
+                rootNode.setPosition(0, 0, canvasWidth, canvasHeight)
+                val canvas = rootNode.beginRecording()
+
+                // Draw Background
+                val bgPaint = Paint()
+                bgPaint.color = canvasColor
+                bgPaint.style = Paint.Style.FILL
+                canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), bgPaint)
+
+                // Draw Background Tiles
+                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                for (tile in backgroundTiles) {
+                    canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+                }
+
+                // Draw Layers
+                drawLayers(canvas, layers)
+                rootNode.endRecording()
+
+                val renderer = android.graphics.HardwareRenderer()
+                renderer.setContentRoot(rootNode)
+                renderer.setSurface(surface)
+                renderer.setLightSourceAlpha(0f, 0f)
+                renderer.setLightSourceGeometry(0f, 0f, 0f, 1f)
+
+                val request = renderer.createRenderRequest()
+                request.setWaitForPresent(true)
+                request.syncAndDraw()
+
+                val image = reader.acquireNextImage()
+                if (image != null) {
+                    val hardwareBuffer = image.hardwareBuffer
+                    if (hardwareBuffer != null) {
+                        val bmp = android.graphics.Bitmap.wrapHardwareBuffer(hardwareBuffer, null)
+                        val softwareBmp = bmp?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+                        hardwareBuffer.close()
+                        image.close()
+                        renderer.destroy()
+                        reader.close()
+                        return softwareBmp
+                    }
+                    image.close()
+                }
+                renderer.destroy()
+                reader.close()
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+            return null
+        } else {
+            try {
+                val finalBitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                val finalCanvas = Canvas(finalBitmap)
+                for (y in 0 until canvasHeight step maxDim) {
+                    val sliceH = min(maxDim, canvasHeight - y)
+                    for (x in 0 until canvasWidth step maxDim) {
+                        val sliceW = min(maxDim, canvasWidth - x)
+                        val sliceBmp = renderSliceHardware(x, y, sliceW, sliceH)
+                        if (sliceBmp != null) {
+                            finalCanvas.drawBitmap(sliceBmp, x.toFloat(), y.toFloat(), null)
+                            sliceBmp.recycle()
+                        } else {
+                            finalBitmap.recycle()
+                            return null
+                        }
+                    }
+                }
+                return finalBitmap
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+            return null
+        }
+    }
+
+    private fun renderSliceHardware(startX: Int, startY: Int, sliceW: Int, sliceH: Int): android.graphics.Bitmap? {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
         try {
             val reader = android.media.ImageReader.newInstance(
-                canvasWidth, canvasHeight,
+                sliceW, sliceH,
                 android.graphics.PixelFormat.RGBA_8888, 1,
                 android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
             )
             val surface = reader.surface
 
-            val rootNode = android.graphics.RenderNode("RootNode")
-            rootNode.setPosition(0, 0, canvasWidth, canvasHeight)
+            val rootNode = android.graphics.RenderNode("SliceNode")
+            rootNode.setPosition(0, 0, sliceW, sliceH)
             val canvas = rootNode.beginRecording()
+
+            canvas.translate(-startX.toFloat(), -startY.toFloat())
 
             // Draw Background
             val bgPaint = Paint()
