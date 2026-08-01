@@ -61,6 +61,7 @@ interface StylableLayer {
     // Effects
     var currentEffect: TextEffectType
     var secondaryEffect: TextEffectType
+    var tertiaryEffect: TextEffectType
     var effectSeed: Long
     var blurRadius: Float
     var longShadowLength: Float

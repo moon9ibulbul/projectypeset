@@ -78,6 +78,7 @@ class ImageLayer(
     // Effects
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
+    override var tertiaryEffect: TextEffectType = TextEffectType.NONE
     override var effectSeed: Long = System.currentTimeMillis()
     override var blurRadius: Float = 0f
     override var longShadowLength: Float = 30f

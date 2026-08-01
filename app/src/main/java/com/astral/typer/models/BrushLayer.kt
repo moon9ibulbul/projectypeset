@@ -187,6 +187,7 @@ class BrushLayer(val canvasWidth: Int, val canvasHeight: Int) : Layer(), Stylabl
 
     override var currentEffect: TextEffectType = TextEffectType.NONE
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
+    override var tertiaryEffect: TextEffectType = TextEffectType.NONE
     override var effectSeed: Long = 0L
     override var blurRadius: Float = 0f
     override var longShadowLength: Float = 0f

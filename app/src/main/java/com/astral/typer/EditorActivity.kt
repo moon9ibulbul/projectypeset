@@ -898,8 +898,10 @@ class EditorActivity : AppCompatActivity() {
 
         val getEffect = { stylableLayer.currentEffect }
         val getSecondaryEffect = { stylableLayer.secondaryEffect }
+        val getTertiaryEffect = { stylableLayer.tertiaryEffect }
         val setEffect = { e: TextEffectType -> stylableLayer.currentEffect = e }
         val setSecondaryEffect = { e: TextEffectType -> stylableLayer.secondaryEffect = e }
+        val setTertiaryEffect = { e: TextEffectType -> stylableLayer.tertiaryEffect = e }
 
         // Wrap everything in a ScrollView to ensure sliders are visible on small screens/landscape
         val mainScroll = ScrollView(this).apply {
@@ -929,7 +931,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Helper to create Effect Cards
-        fun createCard(title: String, effectType: TextEffectType, isSelected: Boolean, isSecondary: Boolean, onClick: () -> Unit, onDoubleClick: () -> Unit): View {
+        fun createCard(title: String, effectType: TextEffectType, isSelected: Boolean, isSecondary: Boolean, isTertiary: Boolean, onClick: () -> Unit, onDoubleClick: () -> Unit): View {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -937,8 +939,8 @@ class EditorActivity : AppCompatActivity() {
                     setMargins(8, 8, 8, 8)
                 }
 
-                val borderColor = if (isSelected) Color.CYAN else if (isSecondary) Color.MAGENTA else Color.TRANSPARENT
-                val bgColor = if (isSelected || isSecondary) Color.DKGRAY else Color.parseColor("#333333")
+                val borderColor = if (isSelected) Color.CYAN else if (isSecondary) Color.MAGENTA else if (isTertiary) Color.YELLOW else Color.TRANSPARENT
+                val bgColor = if (isSelected || isSecondary || isTertiary) Color.DKGRAY else Color.parseColor("#333333")
 
                 background = GradientDrawable().apply {
                     setColor(bgColor)
@@ -1004,15 +1006,24 @@ class EditorActivity : AppCompatActivity() {
 
         val handleEffectToggle = { effect: TextEffectType, isToggleOff: Boolean ->
             if (effect == TextEffectType.NONE) {
-                setEffect(TextEffectType.NONE); setSecondaryEffect(TextEffectType.NONE)
+                setEffect(TextEffectType.NONE)
+                setSecondaryEffect(TextEffectType.NONE)
+                setTertiaryEffect(TextEffectType.NONE)
             } else if (isToggleOff) {
                 if (getEffect() == effect) setEffect(TextEffectType.NONE)
                 if (getSecondaryEffect() == effect) setSecondaryEffect(TextEffectType.NONE)
+                if (getTertiaryEffect() == effect) setTertiaryEffect(TextEffectType.NONE)
             } else {
-                if (getEffect() == TextEffectType.NONE) setEffect(effect)
-                else if (getSecondaryEffect() == TextEffectType.NONE && getEffect() != effect) setSecondaryEffect(effect)
-                else if (getEffect() != effect && getSecondaryEffect() != effect) {
-                    setEffect(getSecondaryEffect()); setSecondaryEffect(effect)
+                if (getEffect() == TextEffectType.NONE) {
+                    setEffect(effect)
+                } else if (getSecondaryEffect() == TextEffectType.NONE && getEffect() != effect) {
+                    setSecondaryEffect(effect)
+                } else if (getTertiaryEffect() == TextEffectType.NONE && getEffect() != effect && getSecondaryEffect() != effect) {
+                    setTertiaryEffect(effect)
+                } else if (getEffect() != effect && getSecondaryEffect() != effect && getTertiaryEffect() != effect) {
+                    setEffect(getSecondaryEffect())
+                    setSecondaryEffect(getTertiaryEffect())
+                    setTertiaryEffect(effect)
                 }
             }
 
@@ -1065,14 +1076,15 @@ class EditorActivity : AppCompatActivity() {
         fun addEffectCard(title: String, effect: TextEffectType) {
             val isPrimary = getEffect() == effect
             val isSecondary = getSecondaryEffect() == effect
-            cardsLayout.addView(createCard(title, effect, isPrimary, isSecondary,
+            val isTertiary = getTertiaryEffect() == effect
+            cardsLayout.addView(createCard(title, effect, isPrimary, isSecondary, isTertiary,
                 onClick = { handleEffectToggle(effect, false) },
                 onDoubleClick = { handleEffectToggle(effect, true) }
             ))
         }
 
-        val noEffectActive = getEffect() == TextEffectType.NONE && getSecondaryEffect() == TextEffectType.NONE
-        cardsLayout.addView(createCard("None", TextEffectType.NONE, noEffectActive, false,
+        val noEffectActive = getEffect() == TextEffectType.NONE && getSecondaryEffect() == TextEffectType.NONE && getTertiaryEffect() == TextEffectType.NONE
+        cardsLayout.addView(createCard("None", TextEffectType.NONE, noEffectActive, false, false,
             onClick = { handleEffectToggle(TextEffectType.NONE, false) },
             onDoubleClick = { }
         ))
@@ -3041,12 +3053,12 @@ class EditorActivity : AppCompatActivity() {
             setPadding(0,0,8,0)
         }
         val sbExpand = SeekBar(this).apply {
-            max = 20 // -10 to +10, mapped as (progress - 10)
-            progress = 10 // default 0 (10 - 10 = 0)
+            max = 60 // -20 to +40, mapped as (progress - 20)
+            progress = 20 // default 0 (20 - 20 = 0)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    val value = p - 10
+                    val value = p - 20
                     canvasView.magicWandExpand = value
                     tvExpand.text = if (value < 0) "Reduce: $value" else "Expand: $value"
                 }
@@ -3152,7 +3164,7 @@ class EditorActivity : AppCompatActivity() {
                      tvSize.text = "Sensitivity"
                      sbSize.progress = canvasView.magicWandSensitivity
                      tvExpand.text = if (canvasView.magicWandExpand < 0) "Reduce: ${canvasView.magicWandExpand}" else "Expand: ${canvasView.magicWandExpand}"
-                     sbExpand.progress = canvasView.magicWandExpand + 10
+                     sbExpand.progress = canvasView.magicWandExpand + 20
                      expandLayout.visibility = View.VISIBLE
                  }
              }
@@ -3380,6 +3392,7 @@ class EditorActivity : AppCompatActivity() {
 
         try { layer.currentEffect = TextEffectType.valueOf(style.currentEffect ?: "NONE") } catch (e: Exception) {}
         try { layer.secondaryEffect = TextEffectType.valueOf(style.secondaryEffect ?: "NONE") } catch (e: Exception) {}
+        try { layer.tertiaryEffect = TextEffectType.valueOf(style.tertiaryEffect ?: "NONE") } catch (e: Exception) {}
         layer.wavyIntensity = style.wavyIntensity
         layer.wavyFrequency = style.wavyFrequency
         layer.fieryColor = style.fieryColor

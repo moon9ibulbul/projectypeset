@@ -184,6 +184,7 @@ object StyleManager {
         // Effects configuration
         val currentEffect: String? = "NONE",
         val secondaryEffect: String? = "NONE",
+        val tertiaryEffect: String? = "NONE",
         val wavyIntensity: Float = 0.5f,
         val wavyFrequency: Float = 5f,
         val fieryColor: Int = Color.RED,
@@ -234,7 +235,7 @@ object StyleManager {
             l.zoomBlurCenterX, l.zoomBlurCenterY, l.zoomBlurInnerRadius, l.zoomBlurRadius, l.zoomBlurStrength,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
-            l.currentEffect.name, l.secondaryEffect.name,
+            l.currentEffect.name, l.secondaryEffect.name, l.tertiaryEffect.name,
             l.wavyIntensity, l.wavyFrequency,
             l.fieryColor, l.fieryIntensity,
             l.neonRadius, l.neonColor,
@@ -344,6 +345,7 @@ object StyleManager {
 
         try { l.currentEffect = TextEffectType.valueOf(m.currentEffect ?: "NONE") } catch (e: Exception) {}
         try { l.secondaryEffect = TextEffectType.valueOf(m.secondaryEffect ?: "NONE") } catch (e: Exception) {}
+        try { l.tertiaryEffect = TextEffectType.valueOf(m.tertiaryEffect ?: "NONE") } catch (e: Exception) {}
         l.wavyIntensity = m.wavyIntensity
         l.wavyFrequency = m.wavyFrequency
         l.fieryColor = m.fieryColor
