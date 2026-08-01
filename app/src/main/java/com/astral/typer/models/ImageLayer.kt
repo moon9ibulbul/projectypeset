@@ -93,6 +93,12 @@ class ImageLayer(
     override var halftoneDotSize: Float = 10f
     override var halftoneDotColor: Int = Color.BLACK
     override var halftoneThreshold: Float = 0.5f
+    override var halftoneType: String = "INNER"
+    override var halftoneAlpha: Float = 1.0f
+    override var halftoneRange: Float = 20f
+    override var halftoneDensity: Float = 10f
+    override var halftoneFadingIntensity: Float = 1.0f
+    override var halftoneShape: String = "DOT"
     override var neonRadius: Float = 30f
     override var neonColor: Int = Color.CYAN
     override var neonAlpha: Float = 1.0f

@@ -197,6 +197,17 @@ object StyleManager {
         val neonKnockout: Boolean = false,
         val neonQuality: Float = 0.1f,
 
+        // Halftone Configuration
+        val halftoneDotSize: Float? = 10f,
+        val halftoneDotColor: Int? = Color.BLACK,
+        val halftoneThreshold: Float? = 0.5f,
+        val halftoneType: String? = "INNER",
+        val halftoneAlpha: Float? = 1.0f,
+        val halftoneRange: Float? = 20f,
+        val halftoneDensity: Float? = 10f,
+        val halftoneFadingIntensity: Float? = 1.0f,
+        val halftoneShape: String? = "DOT",
+
         // Built-in Pattern
         val patternName: String? = null,
         val patternColor: Int? = Color.BLACK,
@@ -242,6 +253,9 @@ object StyleManager {
             l.neonRadius, l.neonColor,
             l.neonAlpha, l.neonInnerStrength, l.neonOuterStrength,
             l.neonKnockout, l.neonQuality,
+            l.halftoneDotSize, l.halftoneDotColor, l.halftoneThreshold,
+            l.halftoneType, l.halftoneAlpha, l.halftoneRange,
+            l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
             l.caseType, l.chromaticAngle
         )
@@ -359,6 +373,17 @@ object StyleManager {
         l.neonKnockout = m.neonKnockout
         l.neonQuality = m.neonQuality
         m.chromaticAngle?.let { l.chromaticAngle = it }
+
+        // Halftone Restore
+        m.halftoneDotSize?.let { l.halftoneDotSize = it }
+        m.halftoneDotColor?.let { l.halftoneDotColor = it }
+        m.halftoneThreshold?.let { l.halftoneThreshold = it }
+        m.halftoneType?.let { l.halftoneType = it }
+        m.halftoneAlpha?.let { l.halftoneAlpha = it }
+        m.halftoneRange?.let { l.halftoneRange = it }
+        m.halftoneDensity?.let { l.halftoneDensity = it }
+        m.halftoneFadingIntensity?.let { l.halftoneFadingIntensity = it }
+        m.halftoneShape?.let { l.halftoneShape = it }
 
         m.patternName?.let { l.patternName = it }
         m.patternColor?.let { l.patternColor = it }

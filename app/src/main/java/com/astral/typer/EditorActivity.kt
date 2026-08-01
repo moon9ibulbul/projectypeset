@@ -1391,23 +1391,135 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
-                val currentDotSize = stylableLayer.halftoneDotSize
-                val s1 = createSlider("Dot Size: ${currentDotSize.toInt()}", currentDotSize.toInt().coerceIn(1, 50), 50) {
-                    stylableLayer.halftoneDotSize = it.coerceAtLeast(1).toFloat()
+                // 1. Type Spinner: INNER vs OUTER
+                val tvTypeLabel = TextView(this).apply { text = "Halftone Type"; setTextColor(Color.WHITE); setPadding(0,16,0,8) }
+                settingsLayout.addView(tvTypeLabel)
+
+                val spinnerType = android.widget.Spinner(this)
+                val typeOptions = listOf("INNER", "OUTER")
+                val typeAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, typeOptions)
+                typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                spinnerType.adapter = typeAdapter
+                spinnerType.setSelection(typeOptions.indexOf(stylableLayer.halftoneType).coerceAtLeast(0))
+                settingsLayout.addView(spinnerType)
+
+                // 2. Shape Spinner: Dot, Square, Line
+                val tvShapeLabel = TextView(this).apply { text = "Shape"; setTextColor(Color.WHITE); setPadding(0,16,0,8) }
+                settingsLayout.addView(tvShapeLabel)
+
+                val spinnerShape = android.widget.Spinner(this)
+                val shapeLabelOptions = listOf("Dot (lingkaran)", "Square (kotak)", "Line (garis)")
+                val shapeValueOptions = listOf("DOT", "SQUARE", "LINE")
+                val shapeAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, shapeLabelOptions)
+                shapeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                spinnerShape.adapter = shapeAdapter
+                spinnerShape.setSelection(shapeValueOptions.indexOf(stylableLayer.halftoneShape).coerceAtLeast(0))
+                settingsLayout.addView(spinnerShape)
+
+                // 3. Alpha Slider (0.0 to 1.0)
+                val initialAlphaPercent = (stylableLayer.halftoneAlpha * 100f).toInt().coerceIn(0, 100)
+                val sAlpha = createSlider("Alpha: $initialAlphaPercent%", initialAlphaPercent, 100) {
+                    stylableLayer.halftoneAlpha = it / 100f
                     canvasView.invalidate()
                 }
-                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
-                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                val tvAlpha = sAlpha.findViewWithTag<TextView>("SLIDER_LABEL")
+                sAlpha.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        stylableLayer.halftoneDotSize = p.coerceAtLeast(1).toFloat()
-                        tv1?.text = "Dot Size: $p"
+                        stylableLayer.halftoneAlpha = p / 100f
+                        tvAlpha?.text = "Alpha: $p%"
                         canvasView.invalidate()
                     }
                     override fun onStartTrackingTouch(s: SeekBar?) {}
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
-                settingsLayout.addView(s1)
-                val tvColor = TextView(this).apply { text = "Dot Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                settingsLayout.addView(sAlpha)
+
+                // 4. Density Slider (2.0 to 100.0)
+                val initialDensity = stylableLayer.halftoneDensity.toInt().coerceIn(2, 100)
+                val sDensity = createSlider("Density: $initialDensity", initialDensity, 100) {
+                    stylableLayer.halftoneDensity = it.coerceAtLeast(2).toFloat()
+                    canvasView.invalidate()
+                }
+                val tvDensity = sDensity.findViewWithTag<TextView>("SLIDER_LABEL")
+                sDensity.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val valCoerced = p.coerceAtLeast(2)
+                        stylableLayer.halftoneDensity = valCoerced.toFloat()
+                        tvDensity?.text = "Density: $valCoerced"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sDensity)
+
+                // 5. Range Slider (0 to 100, visible only if "OUTER")
+                val initialRange = stylableLayer.halftoneRange.toInt().coerceIn(0, 100)
+                val sRange = createSlider("Range: $initialRange", initialRange, 100) {
+                    stylableLayer.halftoneRange = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvRange = sRange.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRange.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.halftoneRange = p.toFloat()
+                        tvRange?.text = "Range: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+
+                // 6. Fading Intensity Slider (0.0 to 5.0, mapped as 0..50, visible only if "OUTER")
+                val initialFadingVal = (stylableLayer.halftoneFadingIntensity * 10f).toInt().coerceIn(0, 50)
+                val sFading = createSlider("Fading Intensity: ${initialFadingVal / 10f}", initialFadingVal, 50) {
+                    stylableLayer.halftoneFadingIntensity = it / 10f
+                    canvasView.invalidate()
+                }
+                val tvFading = sFading.findViewWithTag<TextView>("SLIDER_LABEL")
+                sFading.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.halftoneFadingIntensity = p / 10f
+                        tvFading?.text = "Fading Intensity: ${p / 10f}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+
+                fun updateSlidersVisibility(type: String) {
+                    if (type == "OUTER") {
+                        sRange.visibility = View.VISIBLE
+                        sFading.visibility = View.VISIBLE
+                    } else {
+                        sRange.visibility = View.GONE
+                        sFading.visibility = View.GONE
+                    }
+                }
+
+                updateSlidersVisibility(stylableLayer.halftoneType)
+                settingsLayout.addView(sRange)
+                settingsLayout.addView(sFading)
+
+                spinnerType.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        val selectedType = typeOptions[position]
+                        stylableLayer.halftoneType = selectedType
+                        updateSlidersVisibility(selectedType)
+                        canvasView.invalidate()
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+                }
+
+                spinnerShape.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        stylableLayer.halftoneShape = shapeValueOptions[position]
+                        canvasView.invalidate()
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+                }
+
+                val tvColor = TextView(this).apply { text = "Halftone Color"; setTextColor(Color.WHITE); setPadding(0,16,0,8) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.halftoneDotColor,
                     { c -> stylableLayer.halftoneDotColor = c; canvasView.invalidate(); showEffectMenu() },

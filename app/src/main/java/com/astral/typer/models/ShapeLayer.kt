@@ -125,6 +125,12 @@ class ShapeLayer(
     override var halftoneDotSize: Float = 10f
     override var halftoneDotColor: Int = Color.BLACK
     override var halftoneThreshold: Float = 0.5f
+    override var halftoneType: String = "INNER"
+    override var halftoneAlpha: Float = 1.0f
+    override var halftoneRange: Float = 20f
+    override var halftoneDensity: Float = 10f
+    override var halftoneFadingIntensity: Float = 1.0f
+    override var halftoneShape: String = "DOT"
 
     // Neon
     override var neonRadius: Float = 30f
@@ -1021,18 +1027,192 @@ class ShapeLayer(
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
                 TextEffectType.HALFTONE -> {
+                    var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("HalftoneNode")
                             node.setPosition(0, 0, nodeW, nodeH)
-                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
                             val shader = android.graphics.RuntimeShader(TextLayer.HALFTONE_SHADER)
-                            shader.setFloatUniform("dotSize", halftoneDotSize.coerceAtLeast(1f)); shader.setFloatUniform("threshold", halftoneThreshold)
-                            shader.setFloatUniform("dotColor", Color.red(halftoneDotColor)/255f, Color.green(halftoneDotColor)/255f, Color.blue(halftoneDotColor)/255f)
+                            shader.setFloatUniform("threshold", halftoneThreshold)
+                            val r = Color.red(halftoneDotColor) / 255f
+                            val g = Color.green(halftoneDotColor) / 255f
+                            val b = Color.blue(halftoneDotColor) / 255f
+                            shader.setFloatUniform("dotColor", r, g, b)
+                            shader.setFloatUniform("halftoneType", if (halftoneType == "OUTER") 1f else 0f)
+                            shader.setFloatUniform("alpha", halftoneAlpha)
+                            shader.setFloatUniform("range", halftoneRange)
+                            shader.setFloatUniform("density", halftoneDensity.coerceAtLeast(1f))
+                            shader.setFloatUniform("fadingIntensity", halftoneFadingIntensity)
+                            val shapeVal = when (halftoneShape) {
+                                "SQUARE" -> 1f
+                                "LINE" -> 2f
+                                else -> 0f // "DOT"
+                            }
+                            shader.setFloatUniform("shapeType", shapeVal)
+
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
-                        } catch (e: Exception) { drawInner(targetCanvas) }
-                    } else drawInner(targetCanvas)
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+
+                    if (!useRenderEffect) {
+                        val bmpW = nodeW
+                        val bmpH = nodeH
+                        if (bmpW > 0 && bmpH > 0) {
+                            val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val srcCanvas = Canvas(srcBmp)
+                            srcCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(srcCanvas)
+
+                            val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val pixels = IntArray(bmpW * bmpH)
+                            srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                            val outPixels = IntArray(bmpW * bmpH)
+
+                            val gridSpacing = Math.max(1f, 100f / halftoneDensity)
+                            val threshold = halftoneThreshold
+                            val r = Color.red(halftoneDotColor)
+                            val g = Color.green(halftoneDotColor)
+                            val b = Color.blue(halftoneDotColor)
+
+                            for (y in 0 until bmpH) {
+                                for (x in 0 until bmpW) {
+                                    val cellX = Math.floor(x / gridSpacing.toDouble()).toFloat()
+                                    val cellY = Math.floor(y / gridSpacing.toDouble()).toFloat()
+                                    val centerX = (cellX + 0.5f) * gridSpacing
+                                    val centerY = (cellY + 0.5f) * gridSpacing
+                                    val dist = Math.hypot((x - centerX).toDouble(), (y - centerY).toDouble()).toFloat()
+
+                                    val originalPixel = pixels[y * bmpW + x]
+                                    val originalAlpha = (originalPixel ushr 24) / 255f
+
+                                    if (halftoneType == "INNER") {
+                                        if (originalAlpha == 0f) continue
+                                        val radius = gridSpacing * 0.5f * threshold * originalAlpha
+                                        val insideShape = when (halftoneShape) {
+                                            "SQUARE" -> {
+                                                val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
+                                                sqDist < radius
+                                            }
+                                            "LINE" -> {
+                                                val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
+                                                lineDist < radius
+                                            }
+                                            else -> { // "DOT"
+                                                dist < radius
+                                            }
+                                        }
+                                        if (insideShape) {
+                                            val finalAlpha = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                            val outA = (finalAlpha * 255f).toInt()
+                                            val outR = (r * finalAlpha).toInt()
+                                            val outG = (g * finalAlpha).toInt()
+                                            val outB = (b * finalAlpha).toInt()
+                                            outPixels[y * bmpW + x] = (outA shl 24) or (outR shl 16) or (outG shl 8) or outB
+                                        }
+                                    } else { // "OUTER"
+                                        val range = halftoneRange
+                                        if (range <= 0f) {
+                                            outPixels[y * bmpW + x] = originalPixel
+                                            continue
+                                        }
+
+                                        // Find nearest shape pixel using a multi-directional search in 12 directions, 3 steps each
+                                        var minDist = range
+                                        val dirSteps = 12
+                                        val stepCount = 3
+                                        for (d in 0 until dirSteps) {
+                                            val angle = d * (2.0 * Math.PI / dirSteps)
+                                            val cosA = Math.cos(angle)
+                                            val sinA = Math.sin(angle)
+                                            for (s in 1..stepCount) {
+                                                val stepDist = (s.toFloat() / stepCount) * range
+                                                val sx = Math.round(x - cosA * stepDist).toInt()
+                                                val sy = Math.round(y - sinA * stepDist).toInt()
+                                                if (sx in 0 until bmpW && sy in 0 until bmpH) {
+                                                    val samplePixel = pixels[sy * bmpW + sx]
+                                                    val sampleAlpha = (samplePixel ushr 24) / 255f
+                                                    if (sampleAlpha > 0f) {
+                                                        if (stepDist < minDist) {
+                                                            minDist = stepDist
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if (minDist < range) {
+                                            val closeness = 1f - (minDist / range)
+                                            val fadeWeight = if (halftoneFadingIntensity > 0f) {
+                                                Math.pow(closeness.toDouble(), halftoneFadingIntensity.toDouble()).toFloat()
+                                            } else {
+                                                1f
+                                            }
+
+                                            val radius = gridSpacing * 0.5f * threshold * fadeWeight
+                                            val insideShape = when (halftoneShape) {
+                                                "SQUARE" -> {
+                                                    val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
+                                                    sqDist < radius
+                                                }
+                                                "LINE" -> {
+                                                    val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
+                                                    lineDist < radius
+                                                }
+                                                else -> { // "DOT"
+                                                    dist < radius
+                                                }
+                                            }
+
+                                            if (insideShape) {
+                                                val shadowAlpha = (halftoneAlpha * fadeWeight).coerceIn(0f, 1f)
+                                                // Blend original text on top of halftone shadow
+                                                val outA = (shadowAlpha + originalAlpha * (1f - shadowAlpha)).coerceIn(0f, 1f)
+                                                if (outA > 0f) {
+                                                    // Blend color: original color on top of shadow color
+                                                    val origR = Color.red(originalPixel)
+                                                    val origG = Color.green(originalPixel)
+                                                    val origB = Color.blue(originalPixel)
+
+                                                    val blendedR = (origR * originalAlpha + r * shadowAlpha * (1f - originalAlpha)) / outA
+                                                    val blendedG = (origG * originalAlpha + g * shadowAlpha * (1f - originalAlpha)) / outA
+                                                    val blendedB = (origB * originalAlpha + b * shadowAlpha * (1f - originalAlpha)) / outA
+
+                                                    outPixels[y * bmpW + x] = ((outA * 255f).toInt() shl 24) or
+                                                            (blendedR.toInt().coerceIn(0, 255) shl 16) or
+                                                            (blendedG.toInt().coerceIn(0, 255) shl 8) or
+                                                            blendedB.toInt().coerceIn(0, 255)
+                                                }
+                                            } else {
+                                                // No shadow pixel, just use original
+                                                outPixels[y * bmpW + x] = originalPixel
+                                            }
+                                        } else {
+                                            outPixels[y * bmpW + x] = originalPixel
+                                        }
+                                    }
+                                }
+                            }
+
+                            outBmp.setPixels(outPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                            targetCanvas.restore()
+                            srcBmp.recycle()
+                            outBmp.recycle()
+                        }
+                    }
                 }
                 TextEffectType.TEXT_DECAY -> {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -1316,6 +1496,11 @@ class ShapeLayer(
                 TextEffectType.REFLECTION -> effectExpansion = Math.max(effectExpansion, getHeight() * 1.5f + reflectionAmplitudeEnd)
                 TextEffectType.TWIST -> effectExpansion = Math.max(effectExpansion, twistRadius * 0.5f)
                 TextEffectType.BULGE_PINCH -> effectExpansion = Math.max(effectExpansion, bulgeRadius * 0.5f)
+                TextEffectType.HALFTONE -> {
+                    if (halftoneType == "OUTER") {
+                        effectExpansion = Math.max(effectExpansion, halftoneRange + 20f)
+                    }
+                }
                 else -> {}
             }
         }
@@ -1454,7 +1639,8 @@ class ShapeLayer(
         for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
-        newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
+        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
 
         // Twist
