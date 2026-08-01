@@ -640,41 +640,42 @@ class ShapeLayer(
         when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     val prevSilhouette = silhouetteColor
-                    silhouetteColor = null
 
                     // Pass 1: Shifted Left (chromaticColors[0])
+                    silhouetteColor = chromaticColors[0]
                     targetCanvas.save()
-                    val p1 = Paint().apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], PorterDuff.Mode.MULTIPLY)
-                    }
-                    targetCanvas.saveLayer(null, p1)
                     targetCanvas.translate(-chromaticShift, 0f)
                     drawInner(targetCanvas)
-                    targetCanvas.restore()
                     targetCanvas.restore()
 
                     // Pass 2: Shifted Right (chromaticColors[1])
                     targetCanvas.save()
                     val p2 = Paint().apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], PorterDuff.Mode.MULTIPLY)
                         xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
                     }
                     targetCanvas.saveLayer(null, p2)
+                    silhouetteColor = chromaticColors[1]
                     targetCanvas.translate(chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
                     targetCanvas.restore()
 
                     // Pass 3: Center (chromaticColors[2])
-                    targetCanvas.save()
-                    val p3 = Paint().apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], PorterDuff.Mode.MULTIPLY)
-                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                    if (chromaticColors.size > 2) {
+                        targetCanvas.save()
+                        val p3 = Paint().apply {
+                            xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                        }
+                        targetCanvas.saveLayer(null, p3)
+                        silhouetteColor = chromaticColors[2]
+                        drawInner(targetCanvas)
+                        targetCanvas.restore()
+                        targetCanvas.restore()
                     }
-                    targetCanvas.saveLayer(null, p3)
+
+                    // Pass 4: Base Pass - Original Color & Style on top
+                    silhouetteColor = null
                     drawInner(targetCanvas)
-                    targetCanvas.restore()
-                    targetCanvas.restore()
 
                     silhouetteColor = prevSilhouette
                 }
@@ -818,10 +819,6 @@ class ShapeLayer(
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetX", pts[0])
-                            shader.setFloatUniform("offsetY", pts[1])
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -844,9 +841,6 @@ class ShapeLayer(
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetY", pts[1])
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)

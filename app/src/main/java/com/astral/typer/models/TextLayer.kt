@@ -2077,27 +2077,36 @@ class TextLayer(
                     val originalColorFilter = paint.colorFilter
                     val prevSilhouette = silhouetteColor
 
-                    silhouetteColor = null
-
-                    // Left Pass: Shifted Left
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], PorterDuff.Mode.MULTIPLY)
+                    // Pass 1: Shifted Left (chromaticColors[0])
+                    silhouetteColor = chromaticColors[0]
+                    paint.colorFilter = null
                     paint.xfermode = null
                     targetCanvas.save()
                     targetCanvas.translate(-chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
-                    // Right Pass: Shifted Right
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], PorterDuff.Mode.MULTIPLY)
+                    // Pass 2: Shifted Right (chromaticColors[1])
+                    silhouetteColor = chromaticColors[1]
+                    paint.colorFilter = null
                     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
                     targetCanvas.save()
                     targetCanvas.translate(chromaticShift, 0f)
                     drawInner(targetCanvas)
                     targetCanvas.restore()
 
-                    // Center Pass
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], PorterDuff.Mode.MULTIPLY)
-                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                    // Pass 3: Center (chromaticColors[2])
+                    if (chromaticColors.size > 2) {
+                        silhouetteColor = chromaticColors[2]
+                        paint.colorFilter = null
+                        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                        drawInner(targetCanvas)
+                    }
+
+                    // Pass 4: Base Pass - Original Color & Style on top
+                    silhouetteColor = null
+                    paint.colorFilter = originalColorFilter
+                    paint.xfermode = null
                     drawInner(targetCanvas)
 
                     silhouetteColor = prevSilhouette
@@ -2286,10 +2295,6 @@ class TextLayer(
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetX", pts[0])
-                            shader.setFloatUniform("offsetY", pts[1])
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -2318,9 +2323,6 @@ class TextLayer(
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetY", pts[1])
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -3010,8 +3012,6 @@ class TextLayer(
             uniform float time;
             uniform float intensity;
             uniform float3 color;
-            uniform float offsetX;
-            uniform float offsetY;
 
             float hash(float2 p) {
                 return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
@@ -3026,14 +3026,13 @@ class TextLayer(
             }
 
             half4 main(float2 coord) {
-                float2 localCoord = coord - float2(offsetX, offsetY);
-                float2 noiseCoord = localCoord * 0.02 + float2(0.0, -time * 2.0);
+                float2 noiseCoord = coord * 0.02 + float2(0.0, -time * 2.0);
                 float n = noise(noiseCoord);
-                float n2 = noise(localCoord * 0.05 + float2(0.0, -time * 3.5));
+                float n2 = noise(coord * 0.05 + float2(0.0, -time * 3.5));
 
                 float2 uv = coord;
                 uv.y += (n * 0.7 + n2 * 0.3) * intensity * 40.0;
-                uv.x += sin(localCoord.y * 0.05 - time * 6.0) * intensity * 8.0;
+                uv.x += sin(coord.y * 0.05 - time * 6.0) * intensity * 8.0;
 
                 half4 displaced = content.eval(uv);
                 if (displaced.a == 0.0) return half4(0.0);
@@ -3049,10 +3048,9 @@ class TextLayer(
             uniform float time;
             uniform float intensity;
             uniform float frequency;
-            uniform float offsetY;
 
             half4 main(float2 coord) {
-                float offset = sin((coord.y - offsetY) * 0.05 * frequency + time * 5.0) * intensity * 10.0;
+                float offset = sin(coord.y * 0.05 * frequency + time * 5.0) * intensity * 10.0;
                 return content.eval(coord + float2(offset, 0));
             }
         """
