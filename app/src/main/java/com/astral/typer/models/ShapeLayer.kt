@@ -143,7 +143,8 @@ class ShapeLayer(
 
     // Chromatic Aberration
     override var chromaticShift: Float = 5f
-    override var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())
+    override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())
+    override var chromaticAngle: Float = 0f
 
     // Fiery
     override var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -639,44 +640,152 @@ class ShapeLayer(
 
         when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
-                    val prevSilhouette = silhouetteColor
-                    silhouetteColor = null
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ChromaticNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
 
-                    // Pass 1: Shifted Left (chromaticColors[0])
-                    targetCanvas.save()
-                    val p1 = Paint().apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], PorterDuff.Mode.MULTIPLY)
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.CHROMATIC_ABERRATION_SHADER)
+                            val angleRad = Math.toRadians(chromaticAngle.toDouble())
+                            val dx = (chromaticShift * Math.cos(angleRad)).toFloat()
+                            val dy = (chromaticShift * Math.sin(angleRad)).toFloat()
+                            shader.setFloatUniform("offset", dx, dy)
+
+                            val rL = Color.red(chromaticColors[0]) / 255f
+                            val gL = Color.green(chromaticColors[0]) / 255f
+                            val bL = Color.blue(chromaticColors[0]) / 255f
+                            shader.setFloatUniform("colorL", rL, gL, bL)
+
+                            val rR = Color.red(chromaticColors[1]) / 255f
+                            val gR = Color.green(chromaticColors[1]) / 255f
+                            val bR = Color.blue(chromaticColors[1]) / 255f
+                            shader.setFloatUniform("colorR", rR, gR, bR)
+
+                            val rC = Color.red(chromaticColors[2]) / 255f
+                            val gC = Color.green(chromaticColors[2]) / 255f
+                            val bC = Color.blue(chromaticColors[2]) / 255f
+                            shader.setFloatUniform("colorC", rC, gC, bC)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
-                    targetCanvas.saveLayer(null, p1)
-                    targetCanvas.translate(-chromaticShift, 0f)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
-                    targetCanvas.restore()
 
-                    // Pass 2: Shifted Right (chromaticColors[1])
-                    targetCanvas.save()
-                    val p2 = Paint().apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], PorterDuff.Mode.MULTIPLY)
-                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+                    if (!useRenderEffect) {
+                        val angleRad = Math.toRadians(chromaticAngle.toDouble())
+                        val dx = (chromaticShift * Math.cos(angleRad)).toFloat()
+                        val dy = (chromaticShift * Math.sin(angleRad)).toFloat()
+
+                        val bmpW = nodeW
+                        val bmpH = nodeH
+                        if (bmpW > 0 && bmpH > 0) {
+                            val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val srcCanvas = Canvas(srcBmp)
+                            srcCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(srcCanvas)
+
+                            val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val pixels = IntArray(bmpW * bmpH)
+                            srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+                            val outPixels = IntArray(bmpW * bmpH)
+
+                            val rL = Color.red(chromaticColors[0]) / 255f
+                            val gL = Color.green(chromaticColors[0]) / 255f
+                            val bL = Color.blue(chromaticColors[0]) / 255f
+
+                            val rR = Color.red(chromaticColors[1]) / 255f
+                            val gR = Color.green(chromaticColors[1]) / 255f
+                            val bR = Color.blue(chromaticColors[1]) / 255f
+
+                            val rC = Color.red(chromaticColors[2]) / 255f
+                            val gC = Color.green(chromaticColors[2]) / 255f
+                            val bC = Color.blue(chromaticColors[2]) / 255f
+
+                            for (y in 0 until bmpH) {
+                                for (x in 0 until bmpW) {
+                                    val xL = Math.round(x - dx)
+                                    val yL = Math.round(y - dy)
+                                    val hasL = xL in 0 until bmpW && yL in 0 until bmpH
+                                    val colorL = if (hasL) pixels[yL * bmpW + xL] else 0
+                                    val aL = if (hasL) Color.alpha(colorL) / 255f else 0f
+
+                                    val xR = Math.round(x + dx)
+                                    val yR = Math.round(y + dy)
+                                    val hasR = xR in 0 until bmpW && yR in 0 until bmpH
+                                    val colorR = if (hasR) pixels[yR * bmpW + xR] else 0
+                                    val aR = if (hasR) Color.alpha(colorR) / 255f else 0f
+
+                                    val colorC = pixels[y * bmpW + x]
+                                    val aC = Color.alpha(colorC) / 255f
+
+                                    if (aL == 0f && aR == 0f && aC == 0f) {
+                                        continue
+                                    }
+
+                                    val tL_r = 1f - aL * (1f - rL)
+                                    val tL_g = 1f - aL * (1f - gL)
+                                    val tL_b = 1f - aL * (1f - bL)
+
+                                    val tR_r = 1f - aR * (1f - rR)
+                                    val tR_g = 1f - aR * (1f - gR)
+                                    val tR_b = 1f - aR * (1f - bR)
+
+                                    val tC_r = 1f - aC * (1f - rC)
+                                    val tC_g = 1f - aC * (1f - gC)
+                                    val tC_b = 1f - aC * (1f - bC)
+
+                                    val cSub_r = tL_r * tR_r * tC_r
+                                    val cSub_g = tL_g * tR_g * tC_g
+                                    val cSub_b = tL_b * tR_b * tC_b
+
+                                    val wTriple = aL * aR * aC
+
+                                    val base_r = Color.red(colorC) / 255f
+                                    val base_g = Color.green(colorC) / 255f
+                                    val base_b = Color.blue(colorC) / 255f
+
+                                    val final_r = cSub_r * (1f - wTriple) + base_r * wTriple
+                                    val final_g = cSub_g * (1f - wTriple) + base_g * wTriple
+                                    val final_b = cSub_b * (1f - wTriple) + base_b * wTriple
+
+                                    val finalAlpha = Math.max(aL, Math.max(aR, aC))
+
+                                    val outColor = Color.argb(
+                                        (finalAlpha * 255f).toInt().coerceIn(0, 255),
+                                        (final_r * 255f).toInt().coerceIn(0, 255),
+                                        (final_g * 255f).toInt().coerceIn(0, 255),
+                                        (final_b * 255f).toInt().coerceIn(0, 255)
+                                    )
+                                    outPixels[y * bmpW + x] = outColor
+                                }
+                            }
+
+                            outBmp.setPixels(outPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                            targetCanvas.restore()
+
+                            srcBmp.recycle()
+                            outBmp.recycle()
+                        } else {
+                            drawInner(targetCanvas)
+                        }
                     }
-                    targetCanvas.saveLayer(null, p2)
-                    targetCanvas.translate(chromaticShift, 0f)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
-                    targetCanvas.restore()
-
-                    // Pass 3: Center (chromaticColors[2])
-                    targetCanvas.save()
-                    val p3 = Paint().apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], PorterDuff.Mode.MULTIPLY)
-                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-                    }
-                    targetCanvas.saveLayer(null, p3)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
-                    targetCanvas.restore()
-
-                    silhouetteColor = prevSilhouette
                 }
                 TextEffectType.PIXELATION -> {
                     val safeBlockSize = pixelBlockSize.coerceAtLeast(1f)
@@ -1345,7 +1454,7 @@ class ShapeLayer(
         for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
-        newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
 
         // Twist

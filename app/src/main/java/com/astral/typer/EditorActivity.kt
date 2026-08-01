@@ -1650,8 +1650,8 @@ class EditorActivity : AppCompatActivity() {
 
                 data class ChromaticPaletteItem(val name: String, val colors: IntArray)
                 val palettes = listOf(
-                    ChromaticPaletteItem("Standar", intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())),
-                    ChromaticPaletteItem("Standar 2", intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())),
+                    ChromaticPaletteItem("Standar", intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())),
+                    ChromaticPaletteItem("Standar 2", intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())),
                     ChromaticPaletteItem("Melancholy", intArrayOf(0xFF4A6984.toInt(), 0xFF7BA4B6.toInt(), 0xFFB3A1C6.toInt())),
                     ChromaticPaletteItem("Thriller", intArrayOf(0xFF8B0000.toInt(), 0xFF556B2F.toInt(), 0xFF4B0082.toInt())),
                     ChromaticPaletteItem("Romantic", intArrayOf(0xFFFF69B4.toInt(), 0xFFFFB6C1.toInt(), 0xFF87CEFA.toInt())),
@@ -1738,6 +1738,23 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s1)
+
+                val currentAngle = stylableLayer.chromaticAngle
+                val s2 = createSlider("Angle: ${currentAngle.toInt()}°", currentAngle.toInt(), 360) {
+                    stylableLayer.chromaticAngle = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.chromaticAngle = p.toFloat()
+                        tv2?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
         }
 
         if (isEffectActive(TextEffectType.TEXT_DECAY)) {

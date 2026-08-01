@@ -87,6 +87,7 @@ interface StylableLayer {
     var pixelBlockSize: Float
     var chromaticShift: Float
     var chromaticColors: IntArray
+    var chromaticAngle: Float
     var fieryColor: Int
     var fieryIntensity: Float
     var wavyIntensity: Float

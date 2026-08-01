@@ -270,7 +270,8 @@ class TextLayer(
 
     // Chromatic Aberration
     override var chromaticShift: Float = 5f
-    override var chromaticColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt()) // Left, Right, Center
+    override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt()) // Left, Right, Center (Magenta in middle)
+    override var chromaticAngle: Float = 0f
 
     // Fiery
     override var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -486,6 +487,7 @@ class TextLayer(
         result = 31 * result + pixelBlockSize.hashCode()
         result = 31 * result + chromaticShift.hashCode()
         result = 31 * result + chromaticColors.contentHashCode()
+        result = 31 * result + chromaticAngle.hashCode()
         result = 31 * result + multiGradientColors.contentHashCode()
         result = 31 * result + multiGradientAngle.hashCode()
         result = 31 * result + particleSize.hashCode()
@@ -741,6 +743,7 @@ class TextLayer(
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
         newLayer.chromaticColors = this.chromaticColors.clone()
+        newLayer.chromaticAngle = this.chromaticAngle
         newLayer.effectSeed = this.effectSeed
 
         newLayer.fieryColor = this.fieryColor
@@ -2071,41 +2074,152 @@ class TextLayer(
 
         when (effect) {
                 TextEffectType.CHROMATIC_ABERRATION -> {
-                    val originalXfermode = paint.xfermode
-                    val originalColor = paint.color
-                    val originalShader = paint.shader
-                    val originalColorFilter = paint.colorFilter
-                    val prevSilhouette = silhouetteColor
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("ChromaticNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
 
-                    silhouetteColor = null
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
 
-                    // Left Pass: Shifted Left
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[0], PorterDuff.Mode.MULTIPLY)
-                    paint.xfermode = null
-                    targetCanvas.save()
-                    targetCanvas.translate(-chromaticShift, 0f)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
+                            val shader = android.graphics.RuntimeShader(CHROMATIC_ABERRATION_SHADER)
+                            val angleRad = Math.toRadians(chromaticAngle.toDouble())
+                            val dx = (chromaticShift * Math.cos(angleRad)).toFloat()
+                            val dy = (chromaticShift * Math.sin(angleRad)).toFloat()
+                            shader.setFloatUniform("offset", dx, dy)
 
-                    // Right Pass: Shifted Right
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[1], PorterDuff.Mode.MULTIPLY)
-                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-                    targetCanvas.save()
-                    targetCanvas.translate(chromaticShift, 0f)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
+                            val rL = Color.red(chromaticColors[0]) / 255f
+                            val gL = Color.green(chromaticColors[0]) / 255f
+                            val bL = Color.blue(chromaticColors[0]) / 255f
+                            shader.setFloatUniform("colorL", rL, gL, bL)
 
-                    // Center Pass
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(chromaticColors[2], PorterDuff.Mode.MULTIPLY)
-                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-                    drawInner(targetCanvas)
+                            val rR = Color.red(chromaticColors[1]) / 255f
+                            val gR = Color.green(chromaticColors[1]) / 255f
+                            val bR = Color.blue(chromaticColors[1]) / 255f
+                            shader.setFloatUniform("colorR", rR, gR, bR)
 
-                    silhouetteColor = prevSilhouette
+                            val rC = Color.red(chromaticColors[2]) / 255f
+                            val gC = Color.green(chromaticColors[2]) / 255f
+                            val bC = Color.blue(chromaticColors[2]) / 255f
+                            shader.setFloatUniform("colorC", rC, gC, bC)
 
-                    paint.xfermode = originalXfermode
-                    paint.color = originalColor
-                    paint.shader = originalShader
-                    paint.colorFilter = originalColorFilter
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    if (!useRenderEffect) {
+                        val angleRad = Math.toRadians(chromaticAngle.toDouble())
+                        val dx = (chromaticShift * Math.cos(angleRad)).toFloat()
+                        val dy = (chromaticShift * Math.sin(angleRad)).toFloat()
+
+                        val bmpW = nodeW
+                        val bmpH = nodeH
+                        if (bmpW > 0 && bmpH > 0) {
+                            val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val srcCanvas = Canvas(srcBmp)
+                            srcCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(srcCanvas)
+
+                            val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                            val pixels = IntArray(bmpW * bmpH)
+                            srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+                            val outPixels = IntArray(bmpW * bmpH)
+
+                            val rL = Color.red(chromaticColors[0]) / 255f
+                            val gL = Color.green(chromaticColors[0]) / 255f
+                            val bL = Color.blue(chromaticColors[0]) / 255f
+
+                            val rR = Color.red(chromaticColors[1]) / 255f
+                            val gR = Color.green(chromaticColors[1]) / 255f
+                            val bR = Color.blue(chromaticColors[1]) / 255f
+
+                            val rC = Color.red(chromaticColors[2]) / 255f
+                            val gC = Color.green(chromaticColors[2]) / 255f
+                            val bC = Color.blue(chromaticColors[2]) / 255f
+
+                            for (y in 0 until bmpH) {
+                                for (x in 0 until bmpW) {
+                                    val xL = Math.round(x - dx)
+                                    val yL = Math.round(y - dy)
+                                    val hasL = xL in 0 until bmpW && yL in 0 until bmpH
+                                    val colorL = if (hasL) pixels[yL * bmpW + xL] else 0
+                                    val aL = if (hasL) Color.alpha(colorL) / 255f else 0f
+
+                                    val xR = Math.round(x + dx)
+                                    val yR = Math.round(y + dy)
+                                    val hasR = xR in 0 until bmpW && yR in 0 until bmpH
+                                    val colorR = if (hasR) pixels[yR * bmpW + xR] else 0
+                                    val aR = if (hasR) Color.alpha(colorR) / 255f else 0f
+
+                                    val colorC = pixels[y * bmpW + x]
+                                    val aC = Color.alpha(colorC) / 255f
+
+                                    if (aL == 0f && aR == 0f && aC == 0f) {
+                                        continue
+                                    }
+
+                                    val tL_r = 1f - aL * (1f - rL)
+                                    val tL_g = 1f - aL * (1f - gL)
+                                    val tL_b = 1f - aL * (1f - bL)
+
+                                    val tR_r = 1f - aR * (1f - rR)
+                                    val tR_g = 1f - aR * (1f - gR)
+                                    val tR_b = 1f - aR * (1f - bR)
+
+                                    val tC_r = 1f - aC * (1f - rC)
+                                    val tC_g = 1f - aC * (1f - gC)
+                                    val tC_b = 1f - aC * (1f - bC)
+
+                                    val cSub_r = tL_r * tR_r * tC_r
+                                    val cSub_g = tL_g * tR_g * tC_g
+                                    val cSub_b = tL_b * tR_b * tC_b
+
+                                    val wTriple = aL * aR * aC
+
+                                    val base_r = Color.red(colorC) / 255f
+                                    val base_g = Color.green(colorC) / 255f
+                                    val base_b = Color.blue(colorC) / 255f
+
+                                    val final_r = cSub_r * (1f - wTriple) + base_r * wTriple
+                                    val final_g = cSub_g * (1f - wTriple) + base_g * wTriple
+                                    val final_b = cSub_b * (1f - wTriple) + base_b * wTriple
+
+                                    val finalAlpha = Math.max(aL, Math.max(aR, aC))
+
+                                    val outColor = Color.argb(
+                                        (finalAlpha * 255f).toInt().coerceIn(0, 255),
+                                        (final_r * 255f).toInt().coerceIn(0, 255),
+                                        (final_g * 255f).toInt().coerceIn(0, 255),
+                                        (final_b * 255f).toInt().coerceIn(0, 255)
+                                    )
+                                    outPixels[y * bmpW + x] = outColor
+                                }
+                            }
+
+                            outBmp.setPixels(outPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                            targetCanvas.restore()
+
+                            srcBmp.recycle()
+                            outBmp.recycle()
+                        } else {
+                            drawInner(targetCanvas)
+                        }
+                    }
                 }
                 TextEffectType.PIXELATION -> {
                     val safeBlockSize = pixelBlockSize.coerceAtLeast(1f)
@@ -2933,6 +3047,42 @@ class TextLayer(
     }
 
     companion object {
+
+        const val CHROMATIC_ABERRATION_SHADER = """
+            uniform shader content;
+            uniform float2 offset;
+            uniform float3 colorL;
+            uniform float3 colorR;
+            uniform float3 colorC;
+
+            half4 main(float2 coord) {
+                half4 sL = content.eval(coord - offset);
+                half4 sR = content.eval(coord + offset);
+                half4 sC = content.eval(coord);
+
+                float aL = sL.a;
+                float aR = sR.a;
+                float aC = sC.a;
+
+                // Subtractive filter factors
+                float3 tL = mix(float3(1.0), colorL, aL);
+                float3 tR = mix(float3(1.0), colorR, aR);
+                float3 tC = mix(float3(1.0), colorC, aC);
+
+                float3 cSub = tL * tR * tC;
+
+                // Triple overlap weight
+                float wTriple = aL * aR * aC;
+
+                // Base color is from center pass (unshifted)
+                float3 baseColor = sC.a > 0.0 ? sC.rgb / sC.a : sC.rgb;
+
+                float3 finalColor = mix(cSub, baseColor, wTriple);
+                float finalAlpha = max(aL, max(aR, aC));
+
+                return half4(finalColor * finalAlpha, finalAlpha);
+            }
+        """
 
         const val MOTION_BLUR_SHADER = """
             uniform shader content;
