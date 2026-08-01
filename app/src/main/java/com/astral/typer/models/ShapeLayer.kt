@@ -143,7 +143,7 @@ class ShapeLayer(
 
     // Chromatic Aberration
     override var chromaticShift: Float = 5f
-    override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFF00FF.toInt(), 0xFFFFFF00.toInt())
+    override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())
 
     // Fiery
     override var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -641,97 +641,131 @@ class ShapeLayer(
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     val prevSilhouette = silhouetteColor
 
-                    // Pass 1: Shifted Left (chromaticColors[0])
-                    silhouetteColor = chromaticColors[0]
-                    targetCanvas.save()
-                    targetCanvas.translate(-chromaticShift, 0f)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
-
-                    // Pass 2: Shifted Right (chromaticColors[1])
-                    targetCanvas.save()
-                    val p2 = Paint().apply {
-                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-                    }
-                    targetCanvas.saveLayer(null, p2)
-                    silhouetteColor = chromaticColors[1]
-                    targetCanvas.translate(chromaticShift, 0f)
-                    drawInner(targetCanvas)
-                    targetCanvas.restore()
-                    targetCanvas.restore()
-
-                    // Pass 3: Center (chromaticColors[2])
-                    if (chromaticColors.size > 2) {
-                        targetCanvas.save()
-                        val p3 = Paint().apply {
-                            xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-                        }
-                        targetCanvas.saveLayer(null, p3)
-                        silhouetteColor = chromaticColors[2]
-                        drawInner(targetCanvas)
-                        targetCanvas.restore()
-                        targetCanvas.restore()
-                    }
-
-                    // Pass 4: Base Pass - Only rendered on top of the intersection (L intersect R intersect C)
-                    var maskBitmap: android.graphics.Bitmap? = null
+                    // We will render the Cyan, Yellow, and Magenta passes using subtractive (MULTIPLY) blending
+                    // on a solid-White temporary offscreen bitmap to prevent background interference.
+                    var offscreenBitmap: android.graphics.Bitmap? = null
                     try {
-                        maskBitmap = android.graphics.Bitmap.createBitmap(nodeW, nodeH, android.graphics.Bitmap.Config.ARGB_8888)
-                        val maskCanvas = android.graphics.Canvas(maskBitmap)
+                        offscreenBitmap = android.graphics.Bitmap.createBitmap(nodeW, nodeH, android.graphics.Bitmap.Config.ARGB_8888)
+                        val offscreenCanvas = android.graphics.Canvas(offscreenBitmap)
+                        offscreenCanvas.drawColor(android.graphics.Color.WHITE)
+
+                        // 1. Draw Left Pass (Cyan)
+                        silhouetteColor = chromaticColors[0]
+                        offscreenCanvas.save()
+                        offscreenCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
+                        drawInner(offscreenCanvas)
+                        offscreenCanvas.restore()
+
+                        // 2. Draw Right Pass (Yellow) - multiplied with Left
+                        offscreenCanvas.save()
+                        val pMult = Paint().apply {
+                            xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
+                        }
+                        offscreenCanvas.saveLayer(null, pMult)
+                        silhouetteColor = chromaticColors[1]
+                        offscreenCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
+                        drawInner(offscreenCanvas)
+                        offscreenCanvas.restore()
+                        offscreenCanvas.restore()
+
+                        // 3. Draw Center Pass (Magenta) - multiplied with Left and Right
+                        if (chromaticColors.size > 2) {
+                            offscreenCanvas.save()
+                            offscreenCanvas.saveLayer(null, pMult)
+                            silhouetteColor = chromaticColors[2]
+                            offscreenCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(offscreenCanvas)
+                            offscreenCanvas.restore()
+                            offscreenCanvas.restore()
+                        }
+
+                        // 4. Now, mask offscreenBitmap with the union of L, R, and C to make the outside transparent.
+                        val unionBitmap = android.graphics.Bitmap.createBitmap(nodeW, nodeH, android.graphics.Bitmap.Config.ARGB_8888)
+                        val unionCanvas = android.graphics.Canvas(unionBitmap)
+                        silhouetteColor = android.graphics.Color.WHITE
+
+                        // Draw L on union
+                        unionCanvas.save()
+                        unionCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
+                        drawInner(unionCanvas)
+                        unionCanvas.restore()
+
+                        // Draw R on union
+                        unionCanvas.save()
+                        unionCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
+                        drawInner(unionCanvas)
+                        unionCanvas.restore()
+
+                        // Draw Center on union
+                        unionCanvas.save()
+                        unionCanvas.translate(recordTranslateX, recordTranslateY)
+                        drawInner(unionCanvas)
+                        unionCanvas.restore()
+
+                        // Apply union mask to offscreenBitmap
+                        val pUnion = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) }
+                        offscreenCanvas.drawBitmap(unionBitmap, 0f, 0f, pUnion)
+                        unionBitmap.recycle()
+
+                        // 5. Draw original styled base text on top, strictly masked to the triple intersection of L, R, and C
+                        val intersectionBitmap = android.graphics.Bitmap.createBitmap(nodeW, nodeH, android.graphics.Bitmap.Config.ARGB_8888)
+                        val intersectionCanvas = android.graphics.Canvas(intersectionBitmap)
                         val pIn = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
 
-                        // Draw Pass 1 (Left) on mask
-                        silhouetteColor = chromaticColors[0]
-                        maskCanvas.save()
-                        maskCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
-                        drawInner(maskCanvas)
-                        maskCanvas.restore()
+                        // Draw L on intersection
+                        silhouetteColor = android.graphics.Color.WHITE
+                        intersectionCanvas.save()
+                        intersectionCanvas.translate(recordTranslateX - chromaticShift, recordTranslateY)
+                        drawInner(intersectionCanvas)
+                        intersectionCanvas.restore()
 
-                        // Intersect Pass 2 (Right) on mask
-                        maskCanvas.save()
-                        maskCanvas.saveLayer(null, pIn)
-                        silhouetteColor = chromaticColors[1]
-                        maskCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
-                        drawInner(maskCanvas)
-                        maskCanvas.restore()
-                        maskCanvas.restore()
+                        // Intersect R
+                        intersectionCanvas.save()
+                        intersectionCanvas.saveLayer(null, pIn)
+                        intersectionCanvas.translate(recordTranslateX + chromaticShift, recordTranslateY)
+                        drawInner(intersectionCanvas)
+                        intersectionCanvas.restore()
+                        intersectionCanvas.restore()
 
-                        // Intersect Pass 3 (Center) on mask if size > 2
+                        // Intersect C if size > 2
                         if (chromaticColors.size > 2) {
-                            maskCanvas.save()
-                            maskCanvas.saveLayer(null, pIn)
-                            silhouetteColor = chromaticColors[2]
-                            maskCanvas.translate(recordTranslateX, recordTranslateY)
-                            drawInner(maskCanvas)
-                            maskCanvas.restore()
-                            maskCanvas.restore()
+                            intersectionCanvas.save()
+                            intersectionCanvas.saveLayer(null, pIn)
+                            intersectionCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(intersectionCanvas)
+                            intersectionCanvas.restore()
+                            intersectionCanvas.restore()
                         }
-                    } catch(e: Exception) {
-                        e.printStackTrace()
-                    }
 
-                    if (maskBitmap != null) {
-                        targetCanvas.save()
-                        targetCanvas.translate(drawTranslateX, drawTranslateY)
-
-                        targetCanvas.saveLayer(null, null)
-                        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-                        targetCanvas.drawBitmap(maskBitmap, 0f, 0f, maskPaint)
+                        // Draw original base shape on offscreenBitmap masked by intersectionBitmap
+                        offscreenCanvas.saveLayer(null, null)
+                        offscreenCanvas.drawBitmap(intersectionBitmap, 0f, 0f, null)
 
                         val pSrcIn = Paint().apply {
                             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
                         }
-                        targetCanvas.saveLayer(null, pSrcIn)
-                        targetCanvas.translate(recordTranslateX, recordTranslateY)
+                        offscreenCanvas.saveLayer(null, pSrcIn)
+                        offscreenCanvas.translate(recordTranslateX, recordTranslateY)
 
                         silhouetteColor = null
-                        drawInner(targetCanvas)
+                        drawInner(offscreenCanvas)
 
-                        targetCanvas.restore()
-                        targetCanvas.restore()
-                        targetCanvas.restore()
+                        offscreenCanvas.restore()
+                        offscreenCanvas.restore()
 
-                        maskBitmap.recycle()
+                        intersectionBitmap.recycle()
+
+                    } catch(e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    // Render final offscreenBitmap onto targetCanvas
+                    if (offscreenBitmap != null) {
+                        targetCanvas.save()
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+                        targetCanvas.drawBitmap(offscreenBitmap, 0f, 0f, null)
+                        targetCanvas.restore()
+                        offscreenBitmap.recycle()
                     }
 
                     silhouetteColor = prevSilhouette
