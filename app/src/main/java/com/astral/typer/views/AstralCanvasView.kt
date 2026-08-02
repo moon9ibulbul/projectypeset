@@ -388,21 +388,62 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     /**
+     * Computes the tight bounding box around all active inpaint operations.
+     */
+    fun getInpaintMaskBounds(): android.graphics.Rect {
+        val bounds = android.graphics.RectF()
+        if (inpaintOps.isEmpty()) {
+            return android.graphics.Rect(0, 0, canvasWidth, canvasHeight)
+        }
+        for ((path, tool) in inpaintOps) {
+            val temp = android.graphics.RectF()
+            path.computeBounds(temp, true)
+            if (tool == InpaintTool.BRUSH || tool == InpaintTool.ERASER) {
+                // Pad by brushSize to account for stroke thickness
+                temp.inset(-brushSize / 2f - 2f, -brushSize / 2f - 2f)
+            }
+            bounds.union(temp)
+        }
+        val rect = android.graphics.Rect()
+        bounds.roundOut(rect)
+        rect.left = rect.left.coerceIn(0, canvasWidth)
+        rect.right = rect.right.coerceIn(0, canvasWidth)
+        rect.top = rect.top.coerceIn(0, canvasHeight)
+        rect.bottom = rect.bottom.coerceIn(0, canvasHeight)
+
+        if (rect.isEmpty) {
+            rect.set(0, 0, canvasWidth, canvasHeight)
+        }
+        return rect
+    }
+
+    /**
      * Generates the Inpaint mask on demand.
      * Note: This allocates a full bitmap. Use with care on large canvases.
      * Use getRegionAsBitmap for tiled access if possible.
      */
     fun getInpaintMask(): android.graphics.Bitmap {
-        // Create a bitmap on the fly
+        return getInpaintMask(android.graphics.Rect(0, 0, canvasWidth, canvasHeight))
+    }
+
+    /**
+     * Overloaded version of getInpaintMask that generates a cropped mask within specific bounds.
+     */
+    fun getInpaintMask(bounds: android.graphics.Rect): android.graphics.Bitmap {
+        val w = bounds.width().coerceAtLeast(1)
+        val h = bounds.height().coerceAtLeast(1)
         val bmp = try {
-            android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
         } catch (e: OutOfMemoryError) {
             android.util.Log.e("AstralCanvasView", "OOM generating inpaint mask")
-            android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+            return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
         }
 
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.TRANSPARENT)
+
+        // Translate coordinates so they are drawn relative to the crop region
+        canvas.translate(-bounds.left.toFloat(), -bounds.top.toFloat())
 
         val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
@@ -437,7 +478,6 @@ class AstralCanvasView @JvmOverloads constructor(
                 InpaintTool.MAGIC_WAND_ERASER -> canvas.drawPath(path, lassoEraseP)
             }
         }
-        // Draw current path if any? (Usually getInpaintMask is called after lifting finger)
         return bmp
     }
 
