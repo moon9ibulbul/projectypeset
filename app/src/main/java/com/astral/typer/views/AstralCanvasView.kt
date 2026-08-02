@@ -152,87 +152,75 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
     fun performMagicWand(startX: Int, startY: Int) {
-        val maxDim = 1024
+        if (backgroundTiles.isEmpty()) return
+
         val originalW = canvasWidth
         val originalH = canvasHeight
-        val scale = if (originalW > maxDim || originalH > maxDim) {
-            maxDim.toFloat() / max(originalW, originalH)
-        } else {
-            1.0f
-        }
+        val sX = startX.coerceIn(0, originalW - 1)
+        val sY = startY.coerceIn(0, originalH - 1)
 
-        val bg = getDownsampledBackgroundImage(maxDim) ?: return
-        val w = bg.width
-        val h = bg.height
-
-        val dsStartX = (startX * scale).toInt().coerceIn(0, w - 1)
-        val dsStartY = (startY * scale).toInt().coerceIn(0, h - 1)
-
-        val targetColor = bg.getPixel(dsStartX, dsStartY)
-        val path = Path()
+        val pixelCache = TiledPixelCache(backgroundTiles, TILE_SIZE)
+        val targetColor = pixelCache.getPixel(sX, sY)
 
         // Map sensitivity 0..100 to Manhattan color distance threshold in 0..300
         val maxDiff = (magicWandSensitivity / 100f * 300f).toInt()
-
-        val pixels = IntArray(w * h)
-        bg.getPixels(pixels, 0, w, 0, 0, w, h)
-        bg.recycle()
-
-        val visited = java.util.BitSet(w * h)
-        val queueX = IntArray(w * h)
-        val queueY = IntArray(w * h)
-        var head = 0
-        var tail = 0
-
-        queueX[tail] = dsStartX
-        queueY[tail] = dsStartY
-        visited.set(dsStartY * w + dsStartX)
-        tail++
 
         val r1 = (targetColor shr 16) and 0xFF
         val g1 = (targetColor shr 8) and 0xFF
         val b1 = targetColor and 0xFF
 
-        while (head < tail) {
-            val cx = queueX[head]
-            val cy = queueY[head]
-            head++
+        val visited = TiledVisitedTracker(TILE_SIZE)
+        val queue = IntQueue()
+
+        queue.enqueue((sX shl 16) or (sY and 0xFFFF))
+        visited.visit(sX, sY)
+
+        var minX = sX
+        var maxX = sX
+        var minY = sY
+        var maxY = sY
+
+        var pixelCount = 0
+        val maxPixels = 5000000
+
+        while (!queue.isEmpty() && pixelCount < maxPixels) {
+            val encoded = queue.dequeue()
+            val cx = encoded ushr 16
+            val cy = encoded and 0xFFFF
+            pixelCount++
+
+            if (cx < minX) minX = cx
+            if (cx > maxX) maxX = cx
+            if (cy < minY) minY = cy
+            if (cy > maxY) maxY = cy
 
             // Check Left neighbor
             if (cx > 0) {
                 val nx = cx - 1
                 val ny = cy
-                val idx = ny * w + nx
-                if (!visited.get(idx)) {
-                    val c2 = pixels[idx]
-                    val r2 = (c2 shr 16) and 0xFF
-                    val g2 = (c2 shr 8) and 0xFF
-                    val b2 = c2 and 0xFF
-                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
-                    if (diff <= maxDiff) {
-                        visited.set(idx)
-                        queueX[tail] = nx
-                        queueY[tail] = ny
-                        tail++
+                val c2 = pixelCache.getPixel(nx, ny)
+                val r2 = (c2 shr 16) and 0xFF
+                val g2 = (c2 shr 8) and 0xFF
+                val b2 = c2 and 0xFF
+                val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                if (diff <= maxDiff) {
+                    if (visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
                     }
                 }
             }
             // Check Right neighbor
-            if (cx < w - 1) {
+            if (cx < originalW - 1) {
                 val nx = cx + 1
                 val ny = cy
-                val idx = ny * w + nx
-                if (!visited.get(idx)) {
-                    val c2 = pixels[idx]
-                    val r2 = (c2 shr 16) and 0xFF
-                    val g2 = (c2 shr 8) and 0xFF
-                    val b2 = c2 and 0xFF
-                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
-                    if (diff <= maxDiff) {
-                        visited.set(idx)
-                        queueX[tail] = nx
-                        queueY[tail] = ny
-                        tail++
+                val c2 = pixelCache.getPixel(nx, ny)
+                val r2 = (c2 shr 16) and 0xFF
+                val g2 = (c2 shr 8) and 0xFF
+                val b2 = c2 and 0xFF
+                val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                if (diff <= maxDiff) {
+                    if (visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
                     }
                 }
             }
@@ -240,97 +228,112 @@ class AstralCanvasView @JvmOverloads constructor(
             if (cy > 0) {
                 val nx = cx
                 val ny = cy - 1
-                val idx = ny * w + nx
-                if (!visited.get(idx)) {
-                    val c2 = pixels[idx]
-                    val r2 = (c2 shr 16) and 0xFF
-                    val g2 = (c2 shr 8) and 0xFF
-                    val b2 = c2 and 0xFF
-                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
-                    if (diff <= maxDiff) {
-                        visited.set(idx)
-                        queueX[tail] = nx
-                        queueY[tail] = ny
-                        tail++
+                val c2 = pixelCache.getPixel(nx, ny)
+                val r2 = (c2 shr 16) and 0xFF
+                val g2 = (c2 shr 8) and 0xFF
+                val b2 = c2 and 0xFF
+                val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                if (diff <= maxDiff) {
+                    if (visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
                     }
                 }
             }
             // Check Bottom neighbor
-            if (cy < h - 1) {
+            if (cy < originalH - 1) {
                 val nx = cx
                 val ny = cy + 1
-                val idx = ny * w + nx
-                if (!visited.get(idx)) {
-                    val c2 = pixels[idx]
-                    val r2 = (c2 shr 16) and 0xFF
-                    val g2 = (c2 shr 8) and 0xFF
-                    val b2 = c2 and 0xFF
-                    val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
-                    if (diff <= maxDiff) {
-                        visited.set(idx)
-                        queueX[tail] = nx
-                        queueY[tail] = ny
-                        tail++
+                val c2 = pixelCache.getPixel(nx, ny)
+                val r2 = (c2 shr 16) and 0xFF
+                val g2 = (c2 shr 8) and 0xFF
+                val b2 = c2 and 0xFF
+                val diff = abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+                if (diff <= maxDiff) {
+                    if (visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
                     }
                 }
             }
         }
 
-        val expandAmount = (magicWandExpand * scale).toInt()
-        var finalVisited = visited
+        // Bounding box with expand/reduce margins
+        val pad = abs(magicWandExpand) + 2
+        val maskMinX = (minX - pad).coerceAtLeast(0)
+        val maskMinY = (minY - pad).coerceAtLeast(0)
+        val maskMaxX = (maxX + pad).coerceAtMost(originalW - 1)
+        val maskMaxY = (maxY + pad).coerceAtMost(originalH - 1)
+
+        val maskW = maskMaxX - maskMinX + 1
+        val maskH = maskMaxY - maskMinY + 1
+
+        var localVisited = java.util.BitSet(maskW * maskH)
+        for (y in minY..maxY) {
+            val ly = y - maskMinY
+            for (x in minX..maxX) {
+                if (visited.isVisited(x, y)) {
+                    localVisited.set(ly * maskW + (x - maskMinX))
+                }
+            }
+        }
+
+        val expandAmount = magicWandExpand
 
         if (expandAmount > 0) {
             // Dilate (Expand selection)
             for (step in 0 until expandAmount) {
-                val nextVisited = java.util.BitSet(w * h)
-                for (y in 0 until h) {
-                    for (x in 0 until w) {
-                        val idx = y * w + x
-                        if (finalVisited.get(idx)) {
+                val nextVisited = java.util.BitSet(maskW * maskH)
+                for (y in 0 until maskH) {
+                    for (x in 0 until maskW) {
+                        val idx = y * maskW + x
+                        if (localVisited.get(idx)) {
                             nextVisited.set(idx)
                             if (x > 0) nextVisited.set(idx - 1)
-                            if (x < w - 1) nextVisited.set(idx + 1)
-                            if (y > 0) nextVisited.set(idx - w)
-                            if (y < h - 1) nextVisited.set(idx + w)
+                            if (x < maskW - 1) nextVisited.set(idx + 1)
+                            if (y > 0) nextVisited.set(idx - maskW)
+                            if (y < maskH - 1) nextVisited.set(idx + maskW)
                         }
                     }
                 }
-                finalVisited = nextVisited
+                localVisited = nextVisited
             }
         } else if (expandAmount < 0) {
             // Erode (Reduce selection)
             val shrinkAmount = -expandAmount
             for (step in 0 until shrinkAmount) {
-                val nextVisited = java.util.BitSet(w * h)
-                for (y in 0 until h) {
-                    for (x in 0 until w) {
-                        val idx = y * w + x
-                        if (finalVisited.get(idx)) {
-                            val left = x > 0 && finalVisited.get(idx - 1)
-                            val right = x < w - 1 && finalVisited.get(idx + 1)
-                            val top = y > 0 && finalVisited.get(idx - w)
-                            val bottom = y < h - 1 && finalVisited.get(idx + w)
+                val nextVisited = java.util.BitSet(maskW * maskH)
+                for (y in 0 until maskH) {
+                    for (x in 0 until maskW) {
+                        val idx = y * maskW + x
+                        if (localVisited.get(idx)) {
+                            val left = x > 0 && localVisited.get(idx - 1)
+                            val right = x < maskW - 1 && localVisited.get(idx + 1)
+                            val top = y > 0 && localVisited.get(idx - maskW)
+                            val bottom = y < maskH - 1 && localVisited.get(idx + maskW)
                             if (left && right && top && bottom) {
                                 nextVisited.set(idx)
                             }
                         }
                     }
                 }
-                finalVisited = nextVisited
+                localVisited = nextVisited
             }
         }
 
-        val invScale = 1f / scale
+        val path = Path()
         // Group into horizontal segments to build path efficiently
-        for (y in 0 until h) {
+        for (y in 0 until maskH) {
             var x = 0
-            while (x < w) {
-                if (finalVisited.get(y * w + x)) {
+            while (x < maskW) {
+                if (localVisited.get(y * maskW + x)) {
                     var xEnd = x
-                    while (xEnd < w && finalVisited.get(y * w + xEnd)) {
+                    while (xEnd < maskW && localVisited.get(y * maskW + xEnd)) {
                         xEnd++
                     }
-                    path.addRect(x * invScale, y * invScale, xEnd * invScale, (y + 1f) * invScale, Path.Direction.CW)
+                    val left = (maskMinX + x).toFloat()
+                    val top = (maskMinY + y).toFloat()
+                    val right = (maskMinX + xEnd).toFloat()
+                    val bottom = (maskMinY + y + 1f).toFloat()
+                    path.addRect(left, top, right, bottom, Path.Direction.CW)
                     x = xEnd
                 } else {
                     x++
@@ -3050,5 +3053,115 @@ class AstralCanvasView @JvmOverloads constructor(
              return true
         }
 
+    }
+}
+
+/* Helper classes for memory-efficient and high-precision tiled Magic Wand */
+internal class IntQueue(initialCapacity: Int = 4096) {
+    private var data = IntArray(initialCapacity)
+    private var head = 0
+    private var tail = 0
+    var size = 0
+        private set
+
+    fun enqueue(value: Int) {
+        if (size == data.size) {
+            resize()
+        }
+        data[tail] = value
+        tail = (tail + 1) % data.size
+        size++
+    }
+
+    fun dequeue(): Int {
+        if (size == 0) throw NoSuchElementException()
+        val value = data[head]
+        head = (head + 1) % data.size
+        size--
+        return value
+    }
+
+    fun isEmpty(): Boolean = size == 0
+
+    private fun resize() {
+        val newCapacity = data.size * 2
+        val newData = IntArray(newCapacity)
+        for (i in 0 until size) {
+            newData[i] = data[(head + i) % data.size]
+        }
+        data = newData
+        head = 0
+        tail = size
+    }
+}
+
+internal class TiledVisitedTracker(private val tileSize: Int) {
+    private val tileBitSets = java.util.HashMap<Long, java.util.BitSet>()
+
+    fun visit(x: Int, y: Int): Boolean {
+        val tx = x / tileSize
+        val ty = y / tileSize
+        val key = (tx.toLong() shl 32) or (ty.toLong() and 0xFFFFFFFFL)
+        var bitSet = tileBitSets[key]
+        if (bitSet == null) {
+            bitSet = java.util.BitSet(tileSize * tileSize)
+            tileBitSets[key] = bitSet
+        }
+        val lx = x % tileSize
+        val ly = y % tileSize
+        val idx = ly * tileSize + lx
+        if (bitSet.get(idx)) {
+            return false
+        }
+        bitSet.set(idx)
+        return true
+    }
+
+    fun isVisited(x: Int, y: Int): Boolean {
+        val tx = x / tileSize
+        val ty = y / tileSize
+        val key = (tx.toLong() shl 32) or (ty.toLong() and 0xFFFFFFFFL)
+        val bitSet = tileBitSets[key] ?: return false
+        val lx = x % tileSize
+        val ly = y % tileSize
+        val idx = ly * tileSize + lx
+        return bitSet.get(idx)
+    }
+}
+
+internal class TiledPixelCache(tiles: List<AstralCanvasView.ImageTile>, private val tileSize: Int) {
+    private val tileMap = java.util.HashMap<Long, AstralCanvasView.ImageTile>()
+    private val pixelArrays = java.util.HashMap<Long, IntArray>()
+
+    init {
+        for (tile in tiles) {
+            val tx = (tile.rect.left / tileSize).toInt()
+            val ty = (tile.rect.top / tileSize).toInt()
+            val key = (tx.toLong() shl 32) or (ty.toLong() and 0xFFFFFFFFL)
+            tileMap[key] = tile
+        }
+    }
+
+    fun getPixel(x: Int, y: Int): Int {
+        val tx = x / tileSize
+        val ty = y / tileSize
+        val key = (tx.toLong() shl 32) or (ty.toLong() and 0xFFFFFFFFL)
+        var pixels = pixelArrays[key]
+        val tile = tileMap[key] ?: return 0
+
+        val w = tile.bitmap.width
+        val h = tile.bitmap.height
+
+        if (pixels == null) {
+            pixels = IntArray(w * h)
+            tile.bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            pixelArrays[key] = pixels
+        }
+
+        val lx = x % tileSize
+        val ly = y % tileSize
+        if (lx >= w || ly >= h) return 0
+
+        return pixels[ly * w + lx]
     }
 }
