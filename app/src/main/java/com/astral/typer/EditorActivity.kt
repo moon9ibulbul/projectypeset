@@ -1034,7 +1034,9 @@ class EditorActivity : AppCompatActivity() {
             if (effect == TextEffectType.GLITCH && stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
             if (effect == TextEffectType.GLITCH_2) {
                 if (stylableLayer.glitch2Density == 0f) stylableLayer.glitch2Density = 50f
-                if (stylableLayer.glitch2Range == 0f) stylableLayer.glitch2Range = 50f
+                if (stylableLayer.glitch2RangeX == 0f) stylableLayer.glitch2RangeX = 50f
+                if (stylableLayer.glitch2RangeY == 0f) stylableLayer.glitch2RangeY = 50f
+                if (stylableLayer.glitch2Noise == 0f) stylableLayer.glitch2Noise = 20f
                 if (stylableLayer.glitch2Colors.isEmpty()) stylableLayer.glitch2Colors = "#000000,#FFFFFF,#00008B"
             }
             if (effect == TextEffectType.PIXELATION && stylableLayer.pixelBlockSize == 0f) stylableLayer.pixelBlockSize = 10f
@@ -1757,22 +1759,56 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(sDensity)
 
-                val currentRange = stylableLayer.glitch2Range
-                val sRange = createSlider("Range: ${currentRange.toInt()}%", currentRange.toInt(), 100) {
-                    stylableLayer.glitch2Range = it.toFloat()
+                val currentRangeX = stylableLayer.glitch2RangeX
+                val sRangeX = createSlider("Range X (Length): ${currentRangeX.toInt()}%", currentRangeX.toInt(), 100) {
+                    stylableLayer.glitch2RangeX = it.toFloat()
                     canvasView.invalidate()
                 }
-                val tvRange = sRange.findViewWithTag<TextView>("SLIDER_LABEL")
-                sRange.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                val tvRangeX = sRangeX.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRangeX.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        stylableLayer.glitch2Range = p.toFloat()
-                        tvRange?.text = "Range: $p%"
+                        stylableLayer.glitch2RangeX = p.toFloat()
+                        tvRangeX?.text = "Range X (Length): $p%"
                         canvasView.invalidate()
                     }
                     override fun onStartTrackingTouch(s: SeekBar?) {}
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
-                settingsLayout.addView(sRange)
+                settingsLayout.addView(sRangeX)
+
+                val currentRangeY = stylableLayer.glitch2RangeY
+                val sRangeY = createSlider("Range Y (Thickness): ${currentRangeY.toInt()}%", currentRangeY.toInt(), 100) {
+                    stylableLayer.glitch2RangeY = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvRangeY = sRangeY.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRangeY.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitch2RangeY = p.toFloat()
+                        tvRangeY?.text = "Range Y (Thickness): $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sRangeY)
+
+                val currentNoise = stylableLayer.glitch2Noise
+                val sNoise = createSlider("Static Noise: ${currentNoise.toInt()}%", currentNoise.toInt(), 100) {
+                    stylableLayer.glitch2Noise = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvNoise = sNoise.findViewWithTag<TextView>("SLIDER_LABEL")
+                sNoise.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitch2Noise = p.toFloat()
+                        tvNoise?.text = "Static Noise: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sNoise)
 
                 val tvColorsLabel = TextView(this).apply {
                     text = "Glitch Colors (comma-separated Hex)"

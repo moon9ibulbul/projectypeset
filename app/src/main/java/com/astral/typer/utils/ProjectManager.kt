@@ -147,7 +147,9 @@ object ProjectManager {
         val neonQuality: Float? = null,
         val glitchIntensity: Float? = null,
         val glitch2Density: Float? = null,
-        val glitch2Range: Float? = null,
+        val glitch2RangeX: Float? = null,
+        val glitch2RangeY: Float? = null,
+        val glitch2Noise: Float? = null,
         val glitch2Colors: String? = null,
         val pixelBlockSize: Float? = null,
         val chromaticShift: Float? = null,
@@ -357,7 +359,9 @@ object ProjectManager {
                         neonQuality = layer.neonQuality,
                         glitchIntensity = layer.glitchIntensity,
                         glitch2Density = layer.glitch2Density,
-                        glitch2Range = layer.glitch2Range,
+                        glitch2RangeX = layer.glitch2RangeX,
+                        glitch2RangeY = layer.glitch2RangeY,
+                        glitch2Noise = layer.glitch2Noise,
                         glitch2Colors = layer.glitch2Colors,
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
@@ -457,7 +461,9 @@ object ProjectManager {
                         neonQuality = layer.neonQuality,
                         glitchIntensity = layer.glitchIntensity,
                         glitch2Density = layer.glitch2Density,
-                        glitch2Range = layer.glitch2Range,
+                        glitch2RangeX = layer.glitch2RangeX,
+                        glitch2RangeY = layer.glitch2RangeY,
+                        glitch2Noise = layer.glitch2Noise,
                         glitch2Colors = layer.glitch2Colors,
                         pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
@@ -991,7 +997,9 @@ object ProjectManager {
             model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
             model.glitch2Density?.let { layer.glitch2Density = it }
-            model.glitch2Range?.let { layer.glitch2Range = it }
+            model.glitch2RangeX?.let { layer.glitch2RangeX = it }
+            model.glitch2RangeY?.let { layer.glitch2RangeY = it }
+            model.glitch2Noise?.let { layer.glitch2Noise = it }
             model.glitch2Colors?.let { layer.glitch2Colors = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
@@ -1139,7 +1147,9 @@ object ProjectManager {
             model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
             model.glitch2Density?.let { layer.glitch2Density = it }
-            model.glitch2Range?.let { layer.glitch2Range = it }
+            model.glitch2RangeX?.let { layer.glitch2RangeX = it }
+            model.glitch2RangeY?.let { layer.glitch2RangeY = it }
+            model.glitch2Noise?.let { layer.glitch2Noise = it }
             model.glitch2Colors?.let { layer.glitch2Colors = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }

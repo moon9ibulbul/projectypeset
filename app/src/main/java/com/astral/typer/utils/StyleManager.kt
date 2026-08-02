@@ -222,7 +222,9 @@ object StyleManager {
         val caseType: String? = "NORMAL",
         val chromaticAngle: Float? = 0f,
         val glitch2Density: Float? = 50f,
-        val glitch2Range: Float? = 50f,
+        val glitch2RangeX: Float? = 50f,
+        val glitch2RangeY: Float? = 50f,
+        val glitch2Noise: Float? = 20f,
         val glitch2Colors: String? = "#000000,#FFFFFF,#00008B"
     )
 
@@ -268,7 +270,7 @@ object StyleManager {
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
             l.caseType, l.chromaticAngle,
-            l.glitch2Density, l.glitch2Range, l.glitch2Colors
+            l.glitch2Density, l.glitch2RangeX, l.glitch2RangeY, l.glitch2Noise, l.glitch2Colors
         )
     }
 
@@ -407,7 +409,9 @@ object StyleManager {
         m.patternScale?.let { l.patternScale = it }
         m.patternRotation?.let { l.patternRotation = it }
         m.glitch2Density?.let { l.glitch2Density = it }
-        m.glitch2Range?.let { l.glitch2Range = it }
+        m.glitch2RangeX?.let { l.glitch2RangeX = it }
+        m.glitch2RangeY?.let { l.glitch2RangeY = it }
+        m.glitch2Noise?.let { l.glitch2Noise = it }
         m.glitch2Colors?.let { l.glitch2Colors = it }
 
         // Formatting

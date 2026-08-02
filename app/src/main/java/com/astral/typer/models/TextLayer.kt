@@ -276,7 +276,9 @@ class TextLayer(
     // Glitch
     override var glitchIntensity: Float = 1.0f
     override var glitch2Density: Float = 50f
-    override var glitch2Range: Float = 50f
+    override var glitch2RangeX: Float = 50f
+    override var glitch2RangeY: Float = 50f
+    override var glitch2Noise: Float = 20f
     override var glitch2Colors: String = "#000000,#FFFFFF,#00008B"
 
     // Pixelation
@@ -510,7 +512,9 @@ class TextLayer(
         result = 31 * result + neonQuality.hashCode()
         result = 31 * result + glitchIntensity.hashCode()
         result = 31 * result + glitch2Density.hashCode()
-        result = 31 * result + glitch2Range.hashCode()
+        result = 31 * result + glitch2RangeX.hashCode()
+        result = 31 * result + glitch2RangeY.hashCode()
+        result = 31 * result + glitch2Noise.hashCode()
         result = 31 * result + glitch2Colors.hashCode()
         result = 31 * result + pixelBlockSize.hashCode()
         result = 31 * result + chromaticShift.hashCode()
@@ -780,7 +784,9 @@ class TextLayer(
         newLayer.neonQuality = this.neonQuality
         newLayer.glitchIntensity = this.glitchIntensity
         newLayer.glitch2Density = this.glitch2Density
-        newLayer.glitch2Range = this.glitch2Range
+        newLayer.glitch2RangeX = this.glitch2RangeX
+        newLayer.glitch2RangeY = this.glitch2RangeY
+        newLayer.glitch2Noise = this.glitch2Noise
         newLayer.glitch2Colors = this.glitch2Colors
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
@@ -2400,7 +2406,9 @@ class TextLayer(
                             val shader = android.graphics.RuntimeShader(GLITCH_2_SHADER)
                             shader.setFloatUniform("uSeed", (effectSeed % 100000).toFloat())
                             shader.setFloatUniform("uDensity", glitch2Density)
-                            shader.setFloatUniform("uRange", glitch2Range)
+                            shader.setFloatUniform("uRangeX", glitch2RangeX)
+                            shader.setFloatUniform("uRangeY", glitch2RangeY)
+                            shader.setFloatUniform("uNoise", glitch2Noise)
                             shader.setFloatUniform("uSize", nodeW.toFloat(), nodeH.toFloat())
 
                             val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -2448,6 +2456,36 @@ class TextLayer(
                         val totalWidth = currentXEnd - currentXStart
                         val totalHeight = currentYEnd - currentYStart
 
+                        // 1. Draw TV Static Noise in Fallback
+                        if (glitch2Noise > 0f) {
+                            val noiseRatio = glitch2Noise / 100f
+                            val numPoints = (300 * noiseRatio).toInt().coerceAtLeast(10)
+                            val pts = FloatArray(numPoints * 2)
+                            val noiseColors = IntArray(numPoints)
+                            for (j in 0 until numPoints) {
+                                pts[j * 2] = currentXStart + random.nextFloat() * totalWidth
+                                pts[j * 2 + 1] = currentYStart + random.nextFloat() * totalHeight
+                                val rColor = if (random.nextFloat() < 0.25f) {
+                                    Color.rgb(random.nextInt(256), random.nextInt(256), random.nextInt(256))
+                                } else {
+                                    val g = random.nextInt(256)
+                                    Color.rgb(g, g, g)
+                                }
+                                noiseColors[j] = rColor
+                            }
+
+                            val nPaint = Paint().apply {
+                                strokeWidth = 2f + random.nextFloat() * 2f
+                                strokeCap = Paint.Cap.SQUARE
+                            }
+                            for (j in 0 until numPoints) {
+                                nPaint.color = noiseColors[j]
+                                nPaint.alpha = (100 + random.nextInt(156)).coerceIn(0, 255)
+                                targetCanvas.drawPoint(pts[j * 2], pts[j * 2 + 1], nPaint)
+                            }
+                        }
+
+                        // 2. Draw Glitch Lines in Fallback
                         val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                         val parsedColors = mutableListOf<Int>()
                         for (cStr in colorStrings) {
@@ -2466,7 +2504,8 @@ class TextLayer(
                         val baseLines = (5 + (glitch2Density / 100f * 45)).toInt()
                         val lineCount = (baseLines + random.nextInt(baseLines.coerceAtLeast(1))).coerceAtLeast(5)
 
-                        val rangeFactor = glitch2Range / 100f
+                        val rangeXFactor = glitch2RangeX / 100f
+                        val rangeYFactor = glitch2RangeY / 100f
 
                         for (i in 0 until lineCount) {
                             val y = currentYStart + random.nextFloat() * totalHeight
@@ -2478,7 +2517,7 @@ class TextLayer(
 
                             when (type) {
                                 0 -> {
-                                    val lineWidth = (0.25f + random.nextFloat() * rangeFactor) * totalWidth
+                                    val lineWidth = (0.25f + random.nextFloat() * rangeXFactor) * totalWidth
                                     val startX = currentXStart + random.nextFloat() * (totalWidth - lineWidth)
                                     val endX = startX + lineWidth
                                     gPaint.style = Paint.Style.STROKE
@@ -2486,17 +2525,17 @@ class TextLayer(
                                     targetCanvas.drawLine(startX, y, endX, y, gPaint)
                                 }
                                 1 -> {
-                                    val barWidth = (0.1f + random.nextFloat() * rangeFactor * 0.7f) * totalWidth
+                                    val barWidth = (0.1f + random.nextFloat() * rangeXFactor * 0.7f) * totalWidth
                                     val startX = currentXStart + random.nextFloat() * (totalWidth - barWidth)
                                     val endX = startX + barWidth
-                                    val barHeight = (2f + random.nextFloat() * 12f)
+                                    val barHeight = (2f + random.nextFloat() * 12f) * (0.2f + rangeYFactor * 2.5f)
                                     gPaint.style = Paint.Style.FILL
                                     targetCanvas.drawRect(startX, y - barHeight / 2f, endX, y + barHeight / 2f, gPaint)
                                 }
                                 2 -> {
-                                    val clusterHeight = (6f + random.nextFloat() * 18f)
+                                    val clusterHeight = (6f + random.nextFloat() * 18f) * (0.2f + rangeYFactor * 2.5f)
                                     val clusterLines = random.nextInt(4) + 4
-                                    val clusterWidth = (0.15f + random.nextFloat() * rangeFactor * 0.8f) * totalWidth
+                                    val clusterWidth = (0.15f + random.nextFloat() * rangeXFactor * 0.8f) * totalWidth
                                     val startX = currentXStart + random.nextFloat() * (totalWidth - clusterWidth)
                                     val endX = startX + clusterWidth
                                     gPaint.style = Paint.Style.STROKE
@@ -3654,7 +3693,9 @@ class TextLayer(
             uniform shader content;
             uniform float uSeed;
             uniform float uDensity;
-            uniform float uRange;
+            uniform float uRangeX;
+            uniform float uRangeY;
+            uniform float uNoise;
             uniform float3 uColors[16];
             uniform int uColorCount;
             uniform float2 uSize;
@@ -3667,21 +3708,33 @@ class TextLayer(
                 half4 original = content.eval(coord);
 
                 float densityFactor = uDensity / 100.0;
-                float rangeFactor = uRange / 100.0;
+                float rangeXFactor = uRangeX / 100.0;
+                float rangeYFactor = uRangeY / 100.0;
                 float s = uSeed;
+
+                float noiseVal = rand(coord + float2(s, s * 2.0));
+                float noiseThreshold = uNoise / 100.0;
+                if (noiseVal < noiseThreshold) {
+                    float grainColor = rand(coord - float2(s, s * 3.0));
+                    float3 grainRGB = float3(grainColor);
+                    if (rand(coord + float2(s * 4.0, s * 5.0)) < 0.25) {
+                        grainRGB = float3(rand(coord + float2(s * 1.1, s * 2.2)), rand(coord + float2(s * 3.3, s * 4.4)), rand(coord + float2(s * 5.5, s * 6.6)));
+                    }
+                    original = half4(mix(original.rgb, grainRGB, 0.75), max(original.a, 0.4));
+                }
 
                 float drawGlitch = 0.0;
                 float3 glitchColor = float3(1.0);
 
                 for (int octave = 0; octave < 3; octave++) {
-                    float stripHeight = 2.0 + float(octave) * 3.0;
+                    float stripHeight = (2.0 + float(octave) * 3.0) * (0.2 + rangeYFactor * 2.5);
                     float stripId = floor(coord.y / stripHeight) + s * 13.7;
 
                     float prob = rand(float2(stripId, float(octave) * 7.3));
 
                     if (prob < densityFactor * 0.45) {
                         float lineStart = rand(float2(stripId + 1.1, float(octave) * 3.1)) * uSize.x;
-                        float lineLen = (0.05 + rand(float2(stripId + 2.2, float(octave) * 5.2)) * rangeFactor) * uSize.x;
+                        float lineLen = (0.05 + rand(float2(stripId + 2.2, float(octave) * 5.2)) * rangeXFactor) * uSize.x;
                         float lineEnd = lineStart + lineLen;
 
                         if (coord.x >= lineStart && coord.x <= lineEnd) {
