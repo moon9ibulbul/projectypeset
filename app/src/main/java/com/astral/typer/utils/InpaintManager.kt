@@ -47,9 +47,63 @@ class InpaintManager(private val context: Context) {
      * Inpaints the original bitmap using the provided mask.
      * @param originalBitmap The source image (ARGB_8888 recommended).
      * @param maskBitmap The mask image (where non-transparent pixels indicate areas to remove).
+     * @param bounds Optional bounding box for cropped/sub-region inpainting.
      * @return A new Bitmap with the area inpainted, or null if absolutely everything failed.
      */
-    suspend fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
+    suspend fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap, bounds: android.graphics.Rect? = null): Bitmap? {
+        val rect = bounds ?: android.graphics.Rect(0, 0, originalBitmap.width, originalBitmap.height)
+
+        // Ensure bounds are valid and within bitmap boundaries
+        if (rect.left < 0 || rect.top < 0 || rect.right > originalBitmap.width || rect.bottom > originalBitmap.height || rect.isEmpty) {
+            return performInpaintOnRegion(originalBitmap, maskBitmap)
+        }
+
+        // If bounds cover the whole image, process directly without cropping overhead
+        if (rect.left == 0 && rect.top == 0 && rect.width() == originalBitmap.width && rect.height() == originalBitmap.height) {
+            return performInpaintOnRegion(originalBitmap, maskBitmap)
+        }
+
+        // Crop and process sub-region
+        return withContext(Dispatchers.Default) {
+            try {
+                val croppedOriginal = Bitmap.createBitmap(originalBitmap, rect.left, rect.top, rect.width(), rect.height())
+
+                // If the provided mask is already sized to match the bounds, use it directly.
+                // Otherwise, crop the mask to match the sub-region bounds.
+                val croppedMask = if (maskBitmap.width == rect.width() && maskBitmap.height == rect.height()) {
+                    maskBitmap
+                } else {
+                    Bitmap.createBitmap(maskBitmap, rect.left, rect.top, rect.width(), rect.height())
+                }
+
+                val croppedResult = performInpaintOnRegion(croppedOriginal, croppedMask)
+
+                // Clean up temporary cropped bitmap
+                if (croppedOriginal != originalBitmap) {
+                    croppedOriginal.recycle()
+                }
+                if (croppedMask != maskBitmap) {
+                    croppedMask.recycle()
+                }
+
+                if (croppedResult != null) {
+                    // Create a mutable copy of the original and paste the inpainted region
+                    val resultBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                    val canvas = android.graphics.Canvas(resultBitmap)
+                    canvas.drawBitmap(croppedResult, rect.left.toFloat(), rect.top.toFloat(), null)
+                    croppedResult.recycle()
+                    return@withContext resultBitmap
+                }
+            } catch (e: Exception) {
+                Log.e("InpaintManager", "Cropped inpaint failed, falling back to full inpaint", e)
+            }
+
+            // Fallback to full inpaint if cropped fails
+            performInpaintOnRegion(originalBitmap, maskBitmap)
+        }
+    }
+
+    private suspend fun performInpaintOnRegion(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
         if (currentEngine == Engine.LAMA && lamaProcessor.isModelAvailable()) {
             val result = lamaProcessor.inpaint(originalBitmap, maskBitmap)
             if (result != null) return result

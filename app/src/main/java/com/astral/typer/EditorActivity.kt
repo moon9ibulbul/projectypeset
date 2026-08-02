@@ -689,7 +689,7 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun performInpaint(maskBitmap: android.graphics.Bitmap, onSuccess: () -> Unit) {
+    private fun performInpaint(maskBitmap: android.graphics.Bitmap, bounds: android.graphics.Rect, onSuccess: () -> Unit) {
         val originalBitmap = canvasView.getBackgroundImage()
         if (originalBitmap == null) {
             Toast.makeText(this, "No image to inpaint", Toast.LENGTH_SHORT).show()
@@ -704,7 +704,7 @@ class EditorActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
-            val result = inpaintManager.inpaint(originalBitmap, maskBitmap)
+            val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds)
             withContext(Dispatchers.Main) {
                 binding.loadingOverlay.visibility = View.GONE
                 if (result != null) {
@@ -3039,8 +3039,9 @@ class EditorActivity : AppCompatActivity() {
                     setMargins(0, 0, 0, dpToPx(32))
                 }
                 setOnClickListener {
-                    val mask = canvasView.getInpaintMask()
-                    performInpaint(mask) {
+                    val bounds = canvasView.getInpaintMaskBounds()
+                    val mask = canvasView.getInpaintMask(bounds)
+                    performInpaint(mask, bounds) {
                         canvasView.clearInpaintMask()
                     }
                 }

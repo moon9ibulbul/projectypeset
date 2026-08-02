@@ -150,8 +150,9 @@ class LaMaProcessor(private val context: Context) {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                  sessionOptions.setInterOpNumThreads(4)
                  sessionOptions.setIntraOpNumThreads(4)
+                 sessionOptions.addNnapi()
             } catch (e: Exception) {
-                Log.w("LaMaProcessor", "Failed to set optimization options", e)
+                Log.w("LaMaProcessor", "Failed to set optimization options or enable NNAPI", e)
             }
             ortSession = ortEnvironment!!.createSession(modelFile.absolutePath, sessionOptions)
         }
