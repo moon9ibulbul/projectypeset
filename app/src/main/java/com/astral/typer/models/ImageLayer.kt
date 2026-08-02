@@ -38,6 +38,8 @@ class ImageLayer(
     override var gradientStartColor: Int = Color.RED
     override var gradientEndColor: Int = Color.BLUE
     override var gradientAngle: Int = 0
+    override var hasMiddleColor: Boolean = false
+    override var gradientMiddleColor: Int = Color.GREEN
     override var isGradientText: Boolean = true
     override var isGradientStroke: Boolean = false
     override var isGradientShadow: Boolean = false

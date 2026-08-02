@@ -501,6 +501,8 @@ class EditorActivity : AppCompatActivity() {
                     layer.gradientStartColor = style.gradientStart
                     layer.gradientEndColor = style.gradientEnd
                     layer.gradientAngle = style.gradientAngle
+                    layer.hasMiddleColor = style.hasMiddleColor
+                    layer.gradientMiddleColor = style.gradientMiddleColor
                     layer.isGradientText = style.isGradientText
                     layer.isGradientStroke = style.isGradientStroke
                     layer.isGradientShadow = style.isGradientShadow
@@ -3510,6 +3512,8 @@ class EditorActivity : AppCompatActivity() {
         layer.gradientStartColor = style.gradientStart
         layer.gradientEndColor = style.gradientEnd
         layer.gradientAngle = style.gradientAngle
+        layer.hasMiddleColor = style.hasMiddleColor
+        layer.gradientMiddleColor = style.gradientMiddleColor
         layer.isGradientText = style.isGradientText
         layer.isGradientStroke = style.isGradientStroke
         layer.isGradientShadow = style.isGradientShadow
@@ -6375,6 +6379,8 @@ class EditorActivity : AppCompatActivity() {
                 if (!isActive) {
                     canvasView.pendingGradientStart = if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor
                     canvasView.pendingGradientEnd = if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor
+                    canvasView.pendingHasMiddleColor = if (layerAsText != null) layerAsText.hasMiddleColor else layerAsShape!!.hasMiddleColor
+                    canvasView.pendingGradientMiddleColor = if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor
                     canvasView.targetGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
                     canvasView.targetGradientStroke = if (layerAsText != null) layerAsText.isGradientStroke else layerAsShape!!.isGradientStroke
                     canvasView.targetGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
@@ -6418,6 +6424,37 @@ class EditorActivity : AppCompatActivity() {
 
         mainLayout.addView(togglesLayout)
 
+        // Middle Color Toggle
+        val hasMiddleColorCurrent = if (isGradationMode) canvasView.pendingHasMiddleColor else (if (layerAsText != null) layerAsText.hasMiddleColor else layerAsShape!!.hasMiddleColor)
+        val middleColorToggleLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 16)
+        }
+        val chkMiddleColor = android.widget.CheckBox(this).apply {
+            setText("Middle Color")
+            isChecked = hasMiddleColorCurrent
+            setTextColor(Color.WHITE)
+            buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+            setOnCheckedChangeListener { _, b ->
+                if (isGradationMode) {
+                    canvasView.pendingHasMiddleColor = b
+                } else {
+                    if (layerAsText != null) {
+                        layerAsText.hasMiddleColor = b
+                        if (!layerAsText.isGradient) layerAsText.isGradient = true
+                    } else if (layerAsShape != null) {
+                        layerAsShape.hasMiddleColor = b
+                        if (!layerAsShape.isGradient) layerAsShape.isGradient = true
+                    }
+                }
+                canvasView.invalidate()
+                showGradationControls()
+            }
+        }
+        middleColorToggleLayout.addView(chkMiddleColor)
+        mainLayout.addView(middleColorToggleLayout)
+
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
         mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else (if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor),
@@ -6447,6 +6484,38 @@ class EditorActivity : AppCompatActivity() {
                  }
              }
         ))
+
+        // Middle Color palette (Only if active/hasMiddleColorCurrent is true)
+        if (hasMiddleColorCurrent) {
+            mainLayout.addView(TextView(this).apply { text = "Middle Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
+            mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientMiddleColor else (if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor),
+                 { c ->
+                     if (isGradationMode) {
+                         canvasView.pendingGradientMiddleColor = c
+                         canvasView.invalidate()
+                     } else {
+                         if (layerAsText != null) { layerAsText.gradientMiddleColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
+                         else if (layerAsShape != null) { layerAsShape.gradientMiddleColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                         canvasView.invalidate()
+                     }
+                     showGradationControls()
+                 },
+                 {
+                     val current = if (isGradationMode) canvasView.pendingGradientMiddleColor else (if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor)
+                     showColorWheelDialogForProperty(current) { c ->
+                         if (isGradationMode) {
+                             canvasView.pendingGradientMiddleColor = c
+                             canvasView.invalidate()
+                         } else {
+                             if (layerAsText != null) { layerAsText.gradientMiddleColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
+                             else if (layerAsShape != null) { layerAsShape.gradientMiddleColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                             canvasView.invalidate()
+                         }
+                         showGradationControls()
+                     }
+                 }
+            ))
+        }
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })

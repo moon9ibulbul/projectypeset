@@ -25,6 +25,8 @@ interface StylableLayer {
     var gradientStartColor: Int
     var gradientEndColor: Int
     var gradientAngle: Int
+    var hasMiddleColor: Boolean
+    var gradientMiddleColor: Int
     var isGradientText: Boolean // Fill
     var isGradientStroke: Boolean
     var isGradientShadow: Boolean
