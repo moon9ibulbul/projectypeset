@@ -849,6 +849,80 @@ class ShapeLayer(
                         currentY = bottom
                     }
                 }
+                TextEffectType.GLITCH_2 -> {
+                    drawInner(targetCanvas)
+
+                    val random = Random(effectSeed)
+                    val currentYStart = if (hasBounds) bounds!!.top else -pad
+                    val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
+                    val currentXStart = if (hasBounds) bounds!!.left else -pad
+                    val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+
+                    val totalWidth = currentXEnd - currentXStart
+                    val totalHeight = currentYEnd - currentYStart
+
+                    val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                    }
+
+                    // Number of glitch marks scales with intensity
+                    val lineCount = (12 + (random.nextInt(12) + 12) * glitchIntensity).toInt()
+
+                    for (i in 0 until lineCount) {
+                        val y = currentYStart + random.nextFloat() * totalHeight
+
+                        // Types of glitch markings:
+                        // 0 -> Thin long horizontal scratch line
+                        // 1 -> Thicker block/bar
+                        // 2 -> Cluster of thin scribbled scratch lines (corat-coret)
+                        val type = random.nextInt(3)
+
+                        // Randomized colors to give cyan/magenta color shifting overlay look
+                        val colorVal = when (random.nextInt(4)) {
+                            0 -> 0xFF00FFFF.toInt() // Cyan
+                            1 -> 0xFFFF00FF.toInt() // Magenta
+                            else -> Color.WHITE     // White (most common)
+                        }
+
+                        gPaint.color = colorVal
+                        gPaint.alpha = (160 + random.nextInt(96)).coerceIn(0, 255)
+
+                        when (type) {
+                            0 -> {
+                                val lineWidth = (0.25f + random.nextFloat() * 0.65f) * totalWidth
+                                val startX = currentXStart + random.nextFloat() * (totalWidth - lineWidth)
+                                val endX = startX + lineWidth
+                                gPaint.style = Paint.Style.STROKE
+                                gPaint.strokeWidth = (1f + random.nextFloat() * 2.5f) * glitchIntensity
+                                targetCanvas.drawLine(startX, y, endX, y, gPaint)
+                            }
+                            1 -> {
+                                val barWidth = (0.1f + random.nextFloat() * 0.35f) * totalWidth
+                                val startX = currentXStart + random.nextFloat() * (totalWidth - barWidth)
+                                val endX = startX + barWidth
+                                val barHeight = (2f + random.nextFloat() * 8f) * glitchIntensity
+                                gPaint.style = Paint.Style.FILL
+                                targetCanvas.drawRect(startX, y - barHeight / 2f, endX, y + barHeight / 2f, gPaint)
+                            }
+                            2 -> {
+                                val clusterHeight = (6f + random.nextFloat() * 12f) * glitchIntensity
+                                val clusterLines = random.nextInt(3) + 3
+                                val clusterWidth = (0.15f + random.nextFloat() * 0.35f) * totalWidth
+                                val startX = currentXStart + random.nextFloat() * (totalWidth - clusterWidth)
+                                val endX = startX + clusterWidth
+                                gPaint.style = Paint.Style.STROKE
+                                gPaint.strokeWidth = (0.6f + random.nextFloat() * 1.2f) * glitchIntensity
+
+                                for (j in 0 until clusterLines) {
+                                    val offsetMultiplier = (j - clusterLines / 2f) / (clusterLines / 2f)
+                                    val ly = y + offsetMultiplier * clusterHeight / 2f
+                                    val randXOffset = (random.nextFloat() - 0.5f) * 0.08f * clusterWidth
+                                    targetCanvas.drawLine(startX + randXOffset, ly, endX + randXOffset, ly, gPaint)
+                                }
+                            }
+                        }
+                    }
+                }
                 TextEffectType.NEON -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -1499,7 +1573,7 @@ class ShapeLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
-                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH, TextEffectType.GLITCH_2 -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)

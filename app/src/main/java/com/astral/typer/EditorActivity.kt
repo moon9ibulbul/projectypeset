@@ -1032,6 +1032,7 @@ class EditorActivity : AppCompatActivity() {
             // Defaults
             if (effect == TextEffectType.CHROMATIC_ABERRATION && stylableLayer.chromaticShift == 0f) stylableLayer.chromaticShift = 5f
             if (effect == TextEffectType.GLITCH && stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
+            if (effect == TextEffectType.GLITCH_2 && stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
             if (effect == TextEffectType.PIXELATION && stylableLayer.pixelBlockSize == 0f) stylableLayer.pixelBlockSize = 10f
             if (effect == TextEffectType.NEON && stylableLayer.neonRadius == 0f) stylableLayer.neonRadius = 30f
             if (effect == TextEffectType.LONG_SHADOW && stylableLayer.longShadowLength == 0f) stylableLayer.longShadowLength = 30f
@@ -1093,6 +1094,7 @@ class EditorActivity : AppCompatActivity() {
 
         addEffectCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION)
         addEffectCard("Glitch", TextEffectType.GLITCH)
+        addEffectCard("Glitch 2", TextEffectType.GLITCH_2)
         addEffectCard("Pixelation", TextEffectType.PIXELATION)
         addEffectCard("Glow", TextEffectType.NEON)
         addEffectCard("Long Shadow", TextEffectType.LONG_SHADOW)
@@ -1705,7 +1707,7 @@ class EditorActivity : AppCompatActivity() {
                     { showColorWheelDialogForProperty(stylableLayer.neonColor) { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
         }
-        if (isEffectActive(TextEffectType.GLITCH)) {
+        if (isEffectActive(TextEffectType.GLITCH) || isEffectActive(TextEffectType.GLITCH_2)) {
                 val currentGlitchInt = stylableLayer.glitchIntensity
                 val s1 = createSlider("Intensity: ${(currentGlitchInt * 100).toInt()}%", (currentGlitchInt * 100).toInt(), 200) {
                     stylableLayer.glitchIntensity = it / 100f
