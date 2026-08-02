@@ -136,6 +136,8 @@ class AstralCanvasView @JvmOverloads constructor(
     private var isEraseLayerMode = false
     var pendingGradientStart: Int = Color.RED
     var pendingGradientEnd: Int = Color.BLUE
+    var pendingHasMiddleColor: Boolean = false
+    var pendingGradientMiddleColor: Int = Color.GREEN
     var targetGradientText: Boolean = true
     var targetGradientStroke: Boolean = false
     var targetGradientShadow: Boolean = false
@@ -2423,6 +2425,8 @@ class AstralCanvasView @JvmOverloads constructor(
                                 layer.globalP2.set(p2.x, p2.y)
                                 layer.gradientStartColor = pendingGradientStart
                                 layer.gradientEndColor = pendingGradientEnd
+                                layer.hasMiddleColor = pendingHasMiddleColor
+                                layer.gradientMiddleColor = pendingGradientMiddleColor
                                 layer.isGradientText = targetGradientText
                                 layer.isGradientStroke = targetGradientStroke
                                 layer.isGradientShadow = targetGradientShadow

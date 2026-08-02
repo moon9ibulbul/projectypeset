@@ -125,6 +125,8 @@ class TextLayer(
     override var gradientStartColor: Int = Color.RED
     override var gradientEndColor: Int = Color.BLUE
     override var gradientAngle: Int = 0
+    override var hasMiddleColor: Boolean = false
+    override var gradientMiddleColor: Int = Color.GREEN
     override var isGradientText: Boolean = true
     override var isGradientStroke: Boolean = false
     override var isGradientShadow: Boolean = false
@@ -445,6 +447,8 @@ class TextLayer(
         result = 31 * result + gradientStartColor
         result = 31 * result + gradientEndColor
         result = 31 * result + gradientAngle
+        result = 31 * result + hasMiddleColor.hashCode()
+        result = 31 * result + gradientMiddleColor
         result = 31 * result + isGradientText.hashCode()
         result = 31 * result + isGradientStroke.hashCode()
         result = 31 * result + isGradientShadow.hashCode()
@@ -682,6 +686,8 @@ class TextLayer(
         newLayer.gradientStartColor = this.gradientStartColor
         newLayer.gradientEndColor = this.gradientEndColor
         newLayer.gradientAngle = this.gradientAngle
+        newLayer.hasMiddleColor = this.hasMiddleColor
+        newLayer.gradientMiddleColor = this.gradientMiddleColor
         newLayer.isGradientText = this.isGradientText
         newLayer.isGradientStroke = this.isGradientStroke
         newLayer.isGradientShadow = this.isGradientShadow
@@ -1101,10 +1107,14 @@ class TextLayer(
                 val y0 = pts[1] + h / 2f
                 val x1 = pts[2] + w / 2f
                 val y1 = pts[3] + h / 2f
-                return LinearGradient(x0, y0, x1, y1, gradientStartColor, gradientEndColor, Shader.TileMode.CLAMP)
+                return if (hasMiddleColor) {
+                    LinearGradient(x0, y0, x1, y1, intArrayOf(gradientStartColor, gradientMiddleColor, gradientEndColor), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+                } else {
+                    LinearGradient(x0, y0, x1, y1, gradientStartColor, gradientEndColor, Shader.TileMode.CLAMP)
+                }
             }
         }
-        return createGradient(w, h, layout, gradientAngle, gradientStartColor, gradientEndColor)
+        return createGradient(w, h, layout, gradientAngle, gradientStartColor, gradientEndColor, hasMiddleColor, gradientMiddleColor)
     }
 
     private fun getOpacityGradientShader(w: Float, h: Float, layout: StaticLayout): Shader {
@@ -1113,7 +1123,7 @@ class TextLayer(
         return createGradient(w, h, layout, opacityAngle, startColor, endColor)
     }
 
-    private fun createGradient(w: Float, h: Float, layout: StaticLayout, angle: Int, startColor: Int, endColor: Int): Shader {
+    private fun createGradient(w: Float, h: Float, layout: StaticLayout, angle: Int, startColor: Int, endColor: Int, hasMid: Boolean = false, midColor: Int = 0): Shader {
         val bounds = getTextHorizontalBounds(layout, w)
         val actualLeft = bounds.first
         val actualRight = bounds.second
@@ -1146,7 +1156,11 @@ class TextLayer(
         val x1 = cx + halfLen * cos
         val y1 = cy + halfLen * sin
 
-        return LinearGradient(x0, y0, x1, y1, startColor, endColor, Shader.TileMode.CLAMP)
+        return if (hasMid) {
+            LinearGradient(x0, y0, x1, y1, intArrayOf(startColor, midColor, endColor), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+        } else {
+            LinearGradient(x0, y0, x1, y1, startColor, endColor, Shader.TileMode.CLAMP)
+        }
     }
 
     private fun getMultiGradientShader(w: Float, h: Float, layout: StaticLayout): Shader {
