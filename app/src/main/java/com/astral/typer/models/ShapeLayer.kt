@@ -44,6 +44,9 @@ class ShapeLayer(
     override var gradientAngle: Int = 0
     override var hasMiddleColor: Boolean = false
     override var gradientMiddleColor: Int = Color.GREEN
+    override var gradientStartPos: Float = 0.0f
+    override var gradientMiddlePos: Float = 0.5f
+    override var gradientEndPos: Float = 1.0f
     override var isGradientText: Boolean = true // Repurposed for Shape Fill
     override var isGradientStroke: Boolean = false
     override var isGradientShadow: Boolean = false
@@ -1528,16 +1531,32 @@ class ShapeLayer(
                 val pts = floatArrayOf(globalP1.x, globalP1.y, globalP2.x, globalP2.y); inverse.mapPoints(pts)
                 val x0 = pts[0] + w/2f; val y0 = pts[1] + h/2f; val x1 = pts[2] + w/2f; val y1 = pts[3] + h/2f
                 return if (hasMiddleColor) {
-                    LinearGradient(x0, y0, x1, y1, intArrayOf(gradientStartColor, gradientMiddleColor, gradientEndColor), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+                    val sorted = listOf(
+                        gradientStartColor to gradientStartPos,
+                        gradientMiddleColor to gradientMiddlePos,
+                        gradientEndColor to gradientEndPos
+                    ).sortedBy { it.second }
+                    val colors = sorted.map { it.first }.toIntArray()
+                    val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
+                    LinearGradient(x0, y0, x1, y1, colors, positions, Shader.TileMode.CLAMP)
                 } else {
-                    LinearGradient(x0, y0, x1, y1, gradientStartColor, gradientEndColor, Shader.TileMode.CLAMP)
+                    val sorted = listOf(
+                        gradientStartColor to gradientStartPos,
+                        gradientEndColor to gradientEndPos
+                    ).sortedBy { it.second }
+                    val colors = sorted.map { it.first }.toIntArray()
+                    val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
+                    LinearGradient(x0, y0, x1, y1, colors, positions, Shader.TileMode.CLAMP)
                 }
             }
         }
-        return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor, hasMiddleColor, gradientMiddleColor)
+        return createGradient(w, h, gradientAngle, gradientStartColor, gradientEndColor, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
     }
 
-    private fun createGradient(w: Float, h: Float, angle: Int, startColor: Int, endColor: Int, hasMid: Boolean = false, midColor: Int = 0): Shader {
+    private fun createGradient(
+        w: Float, h: Float, angle: Int, startColor: Int, endColor: Int, hasMid: Boolean = false, midColor: Int = 0,
+        startPos: Float = 0f, midPos: Float = 0.5f, endPos: Float = 1f
+    ): Shader {
         val cx = w / 2f; val cy = h / 2f; val angleRad = Math.toRadians(angle.toDouble())
         val cos = Math.cos(angleRad).toFloat(); val sin = Math.sin(angleRad).toFloat()
         val corners = listOf(Pair(-cx, -cy), Pair(cx, -cy), Pair(-cx, cy), Pair(cx, cy))
@@ -1552,11 +1571,23 @@ class ShapeLayer(
         val y0 = cy - halfLen * sin
         val x1 = cx + halfLen * cos
         val y1 = cy + halfLen * sin
-        return if (hasMid) {
-            LinearGradient(x0, y0, x1, y1, intArrayOf(startColor, midColor, endColor), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+
+        val sorted = if (hasMid) {
+            listOf(
+                startColor to startPos,
+                midColor to midPos,
+                endColor to endPos
+            ).sortedBy { it.second }
         } else {
-            LinearGradient(x0, y0, x1, y1, startColor, endColor, Shader.TileMode.CLAMP)
+            listOf(
+                startColor to startPos,
+                endColor to endPos
+            ).sortedBy { it.second }
         }
+        val colors = sorted.map { it.first }.toIntArray()
+        val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
+
+        return LinearGradient(x0, y0, x1, y1, colors, positions, Shader.TileMode.CLAMP)
     }
 
     private fun getMultiGradientShader(w: Float, h: Float): Shader {
@@ -1650,6 +1681,7 @@ class ShapeLayer(
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
         newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness
         newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.hasMiddleColor = hasMiddleColor; newLayer.gradientMiddleColor = gradientMiddleColor; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke = isGradientStroke; newLayer.isGradientShadow = isGradientShadow
+        newLayer.gradientStartPos = gradientStartPos; newLayer.gradientMiddlePos = gradientMiddlePos; newLayer.gradientEndPos = gradientEndPos
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
         newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth
         newLayer.isPerspective = isPerspective; newLayer.perspectivePoints = perspectivePoints?.clone()

@@ -157,6 +157,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var gradientAngle: Int = 0
     override var hasMiddleColor: Boolean = false
     override var gradientMiddleColor: Int = Color.TRANSPARENT
+    override var gradientStartPos: Float = 0.0f
+    override var gradientMiddlePos: Float = 0.5f
+    override var gradientEndPos: Float = 1.0f
     override var isGradientText: Boolean = false
     override var isGradientStroke: Boolean = false
     override var isGradientShadow: Boolean = false
