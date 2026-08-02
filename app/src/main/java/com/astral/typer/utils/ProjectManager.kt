@@ -93,6 +93,7 @@ object ProjectManager {
         // Gradient
         val isGradient: Boolean? = null, val gradientStartColor: Int? = null, val gradientEndColor: Int? = null, val gradientAngle: Int? = null,
         val hasMiddleColor: Boolean? = null, val gradientMiddleColor: Int? = null,
+        val gradientStartPos: Float? = null, val gradientMiddlePos: Float? = null, val gradientEndPos: Float? = null,
         val isGradientText: Boolean? = null, val isGradientStroke: Boolean? = null, val isGradientShadow: Boolean? = null,
 
         // Stroke
@@ -314,6 +315,7 @@ object ProjectManager {
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
+                        gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
                         isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
 
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
@@ -425,6 +427,7 @@ object ProjectManager {
                         motionShadowThickness = layer.motionShadowThickness,
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
+                        gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
                         isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
@@ -883,6 +886,9 @@ object ProjectManager {
             model.gradientAngle?.let { layer.gradientAngle = it }
             model.hasMiddleColor?.let { layer.hasMiddleColor = it }
             model.gradientMiddleColor?.let { layer.gradientMiddleColor = it }
+            model.gradientStartPos?.let { layer.gradientStartPos = it }
+            model.gradientMiddlePos?.let { layer.gradientMiddlePos = it }
+            model.gradientEndPos?.let { layer.gradientEndPos = it }
             model.isGradientText?.let { layer.isGradientText = it }
             model.isGradientStroke?.let { layer.isGradientStroke = it }
             model.isGradientShadow?.let { layer.isGradientShadow = it }
@@ -1056,6 +1062,9 @@ object ProjectManager {
             model.gradientAngle?.let { layer.gradientAngle = it }
             model.hasMiddleColor?.let { layer.hasMiddleColor = it }
             model.gradientMiddleColor?.let { layer.gradientMiddleColor = it }
+            model.gradientStartPos?.let { layer.gradientStartPos = it }
+            model.gradientMiddlePos?.let { layer.gradientMiddlePos = it }
+            model.gradientEndPos?.let { layer.gradientEndPos = it }
             model.isGradientText?.let { layer.isGradientText = it }
             model.isGradientStroke?.let { layer.isGradientStroke = it }
             model.isGradientShadow?.let { layer.isGradientShadow = it }
