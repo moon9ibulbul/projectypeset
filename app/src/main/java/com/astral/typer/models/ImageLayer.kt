@@ -112,6 +112,9 @@ class ImageLayer(
     override var neonKnockout: Boolean = false
     override var neonQuality: Float = 0.1f
     override var glitchIntensity: Float = 1.0f
+    override var glitch2Density: Float = 50f
+    override var glitch2Range: Float = 50f
+    override var glitch2Colors: String = "#000000,#FFFFFF,#00008B"
     override var pixelBlockSize: Float = 10f
     override var chromaticShift: Float = 5f
     override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())

@@ -1032,7 +1032,11 @@ class EditorActivity : AppCompatActivity() {
             // Defaults
             if (effect == TextEffectType.CHROMATIC_ABERRATION && stylableLayer.chromaticShift == 0f) stylableLayer.chromaticShift = 5f
             if (effect == TextEffectType.GLITCH && stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
-            if (effect == TextEffectType.GLITCH_2 && stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
+            if (effect == TextEffectType.GLITCH_2) {
+                if (stylableLayer.glitch2Density == 0f) stylableLayer.glitch2Density = 50f
+                if (stylableLayer.glitch2Range == 0f) stylableLayer.glitch2Range = 50f
+                if (stylableLayer.glitch2Colors.isEmpty()) stylableLayer.glitch2Colors = "#000000,#FFFFFF,#00008B"
+            }
             if (effect == TextEffectType.PIXELATION && stylableLayer.pixelBlockSize == 0f) stylableLayer.pixelBlockSize = 10f
             if (effect == TextEffectType.NEON && stylableLayer.neonRadius == 0f) stylableLayer.neonRadius = 30f
             if (effect == TextEffectType.LONG_SHADOW && stylableLayer.longShadowLength == 0f) stylableLayer.longShadowLength = 30f
@@ -1707,7 +1711,7 @@ class EditorActivity : AppCompatActivity() {
                     { showColorWheelDialogForProperty(stylableLayer.neonColor) { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
         }
-        if (isEffectActive(TextEffectType.GLITCH) || isEffectActive(TextEffectType.GLITCH_2)) {
+        if (isEffectActive(TextEffectType.GLITCH)) {
                 val currentGlitchInt = stylableLayer.glitchIntensity
                 val s1 = createSlider("Intensity: ${(currentGlitchInt * 100).toInt()}%", (currentGlitchInt * 100).toInt(), 200) {
                     stylableLayer.glitchIntensity = it / 100f
@@ -1730,6 +1734,79 @@ class EditorActivity : AppCompatActivity() {
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.effectSeed = java.util.Random().nextInt(10000).toLong()
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
+        }
+        if (isEffectActive(TextEffectType.GLITCH_2)) {
+                val currentDensity = stylableLayer.glitch2Density
+                val sDensity = createSlider("Density: ${currentDensity.toInt()}%", currentDensity.toInt(), 100) {
+                    stylableLayer.glitch2Density = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvDensity = sDensity.findViewWithTag<TextView>("SLIDER_LABEL")
+                sDensity.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitch2Density = p.toFloat()
+                        tvDensity?.text = "Density: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sDensity)
+
+                val currentRange = stylableLayer.glitch2Range
+                val sRange = createSlider("Range: ${currentRange.toInt()}%", currentRange.toInt(), 100) {
+                    stylableLayer.glitch2Range = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvRange = sRange.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRange.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitch2Range = p.toFloat()
+                        tvRange?.text = "Range: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sRange)
+
+                val tvColorsLabel = TextView(this).apply {
+                    text = "Glitch Colors (comma-separated Hex)"
+                    setTextColor(Color.LTGRAY)
+                    setPadding(0, dpToPx(12), 0, dpToPx(4))
+                }
+                settingsLayout.addView(tvColorsLabel)
+
+                val etColors = android.widget.EditText(this).apply {
+                    setText(stylableLayer.glitch2Colors)
+                    setTextColor(Color.WHITE)
+                    setBackground(GradientDrawable().apply {
+                        setColor(Color.parseColor("#333333"))
+                        cornerRadius = dpToPx(6).toFloat()
+                        setStroke(dpToPx(1), Color.DKGRAY)
+                    })
+                    setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+                    addTextChangedListener(object: android.text.TextWatcher {
+                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                            stylableLayer.glitch2Colors = s?.toString() ?: "#000000,#FFFFFF,#00008B"
+                            canvasView.invalidate()
+                        }
+                        override fun afterTextChanged(s: android.text.Editable?) {}
+                    })
+                }
+                settingsLayout.addView(etColors)
+
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Seed"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        stylableLayer.effectSeed = java.util.Random().nextInt(100000).toLong()
                         canvasView.invalidate()
                     }
                 }

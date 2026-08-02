@@ -275,6 +275,9 @@ class TextLayer(
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
+    override var glitch2Density: Float = 50f
+    override var glitch2Range: Float = 50f
+    override var glitch2Colors: String = "#000000,#FFFFFF,#00008B"
 
     // Pixelation
     override var pixelBlockSize: Float = 10f
@@ -506,6 +509,9 @@ class TextLayer(
         result = 31 * result + neonKnockout.hashCode()
         result = 31 * result + neonQuality.hashCode()
         result = 31 * result + glitchIntensity.hashCode()
+        result = 31 * result + glitch2Density.hashCode()
+        result = 31 * result + glitch2Range.hashCode()
+        result = 31 * result + glitch2Colors.hashCode()
         result = 31 * result + pixelBlockSize.hashCode()
         result = 31 * result + chromaticShift.hashCode()
         result = 31 * result + chromaticColors.contentHashCode()
@@ -773,6 +779,9 @@ class TextLayer(
         newLayer.neonKnockout = this.neonKnockout
         newLayer.neonQuality = this.neonQuality
         newLayer.glitchIntensity = this.glitchIntensity
+        newLayer.glitch2Density = this.glitch2Density
+        newLayer.glitch2Range = this.glitch2Range
+        newLayer.glitch2Colors = this.glitch2Colors
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
         newLayer.chromaticColors = this.chromaticColors.clone()
@@ -2377,74 +2386,128 @@ class TextLayer(
                     }
                 }
                 TextEffectType.GLITCH_2 -> {
-                    drawInner(targetCanvas)
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("Glitch2Node")
+                            node.setPosition(0, 0, nodeW, nodeH)
 
-                    val random = Random(effectSeed)
-                    val currentYStart = if (hasBounds) bounds!!.top else -pad
-                    val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
-                    val currentXStart = if (hasBounds) bounds!!.left else -pad
-                    val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
 
-                    val totalWidth = currentXEnd - currentXStart
-                    val totalHeight = currentYEnd - currentYStart
+                            val shader = android.graphics.RuntimeShader(GLITCH_2_SHADER)
+                            shader.setFloatUniform("uSeed", (effectSeed % 100000).toFloat())
+                            shader.setFloatUniform("uDensity", glitch2Density)
+                            shader.setFloatUniform("uRange", glitch2Range)
+                            shader.setFloatUniform("uSize", nodeW.toFloat(), nodeH.toFloat())
 
-                    val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        style = Paint.Style.STROKE
+                            val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            val parsedColors = mutableListOf<Int>()
+                            for (cStr in colorStrings) {
+                                try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                            }
+                            if (parsedColors.isEmpty()) {
+                                parsedColors.add(Color.BLACK)
+                                parsedColors.add(Color.WHITE)
+                                parsedColors.add(0xFF00008B.toInt()) // Dark Blue
+                            }
+
+                            val colorCount = parsedColors.size.coerceAtMost(16)
+                            val colorsArray = FloatArray(16 * 3)
+                            for (j in 0 until colorCount) {
+                                val col = parsedColors[j]
+                                colorsArray[j * 3] = Color.red(col) / 255f
+                                colorsArray[j * 3 + 1] = Color.green(col) / 255f
+                                colorsArray[j * 3 + 2] = Color.blue(col) / 255f
+                            }
+                            shader.setFloatUniform("uColors", colorsArray)
+                            shader.setIntUniform("uColorCount", colorCount)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
 
-                    // Number of glitch marks scales with intensity
-                    val lineCount = (12 + (random.nextInt(12) + 12) * glitchIntensity).toInt()
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
 
-                    for (i in 0 until lineCount) {
-                        val y = currentYStart + random.nextFloat() * totalHeight
+                        val random = Random(effectSeed)
+                        val currentYStart = if (hasBounds) bounds!!.top else -pad
+                        val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
+                        val currentXStart = if (hasBounds) bounds!!.left else -pad
+                        val currentXEnd = if (hasBounds) bounds!!.right else w + pad
 
-                        // Types of glitch markings:
-                        // 0 -> Thin long horizontal scratch line
-                        // 1 -> Thicker block/bar
-                        // 2 -> Cluster of thin scribbled scratch lines (corat-coret)
-                        val type = random.nextInt(3)
+                        val totalWidth = currentXEnd - currentXStart
+                        val totalHeight = currentYEnd - currentYStart
 
-                        // Randomized colors to give cyan/magenta color shifting overlay look
-                        val colorVal = when (random.nextInt(4)) {
-                            0 -> 0xFF00FFFF.toInt() // Cyan
-                            1 -> 0xFFFF00FF.toInt() // Magenta
-                            else -> Color.WHITE     // White (most common)
+                        val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        val parsedColors = mutableListOf<Int>()
+                        for (cStr in colorStrings) {
+                            try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                        }
+                        if (parsedColors.isEmpty()) {
+                            parsedColors.add(Color.BLACK)
+                            parsedColors.add(Color.WHITE)
+                            parsedColors.add(0xFF00008B.toInt()) // Dark Blue
                         }
 
-                        gPaint.color = colorVal
-                        gPaint.alpha = (160 + random.nextInt(96)).coerceIn(0, 255)
+                        val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            style = Paint.Style.STROKE
+                        }
 
-                        when (type) {
-                            0 -> {
-                                val lineWidth = (0.25f + random.nextFloat() * 0.65f) * totalWidth
-                                val startX = currentXStart + random.nextFloat() * (totalWidth - lineWidth)
-                                val endX = startX + lineWidth
-                                gPaint.style = Paint.Style.STROKE
-                                gPaint.strokeWidth = (1f + random.nextFloat() * 2.5f) * glitchIntensity
-                                targetCanvas.drawLine(startX, y, endX, y, gPaint)
-                            }
-                            1 -> {
-                                val barWidth = (0.1f + random.nextFloat() * 0.35f) * totalWidth
-                                val startX = currentXStart + random.nextFloat() * (totalWidth - barWidth)
-                                val endX = startX + barWidth
-                                val barHeight = (2f + random.nextFloat() * 8f) * glitchIntensity
-                                gPaint.style = Paint.Style.FILL
-                                targetCanvas.drawRect(startX, y - barHeight / 2f, endX, y + barHeight / 2f, gPaint)
-                            }
-                            2 -> {
-                                val clusterHeight = (6f + random.nextFloat() * 12f) * glitchIntensity
-                                val clusterLines = random.nextInt(3) + 3
-                                val clusterWidth = (0.15f + random.nextFloat() * 0.35f) * totalWidth
-                                val startX = currentXStart + random.nextFloat() * (totalWidth - clusterWidth)
-                                val endX = startX + clusterWidth
-                                gPaint.style = Paint.Style.STROKE
-                                gPaint.strokeWidth = (0.6f + random.nextFloat() * 1.2f) * glitchIntensity
+                        val baseLines = (5 + (glitch2Density / 100f * 45)).toInt()
+                        val lineCount = (baseLines + random.nextInt(baseLines.coerceAtLeast(1))).coerceAtLeast(5)
 
-                                for (j in 0 until clusterLines) {
-                                    val offsetMultiplier = (j - clusterLines / 2f) / (clusterLines / 2f)
-                                    val ly = y + offsetMultiplier * clusterHeight / 2f
-                                    val randXOffset = (random.nextFloat() - 0.5f) * 0.08f * clusterWidth
-                                    targetCanvas.drawLine(startX + randXOffset, ly, endX + randXOffset, ly, gPaint)
+                        val rangeFactor = glitch2Range / 100f
+
+                        for (i in 0 until lineCount) {
+                            val y = currentYStart + random.nextFloat() * totalHeight
+                            val type = random.nextInt(3)
+                            val colorVal = parsedColors[random.nextInt(parsedColors.size)]
+
+                            gPaint.color = colorVal
+                            gPaint.alpha = (160 + random.nextInt(96)).coerceIn(0, 255)
+
+                            when (type) {
+                                0 -> {
+                                    val lineWidth = (0.25f + random.nextFloat() * rangeFactor) * totalWidth
+                                    val startX = currentXStart + random.nextFloat() * (totalWidth - lineWidth)
+                                    val endX = startX + lineWidth
+                                    gPaint.style = Paint.Style.STROKE
+                                    gPaint.strokeWidth = (1f + random.nextFloat() * 3.5f)
+                                    targetCanvas.drawLine(startX, y, endX, y, gPaint)
+                                }
+                                1 -> {
+                                    val barWidth = (0.1f + random.nextFloat() * rangeFactor * 0.7f) * totalWidth
+                                    val startX = currentXStart + random.nextFloat() * (totalWidth - barWidth)
+                                    val endX = startX + barWidth
+                                    val barHeight = (2f + random.nextFloat() * 12f)
+                                    gPaint.style = Paint.Style.FILL
+                                    targetCanvas.drawRect(startX, y - barHeight / 2f, endX, y + barHeight / 2f, gPaint)
+                                }
+                                2 -> {
+                                    val clusterHeight = (6f + random.nextFloat() * 18f)
+                                    val clusterLines = random.nextInt(4) + 4
+                                    val clusterWidth = (0.15f + random.nextFloat() * rangeFactor * 0.8f) * totalWidth
+                                    val startX = currentXStart + random.nextFloat() * (totalWidth - clusterWidth)
+                                    val endX = startX + clusterWidth
+                                    gPaint.style = Paint.Style.STROKE
+                                    gPaint.strokeWidth = (0.6f + random.nextFloat() * 1.8f)
+
+                                    for (j in 0 until clusterLines) {
+                                        val offsetMultiplier = (j - clusterLines / 2f) / (clusterLines / 2f)
+                                        val ly = y + offsetMultiplier * clusterHeight / 2f
+                                        val randXOffset = (random.nextFloat() - 0.5f) * 0.1f * clusterWidth
+                                        targetCanvas.drawLine(startX + randXOffset, ly, endX + randXOffset, ly, gPaint)
+                                    }
                                 }
                             }
                         }
@@ -3584,6 +3647,67 @@ class TextLayer(
                 float flameFactor = n * intensity;
                 half4 fireColor = half4(color, displaced.a);
                 return mix(displaced, fireColor, flameFactor);
+            }
+        """
+
+        const val GLITCH_2_SHADER = """
+            uniform shader content;
+            uniform float uSeed;
+            uniform float uDensity;
+            uniform float uRange;
+            uniform float3 uColors[16];
+            uniform int uColorCount;
+            uniform float2 uSize;
+
+            float rand(float2 co) {
+                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            half4 main(float2 coord) {
+                half4 original = content.eval(coord);
+
+                float densityFactor = uDensity / 100.0;
+                float rangeFactor = uRange / 100.0;
+                float s = uSeed;
+
+                float drawGlitch = 0.0;
+                float3 glitchColor = float3(1.0);
+
+                for (int octave = 0; octave < 3; octave++) {
+                    float stripHeight = 2.0 + float(octave) * 3.0;
+                    float stripId = floor(coord.y / stripHeight) + s * 13.7;
+
+                    float prob = rand(float2(stripId, float(octave) * 7.3));
+
+                    if (prob < densityFactor * 0.45) {
+                        float lineStart = rand(float2(stripId + 1.1, float(octave) * 3.1)) * uSize.x;
+                        float lineLen = (0.05 + rand(float2(stripId + 2.2, float(octave) * 5.2)) * rangeFactor) * uSize.x;
+                        float lineEnd = lineStart + lineLen;
+
+                        if (coord.x >= lineStart && coord.x <= lineEnd) {
+                            float edgeFade = smoothstep(lineStart, lineStart + 10.0, coord.x) * (1.0 - smoothstep(lineEnd - 10.0, lineEnd, coord.x));
+
+                            if (edgeFade > 0.1) {
+                                drawGlitch = edgeFade;
+                                float colorSelect = rand(float2(stripId + 4.4, float(octave) * 9.4));
+                                int idx = int(colorSelect * float(uColorCount));
+                                glitchColor = uColors[idx >= 0 && idx < uColorCount ? idx : 0];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (drawGlitch > 0.0) {
+                    float alpha = drawGlitch;
+                    if (original.a > 0.0) {
+                        return mix(original, half4(glitchColor, 1.0), alpha);
+                    } else {
+                        return half4(glitchColor * alpha, alpha * 0.85);
+                    }
+                }
+
+                return original;
             }
         """
 
