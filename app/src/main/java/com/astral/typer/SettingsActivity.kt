@@ -18,6 +18,7 @@ import java.util.zip.ZipOutputStream
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.astral.typer.utils.LaMaProcessor
+import com.astral.typer.utils.MiganProcessor
 import com.astral.typer.utils.BubbleDetectorProcessor
 
 class SettingsActivity : AppCompatActivity() {
@@ -178,6 +179,11 @@ class SettingsActivity : AppCompatActivity() {
         val pbModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbModelDownload)
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
 
+        // Model Views (MIGAN)
+        val tvMiganModelStatus = findViewById<TextView>(R.id.tvMiganModelStatus)
+        val pbMiganModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbMiganModelDownload)
+        val btnDownloadMiganModel = findViewById<Button>(R.id.btnDownloadMiganModel)
+
         // Model Views (Bubble Detector)
         val tvTyperModelStatus = findViewById<TextView>(R.id.tvTyperModelStatus)
         val pbTyperModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperModelDownload)
@@ -185,6 +191,8 @@ class SettingsActivity : AppCompatActivity() {
 
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
+        // Init MIGAN Processor Logic
+        val miganProcessor = MiganProcessor(this)
         // Init Bubble Processor
         val bubbleProcessor = BubbleDetectorProcessor(this)
 
@@ -195,6 +203,14 @@ class SettingsActivity : AppCompatActivity() {
             } else {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
+            }
+
+            if (miganProcessor.isModelAvailable()) {
+                tvMiganModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadMiganModel.text = "Redownload"
+            } else {
+                tvMiganModelStatus.text = "Status: Not Downloaded"
+                btnDownloadMiganModel.text = "Download Model (~27MB)"
             }
 
             if (bubbleProcessor.isModelAvailable()) {
@@ -236,6 +252,34 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.miganState.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbMiganModelDownload.visibility = android.view.View.GONE
+                        btnDownloadMiganModel.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadMiganModel.isEnabled = false
+                        pbMiganModelDownload.visibility = android.view.View.VISIBLE
+                        pbMiganModelDownload.progress = (state.progress * 100).toInt()
+                        tvMiganModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbMiganModelDownload.visibility = android.view.View.GONE
+                        btnDownloadMiganModel.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvMiganModelStatus.text = "Status: Download Failed"
+                        pbMiganModelDownload.visibility = android.view.View.GONE
+                        btnDownloadMiganModel.isEnabled = true
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
             com.astral.typer.utils.ModelDownloadManager.bubbleState.collect { state ->
                 when (state.status) {
                     com.astral.typer.utils.DownloadStatus.IDLE -> {
@@ -267,6 +311,10 @@ class SettingsActivity : AppCompatActivity() {
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
         }
 
+        btnDownloadMiganModel.setOnClickListener {
+            com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
+        }
+
         btnDownloadTyperModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
@@ -274,6 +322,7 @@ class SettingsActivity : AppCompatActivity() {
         // Handle auto-download from intent extra
         if (intent.getBooleanExtra("AUTO_DOWNLOAD", false)) {
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
+            com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
 
