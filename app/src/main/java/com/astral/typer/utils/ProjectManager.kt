@@ -1365,7 +1365,7 @@ object ProjectManager {
 
     private fun renderPageToBitmapHardware(data: ProjectData, images: Map<String, Bitmap>, targetWidth: Int, targetHeight: Int, scale: Float): Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
-        val maxDim = 16383
+        val maxDim = 4096
         if (targetWidth <= maxDim && targetHeight <= maxDim) {
             try {
                 val reader = android.media.ImageReader.newInstance(
