@@ -12,14 +12,11 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.FloatBuffer
-import java.util.LinkedList
-import java.util.Queue
 
 class MiganProcessor(private val context: Context) {
 
@@ -92,23 +89,21 @@ class MiganProcessor(private val context: Context) {
 
             val fileLength = connection!!.contentLengthLong
 
-            val input = BufferedInputStream(connection!!.inputStream)
-            val output = FileOutputStream(tmpFile)
-
-            val data = ByteArray(8192)
-            var total: Long = 0
-            var count: Int
-            while (input.read(data).also { count = it } != -1) {
-                total += count.toLong()
-                if (fileLength > 0) {
-                    onProgress(total.toFloat() / fileLength)
+            connection!!.inputStream.buffered().use { input ->
+                FileOutputStream(tmpFile).use { output ->
+                    val data = ByteArray(8192)
+                    var total: Long = 0
+                    var count: Int
+                    while (input.read(data).also { count = it } != -1) {
+                        total += count.toLong()
+                        if (fileLength > 0) {
+                            onProgress(total.toFloat() / fileLength)
+                        }
+                        output.write(data, 0, count)
+                    }
+                    output.flush()
                 }
-                output.write(data, 0, count)
             }
-
-            output.flush()
-            output.close()
-            input.close()
             connection!!.disconnect()
 
             if (file.exists()) file.delete()
@@ -143,16 +138,22 @@ class MiganProcessor(private val context: Context) {
 
         if (ortSession == null) {
             val sessionOptions = OrtSession.SessionOptions()
-            // Optimization options
             try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                  sessionOptions.setInterOpNumThreads(4)
                  sessionOptions.setIntraOpNumThreads(4)
-                 sessionOptions.addNnapi()
             } catch (e: Exception) {
-                Log.w("MiganProcessor", "Failed to set optimization options or enable NNAPI", e)
+                Log.w("MiganProcessor", "Failed to set optimization options", e)
             }
-            ortSession = ortEnvironment!!.createSession(modelFile.absolutePath, sessionOptions)
+            try {
+                ortSession = ortEnvironment!!.createSession(modelFile.absolutePath, sessionOptions)
+            } finally {
+                try {
+                    sessionOptions.close()
+                } catch (e: Exception) {
+                    Log.w("MiganProcessor", "Failed to close session options", e)
+                }
+            }
         }
         return ortSession!!
     }
@@ -169,119 +170,116 @@ class MiganProcessor(private val context: Context) {
     suspend fun inpaint(image: Bitmap, mask: Bitmap): Bitmap? = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext null
 
-        try {
-            val env = OrtEnvironment.getEnvironment()
-            val session = getSession()
-
-            // Detect separate mask blobs (connected components)
-            val maskRects = getSeparateMaskRects(mask)
-
-            if (maskRects.isEmpty()) {
-                return@withContext image // Nothing to mask
-            }
-
-            // We will accumulate results into this bitmap
-            val resultBitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(resultBitmap)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-            // Draw base
-            canvas.drawBitmap(image, 0f, 0f, paint)
-
-            // Loop through each distinct mask area
-            for (rect in maskRects) {
-                // Process this specific region
-                processRegion(image, mask, rect, session, env, canvas, paint)
-            }
-
-            return@withContext resultBitmap
-
-        } catch (e: Exception) {
-            Log.e("MiganProcessor", "Inference failed", e)
-            // Force close session on error to allow retry
-            closeSession()
-            return@withContext null
-        }
-    }
-
-    private fun processRegion(
-        originalImage: Bitmap,
-        originalMask: Bitmap,
-        maskRect: android.graphics.Rect,
-        session: OrtSession,
-        env: OrtEnvironment,
-        canvas: Canvas,
-        paint: Paint
-    ) {
-        // Calculate padded square crop (smart crop) based on this specific maskRect
-        val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
-        val cx = maskRect.centerX()
-        val cy = maskRect.centerY()
-        val halfSize = size / 2
-
-        var left = cx - halfSize
-        var top = cy - halfSize
-        var right = cx + halfSize
-        var bottom = cy + halfSize
-
-        val imgW = originalImage.width
-        val imgH = originalImage.height
-
-        // Adjust bounds to fit image
-        if (right - left > imgW) {
-            left = 0
-            right = imgW
-        } else {
-            if (left < 0) {
-                val diff = -left
-                left += diff
-                right += diff
-            }
-            if (right > imgW) {
-                val diff = right - imgW
-                left -= diff
-                right -= diff
-            }
-        }
-
-        if (bottom - top > imgH) {
-            top = 0
-            bottom = imgH
-        } else {
-            if (top < 0) {
-                val diff = -top
-                top += diff
-                bottom += diff
-            }
-            if (bottom > imgH) {
-                val diff = bottom - imgH
-                top -= diff
-                bottom -= diff
-            }
-        }
-
-        // Clamp final values just in case
-        left = left.coerceIn(0, imgW)
-        right = right.coerceIn(0, imgW)
-        top = top.coerceIn(0, imgH)
-        bottom = bottom.coerceIn(0, imgH)
-
-        if (right <= left || bottom <= top) return // Invalid crop
-
-        val cropRect = android.graphics.Rect(left, top, right, bottom)
-
-        // 1. Create Crops
-        val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
-        val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
-
-        // 2. Resize Input for Model
-        val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
-        val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
-
+        var cropImage: Bitmap? = null
+        var cropMask: Bitmap? = null
+        var inputImage: Bitmap? = null
+        var inputMask: Bitmap? = null
+        var outputBitmap: Bitmap? = null
+        var outputCrop: Bitmap? = null
         var tensorInput: OnnxTensor? = null
         var resultOrt: OrtSession.Result? = null
 
         try {
+            val env = OrtEnvironment.getEnvironment()
+            val session = getSession()
+
+            // Find a single bounding box around the active mask using row-by-row scanning (no heap bloat)
+            val w = mask.width
+            val h = mask.height
+            val rowPixels = IntArray(w)
+
+            var minX = w
+            var maxX = -1
+            var minY = h
+            var maxY = -1
+
+            for (y in 0 until h) {
+                mask.getPixels(rowPixels, 0, w, 0, y, w, 1)
+                for (x in 0 until w) {
+                    val pixel = rowPixels[x]
+                    val alpha = (pixel ushr 24) and 0xFF
+                    val red = (pixel ushr 16) and 0xFF
+                    if (alpha > 0 || red > 120) {
+                        if (x < minX) minX = x
+                        if (x > maxX) maxX = x
+                        if (y < minY) minY = y
+                        if (y > maxY) maxY = y
+                    }
+                }
+            }
+
+            if (maxX < 0) {
+                return@withContext image // Nothing to mask
+            }
+
+            val maskRect = android.graphics.Rect(minX, minY, maxX + 1, maxY + 1)
+
+            // Calculate padded square crop (smart crop) based on maskRect
+            val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
+            val cx = maskRect.centerX()
+            val cy = maskRect.centerY()
+            val halfSize = size / 2
+
+            var left = cx - halfSize
+            var top = cy - halfSize
+            var right = cx + halfSize
+            var bottom = cy + halfSize
+
+            val imgW = image.width
+            val imgH = image.height
+
+            // Adjust bounds to fit image
+            if (right - left > imgW) {
+                left = 0
+                right = imgW
+            } else {
+                if (left < 0) {
+                    val diff = -left
+                    left += diff
+                    right += diff
+                }
+                if (right > imgW) {
+                    val diff = right - imgW
+                    left -= diff
+                    right -= diff
+                }
+            }
+
+            if (bottom - top > imgH) {
+                top = 0
+                bottom = imgH
+            } else {
+                if (top < 0) {
+                    val diff = -top
+                    top += diff
+                    bottom += diff
+                }
+                if (bottom > imgH) {
+                    val diff = bottom - imgH
+                    top -= diff
+                    bottom -= diff
+                }
+            }
+
+            left = left.coerceIn(0, imgW)
+            right = right.coerceIn(0, imgW)
+            top = top.coerceIn(0, imgH)
+            bottom = bottom.coerceIn(0, imgH)
+
+            if (right <= left || bottom <= top) {
+                return@withContext image
+            }
+
+            val cropRect = android.graphics.Rect(left, top, right, bottom)
+
+            // 1. Create Crops
+            cropImage = Bitmap.createBitmap(image, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+            cropMask = Bitmap.createBitmap(mask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+
+            // 2. Resize Input for Model
+            inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+            inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+
             // 3. Prepare Tensors (concat mask and image as MIGAN expects [1, 4, 512, 512])
             val floatBuffer = buildMiganInput(inputImage, inputMask)
             val shape = longArrayOf(1, 4, TRAINED_SIZE.toLong(), TRAINED_SIZE.toLong())
@@ -294,10 +292,18 @@ class MiganProcessor(private val context: Context) {
             val outputTensor = resultOrt[0] as OnnxTensor
 
             // 5. Post Process
-            val outputBitmap = outputTensorToBitmap(outputTensor)
+            outputBitmap = outputTensorToBitmap(outputTensor)
 
             // 6. Resize Output back to Crop Size
-            val outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
+            outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
+
+            // We will accumulate results into this bitmap
+            val resultBitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(resultBitmap)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+            // Draw base
+            canvas.drawBitmap(image, 0f, 0f, paint)
 
             // 7. Composite Logic
             val sc = canvas.saveLayer(
@@ -317,9 +323,34 @@ class MiganProcessor(private val context: Context) {
             paint.xfermode = null
             canvas.restoreToCount(sc)
 
+            return@withContext resultBitmap
+
         } catch (e: Exception) {
-            Log.e("MiganProcessor", "Error processing region $maskRect", e)
+            Log.e("MiganProcessor", "Inference failed", e)
+            // Force close session on error to allow retry
+            closeSession()
+            return@withContext null
         } finally {
+            // Memory Optimization: Explicitly recycle all temporary bitmaps!
+            // Crucial: Only recycle if they are NOT references to the original images!
+            if (cropImage != null && cropImage != image) {
+                try { cropImage.recycle() } catch (e: Exception) {}
+            }
+            if (cropMask != null && cropMask != mask) {
+                try { cropMask.recycle() } catch (e: Exception) {}
+            }
+            if (inputImage != null && inputImage != cropImage && inputImage != image) {
+                try { inputImage.recycle() } catch (e: Exception) {}
+            }
+            if (inputMask != null && inputMask != cropMask && inputMask != mask) {
+                try { inputMask.recycle() } catch (e: Exception) {}
+            }
+            if (outputBitmap != null) {
+                try { outputBitmap.recycle() } catch (e: Exception) {}
+            }
+            if (outputCrop != null) {
+                try { outputCrop.recycle() } catch (e: Exception) {}
+            }
             try {
                 resultOrt?.close()
                 tensorInput?.close()
@@ -329,18 +360,17 @@ class MiganProcessor(private val context: Context) {
 
     private fun buildMiganInput(img: Bitmap, mask: Bitmap): FloatBuffer {
         val n = TRAINED_SIZE * TRAINED_SIZE
-        val buf = FloatBuffer.allocate(4 * n)
+        val data = FloatArray(4 * n)
         val ip = IntArray(n)
         img.getPixels(ip, 0, TRAINED_SIZE, 0, 0, TRAINED_SIZE, TRAINED_SIZE)
         val mp = IntArray(n)
         mask.getPixels(mp, 0, TRAINED_SIZE, 0, 0, TRAINED_SIZE, TRAINED_SIZE)
-        val a = buf.array()
 
         for (i in 0 until n) {
             val alpha = (mp[i] ushr 24) and 0xFF
             val red = (mp[i] ushr 16) and 0xFF
             val hole = if (alpha > 0 || red > 120) 1f else 0f
-            a[i] = 0.5f - hole
+            data[i] = 0.5f - hole
         }
 
         for (c in 0 until 3) {
@@ -351,10 +381,10 @@ class MiganProcessor(private val context: Context) {
                 val red = (mp[i] ushr 16) and 0xFF
                 val hole = if (alpha > 0 || red > 120) 1f else 0f
                 val v = ((ip[i] ushr shift) and 0xFF) / 255f * 2f - 1f
-                a[base + i] = v * (1f - hole)
+                data[base + i] = v * (1f - hole)
             }
         }
-        return buf
+        return FloatBuffer.wrap(data)
     }
 
     private fun outputTensorToBitmap(tensor: OnnxTensor): Bitmap {
@@ -379,76 +409,5 @@ class MiganProcessor(private val context: Context) {
         }
 
         return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
-    }
-
-    private fun getSeparateMaskRects(mask: Bitmap): List<android.graphics.Rect> {
-        val w = mask.width
-        val h = mask.height
-        val pixels = IntArray(w * h)
-        mask.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        val visited = BooleanArray(w * h)
-        val rects = ArrayList<android.graphics.Rect>()
-
-        val queue: Queue<Int> = LinkedList()
-
-        for (i in pixels.indices) {
-            if (!visited[i] && (pixels[i] ushr 24) > 0) {
-                var minX = w
-                var maxX = -1
-                var minY = h
-                var maxY = -1
-
-                visited[i] = true
-                queue.add(i)
-
-                while (!queue.isEmpty()) {
-                    val currIdx = queue.remove()
-                    val cx = currIdx % w
-                    val cy = currIdx / w
-
-                    if (cx < minX) minX = cx
-                    if (cx > maxX) maxX = cx
-                    if (cy < minY) minY = cy
-                    if (cy > maxY) maxY = cy
-
-                    // Check 4 neighbors
-                    if (cx > 0) {
-                        val nIdx = currIdx - 1
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                    if (cx < w - 1) {
-                        val nIdx = currIdx + 1
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                    if (cy > 0) {
-                        val nIdx = currIdx - w
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                    if (cy < h - 1) {
-                        val nIdx = currIdx + w
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                }
-
-                if (maxX >= minX && maxY >= minY) {
-                    rects.add(android.graphics.Rect(minX, minY, maxX + 1, maxY + 1))
-                }
-            }
-        }
-
-        return rects
     }
 }

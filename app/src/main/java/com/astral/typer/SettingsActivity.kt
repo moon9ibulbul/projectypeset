@@ -18,6 +18,7 @@ import java.util.zip.ZipOutputStream
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.astral.typer.utils.LaMaProcessor
+import com.astral.typer.utils.MiganProcessor
 import com.astral.typer.utils.BubbleDetectorProcessor
 
 class SettingsActivity : AppCompatActivity() {
@@ -191,7 +192,7 @@ class SettingsActivity : AppCompatActivity() {
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
         // Init MIGAN Processor Logic
-        val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
+        val miganProcessor = MiganProcessor(this)
         // Init Bubble Processor
         val bubbleProcessor = BubbleDetectorProcessor(this)
 
