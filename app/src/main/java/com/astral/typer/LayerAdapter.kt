@@ -108,9 +108,18 @@ class LayerAdapter(
 
         // Highlight selection
         if (layer.isSelected) {
-            holder.container.setBackgroundColor(Color.parseColor("#444444"))
+            val context = holder.itemView.context
+            val strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
+            val rRadius = (4 * context.resources.displayMetrics.density)
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.parseColor("#444444"))
+                setStroke(strokeWidth, Color.parseColor("#BB86FC"))
+                cornerRadius = rRadius
+            }
+            holder.container.background = drawable
         } else {
-             holder.container.setBackgroundColor(Color.TRANSPARENT)
+            holder.container.background = null
+            holder.container.setBackgroundColor(Color.TRANSPARENT)
         }
 
         holder.btnVisible.alpha = if (layer.isVisible) 1.0f else 0.5f

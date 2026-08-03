@@ -2612,9 +2612,16 @@ class EditorActivity : AppCompatActivity() {
                 val value = p.coerceAtLeast(1)
                 canvasView.layerEraseSize = value.toFloat()
                 tv1?.text = "Size: $value"
+                canvasView.invalidate()
             }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
+            override fun onStartTrackingTouch(s: SeekBar?) {
+                canvasView.showEraseSizePreview = true
+                canvasView.invalidate()
+            }
+            override fun onStopTrackingTouch(s: SeekBar?) {
+                canvasView.showEraseSizePreview = false
+                canvasView.invalidate()
+            }
         })
         layout.addView(s1)
 
@@ -6538,28 +6545,146 @@ class EditorActivity : AppCompatActivity() {
              }
         ))
 
-        val currentStartPos = if (isGradationMode) canvasView.pendingGradientStartPos else (if (layerAsText != null) layerAsText.gradientStartPos else layerAsShape!!.gradientStartPos)
-        val initialStartProgress = (currentStartPos * 100f).toInt().coerceIn(0, 100)
-        val startPosSlider = createSlider("Start Dominance: $initialStartProgress%", initialStartProgress, 100) { p ->
-            val f = p / 100f
-            if (isGradationMode) {
-                canvasView.pendingGradientStartPos = f
-            } else {
-                if (layerAsText != null) layerAsText.gradientStartPos = f else layerAsShape!!.gradientStartPos = f
-            }
-            canvasView.invalidate()
+        val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(
+            hasMiddleColorCurrent,
+            if (isGradationMode) canvasView.pendingGradientStartPos else (if (layerAsText != null) layerAsText.gradientStartPos else layerAsShape?.gradientStartPos ?: 0.0f),
+            if (isGradationMode) canvasView.pendingGradientMiddlePos else (if (layerAsText != null) layerAsText.gradientMiddlePos else layerAsShape?.gradientMiddlePos ?: 0.5f),
+            if (isGradationMode) canvasView.pendingGradientEndPos else (if (layerAsText != null) layerAsText.gradientEndPos else layerAsShape?.gradientEndPos ?: 1.0f)
+        )
+
+        val initialStartProgress = (pStart * 100f).toInt().coerceIn(0, 100)
+        val startPosSlider = createSlider("Start Dominance: $initialStartProgress%", initialStartProgress, 100) { }
+
+        val initialMiddleProgress = (pMid * 100f).toInt().coerceIn(0, 100)
+        val middlePosSlider = if (hasMiddleColorCurrent) {
+            createSlider("Middle Dominance: $initialMiddleProgress%", initialMiddleProgress, 100) { }
+        } else {
+            null
         }
-        val startPosLabel = startPosSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+
+        val initialEndProgress = (pEnd * 100f).toInt().coerceIn(0, 100)
+        val endPosSlider = createSlider("End Dominance: $initialEndProgress%", initialEndProgress, 100) { }
+
+        // Local function to apply change to segment portions and update sliders/labels
+        var isUpdatingSliders = false
+        val applyPortionChange = { changedIndex: Int, progress: Int, fromUser: Boolean ->
+            if (fromUser && !isUpdatingSliders) {
+                isUpdatingSliders = true
+                val pNew = progress / 100f
+                var newStart = pStart
+                var newMid = pMid
+                var newEnd = pEnd
+
+                // Read current helper portions
+                val (currStart, currMid, currEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(
+                    hasMiddleColorCurrent,
+                    if (isGradationMode) canvasView.pendingGradientStartPos else (if (layerAsText != null) layerAsText.gradientStartPos else layerAsShape?.gradientStartPos ?: 0.0f),
+                    if (isGradationMode) canvasView.pendingGradientMiddlePos else (if (layerAsText != null) layerAsText.gradientMiddlePos else layerAsShape?.gradientMiddlePos ?: 0.5f),
+                    if (isGradationMode) canvasView.pendingGradientEndPos else (if (layerAsText != null) layerAsText.gradientEndPos else layerAsShape?.gradientEndPos ?: 1.0f)
+                )
+
+                if (hasMiddleColorCurrent) {
+                    val r = 1.0f - pNew
+                    when (changedIndex) {
+                        0 -> { // Start changed
+                            newStart = pNew
+                            val otherSum = currMid + currEnd
+                            if (otherSum > 0.001f) {
+                                newMid = r * (currMid / otherSum)
+                                newEnd = r * (currEnd / otherSum)
+                            } else {
+                                newMid = r / 2f
+                                newEnd = r / 2f
+                            }
+                        }
+                        1 -> { // Middle changed
+                            newMid = pNew
+                            val otherSum = currStart + currEnd
+                            if (otherSum > 0.001f) {
+                                newStart = r * (currStart / otherSum)
+                                newEnd = r * (currEnd / otherSum)
+                            } else {
+                                newStart = r / 2f
+                                newEnd = r / 2f
+                            }
+                        }
+                        2 -> { // End changed
+                            newEnd = pNew
+                            val otherSum = currStart + currMid
+                            if (otherSum > 0.001f) {
+                                newStart = r * (currStart / otherSum)
+                                newMid = r * (currMid / otherSum)
+                            } else {
+                                newStart = r / 2f
+                                newMid = r / 2f
+                            }
+                        }
+                    }
+                } else {
+                    // Only Start and End
+                    val r = 1.0f - pNew
+                    when (changedIndex) {
+                        0 -> {
+                            newStart = pNew
+                            newEnd = r
+                        }
+                        2 -> {
+                            newEnd = pNew
+                            newStart = r
+                        }
+                    }
+                }
+
+                // Keep them in range and let them sum to 1.0 (normalize)
+                val sum = if (hasMiddleColorCurrent) newStart + newMid + newEnd else newStart + newEnd
+                if (sum > 0f) {
+                    newStart /= sum
+                    if (hasMiddleColorCurrent) newMid /= sum
+                    newEnd /= sum
+                }
+
+                // Save new values
+                if (isGradationMode) {
+                    canvasView.pendingGradientStartPos = newStart
+                    if (hasMiddleColorCurrent) canvasView.pendingGradientMiddlePos = newMid
+                    canvasView.pendingGradientEndPos = newEnd
+                } else {
+                    layerAsText?.let {
+                        it.gradientStartPos = newStart
+                        if (hasMiddleColorCurrent) it.gradientMiddlePos = newMid
+                        it.gradientEndPos = newEnd
+                    }
+                    layerAsShape?.let {
+                        it.gradientStartPos = newStart
+                        if (hasMiddleColorCurrent) it.gradientMiddlePos = newMid
+                        it.gradientEndPos = newEnd
+                    }
+                }
+
+                // Update seekbars and labels programmatically
+                val startProgress = (newStart * 100f).toInt().coerceIn(0, 100)
+                val midProgress = (newMid * 100f).toInt().coerceIn(0, 100)
+                val endProgress = (newEnd * 100f).toInt().coerceIn(0, 100)
+
+                startPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.progress = startProgress
+                startPosSlider.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Start Dominance: $startProgress%"
+
+                if (hasMiddleColorCurrent) {
+                    middlePosSlider?.findViewWithTag<SeekBar>("SLIDER_BAR")?.progress = midProgress
+                    middlePosSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Middle Dominance: $midProgress%"
+                }
+
+                endPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.progress = endProgress
+                endPosSlider.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "End Dominance: $endProgress%"
+
+                canvasView.invalidate()
+                isUpdatingSliders = false
+            }
+        }
+
         startPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                val f = p / 100f
-                if (isGradationMode) {
-                    canvasView.pendingGradientStartPos = f
-                } else {
-                    if (layerAsText != null) layerAsText.gradientStartPos = f else layerAsShape!!.gradientStartPos = f
-                }
-                startPosLabel?.text = "Start Dominance: $p%"
-                canvasView.invalidate()
+                applyPortionChange(0, p, b)
             }
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}
@@ -6597,33 +6722,16 @@ class EditorActivity : AppCompatActivity() {
                  }
             ))
 
-            val currentMiddlePos = if (isGradationMode) canvasView.pendingGradientMiddlePos else (if (layerAsText != null) layerAsText.gradientMiddlePos else layerAsShape!!.gradientMiddlePos)
-            val initialMiddleProgress = (currentMiddlePos * 100f).toInt().coerceIn(0, 100)
-            val middlePosSlider = createSlider("Middle Dominance: $initialMiddleProgress%", initialMiddleProgress, 100) { p ->
-                val f = p / 100f
-                if (isGradationMode) {
-                    canvasView.pendingGradientMiddlePos = f
-                } else {
-                    if (layerAsText != null) layerAsText.gradientMiddlePos = f else layerAsShape!!.gradientMiddlePos = f
-                }
-                canvasView.invalidate()
-            }
-            val middlePosLabel = middlePosSlider.findViewWithTag<TextView>("SLIDER_LABEL")
-            middlePosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            middlePosSlider?.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    val f = p / 100f
-                    if (isGradationMode) {
-                        canvasView.pendingGradientMiddlePos = f
-                    } else {
-                        if (layerAsText != null) { layerAsText.gradientMiddlePos = f } else { layerAsShape!!.gradientMiddlePos = f }
-                    }
-                    middlePosLabel?.text = "Middle Dominance: $p%"
-                    canvasView.invalidate()
+                    applyPortionChange(1, p, b)
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
-            mainLayout.addView(middlePosSlider)
+            if (middlePosSlider != null) {
+                mainLayout.addView(middlePosSlider)
+            }
         }
 
         // End Color
@@ -6656,28 +6764,9 @@ class EditorActivity : AppCompatActivity() {
              }
         ))
 
-        val currentEndPos = if (isGradationMode) canvasView.pendingGradientEndPos else (if (layerAsText != null) layerAsText.gradientEndPos else layerAsShape!!.gradientEndPos)
-        val initialEndProgress = (currentEndPos * 100f).toInt().coerceIn(0, 100)
-        val endPosSlider = createSlider("End Dominance: $initialEndProgress%", initialEndProgress, 100) { p ->
-            val f = p / 100f
-            if (isGradationMode) {
-                canvasView.pendingGradientEndPos = f
-            } else {
-                if (layerAsText != null) layerAsText.gradientEndPos = f else layerAsShape!!.gradientEndPos = f
-            }
-            canvasView.invalidate()
-        }
-        val endPosLabel = endPosSlider.findViewWithTag<TextView>("SLIDER_LABEL")
         endPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                val f = p / 100f
-                if (isGradationMode) {
-                    canvasView.pendingGradientEndPos = f
-                } else {
-                    if (layerAsText != null) layerAsText.gradientEndPos = f else layerAsShape!!.gradientEndPos = f
-                }
-                endPosLabel?.text = "End Dominance: $p%"
-                canvasView.invalidate()
+                applyPortionChange(2, p, b)
             }
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}
@@ -6802,7 +6891,7 @@ class EditorActivity : AppCompatActivity() {
 
         // ==================== Checkbox for 2nd Stroke ====================
         val cb2ndStroke = android.widget.CheckBox(this).apply {
-            text = "Double Stroke (2nd Stroke)"
+            text = "2nd Stroke"
             setTextColor(Color.WHITE)
             isChecked = stylableLayer.doubleStrokeWidth > 0f
             setPadding(16, 8, 16, 8)
