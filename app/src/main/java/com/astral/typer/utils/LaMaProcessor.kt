@@ -158,7 +158,7 @@ class LaMaProcessor(private val context: Context) {
 
                  // Retrieve NNAPI toggle preference from Settings
                  val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-                 val enableNnapi = prefs.getBoolean("enable_lama_nnapi", true)
+                 val enableNnapi = prefs.getBoolean("enable_lama_nnapi", false)
                  if (enableNnapi) {
                      sessionOptions.addNnapi()
                      Log.d("LaMaProcessor", "NNAPI enabled for LaMa session.")

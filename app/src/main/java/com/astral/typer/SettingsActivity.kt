@@ -89,7 +89,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val cbLamaNnapi = findViewById<CheckBox>(R.id.cbLamaNnapi)
-        cbLamaNnapi.isChecked = settingsPrefs.getBoolean("enable_lama_nnapi", true)
+        cbLamaNnapi.isChecked = settingsPrefs.getBoolean("enable_lama_nnapi", false)
         cbLamaNnapi.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("enable_lama_nnapi", isChecked).apply()
         }

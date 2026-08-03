@@ -96,6 +96,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Layer Erase Settings
     var layerEraseSize = 50f
+    var showEraseSizePreview = false
     var layerEraseOpacity = 255
     var layerEraseHardness = 0f
 
@@ -1785,6 +1786,29 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         canvas.restore()
+
+        // Draw Eraser Size Preview in Screen Space (Viewport-centric)
+        if (isEraseLayerMode && showEraseSizePreview) {
+            val cx = width / 2f
+            val cy = height / 2f
+            val values = FloatArray(9)
+            viewMatrix.getValues(values)
+            val scale = values[android.graphics.Matrix.MSCALE_X]
+            val radius = (layerEraseSize / 2f) * if (scale != 0f) scale else 1.0f
+
+            val pShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 4f
+                color = Color.BLACK
+            }
+            val pCircle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+                color = Color.WHITE
+            }
+            canvas.drawCircle(cx, cy, radius, pShadow)
+            canvas.drawCircle(cx, cy, radius, pCircle)
+        }
 
         // Draw Grid Lines (Screen Space)
         if (showVerticalCenterLine) {

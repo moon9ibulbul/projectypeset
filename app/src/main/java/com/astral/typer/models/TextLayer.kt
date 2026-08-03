@@ -1122,19 +1122,27 @@ class TextLayer(
                 val y0 = pts[1] + h / 2f
                 val x1 = pts[2] + w / 2f
                 val y1 = pts[3] + h / 2f
+                val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(hasMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+                val sStart = pStart / 2f
+                val sMid = pStart + pMid / 2f
+                val sEnd = 1.0f - pEnd / 2f
                 return if (hasMiddleColor) {
                     val sorted = listOf(
-                        gradientStartColor to gradientStartPos,
-                        gradientMiddleColor to gradientMiddlePos,
-                        gradientEndColor to gradientEndPos
+                        gradientStartColor to 0.0f,
+                        gradientStartColor to sStart,
+                        gradientMiddleColor to sMid,
+                        gradientEndColor to sEnd,
+                        gradientEndColor to 1.0f
                     ).sortedBy { it.second }
                     val colors = sorted.map { it.first }.toIntArray()
                     val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
                     LinearGradient(x0, y0, x1, y1, colors, positions, Shader.TileMode.CLAMP)
                 } else {
                     val sorted = listOf(
-                        gradientStartColor to gradientStartPos,
-                        gradientEndColor to gradientEndPos
+                        gradientStartColor to 0.0f,
+                        gradientStartColor to sStart,
+                        gradientEndColor to sEnd,
+                        gradientEndColor to 1.0f
                     ).sortedBy { it.second }
                     val colors = sorted.map { it.first }.toIntArray()
                     val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
@@ -1188,16 +1196,24 @@ class TextLayer(
         val x1 = cx + halfLen * cos
         val y1 = cy + halfLen * sin
 
+        val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(hasMid, startPos, midPos, endPos)
+        val sStart = pStart / 2f
+        val sMid = pStart + pMid / 2f
+        val sEnd = 1.0f - pEnd / 2f
         val sorted = if (hasMid) {
             listOf(
-                startColor to startPos,
-                midColor to midPos,
-                endColor to endPos
+                startColor to 0.0f,
+                startColor to sStart,
+                midColor to sMid,
+                endColor to sEnd,
+                endColor to 1.0f
             ).sortedBy { it.second }
         } else {
             listOf(
-                startColor to startPos,
-                endColor to endPos
+                startColor to 0.0f,
+                startColor to sStart,
+                endColor to sEnd,
+                endColor to 1.0f
             ).sortedBy { it.second }
         }
         val colors = sorted.map { it.first }.toIntArray()
