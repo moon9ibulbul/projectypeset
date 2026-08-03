@@ -220,7 +220,12 @@ object StyleManager {
         val patternScale: Float? = 1.0f,
         val patternRotation: Float? = 0f,
         val caseType: String? = "NORMAL",
-        val chromaticAngle: Float? = 0f
+        val chromaticAngle: Float? = 0f,
+        val glitch2Density: Float? = 50f,
+        val glitch2RangeX: Float? = 50f,
+        val glitch2RangeY: Float? = 50f,
+        val glitch2Noise: Float? = 20f,
+        val glitch2Colors: String? = "#000000,#FFFFFF,#00008B"
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -264,7 +269,8 @@ object StyleManager {
             l.halftoneType, l.halftoneAlpha, l.halftoneRange,
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType, l.chromaticAngle
+            l.caseType, l.chromaticAngle,
+            l.glitch2Density, l.glitch2RangeX, l.glitch2RangeY, l.glitch2Noise, l.glitch2Colors
         )
     }
 
@@ -402,6 +408,11 @@ object StyleManager {
         m.patternAlpha?.let { l.patternAlpha = it }
         m.patternScale?.let { l.patternScale = it }
         m.patternRotation?.let { l.patternRotation = it }
+        m.glitch2Density?.let { l.glitch2Density = it }
+        m.glitch2RangeX?.let { l.glitch2RangeX = it }
+        m.glitch2RangeY?.let { l.glitch2RangeY = it }
+        m.glitch2Noise?.let { l.glitch2Noise = it }
+        m.glitch2Colors?.let { l.glitch2Colors = it }
 
         // Formatting
         if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {

@@ -151,6 +151,11 @@ class ShapeLayer(
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
+    override var glitch2Density: Float = 50f
+    override var glitch2RangeX: Float = 50f
+    override var glitch2RangeY: Float = 50f
+    override var glitch2Noise: Float = 20f
+    override var glitch2Colors: String = "#000000,#FFFFFF,#00008B"
 
     // Pixelation
     override var pixelBlockSize: Float = 10f
@@ -849,6 +854,182 @@ class ShapeLayer(
                         currentY = bottom
                     }
                 }
+                TextEffectType.GLITCH_2 -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("Glitch2Node")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.GLITCH_2_SHADER)
+                            shader.setFloatUniform("imageSize", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("time", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("intensity", glitch2RangeY / 100f)
+                            shader.setFloatUniform("realRandom", java.util.Random(effectSeed).nextFloat())
+                            shader.setFloatUniform("slices", 2f + (glitch2Density / 100f * 48f))
+                            shader.setFloatUniform("noiseIntensity", glitch2Noise / 100f)
+                            shader.setFloatUniform("colorBarsEnabled", 1f)
+                            shader.setFloatUniform("rgbSplitIntensity", glitch2RangeX / 10f)
+
+                            val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            val parsedColors = mutableListOf<Int>()
+                            for (cStr in colorStrings) {
+                                try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                            }
+                            if (parsedColors.isEmpty()) {
+                                parsedColors.add(Color.BLACK)
+                                parsedColors.add(Color.WHITE)
+                                parsedColors.add(0xFF00008B.toInt()) // Dark Blue
+                            }
+
+                            val colorCount = parsedColors.size.coerceAtMost(16)
+                            val colorsArray = FloatArray(16 * 3)
+                            for (j in 0 until colorCount) {
+                                val col = parsedColors[j]
+                                colorsArray[j * 3] = Color.red(col) / 255f
+                                colorsArray[j * 3 + 1] = Color.green(col) / 255f
+                                colorsArray[j * 3 + 2] = Color.blue(col) / 255f
+                            }
+                            shader.setFloatUniform("uColors", colorsArray)
+                            shader.setIntUniform("uColorCount", colorCount)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    if (!useRenderEffect) {
+                        val baseBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+                        val baseCanvas = Canvas(baseBmp)
+                        baseCanvas.translate(recordTranslateX, recordTranslateY)
+                        drawInner(baseCanvas)
+
+                        val outBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+                        val outCanvas = Canvas(outBmp)
+
+                        val random = Random(effectSeed)
+                        val numSlices = (2f + (glitch2Density / 100f * 48f)).toInt().coerceIn(2, 50)
+                        val sliceHeight = nodeH.toFloat() / numSlices
+
+                        val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        val parsedColors = mutableListOf<Int>()
+                        for (cStr in colorStrings) {
+                            try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                        }
+                        if (parsedColors.isEmpty()) {
+                            parsedColors.add(Color.BLACK)
+                            parsedColors.add(Color.WHITE)
+                            parsedColors.add(0xFF00008B.toInt()) // Dark Blue
+                        }
+
+                        val intensity = glitch2RangeY / 100f
+                        val rgbSplitIntensity = glitch2RangeX / 10f
+
+                        for (sliceIndex in 0 until numSlices) {
+                            val sliceTop = (sliceIndex * sliceHeight).toInt()
+                            val sliceBottom = ((sliceIndex + 1) * sliceHeight).toInt().coerceAtMost(nodeH)
+                            if (sliceTop >= sliceBottom) continue
+
+                            val rnd = random.nextFloat()
+                            if ((rnd * 2.5f + 0.5f) < intensity) {
+                                val c = parsedColors[random.nextInt(parsedColors.size)]
+                                val sPaint = Paint().apply {
+                                    color = c
+                                    style = Paint.Style.FILL
+                                }
+                                val destRect = android.graphics.Rect(0, sliceTop, nodeW, sliceBottom)
+                                outCanvas.drawRect(destRect, sPaint)
+                            } else {
+                                val rVal = random.nextFloat()
+                                var glitch = 0f
+                                if (rVal > 0.65f) {
+                                    glitch = (rVal - 0.65f) * 4f * intensity
+                                }
+                                val direction = if (random.nextFloat() > 0.5f) 1f else -1f
+                                val offset = glitch * 0.08f * direction * nodeW
+
+                                val destRect = android.graphics.RectF(offset, sliceTop.toFloat(), nodeW.toFloat() + offset, sliceBottom.toFloat())
+
+                                outCanvas.save()
+                                outCanvas.clipRect(destRect)
+                                if (rgbSplitIntensity > 0f) {
+                                    val splitOffset = rgbSplitIntensity * 4f
+                                    val redPaint = Paint().apply {
+                                        colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                                            1f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )))
+                                    }
+                                    outCanvas.drawBitmap(baseBmp, offset - splitOffset, 0f, redPaint)
+
+                                    val cyanPaint = Paint().apply {
+                                        colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 1f, 0f, 0f, 0f,
+                                            0f, 0f, 1f, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )))
+                                        xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+                                    }
+                                    outCanvas.drawBitmap(baseBmp, offset + splitOffset, 0f, cyanPaint)
+                                } else {
+                                    outCanvas.drawBitmap(baseBmp, offset, 0f, null)
+                                }
+                                outCanvas.restore()
+                            }
+                        }
+
+                        // 3. Draw TV Static Noise in Fallback
+                        if (glitch2Noise > 0f) {
+                            val noiseRatio = glitch2Noise / 100f
+                            val numPoints = (300 * noiseRatio).toInt().coerceAtLeast(10)
+                            val pts = FloatArray(numPoints * 2)
+                            val noiseColors = IntArray(numPoints)
+                            for (j in 0 until numPoints) {
+                                pts[j * 2] = random.nextFloat() * nodeW
+                                pts[j * 2 + 1] = random.nextFloat() * nodeH
+                                val rColor = if (random.nextFloat() < 0.25f) {
+                                    Color.rgb(random.nextInt(256), random.nextInt(256), random.nextInt(256))
+                                } else {
+                                    val g = random.nextInt(256)
+                                    Color.rgb(g, g, g)
+                                }
+                                noiseColors[j] = rColor
+                            }
+
+                            val nPaint = Paint().apply {
+                                strokeWidth = 2f + random.nextFloat() * 2f
+                                strokeCap = Paint.Cap.SQUARE
+                            }
+                            for (j in 0 until numPoints) {
+                                nPaint.color = noiseColors[j]
+                                nPaint.alpha = (100 + random.nextInt(156)).coerceIn(0, 255)
+                                outCanvas.drawPoint(pts[j * 2], pts[j * 2 + 1], nPaint)
+                            }
+                        }
+
+                        targetCanvas.save()
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+                        targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                        targetCanvas.restore()
+
+                        baseBmp.recycle()
+                        outBmp.recycle()
+                    }
+                }
                 TextEffectType.NEON -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -1499,7 +1680,7 @@ class ShapeLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
-                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH, TextEffectType.GLITCH_2 -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
@@ -1693,7 +1874,7 @@ class ShapeLayer(
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
-        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitch2Density = glitch2Density; newLayer.glitch2RangeX = glitch2RangeX; newLayer.glitch2RangeY = glitch2RangeY; newLayer.glitch2Noise = glitch2Noise; newLayer.glitch2Colors = glitch2Colors; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
 
         // Twist

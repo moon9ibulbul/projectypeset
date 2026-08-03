@@ -275,6 +275,11 @@ class TextLayer(
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
+    override var glitch2Density: Float = 50f
+    override var glitch2RangeX: Float = 50f
+    override var glitch2RangeY: Float = 50f
+    override var glitch2Noise: Float = 20f
+    override var glitch2Colors: String = "#000000,#FFFFFF,#00008B"
 
     // Pixelation
     override var pixelBlockSize: Float = 10f
@@ -506,6 +511,11 @@ class TextLayer(
         result = 31 * result + neonKnockout.hashCode()
         result = 31 * result + neonQuality.hashCode()
         result = 31 * result + glitchIntensity.hashCode()
+        result = 31 * result + glitch2Density.hashCode()
+        result = 31 * result + glitch2RangeX.hashCode()
+        result = 31 * result + glitch2RangeY.hashCode()
+        result = 31 * result + glitch2Noise.hashCode()
+        result = 31 * result + glitch2Colors.hashCode()
         result = 31 * result + pixelBlockSize.hashCode()
         result = 31 * result + chromaticShift.hashCode()
         result = 31 * result + chromaticColors.contentHashCode()
@@ -773,6 +783,11 @@ class TextLayer(
         newLayer.neonKnockout = this.neonKnockout
         newLayer.neonQuality = this.neonQuality
         newLayer.glitchIntensity = this.glitchIntensity
+        newLayer.glitch2Density = this.glitch2Density
+        newLayer.glitch2RangeX = this.glitch2RangeX
+        newLayer.glitch2RangeY = this.glitch2RangeY
+        newLayer.glitch2Noise = this.glitch2Noise
+        newLayer.glitch2Colors = this.glitch2Colors
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
         newLayer.chromaticColors = this.chromaticColors.clone()
@@ -951,7 +966,7 @@ class TextLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
-                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH, TextEffectType.GLITCH_2 -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
@@ -2376,6 +2391,182 @@ class TextLayer(
                         targetCanvas.restore()
                     }
                 }
+                TextEffectType.GLITCH_2 -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("Glitch2Node")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(GLITCH_2_SHADER)
+                            shader.setFloatUniform("imageSize", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("time", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("intensity", glitch2RangeY / 100f)
+                            shader.setFloatUniform("realRandom", java.util.Random(effectSeed).nextFloat())
+                            shader.setFloatUniform("slices", 2f + (glitch2Density / 100f * 48f))
+                            shader.setFloatUniform("noiseIntensity", glitch2Noise / 100f)
+                            shader.setFloatUniform("colorBarsEnabled", 1f)
+                            shader.setFloatUniform("rgbSplitIntensity", glitch2RangeX / 10f)
+
+                            val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            val parsedColors = mutableListOf<Int>()
+                            for (cStr in colorStrings) {
+                                try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                            }
+                            if (parsedColors.isEmpty()) {
+                                parsedColors.add(Color.BLACK)
+                                parsedColors.add(Color.WHITE)
+                                parsedColors.add(0xFF00008B.toInt()) // Dark Blue
+                            }
+
+                            val colorCount = parsedColors.size.coerceAtMost(16)
+                            val colorsArray = FloatArray(16 * 3)
+                            for (j in 0 until colorCount) {
+                                val col = parsedColors[j]
+                                colorsArray[j * 3] = Color.red(col) / 255f
+                                colorsArray[j * 3 + 1] = Color.green(col) / 255f
+                                colorsArray[j * 3 + 2] = Color.blue(col) / 255f
+                            }
+                            shader.setFloatUniform("uColors", colorsArray)
+                            shader.setIntUniform("uColorCount", colorCount)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    if (!useRenderEffect) {
+                        val baseBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+                        val baseCanvas = Canvas(baseBmp)
+                        baseCanvas.translate(recordTranslateX, recordTranslateY)
+                        drawInner(baseCanvas)
+
+                        val outBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+                        val outCanvas = Canvas(outBmp)
+
+                        val random = Random(effectSeed)
+                        val numSlices = (2f + (glitch2Density / 100f * 48f)).toInt().coerceIn(2, 50)
+                        val sliceHeight = nodeH.toFloat() / numSlices
+
+                        val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        val parsedColors = mutableListOf<Int>()
+                        for (cStr in colorStrings) {
+                            try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                        }
+                        if (parsedColors.isEmpty()) {
+                            parsedColors.add(Color.BLACK)
+                            parsedColors.add(Color.WHITE)
+                            parsedColors.add(0xFF00008B.toInt()) // Dark Blue
+                        }
+
+                        val intensity = glitch2RangeY / 100f
+                        val rgbSplitIntensity = glitch2RangeX / 10f
+
+                        for (sliceIndex in 0 until numSlices) {
+                            val sliceTop = (sliceIndex * sliceHeight).toInt()
+                            val sliceBottom = ((sliceIndex + 1) * sliceHeight).toInt().coerceAtMost(nodeH)
+                            if (sliceTop >= sliceBottom) continue
+
+                            val rnd = random.nextFloat()
+                            if ((rnd * 2.5f + 0.5f) < intensity) {
+                                val c = parsedColors[random.nextInt(parsedColors.size)]
+                                val sPaint = Paint().apply {
+                                    color = c
+                                    style = Paint.Style.FILL
+                                }
+                                val destRect = android.graphics.Rect(0, sliceTop, nodeW, sliceBottom)
+                                outCanvas.drawRect(destRect, sPaint)
+                            } else {
+                                val rVal = random.nextFloat()
+                                var glitch = 0f
+                                if (rVal > 0.65f) {
+                                    glitch = (rVal - 0.65f) * 4f * intensity
+                                }
+                                val direction = if (random.nextFloat() > 0.5f) 1f else -1f
+                                val offset = glitch * 0.08f * direction * nodeW
+
+                                val destRect = android.graphics.RectF(offset, sliceTop.toFloat(), nodeW.toFloat() + offset, sliceBottom.toFloat())
+
+                                outCanvas.save()
+                                outCanvas.clipRect(destRect)
+                                if (rgbSplitIntensity > 0f) {
+                                    val splitOffset = rgbSplitIntensity * 4f
+                                    val redPaint = Paint().apply {
+                                        colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                                            1f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )))
+                                    }
+                                    outCanvas.drawBitmap(baseBmp, offset - splitOffset, 0f, redPaint)
+
+                                    val cyanPaint = Paint().apply {
+                                        colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 1f, 0f, 0f, 0f,
+                                            0f, 0f, 1f, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )))
+                                        xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+                                    }
+                                    outCanvas.drawBitmap(baseBmp, offset + splitOffset, 0f, cyanPaint)
+                                } else {
+                                    outCanvas.drawBitmap(baseBmp, offset, 0f, null)
+                                }
+                                outCanvas.restore()
+                            }
+                        }
+
+                        // 3. Draw TV Static Noise in Fallback
+                        if (glitch2Noise > 0f) {
+                            val noiseRatio = glitch2Noise / 100f
+                            val numPoints = (300 * noiseRatio).toInt().coerceAtLeast(10)
+                            val pts = FloatArray(numPoints * 2)
+                            val noiseColors = IntArray(numPoints)
+                            for (j in 0 until numPoints) {
+                                pts[j * 2] = random.nextFloat() * nodeW
+                                pts[j * 2 + 1] = random.nextFloat() * nodeH
+                                val rColor = if (random.nextFloat() < 0.25f) {
+                                    Color.rgb(random.nextInt(256), random.nextInt(256), random.nextInt(256))
+                                } else {
+                                    val g = random.nextInt(256)
+                                    Color.rgb(g, g, g)
+                                }
+                                noiseColors[j] = rColor
+                            }
+
+                            val nPaint = Paint().apply {
+                                strokeWidth = 2f + random.nextFloat() * 2f
+                                strokeCap = Paint.Cap.SQUARE
+                            }
+                            for (j in 0 until numPoints) {
+                                nPaint.color = noiseColors[j]
+                                nPaint.alpha = (100 + random.nextInt(156)).coerceIn(0, 255)
+                                outCanvas.drawPoint(pts[j * 2], pts[j * 2 + 1], nPaint)
+                            }
+                        }
+
+                        targetCanvas.save()
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+                        targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                        targetCanvas.restore()
+
+                        baseBmp.recycle()
+                        outBmp.recycle()
+                    }
+                }
                 TextEffectType.NEON -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -3510,6 +3701,130 @@ class TextLayer(
                 float flameFactor = n * intensity;
                 half4 fireColor = half4(color, displaced.a);
                 return mix(displaced, fireColor, flameFactor);
+            }
+        """
+
+        const val GLITCH_2_SHADER = """
+            uniform shader content;
+            uniform float2 imageSize;
+            uniform float time;
+            uniform float intensity;
+            uniform float realRandom;
+            uniform float slices;
+            uniform float noiseIntensity;
+            uniform float colorBarsEnabled;
+            uniform float rgbSplitIntensity;
+            uniform float3 uColors[16];
+            uniform int uColorCount;
+
+            float rand(float x) {
+                return fract(sin(x * 1234.567 + 0.123) * 43758.5453);
+            }
+
+            float rand2(vec2 v) {
+                return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            float randDirection(int sliceIndex) {
+                return (rand(float(sliceIndex) + 99.0) > 0.5) ? 1.0 : -1.0;
+            }
+
+            vec2 applySliceOffset(vec2 uv) {
+                int numSlices = int(slices);
+                float sliceHeight = 1.0 / float(numSlices);
+                int sliceIndex = int(uv.y / sliceHeight);
+
+                float frame = floor(time);
+                float r = rand(float(sliceIndex) + frame + realRandom * 100.0);
+
+                float glitch = 0.0;
+                if (r > 0.65) {
+                    glitch = (r - 0.65) * 4.0 * intensity;
+                }
+
+                float direction = randDirection(sliceIndex);
+                float offset = glitch * 0.08 * direction;
+                uv.x += offset;
+
+                return clamp(uv, 0.0, 1.0);
+            }
+
+            vec3 sampleRgbSplit(vec2 baseUv) {
+                float splitAmount = 0.005 * rgbSplitIntensity;
+
+                vec2 uvR = clamp(baseUv + vec2(-splitAmount, 0.0), 0.0, 1.0);
+                vec2 uvG = baseUv;
+                vec2 uvB = clamp(baseUv + vec2(splitAmount, 0.0), 0.0, 1.0);
+
+                vec3 cR = content.eval(uvR * imageSize).rgb;
+                vec3 cG = content.eval(uvG * imageSize).rgb;
+                vec3 cB = content.eval(uvB * imageSize).rgb;
+
+                return vec3(cR.r, cG.g, cB.b);
+            }
+
+            float verticalNoise(vec2 uv) {
+                float line = fract(uv.y * imageSize.y * 0.5);
+                float mask = step(0.5, line);
+                float noise = rand2(vec2(uv.x * 40.0, floor(uv.y * imageSize.y)));
+                return mix(1.0, 0.85, mask * noise * noiseIntensity);
+            }
+
+            vec4 getSolidColorBar(vec2 uv) {
+                int numSlices = int(slices);
+                float sliceHeight = 1.0 / float(numSlices);
+                int sliceIndex = int(uv.y / sliceHeight);
+                float sliceY = float(sliceIndex) * sliceHeight;
+
+                float rnd = rand2(vec2(intensity * realRandom, sliceY));
+                if ((rnd * 2.5 + 0.5) < intensity) {
+                    if (uColorCount > 0) {
+                        float colorSelect = rand(float(sliceIndex) + realRandom * 17.3);
+                        int idx = int(colorSelect * float(uColorCount));
+                        float3 c = uColors[idx >= 0 && idx < uColorCount ? idx : 0];
+                        return vec4(c, 1.0);
+                    } else {
+                        if (realRandom > 0.67) {
+                            return vec4(0.0, 1.0, 0.3, 1.0); // green
+                        } else if (realRandom > 0.33) {
+                            return vec4(1.0, 0.0, 0.85, 1.0); // magenta
+                        } else {
+                            return vec4(0.0, 0.85, 1.0, 1.0); // cyan
+                        }
+                    }
+                }
+
+                return vec4(0.0, 0.0, 0.0, 0.0);
+            }
+
+            half4 main(float2 fragCoord) {
+                vec2 uv = fragCoord / imageSize;
+
+                vec3 color;
+
+                if (colorBarsEnabled > 0.5) {
+                    vec4 solidColor = getSolidColorBar(uv);
+                    if (solidColor.a > 0.0) {
+                        color = solidColor.rgb;
+                    } else {
+                        uv = applySliceOffset(uv);
+                        color = sampleRgbSplit(uv);
+                    }
+                } else {
+                    uv = applySliceOffset(uv);
+                    color = sampleRgbSplit(uv);
+                }
+
+                float vNoise = verticalNoise(uv);
+                color *= vNoise;
+
+                float brightness = dot(color, vec3(0.299, 0.587, 0.114));
+                float darkness = 1.0 - brightness;
+                vec3 tintColor = vec3(0.2, 0.3, 0.35);
+                color = mix(color, tintColor, darkness * 0.15 * intensity);
+
+                half4 originalEval = content.eval(uv * imageSize);
+                return half4(color, originalEval.a);
             }
         """
 
