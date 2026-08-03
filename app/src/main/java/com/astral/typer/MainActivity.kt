@@ -455,7 +455,7 @@ class MainActivity : AppCompatActivity() {
         if (isFirstRun) {
             AlertDialog.Builder(this)
                 .setTitle("Unduh Model AI")
-                .setMessage("Model 'Inpaint Model (LaMa)' dan 'Bubble & Text Detector' diperlukan untuk memunculkan fitur AI pada aplikasi. Apakah Anda ingin mengunduhnya sekarang?")
+                .setMessage("Model 'Inpaint Model (LaMa)', 'Inpaint Model (MIGAN)' dan 'Bubble & Text Detector' diperlukan untuk memunculkan fitur AI pada aplikasi. Apakah Anda ingin mengunduhnya sekarang?")
                 .setPositiveButton("Yes") { dialog, _ ->
                     prefs.edit().putBoolean("is_first_run", false).apply()
                     dialog.dismiss()

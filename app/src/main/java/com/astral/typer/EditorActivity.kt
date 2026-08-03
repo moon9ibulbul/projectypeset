@@ -3094,10 +3094,13 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        // --- Engine Selector (If LaMa Available) ---
-        // Check LaMa availability
+        // --- Engine Selector ---
         val lamaProcessor = com.astral.typer.utils.LaMaProcessor(this)
-        if (lamaProcessor.isModelAvailable()) {
+        val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
+        val isLamaAvailable = lamaProcessor.isModelAvailable()
+        val isMiganAvailable = miganProcessor.isModelAvailable()
+
+        if (isLamaAvailable || isMiganAvailable) {
             val engineLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -3106,7 +3109,15 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            val modes = arrayOf("OpenCV (Telea)", "LaMa (AI)")
+            val modes = ArrayList<String>()
+            modes.add("OpenCV (Telea)")
+            if (isLamaAvailable) {
+                modes.add("LaMa (AI)")
+            }
+            if (isMiganAvailable) {
+                modes.add("MIGAN (AI)")
+            }
+
             val spinner = android.widget.Spinner(this)
             val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -3118,20 +3129,21 @@ class EditorActivity : AppCompatActivity() {
 
             spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
-                    if (pos == 0) {
-                        inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
-                    } else {
-                        inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                    val selectedMode = modes[pos]
+                    when {
+                        selectedMode.contains("OpenCV") -> {
+                            inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+                        }
+                        selectedMode.contains("LaMa") -> {
+                            inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                        }
+                        selectedMode.contains("MIGAN") -> {
+                            inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
+                        }
                     }
                 }
                 override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
             }
-
-            // Customizing Spinner Text Color is tricky programmatically with default layout.
-            // Wrapping it or just let it be standard Android style.
-            // Better: Radio Group? Or just a Toggle Button?
-            // Spinner is fine, but text might be dark. Let's force background to white for spinner popup or use a custom view.
-            // Simple: just add it. The text color depends on theme. Activity is AppCompat.
 
             val tvLabel = TextView(this).apply {
                 text = "Engine: "
