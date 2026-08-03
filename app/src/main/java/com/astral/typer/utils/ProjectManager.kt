@@ -99,6 +99,7 @@ object ProjectManager {
         // Stroke
         val strokeColor: Int? = null, val strokeWidth: Float? = null,
         val doubleStrokeColor: Int? = null, val doubleStrokeWidth: Float? = null,
+        val tripleStrokeColor: Int? = null, val tripleStrokeWidth: Float? = null,
 
         // Perspective
         val isPerspective: Boolean? = null, val perspectivePoints: List<Float>? = null,
@@ -320,6 +321,7 @@ object ProjectManager {
 
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
+                        tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
 
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.mainWarpRows, warpCols = layer.mainWarpCols, warpMesh = layer.mainWarpMesh?.toList(),
@@ -431,6 +433,7 @@ object ProjectManager {
                         isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
+                        tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
@@ -897,6 +900,8 @@ object ProjectManager {
             model.strokeWidth?.let { layer.strokeWidth = it }
             model.doubleStrokeColor?.let { layer.doubleStrokeColor = it }
             model.doubleStrokeWidth?.let { layer.doubleStrokeWidth = it }
+            model.tripleStrokeColor?.let { layer.tripleStrokeColor = it }
+            model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
 
             model.isPerspective?.let { layer.isPerspective = it }
             model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
@@ -1072,6 +1077,8 @@ object ProjectManager {
             model.strokeWidth?.let { layer.strokeWidth = it }
             model.doubleStrokeColor?.let { layer.doubleStrokeColor = it }
             model.doubleStrokeWidth?.let { layer.doubleStrokeWidth = it }
+            model.tripleStrokeColor?.let { layer.tripleStrokeColor = it }
+            model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isPerspective?.let { layer.isPerspective = it }
             model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
             model.isWarp?.let { layer.isWarp = it }

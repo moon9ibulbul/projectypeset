@@ -60,6 +60,8 @@ class ShapeLayer(
     override var strokeWidth: Float = 0f
     override var doubleStrokeColor: Int = Color.WHITE
     override var doubleStrokeWidth: Float = 0f
+    override var tripleStrokeColor: Int = Color.WHITE
+    override var tripleStrokeWidth: Float = 0f
 
     // Perspective
     override var isPerspective: Boolean = false
@@ -469,6 +471,12 @@ class ShapeLayer(
             commonPaint.reset()
             commonPaint.isAntiAlias = true
 
+            // 0. Triple Stroke
+            if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+                val colorToUse = (silhouetteColor ?: tripleStrokeColor)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2)
+            }
+
             // 1. Double Stroke
             if (doubleStrokeWidth > 0f && strokeWidth > 0f) {
                 val colorToUse = (silhouetteColor ?: doubleStrokeColor)
@@ -808,7 +816,7 @@ class ShapeLayer(
                     val scaleFactor = 1f / safeBlockSize
                     val scaledW = (nodeW * scaleFactor).toInt().coerceAtLeast(1)
                     val scaledH = (nodeH * scaleFactor).toInt().coerceAtLeast(1)
-                    val currentHash = listOf(shapeName, w, h, color, safeBlockSize, strokeWidth, strokeColor, doubleStrokeWidth, doubleStrokeColor, currentEffect, secondaryEffect, pad, bounds).hashCode()
+                    val currentHash = listOf(shapeName, w, h, color, safeBlockSize, strokeWidth, strokeColor, doubleStrokeWidth, doubleStrokeColor, tripleStrokeWidth, tripleStrokeColor, currentEffect, secondaryEffect, pad, bounds).hashCode()
                     if (cachedPixelBitmap == null || cachedPixelBitmap!!.width != scaledW || cachedPixelBitmap!!.height != scaledH || cachedPixelHash != currentHash) {
                         cachedPixelBitmap?.recycle()
                         val tempBitmap = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
@@ -1482,7 +1490,7 @@ class ShapeLayer(
     }
 
     override fun calculatePadding(): Float {
-        var p = strokeWidth + doubleStrokeWidth
+        var p = strokeWidth + doubleStrokeWidth + tripleStrokeWidth
         p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
 
@@ -1683,7 +1691,7 @@ class ShapeLayer(
         newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.hasMiddleColor = hasMiddleColor; newLayer.gradientMiddleColor = gradientMiddleColor; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke = isGradientStroke; newLayer.isGradientShadow = isGradientShadow
         newLayer.gradientStartPos = gradientStartPos; newLayer.gradientMiddlePos = gradientMiddlePos; newLayer.gradientEndPos = gradientEndPos
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
-        newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth
+        newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth; newLayer.tripleStrokeColor = tripleStrokeColor; newLayer.tripleStrokeWidth = tripleStrokeWidth
         newLayer.isPerspective = isPerspective; newLayer.perspectivePoints = perspectivePoints?.clone()
         newLayer.isWarp = isWarp; newLayer.warpRows = warpRows; newLayer.warpCols = warpCols; newLayer.warpMesh = warpMesh?.clone()
         newLayer.textureBitmap = textureBitmap; newLayer.textureOffsetX = textureOffsetX; newLayer.textureOffsetY = textureOffsetY
@@ -1750,6 +1758,7 @@ class ShapeLayer(
 
         strokeWidth *= 2f
         doubleStrokeWidth *= 2f
+        tripleStrokeWidth *= 2f
         shadowRadius *= 2f
         shadowDx *= 2f
         shadowDy *= 2f
