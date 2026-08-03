@@ -1357,7 +1357,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun renderToBitmapHardware(): android.graphics.Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
-        val maxDim = 16383
+        val maxDim = 4096
         if (canvasWidth <= maxDim && canvasHeight <= maxDim) {
             try {
                 val reader = android.media.ImageReader.newInstance(
