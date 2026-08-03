@@ -138,6 +138,7 @@ class LaMaProcessor(private val context: Context) {
         }
     }
 
+    @Synchronized
     private fun getSession(): OrtSession {
         if (ortEnvironment == null) {
             ortEnvironment = OrtEnvironment.getEnvironment()
@@ -148,15 +149,39 @@ class LaMaProcessor(private val context: Context) {
             // Optimization options
             try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
-                 sessionOptions.setInterOpNumThreads(4)
-                 sessionOptions.setIntraOpNumThreads(4)
-                 sessionOptions.addNnapi()
+
+                 // Dynamic thread pool count based on available CPU cores
+                 val numCores = Runtime.getRuntime().availableProcessors()
+                 val optimalThreads = (numCores / 2).coerceIn(1, 4)
+                 sessionOptions.setInterOpNumThreads(optimalThreads)
+                 sessionOptions.setIntraOpNumThreads(optimalThreads)
+
+                 // Retrieve NNAPI toggle preference from Settings
+                 val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+                 val enableNnapi = prefs.getBoolean("enable_lama_nnapi", true)
+                 if (enableNnapi) {
+                     sessionOptions.addNnapi()
+                     Log.d("LaMaProcessor", "NNAPI enabled for LaMa session.")
+                 } else {
+                     Log.d("LaMaProcessor", "NNAPI disabled for LaMa session (CPU only).")
+                 }
             } catch (e: Exception) {
                 Log.w("LaMaProcessor", "Failed to set optimization options or enable NNAPI", e)
             }
             ortSession = ortEnvironment!!.createSession(modelFile.absolutePath, sessionOptions)
         }
         return ortSession!!
+    }
+
+    suspend fun warmUp() = withContext(Dispatchers.Default) {
+        if (!isModelAvailable()) return@withContext
+        try {
+            Log.d("LaMaProcessor", "Triggering lazy background pre-warming...")
+            getSession()
+            Log.d("LaMaProcessor", "LaMa background pre-warming completed.")
+        } catch (e: Exception) {
+            Log.e("LaMaProcessor", "Failed to pre-warm LaMa model", e)
+        }
     }
 
     private fun closeSession() {
