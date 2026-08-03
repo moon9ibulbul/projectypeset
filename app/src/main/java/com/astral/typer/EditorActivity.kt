@@ -3015,6 +3015,18 @@ class EditorActivity : AppCompatActivity() {
             canvasView.setInpaintMode(true)
             // Toast.makeText(this, "Inpaint Mode: Draw over object to erase", Toast.LENGTH_SHORT).show()
 
+            // Trigger Lazy Pre-warming in background safely
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val p = com.astral.typer.utils.LaMaProcessor(this@EditorActivity)
+                    if (p.isModelAvailable()) {
+                        p.warmUp()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("EditorActivity", "Inpaint pre-warm failed", e)
+                }
+            }
+
             // Hide bottom menu in inpaint mode?
             binding.bottomMenuContainer.visibility = View.GONE
             hidePropertyDetail()

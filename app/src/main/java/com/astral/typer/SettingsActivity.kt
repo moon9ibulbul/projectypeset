@@ -88,6 +88,12 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("disable_snap_to_center", isChecked).apply()
         }
 
+        val cbLamaNnapi = findViewById<CheckBox>(R.id.cbLamaNnapi)
+        cbLamaNnapi.isChecked = settingsPrefs.getBoolean("enable_lama_nnapi", true)
+        cbLamaNnapi.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("enable_lama_nnapi", isChecked).apply()
+        }
+
         // Watermark Logic
         cbEnableWatermark = findViewById(R.id.cbEnableWatermark)
         layoutWatermarkOptions = findViewById(R.id.layoutWatermarkOptions)
