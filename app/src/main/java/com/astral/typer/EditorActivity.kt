@@ -510,6 +510,8 @@ class EditorActivity : AppCompatActivity() {
                     layer.strokeWidth = style.strokeWidth
                     layer.doubleStrokeColor = style.doubleStrokeColor
                     layer.doubleStrokeWidth = style.doubleStrokeWidth
+                    layer.tripleStrokeColor = style.tripleStrokeColor ?: Color.WHITE
+                    layer.tripleStrokeWidth = style.tripleStrokeWidth ?: 0f
                     layer.letterSpacing = style.letterSpacing
                     layer.lineSpacing = style.lineSpacing
 
@@ -3522,6 +3524,8 @@ class EditorActivity : AppCompatActivity() {
         layer.strokeWidth = style.strokeWidth
         layer.doubleStrokeColor = style.doubleStrokeColor
         layer.doubleStrokeWidth = style.doubleStrokeWidth
+        layer.tripleStrokeColor = style.tripleStrokeColor ?: Color.WHITE
+        layer.tripleStrokeWidth = style.tripleStrokeWidth ?: 0f
         // Spacing
         layer.letterSpacing = style.letterSpacing
         layer.lineSpacing = style.lineSpacing
@@ -3856,7 +3860,7 @@ class EditorActivity : AppCompatActivity() {
             // Ensure others are visible
             binding.btnPropColor.visibility = View.VISIBLE
             binding.btnPropStroke.visibility = View.VISIBLE
-            binding.btnPropDoubleStroke.visibility = View.VISIBLE
+            binding.btnPropDoubleStroke.visibility = View.GONE
             binding.btnPropShadow.visibility = View.VISIBLE
             binding.btnPropGradation.visibility = View.VISIBLE
             binding.btnPropEffect.visibility = View.VISIBLE
@@ -3875,7 +3879,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropColor.visibility = View.VISIBLE
             binding.btnPropSpacing.visibility = View.VISIBLE
             binding.btnPropStroke.visibility = View.VISIBLE
-            binding.btnPropDoubleStroke.visibility = View.VISIBLE
+            binding.btnPropDoubleStroke.visibility = View.GONE
             binding.btnPropShadow.visibility = View.VISIBLE
             binding.btnPropGradation.visibility = View.VISIBLE
             binding.btnPropEffect.visibility = View.VISIBLE
@@ -4419,24 +4423,48 @@ class EditorActivity : AppCompatActivity() {
             imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
         }
 
-        // 2. Align Left
-        addIcon(R.drawable.ic_format_align_left) {
-            layer.textAlign = Layout.Alignment.ALIGN_NORMAL
+        // 2. Align Cycle
+        val startAlignIcon = when (layer.textAlign) {
+            Layout.Alignment.ALIGN_NORMAL -> R.drawable.ic_format_align_left
+            Layout.Alignment.ALIGN_CENTER -> R.drawable.ic_format_align_center
+            else -> R.drawable.ic_format_align_right
+        }
+        addIcon(startAlignIcon) { view ->
+            val nextAlign = when (layer.textAlign) {
+                Layout.Alignment.ALIGN_NORMAL -> Layout.Alignment.ALIGN_CENTER
+                Layout.Alignment.ALIGN_CENTER -> Layout.Alignment.ALIGN_OPPOSITE
+                else -> Layout.Alignment.ALIGN_NORMAL
+            }
+            layer.textAlign = nextAlign
             layer.isJustified = false
+            val nextIcon = when (nextAlign) {
+                Layout.Alignment.ALIGN_NORMAL -> R.drawable.ic_format_align_left
+                Layout.Alignment.ALIGN_CENTER -> R.drawable.ic_format_align_center
+                else -> R.drawable.ic_format_align_right
+            }
+            (view as android.widget.ImageView).setImageResource(nextIcon)
             canvasView.invalidate()
         }
 
-        // 3. Align Center
-        addIcon(R.drawable.ic_format_align_center) {
-            layer.textAlign = Layout.Alignment.ALIGN_CENTER
-            layer.isJustified = false
+        // 3. Bold Toggle
+        addIcon(R.drawable.ic_format_bold) {
+            val et = activeEditText
+            val hasSelection = et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd
+            if (!hasSelection) {
+                layer.isBold = !layer.isBold
+            }
+            applySpanToSelection(StyleSpan(Typeface.BOLD))
             canvasView.invalidate()
         }
 
-        // 4. Align Right
-        addIcon(R.drawable.ic_format_align_right) {
-            layer.textAlign = Layout.Alignment.ALIGN_OPPOSITE
-            layer.isJustified = false
+        // 4. Italic Toggle
+        addIcon(R.drawable.ic_format_italic) {
+            val et = activeEditText
+            val hasSelection = et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd
+            if (!hasSelection) {
+                layer.isItalic = !layer.isItalic
+            }
+            applySpanToSelection(StyleSpan(Typeface.ITALIC))
             canvasView.invalidate()
         }
 
@@ -6661,12 +6689,16 @@ class EditorActivity : AppCompatActivity() {
         val layer = canvasView.getSelectedLayer() ?: return
         val stylableLayer = layer as? StylableLayer ?: return
 
+        val scroll = ScrollView(this).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
         val mainLayout = LinearLayout(this).apply {
              orientation = LinearLayout.VERTICAL
              layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        // Color List (Moved to Top)
+        // ==================== 1st Stroke ====================
         val colorList = createColorScroll(stylableLayer.strokeColor,
              { c ->
                  if (stylableLayer.strokeColor == c && stylableLayer.strokeWidth > 0) stylableLayer.strokeWidth = 0f
@@ -6682,7 +6714,6 @@ class EditorActivity : AppCompatActivity() {
         )
         mainLayout.addView(colorList)
 
-        // Width Control (Style like Size tab)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -6743,106 +6774,234 @@ class EditorActivity : AppCompatActivity() {
         row.addView(btnMinus)
         row.addView(tvValue)
         row.addView(btnPlus)
-
         mainLayout.addView(row)
-        container.addView(mainLayout)
+
+        // ==================== Checkbox for 2nd Stroke ====================
+        val cb2ndStroke = android.widget.CheckBox(this).apply {
+            text = "Double Stroke (2nd Stroke)"
+            setTextColor(Color.WHITE)
+            isChecked = stylableLayer.doubleStrokeWidth > 0f
+            setPadding(16, 8, 16, 8)
+            setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) {
+                    if (stylableLayer.strokeWidth <= 0f) {
+                        stylableLayer.strokeWidth = 5f
+                    }
+                    if (stylableLayer.doubleStrokeWidth == 0f) {
+                        stylableLayer.doubleStrokeWidth = 5f
+                    }
+                } else {
+                    stylableLayer.doubleStrokeWidth = 0f
+                    stylableLayer.tripleStrokeWidth = 0f
+                }
+                canvasView.invalidate()
+                showStrokeMenu()
+            }
+        }
+        mainLayout.addView(cb2ndStroke)
+
+        if (stylableLayer.doubleStrokeWidth > 0f) {
+            val layout2nd = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 0, 0, 8)
+            }
+
+            val colorList2nd = createColorScroll(stylableLayer.doubleStrokeColor,
+                 { c ->
+                     stylableLayer.doubleStrokeColor = c
+                     if (stylableLayer.doubleStrokeWidth == 0f) stylableLayer.doubleStrokeWidth = 5f
+                     canvasView.invalidate()
+                     showStrokeMenu()
+                 },
+                 { showColorWheelDialogForProperty(stylableLayer.doubleStrokeColor) { c ->
+                     stylableLayer.doubleStrokeColor = c
+                     if (stylableLayer.doubleStrokeWidth == 0f) stylableLayer.doubleStrokeWidth = 5f
+                     canvasView.invalidate()
+                     showStrokeMenu()
+                 } }
+            )
+            layout2nd.addView(colorList2nd)
+
+            val row2nd = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(16, 8, 16, 8)
+            }
+
+            val tvLabel2nd = TextView(this).apply {
+                text = "2nd Stroke Width"
+                setTextColor(Color.LTGRAY)
+                textSize = 14f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val tvValue2nd = TextView(this).apply {
+                text = "${stylableLayer.doubleStrokeWidth.toInt()} pt"
+                setTextColor(Color.CYAN)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+
+            val btnMinus2nd = TextView(this).apply {
+                text = "-"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+                setOnClickListener {
+                    stylableLayer.doubleStrokeWidth = (stylableLayer.doubleStrokeWidth - 1).coerceAtLeast(0f)
+                    tvValue2nd.text = "${stylableLayer.doubleStrokeWidth.toInt()} pt"
+                    canvasView.invalidate()
+                }
+            }
+
+            val btnPlus2nd = TextView(this).apply {
+                text = "+"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+                setOnClickListener {
+                    stylableLayer.doubleStrokeWidth += 1
+                    tvValue2nd.text = "${stylableLayer.doubleStrokeWidth.toInt()} pt"
+                    canvasView.invalidate()
+                }
+            }
+
+            row2nd.addView(tvLabel2nd)
+            row2nd.addView(btnMinus2nd)
+            row2nd.addView(tvValue2nd)
+            row2nd.addView(btnPlus2nd)
+            layout2nd.addView(row2nd)
+
+            mainLayout.addView(layout2nd)
+        }
+
+        // ==================== Checkbox for 3rd Stroke ====================
+        val cb3rdStroke = android.widget.CheckBox(this).apply {
+            text = "3rd Stroke"
+            setTextColor(Color.WHITE)
+            isChecked = stylableLayer.tripleStrokeWidth > 0f
+            setPadding(16, 8, 16, 8)
+            setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) {
+                    if (stylableLayer.strokeWidth <= 0f) {
+                        stylableLayer.strokeWidth = 5f
+                    }
+                    if (stylableLayer.doubleStrokeWidth <= 0f) {
+                        stylableLayer.doubleStrokeWidth = 5f
+                    }
+                    if (stylableLayer.tripleStrokeWidth == 0f) {
+                        stylableLayer.tripleStrokeWidth = 5f
+                    }
+                } else {
+                    stylableLayer.tripleStrokeWidth = 0f
+                }
+                canvasView.invalidate()
+                showStrokeMenu()
+            }
+        }
+        mainLayout.addView(cb3rdStroke)
+
+        if (stylableLayer.tripleStrokeWidth > 0f) {
+            val layout3rd = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 0, 0, 8)
+            }
+
+            val colorList3rd = createColorScroll(stylableLayer.tripleStrokeColor,
+                 { c ->
+                     stylableLayer.tripleStrokeColor = c
+                     if (stylableLayer.tripleStrokeWidth == 0f) stylableLayer.tripleStrokeWidth = 5f
+                     canvasView.invalidate()
+                     showStrokeMenu()
+                 },
+                 { showColorWheelDialogForProperty(stylableLayer.tripleStrokeColor) { c ->
+                     stylableLayer.tripleStrokeColor = c
+                     if (stylableLayer.tripleStrokeWidth == 0f) stylableLayer.tripleStrokeWidth = 5f
+                     canvasView.invalidate()
+                     showStrokeMenu()
+                 } }
+            )
+            layout3rd.addView(colorList3rd)
+
+            val row3rd = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(16, 8, 16, 8)
+            }
+
+            val tvLabel3rd = TextView(this).apply {
+                text = "3rd Stroke Width"
+                setTextColor(Color.LTGRAY)
+                textSize = 14f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val tvValue3rd = TextView(this).apply {
+                text = "${stylableLayer.tripleStrokeWidth.toInt()} pt"
+                setTextColor(Color.CYAN)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            }
+
+            val btnMinus3rd = TextView(this).apply {
+                text = "-"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+                setOnClickListener {
+                    stylableLayer.tripleStrokeWidth = (stylableLayer.tripleStrokeWidth - 1).coerceAtLeast(0f)
+                    tvValue3rd.text = "${stylableLayer.tripleStrokeWidth.toInt()} pt"
+                    canvasView.invalidate()
+                }
+            }
+
+            val btnPlus3rd = TextView(this).apply {
+                text = "+"
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+                setOnClickListener {
+                    stylableLayer.tripleStrokeWidth += 1
+                    tvValue3rd.text = "${stylableLayer.tripleStrokeWidth.toInt()} pt"
+                    canvasView.invalidate()
+                }
+            }
+
+            row3rd.addView(tvLabel3rd)
+            row3rd.addView(btnMinus3rd)
+            row3rd.addView(tvValue3rd)
+            row3rd.addView(btnPlus3rd)
+            layout3rd.addView(row3rd)
+
+            mainLayout.addView(layout3rd)
+        }
+
+        scroll.addView(mainLayout)
+        container.addView(scroll)
     }
 
     private fun showDoubleStrokeMenu() {
-        val layer = canvasView.getSelectedLayer() ?: return
-        val stylableLayer = layer as? StylableLayer ?: return
-
-        val sw = stylableLayer.strokeWidth
-        if (sw <= 0f) {
-             Toast.makeText(this, "Enable Stroke first!", Toast.LENGTH_SHORT).show()
-        }
-
-        val container = prepareContainer()
-        val mainLayout = LinearLayout(this).apply {
-             orientation = LinearLayout.VERTICAL
-             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
-        // Color List (Moved to Top)
-        val colorList = createColorScroll(stylableLayer.doubleStrokeColor,
-             { c ->
-                 if (stylableLayer.doubleStrokeColor == c && stylableLayer.doubleStrokeWidth > 0) stylableLayer.doubleStrokeWidth = 0f
-                 else { stylableLayer.doubleStrokeColor = c; if (stylableLayer.doubleStrokeWidth == 0f) stylableLayer.doubleStrokeWidth = 5f }
-                 canvasView.invalidate()
-                 showDoubleStrokeMenu()
-             },
-             { showColorWheelDialogForProperty(stylableLayer.doubleStrokeColor) { c ->
-                 stylableLayer.doubleStrokeColor = c; if(stylableLayer.doubleStrokeWidth==0f) stylableLayer.doubleStrokeWidth=5f
-                 canvasView.invalidate()
-                 showDoubleStrokeMenu()
-             } }
-        )
-        mainLayout.addView(colorList)
-
-        // Width Control (Style like Size tab)
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(16, 8, 16, 8)
-        }
-
-        val tvLabel = TextView(this).apply {
-            text = "2nd Stroke Width"
-            setTextColor(Color.LTGRAY)
-            textSize = 14f
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        val currentDStrokeWidth = stylableLayer.doubleStrokeWidth
-        val tvValue = TextView(this).apply {
-            tag = "DBL_STROKE_WIDTH_VAL"
-            text = "${currentDStrokeWidth.toInt()} pt"
-            setTextColor(Color.CYAN)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-
-        val btnMinus = TextView(this).apply {
-            text = "-"
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(4).toFloat()
-            }
-            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-            setOnClickListener {
-                stylableLayer.doubleStrokeWidth = (stylableLayer.doubleStrokeWidth - 1).coerceAtLeast(0f)
-                tvValue.text = "${stylableLayer.doubleStrokeWidth.toInt()} pt"
-                canvasView.invalidate()
-            }
-        }
-
-        val btnPlus = TextView(this).apply {
-            text = "+"
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(4).toFloat()
-            }
-            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
-            setOnClickListener {
-                stylableLayer.doubleStrokeWidth += 1
-                tvValue.text = "${stylableLayer.doubleStrokeWidth.toInt()} pt"
-                canvasView.invalidate()
-            }
-        }
-
-        row.addView(tvLabel)
-        row.addView(btnMinus)
-        row.addView(tvValue)
-        row.addView(btnPlus)
-
-        mainLayout.addView(row)
-        container.addView(mainLayout)
+        showStrokeMenu()
     }
 
     private fun showColorWheelDialog(layer: TextLayer) {

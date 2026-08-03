@@ -143,6 +143,8 @@ class TextLayer(
     override var strokeWidth: Float = 0f
     override var doubleStrokeColor: Int = Color.WHITE
     override var doubleStrokeWidth: Float = 0f
+    override var tripleStrokeColor: Int = Color.WHITE
+    override var tripleStrokeWidth: Float = 0f
 
     // Perspective
     override var isPerspective: Boolean = false
@@ -467,6 +469,8 @@ class TextLayer(
         result = 31 * result + strokeWidth.hashCode()
         result = 31 * result + doubleStrokeColor
         result = 31 * result + doubleStrokeWidth.hashCode()
+        result = 31 * result + tripleStrokeColor
+        result = 31 * result + tripleStrokeWidth.hashCode()
         result = 31 * result + (textureBitmap?.hashCode() ?: 0)
         result = 31 * result + textureOffsetX.hashCode()
         result = 31 * result + textureOffsetY.hashCode()
@@ -707,6 +711,8 @@ class TextLayer(
         newLayer.strokeWidth = this.strokeWidth
         newLayer.doubleStrokeColor = this.doubleStrokeColor
         newLayer.doubleStrokeWidth = this.doubleStrokeWidth
+        newLayer.tripleStrokeColor = this.tripleStrokeColor
+        newLayer.tripleStrokeWidth = this.tripleStrokeWidth
         newLayer.boxWidth = this.boxWidth
         newLayer.fixedHeight = this.fixedHeight
         newLayer.isOval = this.isOval
@@ -934,7 +940,7 @@ class TextLayer(
     }
 
     override fun calculatePadding(): Float {
-        var p = strokeWidth + doubleStrokeWidth
+        var p = strokeWidth + doubleStrokeWidth + tripleStrokeWidth
         p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
 
@@ -1901,6 +1907,16 @@ class TextLayer(
                 val baseAlpha = if (ignoreOriginalAlpha) 1.0f else (Color.alpha(c) / 255f)
                 val a = (baseAlpha * iterationAlpha * 255).toInt().coerceIn(0, 255)
                 return (c and 0x00FFFFFF) or (a shl 24)
+            }
+
+            // 0. Triple Stroke
+            if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
+                paint.shader = null
+                paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
             }
 
             // 1. Double Stroke
@@ -3925,6 +3941,7 @@ class TextLayer(
 
         strokeWidth *= 2f
         doubleStrokeWidth *= 2f
+        tripleStrokeWidth *= 2f
         shadowRadius *= 2f
         shadowDx *= 2f
         shadowDy *= 2f

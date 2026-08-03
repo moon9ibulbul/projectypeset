@@ -171,6 +171,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var strokeWidth: Float = 0f
     override var doubleStrokeColor: Int = Color.TRANSPARENT
     override var doubleStrokeWidth: Float = 0f
+    override var tripleStrokeColor: Int = Color.TRANSPARENT
+    override var tripleStrokeWidth: Float = 0f
 
     override var isPerspective: Boolean = false
     override var perspectivePoints: FloatArray? = null
@@ -1531,6 +1533,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
         strokeWidth *= 2f
         doubleStrokeWidth *= 2f
+        tripleStrokeWidth *= 2f
         shadowRadius *= 2f
         shadowDx *= 2f
         shadowDy *= 2f

@@ -55,6 +55,8 @@ class ImageLayer(
     override var strokeWidth: Float = 0f
     override var doubleStrokeColor: Int = Color.WHITE
     override var doubleStrokeWidth: Float = 0f
+    override var tripleStrokeColor: Int = Color.WHITE
+    override var tripleStrokeWidth: Float = 0f
 
     // Perspective & Warp
     override var isPerspective: Boolean = false
@@ -580,6 +582,7 @@ class ImageLayer(
 
         strokeWidth *= 2f
         doubleStrokeWidth *= 2f
+        tripleStrokeWidth *= 2f
         shadowRadius *= 2f
         shadowDx *= 2f
         shadowDy *= 2f
