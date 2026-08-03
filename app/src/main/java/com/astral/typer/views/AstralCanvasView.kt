@@ -1393,9 +1393,22 @@ class AstralCanvasView @JvmOverloads constructor(
                 renderer.setLightSourceAlpha(0f, 0f)
                 renderer.setLightSourceGeometry(0f, 0f, 0f, 1f)
 
+                val handlerThread = android.os.HandlerThread("ImageReaderThread")
+                handlerThread.start()
+                val backgroundHandler = android.os.Handler(handlerThread.looper)
+
+                val latch = java.util.concurrent.CountDownLatch(1)
+                reader.setOnImageAvailableListener({ _ ->
+                    latch.countDown()
+                }, backgroundHandler)
+
                 val request = renderer.createRenderRequest()
                 request.setWaitForPresent(true)
                 request.syncAndDraw()
+
+                latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+                reader.setOnImageAvailableListener(null, null)
+                handlerThread.quitSafely()
 
                 val image = reader.acquireNextImage()
                 if (image != null) {
@@ -1481,9 +1494,22 @@ class AstralCanvasView @JvmOverloads constructor(
             renderer.setLightSourceAlpha(0f, 0f)
             renderer.setLightSourceGeometry(0f, 0f, 0f, 1f)
 
+            val handlerThread = android.os.HandlerThread("ImageReaderThread_Slice")
+            handlerThread.start()
+            val backgroundHandler = android.os.Handler(handlerThread.looper)
+
+            val latch = java.util.concurrent.CountDownLatch(1)
+            reader.setOnImageAvailableListener({ _ ->
+                latch.countDown()
+            }, backgroundHandler)
+
             val request = renderer.createRenderRequest()
             request.setWaitForPresent(true)
             request.syncAndDraw()
+
+            latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            reader.setOnImageAvailableListener(null, null)
+            handlerThread.quitSafely()
 
             val image = reader.acquireNextImage()
             if (image != null) {
