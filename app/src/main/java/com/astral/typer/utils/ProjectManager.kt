@@ -1400,19 +1400,21 @@ object ProjectManager {
                 val handlerThread = android.os.HandlerThread("ImageReaderThread_Page")
                 handlerThread.start()
                 val backgroundHandler = android.os.Handler(handlerThread.looper)
+                try {
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    reader.setOnImageAvailableListener({ _ ->
+                        latch.countDown()
+                    }, backgroundHandler)
 
-                val latch = java.util.concurrent.CountDownLatch(1)
-                reader.setOnImageAvailableListener({ _ ->
-                    latch.countDown()
-                }, backgroundHandler)
+                    val request = renderer.createRenderRequest()
+                    request.setWaitForPresent(true)
+                    request.syncAndDraw()
 
-                val request = renderer.createRenderRequest()
-                request.setWaitForPresent(true)
-                request.syncAndDraw()
-
-                latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
-                reader.setOnImageAvailableListener(null, null)
-                handlerThread.quitSafely()
+                    latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+                } finally {
+                    reader.setOnImageAvailableListener(null, null)
+                    handlerThread.quitSafely()
+                }
 
                 val image = reader.acquireNextImage()
                 if (image != null) {
@@ -1498,19 +1500,21 @@ object ProjectManager {
             val handlerThread = android.os.HandlerThread("ImageReaderThread_PageSlice")
             handlerThread.start()
             val backgroundHandler = android.os.Handler(handlerThread.looper)
+            try {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                reader.setOnImageAvailableListener({ _ ->
+                    latch.countDown()
+                }, backgroundHandler)
 
-            val latch = java.util.concurrent.CountDownLatch(1)
-            reader.setOnImageAvailableListener({ _ ->
-                latch.countDown()
-            }, backgroundHandler)
+                val request = renderer.createRenderRequest()
+                request.setWaitForPresent(true)
+                request.syncAndDraw()
 
-            val request = renderer.createRenderRequest()
-            request.setWaitForPresent(true)
-            request.syncAndDraw()
-
-            latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
-            reader.setOnImageAvailableListener(null, null)
-            handlerThread.quitSafely()
+                latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } finally {
+                reader.setOnImageAvailableListener(null, null)
+                handlerThread.quitSafely()
+            }
 
             val image = reader.acquireNextImage()
             if (image != null) {
@@ -1549,38 +1553,18 @@ object ProjectManager {
         if (readableBitmap == null) return true
 
         val firstPixel = readableBitmap.getPixel(0, 0)
-        if (firstPixel != 0 && firstPixel != Color.BLACK) {
+        if (firstPixel != 0 && firstPixel != android.graphics.Color.BLACK) {
             if (readableBitmap !== bitmap) {
                 readableBitmap.recycle()
             }
             return false
         }
 
-        val stepX = (width / 20).coerceAtLeast(1)
-        val stepY = (height / 20).coerceAtLeast(1)
-
+        val stepX = 4
+        val stepY = 4
         for (y in 0 until height step stepY) {
             for (x in 0 until width step stepX) {
-                val pixel = readableBitmap.getPixel(x, y)
-                if (pixel != firstPixel) {
-                    if (readableBitmap !== bitmap) {
-                        readableBitmap.recycle()
-                    }
-                    return false
-                }
-            }
-        }
-
-        val checkPoints = arrayOf(
-            0 to 0,
-            width - 1 to 0,
-            0 to height - 1,
-            width - 1 to height - 1,
-            width / 2 to height / 2
-        )
-        for ((cx, cy) in checkPoints) {
-            if (cx in 0 until width && cy in 0 until height) {
-                if (readableBitmap.getPixel(cx, cy) != firstPixel) {
+                if (readableBitmap.getPixel(x, y) != firstPixel) {
                     if (readableBitmap !== bitmap) {
                         readableBitmap.recycle()
                     }
