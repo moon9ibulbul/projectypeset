@@ -867,12 +867,14 @@ class ShapeLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(TextLayer.GLITCH_2_SHADER)
-                            shader.setFloatUniform("uSeed", (effectSeed % 100000).toFloat())
-                            shader.setFloatUniform("uDensity", glitch2Density)
-                            shader.setFloatUniform("uRangeX", glitch2RangeX)
-                            shader.setFloatUniform("uRangeY", glitch2RangeY)
-                            shader.setFloatUniform("uNoise", glitch2Noise)
-                            shader.setFloatUniform("uSize", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("imageSize", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("time", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("intensity", glitch2RangeY / 100f)
+                            shader.setFloatUniform("realRandom", java.util.Random(effectSeed).nextFloat())
+                            shader.setFloatUniform("slices", 2f + (glitch2Density / 100f * 48f))
+                            shader.setFloatUniform("noiseIntensity", glitch2Noise / 100f)
+                            shader.setFloatUniform("colorBarsEnabled", 1f)
+                            shader.setFloatUniform("rgbSplitIntensity", glitch2RangeX / 10f)
 
                             val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                             val parsedColors = mutableListOf<Int>()
@@ -908,26 +910,97 @@ class ShapeLayer(
                     }
 
                     if (!useRenderEffect) {
-                        drawInner(targetCanvas)
+                        val baseBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+                        val baseCanvas = Canvas(baseBmp)
+                        baseCanvas.translate(recordTranslateX, recordTranslateY)
+                        drawInner(baseCanvas)
+
+                        val outBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+                        val outCanvas = Canvas(outBmp)
 
                         val random = Random(effectSeed)
-                        val currentYStart = if (hasBounds) bounds!!.top else -pad
-                        val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
-                        val currentXStart = if (hasBounds) bounds!!.left else -pad
-                        val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+                        val numSlices = (2f + (glitch2Density / 100f * 48f)).toInt().coerceIn(2, 50)
+                        val sliceHeight = nodeH.toFloat() / numSlices
 
-                        val totalWidth = currentXEnd - currentXStart
-                        val realTotalHeight = currentYEnd - currentYStart
+                        val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        val parsedColors = mutableListOf<Int>()
+                        for (cStr in colorStrings) {
+                            try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
+                        }
+                        if (parsedColors.isEmpty()) {
+                            parsedColors.add(Color.BLACK)
+                            parsedColors.add(Color.WHITE)
+                            parsedColors.add(0xFF00008B.toInt()) // Dark Blue
+                        }
 
-                        // 1. Draw TV Static Noise in Fallback
+                        val intensity = glitch2RangeY / 100f
+                        val rgbSplitIntensity = glitch2RangeX / 10f
+
+                        for (sliceIndex in 0 until numSlices) {
+                            val sliceTop = (sliceIndex * sliceHeight).toInt()
+                            val sliceBottom = ((sliceIndex + 1) * sliceHeight).toInt().coerceAtMost(nodeH)
+                            if (sliceTop >= sliceBottom) continue
+
+                            val rnd = random.nextFloat()
+                            if ((rnd * 2.5f + 0.5f) < intensity) {
+                                val c = parsedColors[random.nextInt(parsedColors.size)]
+                                val sPaint = Paint().apply {
+                                    color = c
+                                    style = Paint.Style.FILL
+                                }
+                                val destRect = android.graphics.Rect(0, sliceTop, nodeW, sliceBottom)
+                                outCanvas.drawRect(destRect, sPaint)
+                            } else {
+                                val rVal = random.nextFloat()
+                                var glitch = 0f
+                                if (rVal > 0.65f) {
+                                    glitch = (rVal - 0.65f) * 4f * intensity
+                                }
+                                val direction = if (random.nextFloat() > 0.5f) 1f else -1f
+                                val offset = glitch * 0.08f * direction * nodeW
+
+                                val destRect = android.graphics.RectF(offset, sliceTop.toFloat(), nodeW.toFloat() + offset, sliceBottom.toFloat())
+
+                                outCanvas.save()
+                                outCanvas.clipRect(destRect)
+                                if (rgbSplitIntensity > 0f) {
+                                    val splitOffset = rgbSplitIntensity * 4f
+                                    val redPaint = Paint().apply {
+                                        colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                                            1f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )))
+                                    }
+                                    outCanvas.drawBitmap(baseBmp, offset - splitOffset, 0f, redPaint)
+
+                                    val cyanPaint = Paint().apply {
+                                        colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(floatArrayOf(
+                                            0f, 0f, 0f, 0f, 0f,
+                                            0f, 1f, 0f, 0f, 0f,
+                                            0f, 0f, 1f, 0f, 0f,
+                                            0f, 0f, 0f, 1f, 0f
+                                        )))
+                                        xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+                                    }
+                                    outCanvas.drawBitmap(baseBmp, offset + splitOffset, 0f, cyanPaint)
+                                } else {
+                                    outCanvas.drawBitmap(baseBmp, offset, 0f, null)
+                                }
+                                outCanvas.restore()
+                            }
+                        }
+
+                        // 3. Draw TV Static Noise in Fallback
                         if (glitch2Noise > 0f) {
                             val noiseRatio = glitch2Noise / 100f
                             val numPoints = (300 * noiseRatio).toInt().coerceAtLeast(10)
                             val pts = FloatArray(numPoints * 2)
                             val noiseColors = IntArray(numPoints)
                             for (j in 0 until numPoints) {
-                                pts[j * 2] = currentXStart + random.nextFloat() * totalWidth
-                                pts[j * 2 + 1] = currentYStart + random.nextFloat() * realTotalHeight
+                                pts[j * 2] = random.nextFloat() * nodeW
+                                pts[j * 2 + 1] = random.nextFloat() * nodeH
                                 val rColor = if (random.nextFloat() < 0.25f) {
                                     Color.rgb(random.nextInt(256), random.nextInt(256), random.nextInt(256))
                                 } else {
@@ -944,75 +1017,17 @@ class ShapeLayer(
                             for (j in 0 until numPoints) {
                                 nPaint.color = noiseColors[j]
                                 nPaint.alpha = (100 + random.nextInt(156)).coerceIn(0, 255)
-                                targetCanvas.drawPoint(pts[j * 2], pts[j * 2 + 1], nPaint)
+                                outCanvas.drawPoint(pts[j * 2], pts[j * 2 + 1], nPaint)
                             }
                         }
 
-                        // 2. Draw Glitch Lines in Fallback
-                        val colorStrings = glitch2Colors.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        val parsedColors = mutableListOf<Int>()
-                        for (cStr in colorStrings) {
-                            try { parsedColors.add(Color.parseColor(cStr)) } catch (e: Exception) {}
-                        }
-                        if (parsedColors.isEmpty()) {
-                            parsedColors.add(Color.BLACK)
-                            parsedColors.add(Color.WHITE)
-                            parsedColors.add(0xFF00008B.toInt()) // Dark Blue
-                        }
+                        targetCanvas.save()
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+                        targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                        targetCanvas.restore()
 
-                        val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            style = Paint.Style.STROKE
-                        }
-
-                        val baseLines = (5 + (glitch2Density / 100f * 45)).toInt()
-                        val lineCount = (baseLines + random.nextInt(baseLines.coerceAtLeast(1))).coerceAtLeast(5)
-
-                        val rangeXFactor = glitch2RangeX / 100f
-                        val rangeYFactor = glitch2RangeY / 100f
-
-                        for (i in 0 until lineCount) {
-                            val y = currentYStart + random.nextFloat() * realTotalHeight
-                            val type = random.nextInt(3)
-                            val colorVal = parsedColors[random.nextInt(parsedColors.size)]
-
-                            gPaint.color = colorVal
-                            gPaint.alpha = (160 + random.nextInt(96)).coerceIn(0, 255)
-
-                            when (type) {
-                                0 -> {
-                                    val lineWidth = (0.25f + random.nextFloat() * rangeXFactor) * totalWidth
-                                    val startX = currentXStart + random.nextFloat() * (totalWidth - lineWidth)
-                                    val endX = startX + lineWidth
-                                    gPaint.style = Paint.Style.STROKE
-                                    gPaint.strokeWidth = (1f + random.nextFloat() * 3.5f)
-                                    targetCanvas.drawLine(startX, y, endX, y, gPaint)
-                                }
-                                1 -> {
-                                    val barWidth = (0.1f + random.nextFloat() * rangeXFactor * 0.7f) * totalWidth
-                                    val startX = currentXStart + random.nextFloat() * (totalWidth - barWidth)
-                                    val endX = startX + barWidth
-                                    val barHeight = (2f + random.nextFloat() * 12f) * (0.2f + rangeYFactor * 2.5f)
-                                    gPaint.style = Paint.Style.FILL
-                                    targetCanvas.drawRect(startX, y - barHeight / 2f, endX, y + barHeight / 2f, gPaint)
-                                }
-                                2 -> {
-                                    val clusterHeight = (6f + random.nextFloat() * 18f) * (0.2f + rangeYFactor * 2.5f)
-                                    val clusterLines = random.nextInt(4) + 4
-                                    val clusterWidth = (0.15f + random.nextFloat() * rangeXFactor * 0.8f) * totalWidth
-                                    val startX = currentXStart + random.nextFloat() * (totalWidth - clusterWidth)
-                                    val endX = startX + clusterWidth
-                                    gPaint.style = Paint.Style.STROKE
-                                    gPaint.strokeWidth = (0.6f + random.nextFloat() * 1.8f)
-
-                                    for (j in 0 until clusterLines) {
-                                        val offsetMultiplier = (j - clusterLines / 2f) / (clusterLines / 2f)
-                                        val ly = y + offsetMultiplier * clusterHeight / 2f
-                                        val randXOffset = (random.nextFloat() - 0.5f) * 0.1f * clusterWidth
-                                        targetCanvas.drawLine(startX + randXOffset, ly, endX + randXOffset, ly, gPaint)
-                                    }
-                                }
-                            }
-                        }
+                        baseBmp.recycle()
+                        outBmp.recycle()
                     }
                 }
                 TextEffectType.NEON -> {
