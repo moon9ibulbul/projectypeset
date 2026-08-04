@@ -147,6 +147,13 @@ object ProjectManager {
         val neonKnockout: Boolean? = null,
         val neonQuality: Float? = null,
         val glitchIntensity: Float? = null,
+        val glitchSeed: Long? = null,
+        val decaySeed: Long? = null,
+        val glitch2Seed: Long? = null,
+        val glitch2Intensity: Float? = null,
+        val glitch2Slices: Float? = null,
+        val glitch2RgbSplitIntensity: Float? = null,
+        val glitch2NoiseIntensity: Float? = null,
         val pixelBlockSize: Float? = null,
         val chromaticShift: Float? = null,
         val chromaticAngle: Float? = null,
@@ -355,6 +362,13 @@ object ProjectManager {
                         neonKnockout = layer.neonKnockout,
                         neonQuality = layer.neonQuality,
                         glitchIntensity = layer.glitchIntensity,
+                        glitchSeed = layer.glitchSeed,
+                        decaySeed = layer.decaySeed,
+                        glitch2Seed = layer.glitch2Seed,
+                        glitch2Intensity = layer.glitch2Intensity,
+                        glitch2Slices = layer.glitch2Slices,
+                        glitch2RgbSplitIntensity = layer.glitch2RgbSplitIntensity,
+                        glitch2NoiseIntensity = layer.glitch2NoiseIntensity,
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
@@ -452,7 +466,15 @@ object ProjectManager {
                         neonOuterStrength = layer.neonOuterStrength,
                         neonKnockout = layer.neonKnockout,
                         neonQuality = layer.neonQuality,
-                        glitchIntensity = layer.glitchIntensity, pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
+                        glitchIntensity = layer.glitchIntensity,
+                        glitchSeed = layer.glitchSeed,
+                        decaySeed = layer.decaySeed,
+                        glitch2Seed = layer.glitch2Seed,
+                        glitch2Intensity = layer.glitch2Intensity,
+                        glitch2Slices = layer.glitch2Slices,
+                        glitch2RgbSplitIntensity = layer.glitch2RgbSplitIntensity,
+                        glitch2NoiseIntensity = layer.glitch2NoiseIntensity,
+                        pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
@@ -985,6 +1007,13 @@ object ProjectManager {
             model.neonKnockout?.let { layer.neonKnockout = it }
             model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
+            model.glitchSeed?.let { layer.glitchSeed = it }
+            model.decaySeed?.let { layer.decaySeed = it }
+            model.glitch2Seed?.let { layer.glitch2Seed = it }
+            model.glitch2Intensity?.let { layer.glitch2Intensity = it }
+            model.glitch2Slices?.let { layer.glitch2Slices = it }
+            model.glitch2RgbSplitIntensity?.let { layer.glitch2RgbSplitIntensity = it }
+            model.glitch2NoiseIntensity?.let { layer.glitch2NoiseIntensity = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
             model.chromaticAngle?.let { layer.chromaticAngle = it }
@@ -1132,6 +1161,13 @@ object ProjectManager {
             model.neonKnockout?.let { layer.neonKnockout = it }
             model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
+            model.glitchSeed?.let { layer.glitchSeed = it }
+            model.decaySeed?.let { layer.decaySeed = it }
+            model.glitch2Seed?.let { layer.glitch2Seed = it }
+            model.glitch2Intensity?.let { layer.glitch2Intensity = it }
+            model.glitch2Slices?.let { layer.glitch2Slices = it }
+            model.glitch2RgbSplitIntensity?.let { layer.glitch2RgbSplitIntensity = it }
+            model.glitch2NoiseIntensity?.let { layer.glitch2NoiseIntensity = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
             model.chromaticAngle?.let { layer.chromaticAngle = it }

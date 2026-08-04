@@ -153,6 +153,13 @@ class ShapeLayer(
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
+    override var glitchSeed: Long = System.currentTimeMillis()
+    override var decaySeed: Long = System.currentTimeMillis()
+    override var glitch2Seed: Long = System.currentTimeMillis()
+    override var glitch2Intensity: Float = 0.5f
+    override var glitch2Slices: Float = 20f
+    override var glitch2RgbSplitIntensity: Float = 2f
+    override var glitch2NoiseIntensity: Float = 0.5f
 
     // Pixelation
     override var pixelBlockSize: Float = 10f
@@ -359,6 +366,7 @@ class ShapeLayer(
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
+            it == TextEffectType.GLITCH_2 ||
             it == TextEffectType.FIERY ||
             it == TextEffectType.WAVY ||
             it == TextEffectType.PARTICLE_DISSOLVE ||
@@ -663,6 +671,42 @@ class ShapeLayer(
         val drawTranslateY = if (hasBounds) bounds!!.top else -pad
 
         when (effect) {
+                TextEffectType.GLITCH_2 -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("Glitch2Node")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.GLITCH_2_SHADER)
+                            shader.setFloatUniform("imageSize", nodeW.toFloat(), nodeH.toFloat())
+                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("intensity", glitch2Intensity)
+                            shader.setFloatUniform("realRandom", (glitch2Seed % 10000).toFloat() / 10000f)
+                            shader.setFloatUniform("slices", glitch2Slices.coerceAtLeast(1f))
+                            shader.setFloatUniform("noiseIntensity", glitch2NoiseIntensity)
+                            shader.setFloatUniform("colorBarsEnabled", 1f)
+                            shader.setFloatUniform("rgbSplitIntensity", glitch2RgbSplitIntensity)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    if (!useRenderEffect) {
+                        drawGlitch2Software(targetCanvas, w, h, drawInner)
+                    }
+                }
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -833,7 +877,7 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.GLITCH -> {
-                    val random = Random(effectSeed)
+                    val random = Random(glitchSeed)
                     val currentYStart = if (hasBounds) bounds!!.top else -pad
                     val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
                     val currentXStart = if (hasBounds) bounds!!.left else -pad
@@ -1241,7 +1285,7 @@ class ShapeLayer(
                             val shader = android.graphics.RuntimeShader(TextLayer.TEXT_DECAY_SHADER)
                             shader.setFloatUniform("intensity", decayIntensity)
                             shader.setFloatUniform("fadingLevel", decayFadingLevel)
-                            shader.setFloatUniform("seed", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("seed", (decaySeed % 10000).toFloat())
                             shader.setFloatUniform("size", w, h)
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
@@ -1388,7 +1432,7 @@ class ShapeLayer(
         val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         val srcCanvas = Canvas(srcBmp); srcCanvas.translate(pad, pad); drawInner(srcCanvas)
 
-        val random = Random(effectSeed)
+        val random = Random(decaySeed)
         fun generateNoise(scale: Float): Bitmap {
             val nW = (bmpW * scale).toInt().coerceAtLeast(1)
             val nH = (bmpH * scale).toInt().coerceAtLeast(1)
@@ -1508,6 +1552,7 @@ class ShapeLayer(
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH_2 -> effectExpansion = Math.max(effectExpansion, 100f * glitch2Intensity)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
@@ -1651,6 +1696,90 @@ class ShapeLayer(
         return coeff * Math.pow(t.toDouble(), i.toDouble()).toFloat() * Math.pow((1f - t).toDouble(), (n - i).toDouble()).toFloat()
     }
 
+    private fun drawGlitch2Software(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        val bmpW = ceil(w + pad * 2).toInt()
+        val bmpH = ceil(h + pad * 2).toInt()
+
+        if (bmpW <= 0 || bmpH <= 0) {
+            drawInner(targetCanvas)
+            return
+        }
+
+        val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val srcCanvas = Canvas(srcBmp)
+        srcCanvas.translate(pad, pad)
+        drawInner(srcCanvas)
+
+        val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val outCanvas = Canvas(outBmp)
+
+        val numSlices = glitch2Slices.toInt().coerceAtLeast(1)
+        val splitPixels = 0.005f * glitch2RgbSplitIntensity * bmpW
+
+        val redMatrix = android.graphics.ColorMatrix(floatArrayOf(
+            1f, 0f, 0f, 0f, 0f,
+            0f, 0f, 0f, 0f, 0f,
+            0f, 0f, 0f, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        ))
+        val redFilter = android.graphics.ColorMatrixColorFilter(redMatrix)
+
+        val cyanMatrix = android.graphics.ColorMatrix(floatArrayOf(
+            0f, 0f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        ))
+        val cyanFilter = android.graphics.ColorMatrixColorFilter(cyanMatrix)
+
+        val pRed = Paint().apply { colorFilter = redFilter; isFilterBitmap = true }
+        val pCyan = Paint().apply {
+            colorFilter = cyanFilter
+            isFilterBitmap = true
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD)
+        }
+
+        for (i in 0 until numSlices) {
+            val sliceYStart = (i * bmpH) / numSlices
+            val sliceYEnd = ((i + 1) * bmpH) / numSlices
+            if (sliceYStart >= sliceYEnd) continue
+
+            val random = java.util.Random(glitch2Seed + i)
+            val r = random.nextFloat()
+            var offset = 0f
+            if (r > 0.65f) {
+                val glitch = (r - 0.65f) * 4.0f * glitch2Intensity
+                val direction = if (random.nextFloat() > 0.5f) 1.0f else -1.0f
+                offset = glitch * 0.08f * direction * bmpW
+            }
+
+            val srcRect = android.graphics.Rect(0, sliceYStart, bmpW, sliceYEnd)
+
+            // Red pass
+            val destRectRed = RectF(offset - splitPixels, sliceYStart.toFloat(), bmpW + offset - splitPixels, sliceYEnd.toFloat())
+            outCanvas.save()
+            outCanvas.clipRect(0f, sliceYStart.toFloat(), bmpW.toFloat(), sliceYEnd.toFloat())
+            outCanvas.drawBitmap(srcBmp, srcRect, destRectRed, pRed)
+            outCanvas.restore()
+
+            // Cyan pass
+            val destRectCyan = RectF(offset + splitPixels, sliceYStart.toFloat(), bmpW + offset + splitPixels, sliceYEnd.toFloat())
+            outCanvas.save()
+            outCanvas.clipRect(0f, sliceYStart.toFloat(), bmpW.toFloat(), sliceYEnd.toFloat())
+            outCanvas.drawBitmap(srcBmp, srcRect, destRectCyan, pCyan)
+            outCanvas.restore()
+        }
+
+        targetCanvas.save()
+        targetCanvas.translate(-pad, -pad)
+        targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+        targetCanvas.restore()
+
+        srcBmp.recycle()
+        outBmp.recycle()
+    }
+
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
         val matrix = Matrix(); val srcPts = floatArrayOf(src.left, src.top, src.right, src.top, src.right, src.bottom, src.left, src.bottom)
         matrix.setPolyToPoly(srcPts, 0, dst, 0, 4); return matrix
@@ -1717,7 +1846,9 @@ class ShapeLayer(
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
-        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity;
+        newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.glitch2Seed = glitch2Seed; newLayer.glitch2Intensity = glitch2Intensity; newLayer.glitch2Slices = glitch2Slices; newLayer.glitch2RgbSplitIntensity = glitch2RgbSplitIntensity; newLayer.glitch2NoiseIntensity = glitch2NoiseIntensity;
+        newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
 
         // Twist
