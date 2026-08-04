@@ -196,6 +196,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
     override var tertiaryEffect: TextEffectType = TextEffectType.NONE
     override var effectSeed: Long = 0L
+    override var glitchSeed: Long = 0L
+    override var decaySeed: Long = 0L
     override var blurRadius: Float = 0f
     override var longShadowLength: Float = 0f
     override var longShadowColor: Int = Color.TRANSPARENT
