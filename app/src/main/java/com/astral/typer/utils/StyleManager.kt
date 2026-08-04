@@ -222,7 +222,14 @@ object StyleManager {
         val patternScale: Float? = 1.0f,
         val patternRotation: Float? = 0f,
         val caseType: String? = "NORMAL",
-        val chromaticAngle: Float? = 0f
+        val chromaticAngle: Float? = 0f,
+        val glitchSeed: Long? = null,
+        val decaySeed: Long? = null,
+        val glitch2Seed: Long? = null,
+        val glitch2Intensity: Float? = null,
+        val glitch2Slices: Float? = null,
+        val glitch2RgbSplitIntensity: Float? = null,
+        val glitch2NoiseIntensity: Float? = null
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -267,7 +274,9 @@ object StyleManager {
             l.halftoneType, l.halftoneAlpha, l.halftoneRange,
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType, l.chromaticAngle
+            l.caseType, l.chromaticAngle,
+            l.glitchSeed, l.decaySeed, l.glitch2Seed,
+            l.glitch2Intensity, l.glitch2Slices, l.glitch2RgbSplitIntensity, l.glitch2NoiseIntensity
         )
     }
 
@@ -390,6 +399,13 @@ object StyleManager {
         l.neonKnockout = m.neonKnockout
         l.neonQuality = m.neonQuality
         m.chromaticAngle?.let { l.chromaticAngle = it }
+        m.glitchSeed?.let { l.glitchSeed = it }
+        m.decaySeed?.let { l.decaySeed = it }
+        m.glitch2Seed?.let { l.glitch2Seed = it }
+        m.glitch2Intensity?.let { l.glitch2Intensity = it }
+        m.glitch2Slices?.let { l.glitch2Slices = it }
+        m.glitch2RgbSplitIntensity?.let { l.glitch2RgbSplitIntensity = it }
+        m.glitch2NoiseIntensity?.let { l.glitch2NoiseIntensity = it }
 
         // Halftone Restore
         m.halftoneDotSize?.let { l.halftoneDotSize = it }
