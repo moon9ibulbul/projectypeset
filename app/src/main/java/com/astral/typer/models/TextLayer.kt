@@ -348,6 +348,8 @@ class TextLayer(
 
     // Random Seed for Glitch effect
     override var effectSeed: Long = System.currentTimeMillis()
+    override var glitchSeed: Long = System.currentTimeMillis()
+    override var decaySeed: Long = System.currentTimeMillis()
 
     // Caching for Pixelation
     @Transient
@@ -483,6 +485,8 @@ class TextLayer(
         result = 31 * result + secondaryEffect.hashCode()
         result = 31 * result + tertiaryEffect.hashCode()
         result = 31 * result + effectSeed.hashCode()
+        result = 31 * result + glitchSeed.hashCode()
+        result = 31 * result + decaySeed.hashCode()
         result = 31 * result + blurRadius.hashCode()
         result = 31 * result + longShadowLength.hashCode()
         result = 31 * result + longShadowColor
@@ -784,6 +788,8 @@ class TextLayer(
         newLayer.chromaticColors = this.chromaticColors.clone()
         newLayer.chromaticAngle = this.chromaticAngle
         newLayer.effectSeed = this.effectSeed
+        newLayer.glitchSeed = this.glitchSeed
+        newLayer.decaySeed = this.decaySeed
 
         newLayer.fieryColor = this.fieryColor
         newLayer.fieryIntensity = this.fieryIntensity
@@ -2363,7 +2369,7 @@ class TextLayer(
                     }
                 }
                 TextEffectType.GLITCH -> {
-                    val random = Random(effectSeed)
+                    val random = Random(glitchSeed)
                     val slices = mutableListOf<Pair<RectF, Float>>()
 
                     val currentYStart = if (hasBounds) bounds!!.top else -pad
@@ -3022,7 +3028,7 @@ class TextLayer(
                             val shader = android.graphics.RuntimeShader(TEXT_DECAY_SHADER)
                             shader.setFloatUniform("intensity", decayIntensity)
                             shader.setFloatUniform("fadingLevel", decayFadingLevel)
-                            shader.setFloatUniform("seed", (effectSeed % 10000).toFloat())
+                            shader.setFloatUniform("seed", (decaySeed % 10000).toFloat())
                             shader.setFloatUniform("size", w, h)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
@@ -3223,7 +3229,7 @@ class TextLayer(
         drawInner(srcCanvas)
 
         // 2. Generate multi-octave noise
-        val random = Random(effectSeed)
+        val random = Random(decaySeed)
         fun generateNoise(scale: Float): Bitmap {
             val nW = (bmpW * scale).toInt().coerceAtLeast(1)
             val nH = (bmpH * scale).toInt().coerceAtLeast(1)

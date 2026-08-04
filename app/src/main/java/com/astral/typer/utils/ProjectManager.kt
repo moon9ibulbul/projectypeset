@@ -125,6 +125,8 @@ object ProjectManager {
 
         // Effect
         val currentEffect: String? = null, val secondaryEffect: String? = null, val tertiaryEffect: String? = null, val effectSeed: Long? = null,
+        val glitchSeed: Long? = null,
+        val decaySeed: Long? = null,
         val chromaticColors: List<Int>? = null,
         val blurRadius: Float? = null,
         val longShadowLength: Float? = null, val longShadowColor: Int? = null, val longShadowAngle: Float? = null,
@@ -337,6 +339,8 @@ object ProjectManager {
                         patternRotation = layer.patternRotation,
                         eraseMaskPath = erasePath,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
+                        glitchSeed = layer.glitchSeed,
+                        decaySeed = layer.decaySeed,
                         chromaticColors = layer.chromaticColors.toList(),
                         blurRadius = layer.blurRadius,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
@@ -440,6 +444,8 @@ object ProjectManager {
                         patternName = layer.patternName, patternColor = layer.patternColor, patternAlpha = layer.patternAlpha, patternScale = layer.patternScale, patternRotation = layer.patternRotation,
                         eraseMaskPath = erasePath,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
+                        glitchSeed = layer.glitchSeed,
+                        decaySeed = layer.decaySeed,
                         chromaticColors = layer.chromaticColors.toList(), blurRadius = layer.blurRadius,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
@@ -956,6 +962,12 @@ object ProjectManager {
                 try { layer.tertiaryEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
             }
             model.effectSeed?.let { layer.effectSeed = it }
+            model.glitchSeed?.let { layer.glitchSeed = it }
+            model.decaySeed?.let { layer.decaySeed = it }
+            model.effectSeed?.let {
+                if (model.glitchSeed == null) layer.glitchSeed = it
+                if (model.decaySeed == null) layer.decaySeed = it
+            }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
 
             model.blurRadius?.let { layer.blurRadius = it }
@@ -1108,6 +1120,12 @@ object ProjectManager {
                 try { layer.tertiaryEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
             }
             model.effectSeed?.let { layer.effectSeed = it }
+            model.glitchSeed?.let { layer.glitchSeed = it }
+            model.decaySeed?.let { layer.decaySeed = it }
+            model.effectSeed?.let {
+                if (model.glitchSeed == null) layer.glitchSeed = it
+                if (model.decaySeed == null) layer.decaySeed = it
+            }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
             model.blurRadius?.let { layer.blurRadius = it }
             model.longShadowLength?.let { layer.longShadowLength = it }

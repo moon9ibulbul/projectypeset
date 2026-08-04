@@ -1125,7 +1125,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Helper to check if effect is active
-        val isEffectActive = { effect: TextEffectType -> getEffect() == effect || getSecondaryEffect() == effect }
+        val isEffectActive = { effect: TextEffectType -> getEffect() == effect || getSecondaryEffect() == effect || getTertiaryEffect() == effect }
 
         if (isEffectActive(TextEffectType.LONG_SHADOW)) {
                 val currentLen = stylableLayer.longShadowLength
@@ -1725,11 +1725,11 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(s1)
                 val btnSeed = android.widget.Button(this).apply {
-                    text = "Randomize Seed"
+                    text = "Randomize Glitch Seed"
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
-                        stylableLayer.effectSeed = java.util.Random().nextInt(10000).toLong()
+                        stylableLayer.glitchSeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
                     }
                 }
@@ -1909,11 +1909,11 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s2)
 
                 val btnSeed = android.widget.Button(this).apply {
-                    text = "Randomize Seed"
+                    text = "Randomize Decay Seed"
                     setTextColor(Color.WHITE)
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
-                        stylableLayer.effectSeed = java.util.Random().nextInt(10000).toLong()
+                        stylableLayer.decaySeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
                     }
                 }

@@ -70,6 +70,8 @@ interface StylableLayer {
     var secondaryEffect: TextEffectType
     var tertiaryEffect: TextEffectType
     var effectSeed: Long
+    var glitchSeed: Long
+    var decaySeed: Long
     var blurRadius: Float
     var longShadowLength: Float
     var longShadowColor: Int

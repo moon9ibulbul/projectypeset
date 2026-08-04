@@ -87,6 +87,8 @@ class ImageLayer(
     override var secondaryEffect: TextEffectType = TextEffectType.NONE
     override var tertiaryEffect: TextEffectType = TextEffectType.NONE
     override var effectSeed: Long = System.currentTimeMillis()
+    override var glitchSeed: Long = System.currentTimeMillis()
+    override var decaySeed: Long = System.currentTimeMillis()
     override var blurRadius: Float = 0f
     override var longShadowLength: Float = 30f
     override var longShadowColor: Int = Color.DKGRAY
@@ -558,6 +560,9 @@ class ImageLayer(
 
         newLayer.motionShadowThickness = this.motionShadowThickness
         newLayer.chromaticAngle = this.chromaticAngle
+        newLayer.effectSeed = this.effectSeed
+        newLayer.glitchSeed = this.glitchSeed
+        newLayer.decaySeed = this.decaySeed
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
