@@ -166,6 +166,17 @@ class ImageLayer(
     override var zoomBlurRadius: Float = -1f
     override var zoomBlurStrength: Float = 0.1f
 
+    // Speed Line
+    override var speedLineType: String = "RADIAL"
+    override var speedLineWidth: Float = 300f
+    override var speedLineHeight: Float = 300f
+    override var speedLineCount: Int = 50
+    override var speedLineThickness: Float = 2f
+    override var speedLineLength: Float = 40f
+    override var speedLineAdditional: Int = 9
+    override var speedLineColor: Int = android.graphics.Color.BLACK
+    override var speedLineAngle: Float = 0f
+
     // Erase
     override var eraseMask: Bitmap? = null
     override val erasePaths = mutableListOf<ErasePathData>()
@@ -563,6 +574,17 @@ class ImageLayer(
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed
         newLayer.decaySeed = this.decaySeed
+
+        // Speed Line
+        newLayer.speedLineType = this.speedLineType
+        newLayer.speedLineWidth = this.speedLineWidth
+        newLayer.speedLineHeight = this.speedLineHeight
+        newLayer.speedLineCount = this.speedLineCount
+        newLayer.speedLineThickness = this.speedLineThickness
+        newLayer.speedLineLength = this.speedLineLength
+        newLayer.speedLineAdditional = this.speedLineAdditional
+        newLayer.speedLineColor = this.speedLineColor
+        newLayer.speedLineAngle = this.speedLineAngle
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)

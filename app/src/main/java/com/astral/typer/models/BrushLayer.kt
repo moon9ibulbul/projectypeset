@@ -275,6 +275,17 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var zoomBlurRadius: Float = -1f
     override var zoomBlurStrength: Float = 0.1f
 
+    // Speed Line
+    override var speedLineType: String = "RADIAL"
+    override var speedLineWidth: Float = 300f
+    override var speedLineHeight: Float = 300f
+    override var speedLineCount: Int = 50
+    override var speedLineThickness: Float = 2f
+    override var speedLineLength: Float = 40f
+    override var speedLineAdditional: Int = 9
+    override var speedLineColor: Int = android.graphics.Color.BLACK
+    override var speedLineAngle: Float = 0f
+
     // Erase support
     override var eraseMask: Bitmap? = null
     override val erasePaths: MutableList<ErasePathData> = mutableListOf()
@@ -371,6 +382,17 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             brushSmudge = this@BrushLayer.brushSmudge
             brushSmudgeLength = this@BrushLayer.brushSmudgeLength
             brushSlowTracking = this@BrushLayer.brushSlowTracking
+
+            // Speed Line
+            speedLineType = this@BrushLayer.speedLineType
+            speedLineWidth = this@BrushLayer.speedLineWidth
+            speedLineHeight = this@BrushLayer.speedLineHeight
+            speedLineCount = this@BrushLayer.speedLineCount
+            speedLineThickness = this@BrushLayer.speedLineThickness
+            speedLineLength = this@BrushLayer.speedLineLength
+            speedLineAdditional = this@BrushLayer.speedLineAdditional
+            speedLineColor = this@BrushLayer.speedLineColor
+            speedLineAngle = this@BrushLayer.speedLineAngle
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)
