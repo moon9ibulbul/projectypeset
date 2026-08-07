@@ -190,6 +190,17 @@ object ProjectManager {
         val zoomBlurRadius: Float? = null,
         val zoomBlurStrength: Float? = null,
 
+        // Speed Line
+        val speedLineType: String? = null,
+        val speedLineWidth: Float? = null,
+        val speedLineHeight: Float? = null,
+        val speedLineCount: Int? = null,
+        val speedLineThickness: Float? = null,
+        val speedLineLength: Float? = null,
+        val speedLineAdditional: Int? = null,
+        val speedLineColor: Int? = null,
+        val speedLineAngle: Float? = null,
+
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -400,6 +411,17 @@ object ProjectManager {
                         zoomBlurRadius = layer.zoomBlurRadius,
                         zoomBlurStrength = layer.zoomBlurStrength,
 
+                        // Speed Line
+                        speedLineType = layer.speedLineType,
+                        speedLineWidth = layer.speedLineWidth,
+                        speedLineHeight = layer.speedLineHeight,
+                        speedLineCount = layer.speedLineCount,
+                        speedLineThickness = layer.speedLineThickness,
+                        speedLineLength = layer.speedLineLength,
+                        speedLineAdditional = layer.speedLineAdditional,
+                        speedLineColor = layer.speedLineColor,
+                        speedLineAngle = layer.speedLineAngle,
+
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -496,6 +518,17 @@ object ProjectManager {
                         zoomBlurInnerRadius = layer.zoomBlurInnerRadius,
                         zoomBlurRadius = layer.zoomBlurRadius,
                         zoomBlurStrength = layer.zoomBlurStrength,
+
+                        // Speed Line
+                        speedLineType = layer.speedLineType,
+                        speedLineWidth = layer.speedLineWidth,
+                        speedLineHeight = layer.speedLineHeight,
+                        speedLineCount = layer.speedLineCount,
+                        speedLineThickness = layer.speedLineThickness,
+                        speedLineLength = layer.speedLineLength,
+                        speedLineAdditional = layer.speedLineAdditional,
+                        speedLineColor = layer.speedLineColor,
+                        speedLineAngle = layer.speedLineAngle,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,
                         motionBlurOffset = layer.motionBlurOffset,
@@ -1046,6 +1079,17 @@ object ProjectManager {
             model.zoomBlurRadius?.let { layer.zoomBlurRadius = it }
             model.zoomBlurStrength?.let { layer.zoomBlurStrength = it }
 
+            // Speed Line
+            model.speedLineType?.let { layer.speedLineType = it }
+            model.speedLineWidth?.let { layer.speedLineWidth = it }
+            model.speedLineHeight?.let { layer.speedLineHeight = it }
+            model.speedLineCount?.let { layer.speedLineCount = it }
+            model.speedLineThickness?.let { layer.speedLineThickness = it }
+            model.speedLineLength?.let { layer.speedLineLength = it }
+            model.speedLineAdditional?.let { layer.speedLineAdditional = it }
+            model.speedLineColor?.let { layer.speedLineColor = it }
+            model.speedLineAngle?.let { layer.speedLineAngle = it }
+
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -1198,6 +1242,17 @@ object ProjectManager {
             model.zoomBlurInnerRadius?.let { layer.zoomBlurInnerRadius = it }
             model.zoomBlurRadius?.let { layer.zoomBlurRadius = it }
             model.zoomBlurStrength?.let { layer.zoomBlurStrength = it }
+
+            // Speed Line
+            model.speedLineType?.let { layer.speedLineType = it }
+            model.speedLineWidth?.let { layer.speedLineWidth = it }
+            model.speedLineHeight?.let { layer.speedLineHeight = it }
+            model.speedLineCount?.let { layer.speedLineCount = it }
+            model.speedLineThickness?.let { layer.speedLineThickness = it }
+            model.speedLineLength?.let { layer.speedLineLength = it }
+            model.speedLineAdditional?.let { layer.speedLineAdditional = it }
+            model.speedLineColor?.let { layer.speedLineColor = it }
+            model.speedLineAngle?.let { layer.speedLineAngle = it }
 
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {

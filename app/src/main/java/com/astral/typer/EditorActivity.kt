@@ -1110,6 +1110,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Bulge & Pinch", TextEffectType.BULGE_PINCH)
         addEffectCard("Reflection", TextEffectType.REFLECTION)
         addEffectCard("Zoom Blur", TextEffectType.ZOOM_BLUR)
+        addEffectCard("Speed Line", TextEffectType.SPEED_LINE)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -2284,6 +2285,170 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s5)
+        }
+
+        if (isEffectActive(TextEffectType.SPEED_LINE)) {
+                // Type Spinner: Radial, Linear
+                val tvTypeLabel = TextView(this).apply { text = "Type"; setTextColor(Color.WHITE); setPadding(0, 16, 0, 8) }
+                settingsLayout.addView(tvTypeLabel)
+
+                val spinnerType = android.widget.Spinner(this)
+                val typeOptions = listOf("Radial", "Linear")
+                val typeValueOptions = listOf("RADIAL", "LINEAR")
+                val typeAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, typeOptions)
+                typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                spinnerType.adapter = typeAdapter
+                spinnerType.setSelection(typeValueOptions.indexOf(stylableLayer.speedLineType).coerceAtLeast(0))
+                spinnerType.onItemSelectedListener = object: android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        val newType = typeValueOptions[position]
+                        if (stylableLayer.speedLineType != newType) {
+                            stylableLayer.speedLineType = newType
+                            canvasView.invalidate()
+                            showEffectMenu() // Refresh menu to show/hide Angle slider
+                        }
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+                }
+                settingsLayout.addView(spinnerType)
+
+                // Slider: Width (10 to 3000)
+                val currentWidth = stylableLayer.speedLineWidth
+                val sWidth = createSlider("Width: ${currentWidth.toInt()} px", currentWidth.toInt().coerceIn(10, 3000), 3000) { }
+                val tvWidth = sWidth.findViewWithTag<TextView>("SLIDER_LABEL")
+                sWidth.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val w = p.coerceAtLeast(10)
+                        stylableLayer.speedLineWidth = w.toFloat()
+                        tvWidth?.text = "Width: $w px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sWidth)
+
+                // Slider: Height (10 to 3000)
+                val currentHeight = stylableLayer.speedLineHeight
+                val sHeight = createSlider("Height: ${currentHeight.toInt()} px", currentHeight.toInt().coerceIn(10, 3000), 3000) { }
+                val tvHeight = sHeight.findViewWithTag<TextView>("SLIDER_LABEL")
+                sHeight.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val h = p.coerceAtLeast(10)
+                        stylableLayer.speedLineHeight = h.toFloat()
+                        tvHeight?.text = "Height: $h px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sHeight)
+
+                // Slider: Number of lines (1 to 200)
+                val currentCount = stylableLayer.speedLineCount
+                val sCount = createSlider("Number of lines: $currentCount", currentCount.coerceIn(1, 200), 200) { }
+                val tvCount = sCount.findViewWithTag<TextView>("SLIDER_LABEL")
+                sCount.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val count = p.coerceAtLeast(1)
+                        stylableLayer.speedLineCount = count
+                        tvCount?.text = "Number of lines: $count"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sCount)
+
+                // Slider: Line thickness (0.1 to 50.0). Slider from 1 to 500 (progress / 10f)
+                val currentThickness = stylableLayer.speedLineThickness
+                val initialThicknessProgress = (currentThickness * 10f).toInt().coerceIn(1, 500)
+                val sThickness = createSlider("Line thickness: ${String.format("%.1f", currentThickness)} px", initialThicknessProgress, 500) { }
+                val tvThickness = sThickness.findViewWithTag<TextView>("SLIDER_LABEL")
+                sThickness.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val t = p.coerceAtLeast(1) / 10f
+                        stylableLayer.speedLineThickness = t
+                        tvThickness?.text = "Line thickness: ${String.format("%.1f", t)} px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sThickness)
+
+                // Slider: Line length (1 to 500)
+                val currentLength = stylableLayer.speedLineLength
+                val sLength = createSlider("Line length: ${currentLength.toInt()} px", currentLength.toInt().coerceIn(1, 500), 500) { }
+                val tvLength = sLength.findViewWithTag<TextView>("SLIDER_LABEL")
+                sLength.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val l = p.coerceAtLeast(1)
+                        stylableLayer.speedLineLength = l.toFloat()
+                        tvLength?.text = "Line length: $l px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sLength)
+
+                // Slider: Additional lines per line (0 to 50)
+                val currentAdditional = stylableLayer.speedLineAdditional
+                val sAdditional = createSlider("Additional lines per line: $currentAdditional", currentAdditional.coerceIn(0, 50), 50) { }
+                val tvAdditional = sAdditional.findViewWithTag<TextView>("SLIDER_LABEL")
+                sAdditional.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.speedLineAdditional = p
+                        tvAdditional?.text = "Additional lines per line: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sAdditional)
+
+                // Angle (khusus Linear) (-180 to 180). Progress from 0 to 360, mapped as progress - 180
+                if (stylableLayer.speedLineType == "LINEAR") {
+                    val currentAngle = stylableLayer.speedLineAngle
+                    val initialAngleProgress = (currentAngle + 180f).toInt().coerceIn(0, 360)
+                    val sAngle = createSlider("Angle: ${currentAngle.toInt()}°", initialAngleProgress, 360) { }
+                    val tvAngle = sAngle.findViewWithTag<TextView>("SLIDER_LABEL")
+                    sAngle.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                        override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                            val angle = p - 180
+                            stylableLayer.speedLineAngle = angle.toFloat()
+                            tvAngle?.text = "Angle: $angle°"
+                            canvasView.invalidate()
+                        }
+                        override fun onStartTrackingTouch(s: SeekBar?) {}
+                        override fun onStopTrackingTouch(s: SeekBar?) {}
+                    })
+                    settingsLayout.addView(sAngle)
+                }
+
+                // Palette warna untuk Line color
+                val tvColor = TextView(this).apply { text = "Line Color"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 8) }
+                settingsLayout.addView(tvColor)
+                settingsLayout.addView(createColorScroll(stylableLayer.speedLineColor,
+                    { c -> stylableLayer.speedLineColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.speedLineColor) { c -> stylableLayer.speedLineColor = c; canvasView.invalidate(); showEffectMenu() } }
+                ))
+
+                // Seed randomizer button (to change seed and generate different random speedlines)
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Lines"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        stylableLayer.effectSeed = java.util.Random().nextInt(100000).toLong()
+                        canvasView.invalidate()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        setMargins(0, dpToPx(16), 0, 0)
+                    }
+                }
+                settingsLayout.addView(btnSeed)
         }
 
         mainLayout.addView(settingsLayout)

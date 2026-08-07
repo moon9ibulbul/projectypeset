@@ -149,6 +149,17 @@ interface StylableLayer {
     var zoomBlurRadius: Float
     var zoomBlurStrength: Float
 
+    // Speed Line
+    var speedLineType: String
+    var speedLineWidth: Float
+    var speedLineHeight: Float
+    var speedLineCount: Int
+    var speedLineThickness: Float
+    var speedLineLength: Float
+    var speedLineAdditional: Int
+    var speedLineColor: Int
+    var speedLineAngle: Float
+
     // Erase
     var eraseMask: Bitmap?
     val erasePaths: MutableList<ErasePathData>

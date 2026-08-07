@@ -179,6 +179,17 @@ object StyleManager {
         val zoomBlurRadius: Float = -1f,
         val zoomBlurStrength: Float = 0.1f,
 
+        // Speed Line
+        val speedLineType: String? = "RADIAL",
+        val speedLineWidth: Float? = 300f,
+        val speedLineHeight: Float? = 300f,
+        val speedLineCount: Int? = 50,
+        val speedLineThickness: Float? = 2f,
+        val speedLineLength: Float? = 40f,
+        val speedLineAdditional: Int? = 9,
+        val speedLineColor: Int? = Color.BLACK,
+        val speedLineAngle: Float? = 0f,
+
         // Perspective
         val isPerspective: Boolean = false,
         val perspectivePoints: FloatArray? = null,
@@ -255,6 +266,7 @@ object StyleManager {
             l.bulgeCenterX, l.bulgeCenterY, l.bulgeRadius, l.bulgeStrength,
             l.reflectionAlphaStart, l.reflectionAlphaEnd, l.reflectionAmplitudeStart, l.reflectionAmplitudeEnd, l.reflectionBoundary, l.reflectionMirror, l.reflectionTime, l.reflectionWavelengthStart, l.reflectionWavelengthEnd,
             l.zoomBlurCenterX, l.zoomBlurCenterY, l.zoomBlurInnerRadius, l.zoomBlurRadius, l.zoomBlurStrength,
+            l.speedLineType, l.speedLineWidth, l.speedLineHeight, l.speedLineCount, l.speedLineThickness, l.speedLineLength, l.speedLineAdditional, l.speedLineColor, l.speedLineAngle,
             l.isPerspective, l.perspectivePoints,
             l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
             l.currentEffect.name, l.secondaryEffect.name, l.tertiaryEffect.name,
@@ -367,6 +379,17 @@ object StyleManager {
         l.zoomBlurInnerRadius = m.zoomBlurInnerRadius
         l.zoomBlurRadius = m.zoomBlurRadius
         l.zoomBlurStrength = m.zoomBlurStrength
+
+        // Speed Line
+        m.speedLineType?.let { l.speedLineType = it }
+        m.speedLineWidth?.let { l.speedLineWidth = it }
+        m.speedLineHeight?.let { l.speedLineHeight = it }
+        m.speedLineCount?.let { l.speedLineCount = it }
+        m.speedLineThickness?.let { l.speedLineThickness = it }
+        m.speedLineLength?.let { l.speedLineLength = it }
+        m.speedLineAdditional?.let { l.speedLineAdditional = it }
+        m.speedLineColor?.let { l.speedLineColor = it }
+        m.speedLineAngle?.let { l.speedLineAngle = it }
 
         l.isPerspective = m.isPerspective
         l.perspectivePoints = m.perspectivePoints
