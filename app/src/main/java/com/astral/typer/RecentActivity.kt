@@ -283,14 +283,108 @@ class RecentActivity : AppCompatActivity() {
         }
     }
 
+    private fun exportMultipleFoldersToPdf(folders: List<File>) {
+        if (folders.isEmpty()) return
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+            val pdfQuality = settingsPrefs.getInt("pdf_quality", 90)
+
+            val successPaths = mutableListOf<String>()
+            var failedCount = 0
+
+            for ((folderIndex, folder) in folders.withIndex()) {
+                val folderNum = folderIndex + 1
+                val totalFolders = folders.size
+
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "Exporting Folder $folderNum/$totalFolders: ${folder.name}..."
+                    progressBar.progress = 0
+                }
+
+                val tempPdf = File(cacheDir, "export_temp_${folder.name}.pdf")
+                val success = ProjectManager.exportFolderToPdf(this@RecentActivity, folder, tempPdf, pdfQuality) { current, total ->
+                    runOnUiThread {
+                        progressBar.max = total
+                        progressBar.progress = current
+                        tvStatus.text = "Folder $folderNum/$totalFolders: ${folder.name}\nProcessing page $current/$total..."
+                    }
+                }
+
+                if (success) {
+                    val fileName = "${folder.name}.pdf"
+                    var savedPath = ""
+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val contentValues = android.content.ContentValues().apply {
+                            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Documents/AstralTyper")
+                        }
+                        val uri = contentResolver.insert(android.provider.MediaStore.Files.getContentUri("external"), contentValues)
+                        if (uri != null) {
+                            contentResolver.openOutputStream(uri)?.use { output ->
+                                tempPdf.inputStream().use { input -> input.copyTo(output) }
+                            }
+                            savedPath = "Documents/AstralTyper/$fileName"
+                        }
+                    } else {
+                        val publicDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS), "AstralTyper")
+                        if (!publicDir.exists()) publicDir.mkdirs()
+                        val targetFile = File(publicDir, fileName)
+                        tempPdf.copyTo(targetFile, true)
+                        savedPath = targetFile.absolutePath
+                    }
+
+                    if (savedPath.isNotEmpty()) {
+                        successPaths.add(savedPath)
+                    } else {
+                        failedCount++
+                    }
+                } else {
+                    failedCount++
+                }
+                tempPdf.delete()
+            }
+
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                if (successPaths.isNotEmpty()) {
+                    if (failedCount == 0) {
+                        Toast.makeText(this@RecentActivity, "Exported ${successPaths.size} PDFs successfully!", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this@RecentActivity, "Exported ${successPaths.size} PDFs successfully, $failedCount failed.", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this@RecentActivity, "Failed to export PDFs", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private val actionModeCallback = object : ActionMode.Callback {
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
             menu.add(0, 1, 0, "Share").setIcon(android.R.drawable.ic_menu_share).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            menu.add(0, 3, 0, "Export to PDF").setIcon(android.R.drawable.ic_menu_save).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 2, 0, "Remove").setIcon(android.R.drawable.ic_menu_delete).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             return true
         }
 
-        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean = false
+        override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+            val selectedFiles = adapter.selectedItems
+            val allFolders = selectedFiles.isNotEmpty() && selectedFiles.all { it.isDirectory }
+            menu.findItem(3)?.isVisible = allFolders
+            return true
+        }
 
         override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
             return when (item.itemId) {
@@ -301,6 +395,12 @@ class RecentActivity : AppCompatActivity() {
                 }
                 2 -> { // Remove
                     removeSelectedProjects()
+                    mode.finish()
+                    true
+                }
+                3 -> { // Export to PDF
+                    val selectedFolders = adapter.selectedItems.filter { it.isDirectory }
+                    exportMultipleFoldersToPdf(selectedFolders)
                     mode.finish()
                     true
                 }
