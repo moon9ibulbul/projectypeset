@@ -86,6 +86,7 @@ class EditorActivity : AppCompatActivity() {
     private var typerPopup: android.widget.PopupWindow? = null
     private var loadingDialog: android.app.Dialog? = null
     private var isProjectLoadedSuccessfully = true
+    private var isNormalExit = false
 
     private val importTxtLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -200,6 +201,15 @@ class EditorActivity : AppCompatActivity() {
                          is ProjectManager.LoadResult.Success -> {
                              loadProjectData(result.projectData, result.images)
                              isProjectLoadedSuccessfully = true
+                             if (file.name == "editor_recovery.atd") {
+                                 currentProjectName = result.projectData.originalProjectName
+                                 parentFolderName = result.projectData.originalSubFolder
+                                 lifecycleScope.launch(Dispatchers.IO) {
+                                     try {
+                                         file.delete()
+                                     } catch (e: Exception) { e.printStackTrace() }
+                                 }
+                             }
                          }
                          is ProjectManager.LoadResult.MissingAssets -> {
                              // Show warning
@@ -212,6 +222,15 @@ class EditorActivity : AppCompatActivity() {
                                      // In loadProjectData, we can handle logic to set default if font fails to load (which it already does essentially, but we want to be explicit)
                                      loadProjectData(result.projectData, result.images)
                                      isProjectLoadedSuccessfully = true
+                                     if (file.name == "editor_recovery.atd") {
+                                         currentProjectName = result.projectData.originalProjectName
+                                         parentFolderName = result.projectData.originalSubFolder
+                                         lifecycleScope.launch(Dispatchers.IO) {
+                                             try {
+                                                 file.delete()
+                                             } catch (e: Exception) { e.printStackTrace() }
+                                         }
+                                     }
                                  }
                                  .setNegativeButton("Cancel") { _, _ ->
                                      finish()
@@ -292,6 +311,15 @@ class EditorActivity : AppCompatActivity() {
                     .setTitle("Confirmation")
                     .setMessage("Do you want to go back to main menu?")
                     .setPositiveButton("Yes") { _, _ ->
+                        isNormalExit = true
+                        val recoveryFile = java.io.File(getExternalFilesDir("Projects"), "editor_recovery.atd")
+                        if (recoveryFile.exists()) {
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                try {
+                                    recoveryFile.delete()
+                                } catch (e: Exception) { e.printStackTrace() }
+                            }
+                        }
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
                     }
@@ -351,29 +379,31 @@ class EditorActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Auto Save
-        val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
-        val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
-        if (!enableAutosave) return
 
-        // Capture data on Main Thread
-        val layersToSave = canvasView.getLayers().toMutableList()
-        val bgBitmap = canvasView.getBackgroundImage()
-        val bmp = canvasView.renderToBitmap()
-        val w = bmp.width
-        val h = bmp.height
+        if (isProjectLoadedSuccessfully && !isNormalExit) {
+            val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+            val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
 
-        // Generate Thumbnail (small)
-        val thumbW = 300
-        val thumbH = (h * (thumbW.toFloat() / w)).toInt()
-        val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+            // Capture data on Main Thread
+            val layersToSave = canvasView.getLayers().toMutableList()
+            val bgBitmap = canvasView.getBackgroundImage()
+            val bmp = canvasView.renderToBitmap()
+            val w = bmp.width
+            val h = bmp.height
 
-        if (isProjectLoadedSuccessfully) {
+            // Generate Thumbnail (small)
+            val thumbW = 300
+            val thumbH = (h * (thumbW.toFloat() / w)).toInt()
+            val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+
             ProjectManager.isSaving = true
-            Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
+            if (enableAutosave) {
+                Toast.makeText(this, "Menyimpan autosave...", Toast.LENGTH_SHORT).show()
+            }
 
             lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
                 try {
+                    // 1. Always save recovery project
                     ProjectManager.saveProject(
                         this@EditorActivity,
                         layersToSave,
@@ -381,10 +411,27 @@ class EditorActivity : AppCompatActivity() {
                         h,
                         Color.WHITE,
                         bgBitmap,
-                        "autosave",
+                        "editor_recovery",
                         thumbnail,
+                        null,
+                        currentProjectName,
                         parentFolderName
                     )
+
+                    // 2. Save public autosave if enabled
+                    if (enableAutosave) {
+                        ProjectManager.saveProject(
+                            this@EditorActivity,
+                            layersToSave,
+                            w,
+                            h,
+                            Color.WHITE,
+                            bgBitmap,
+                            "autosave",
+                            thumbnail,
+                            parentFolderName
+                        )
+                    }
                 } finally {
                     ProjectManager.isSaving = false
                     // Recycle temporary bitmaps
@@ -393,11 +440,6 @@ class EditorActivity : AppCompatActivity() {
                     thumbnail.recycle()
                 }
             }
-        } else {
-            // Even if not saved, we should recycle the temporary bitmaps
-            bgBitmap?.recycle()
-            bmp.recycle()
-            thumbnail.recycle()
         }
     }
 
@@ -811,7 +853,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Top Bar
-        binding.btnBack.setOnClickListener { finish() }
+        binding.btnBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         binding.btnSave.setOnClickListener { showSaveSidebar() }
 
         binding.btnCut.setOnClickListener {
