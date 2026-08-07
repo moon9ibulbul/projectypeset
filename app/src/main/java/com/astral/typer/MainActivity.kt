@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private var hasCheckedRecovery = false
 
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { openEditorWithImage(it) }
@@ -244,6 +245,34 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         setupRecentProjects()
+        if (!hasCheckedRecovery) {
+            hasCheckedRecovery = true
+            checkAndPromptRecovery()
+        }
+    }
+
+    private fun checkAndPromptRecovery() {
+        val recoveryFile = File(getExternalFilesDir("Projects"), "editor_recovery.atd")
+        if (recoveryFile.exists()) {
+            AlertDialog.Builder(this)
+                .setTitle("Sesi Terakhir")
+                .setMessage("Sesi edit sebelumnya belum tersimpan. Ingin memulihkan?")
+                .setPositiveButton("Pulihkan") { _, _ ->
+                    val intent = Intent(this, EditorActivity::class.java).apply {
+                        putExtra("PROJECT_PATH", recoveryFile.absolutePath)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Abaikan") { _, _ ->
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            recoveryFile.delete()
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                }
+                .setCancelable(false)
+                .show()
+        }
     }
 
     private fun setupRecentProjects() {

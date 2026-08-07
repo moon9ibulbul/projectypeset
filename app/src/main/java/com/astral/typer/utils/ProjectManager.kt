@@ -32,7 +32,9 @@ object ProjectManager {
         val canvasWidth: Int,
         val canvasHeight: Int,
         val canvasColor: Int,
-        val layers: List<LayerModel>
+        val layers: List<LayerModel>,
+        val originalProjectName: String? = null,
+        val originalSubFolder: String? = null
     )
 
     data class SpanModel(
@@ -218,7 +220,9 @@ object ProjectManager {
         bgBitmap: Bitmap?,
         projectName: String,
         thumbnail: Bitmap? = null,
-        subFolder: String? = null
+        subFolder: String? = null,
+        originalProjectName: String? = null,
+        originalSubFolder: String? = null
     ): Boolean {
         try {
             val tempDir = File(context.cacheDir, "temp_save")
@@ -564,7 +568,7 @@ object ProjectManager {
                 }
             }
 
-            val projectData = ProjectData(width, height, canvasColor, layerModels)
+            val projectData = ProjectData(width, height, canvasColor, layerModels, originalProjectName, originalSubFolder)
             File(tempDir, "project.json").writeText(gson.toJson(projectData))
 
             return finalizeSave(context, tempDir, projectName, subFolder)
@@ -577,6 +581,13 @@ object ProjectManager {
 
     private fun finalizeSave(context: Context, tempDir: File, projectName: String, subFolder: String? = null): Boolean {
         var cleanName = projectName.trim()
+
+        if (cleanName == "editor_recovery") {
+            val file = getPrivateProjectFile(context, "editor_recovery", null)
+            file.parentFile?.mkdirs()
+            val success = zipFolder(tempDir, file)
+            return success
+        }
 
         if (cleanName == "autosave") {
             cleanName = "autosave_${System.currentTimeMillis()}"
@@ -667,8 +678,8 @@ object ProjectManager {
             val autosaves = allProjects.filter { it.name.startsWith("autosave_") }
                 .sortedByDescending { it.lastModified() }
 
-            if (autosaves.size > 3) {
-                for (i in 3 until autosaves.size) {
+            if (autosaves.size > 1) {
+                for (i in 1 until autosaves.size) {
                     autosaves[i].delete()
                     // Delete thumbnail cache if exists
                     try {
