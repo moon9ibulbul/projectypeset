@@ -1293,7 +1293,7 @@ object ProjectManager {
 
     fun getRecentProjects(context: Context? = null, parentFolder: File? = null): List<File> {
         if (parentFolder != null) {
-            return parentFolder.listFiles()?.toList()?.sortedByDescending { it.lastModified() } ?: emptyList()
+            return parentFolder.listFiles()?.toList()?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: emptyList()
         }
 
         val projects = mutableListOf<File>()
@@ -1595,7 +1595,7 @@ object ProjectManager {
     }
 
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
-        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedBy { it.name } ?: return false
+        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: return false
         if (projects.isEmpty()) return false
 
         try {
@@ -1881,14 +1881,16 @@ object ProjectManager {
             val projects = files.filter { it.extension.lowercase() == "atd" }
 
             if (images.isNotEmpty()) {
-                for ((index, imgFile) in images.withIndex()) {
+                val sortedImages = images.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
+                for ((index, imgFile) in sortedImages.withIndex()) {
                     // Highly optimized save using image file copying & sampled thumbnail (OOM-proof)
                     saveProjectWithImageFile(context, imgFile, imgFile.nameWithoutExtension, uniqueZipName)
                     onProgress(index + 1, images.size)
                 }
                 return true
             } else if (projects.isNotEmpty()) {
-                for ((index, projFile) in projects.withIndex()) {
+                val sortedProjects = projects.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
+                for ((index, projFile) in sortedProjects.withIndex()) {
                     projFile.copyTo(File(targetFolder, projFile.name), true)
                     onProgress(index + 1, projects.size)
                 }
@@ -1948,5 +1950,70 @@ object ProjectManager {
             e.printStackTrace()
             false
         }
+    }
+}
+
+object AlphanumComparator : java.util.Comparator<String> {
+    private fun isDigit(ch: Char): Boolean {
+        return ch in '0'..'9'
+    }
+
+    private fun getChunk(s: String, slength: Int, marker: Int): String {
+        val chunk = StringBuilder()
+        var curMarker = marker
+        var c = s[curMarker]
+        chunk.append(c)
+        curMarker++
+        if (isDigit(c)) {
+            while (curMarker < slength) {
+                c = s[curMarker]
+                if (!isDigit(c)) break
+                chunk.append(c)
+                curMarker++
+            }
+        } else {
+            while (curMarker < slength) {
+                c = s[curMarker]
+                if (isDigit(c)) break
+                chunk.append(c)
+                curMarker++
+            }
+        }
+        return chunk.toString()
+    }
+
+    override fun compare(s1: String, s2: String): Int {
+        var thisMarker = 0
+        var thatMarker = 0
+        val s1Length = s1.length
+        val s2Length = s2.length
+
+        while (thisMarker < s1Length && thatMarker < s2Length) {
+            val thisChunk = getChunk(s1, s1Length, thisMarker)
+            thisMarker += thisChunk.length
+
+            val thatChunk = getChunk(s2, s2Length, thatMarker)
+            thatMarker += thatChunk.length
+
+            var result = 0
+            if (isDigit(thisChunk[0]) && isDigit(thatChunk[0])) {
+                val thisChunkLength = thisChunk.length
+                result = thisChunkLength - thatChunk.length
+                if (result == 0) {
+                    for (i in 0 until thisChunkLength) {
+                        result = thisChunk[i].code - thatChunk[i].code
+                        if (result != 0) {
+                            return result
+                        }
+                    }
+                }
+            } else {
+                result = thisChunk.compareTo(thatChunk)
+            }
+
+            if (result != 0) return result
+        }
+
+        return s1Length - s2Length
     }
 }
