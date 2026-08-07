@@ -1896,32 +1896,45 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun drawChain(canvas: Canvas, layersList: List<Layer>, index: Int): Int {
         val layer = layersList[index]
-        val saveCount = canvas.saveLayer(null, null)
-        layer.draw(canvas)
-
         val nextIndex = index + 1
-        if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
-            if (layersList[nextIndex].isVisible) {
-                val clipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
-                }
-                canvas.saveLayer(null, clipPaint)
-                val finalIndex = drawChain(canvas, layersList, nextIndex)
-                canvas.restore()
-                canvas.restoreToCount(saveCount)
-                return finalIndex
-            } else {
+        val hasClippedChildren = nextIndex < layersList.size && layersList[nextIndex].isClipped && layersList[nextIndex].isVisible
+
+        if (hasClippedChildren) {
+            // First, draw the base layer normally (with strokes, shadows, fill, etc.)
+            val saveNormal = canvas.saveLayer(null, null)
+            layer.isDrawingClippingMask = false
+            layer.draw(canvas)
+            canvas.restoreToCount(saveNormal)
+
+            // Now draw the clipping mask and clipped layers on top of it
+            val saveCount = canvas.saveLayer(null, null)
+            layer.isDrawingClippingMask = true
+            layer.draw(canvas)
+            layer.isDrawingClippingMask = false
+
+            val clipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
+            }
+            canvas.saveLayer(null, clipPaint)
+            val finalIndex = drawChain(canvas, layersList, nextIndex)
+            canvas.restore()
+            canvas.restoreToCount(saveCount)
+            return finalIndex
+        } else {
+            val saveCount = canvas.saveLayer(null, null)
+            layer.isDrawingClippingMask = false
+            layer.draw(canvas)
+            canvas.restoreToCount(saveCount)
+
+            if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
                 var scan = nextIndex
                 while (scan < layersList.size && layersList[scan].isClipped) {
                     scan++
                 }
-                canvas.restoreToCount(saveCount)
                 return scan
             }
+            return nextIndex
         }
-
-        canvas.restoreToCount(saveCount)
-        return nextIndex
     }
 
     private fun drawLayers(canvas: Canvas, layersList: List<Layer>) {
