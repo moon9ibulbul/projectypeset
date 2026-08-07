@@ -1443,6 +1443,62 @@ object ProjectManager {
         }
     }
 
+    private fun drawLayers(canvas: android.graphics.Canvas, layersList: List<Layer>) {
+        var i = 0
+        while (i < layersList.size) {
+            val layer = layersList[i]
+            if (!layer.isVisible) {
+                i++
+                while (i < layersList.size && layersList[i].isClipped) {
+                    i++
+                }
+                continue
+            }
+            i = drawChain(canvas, layersList, i)
+        }
+    }
+
+    private fun drawChain(canvas: android.graphics.Canvas, layersList: List<Layer>, index: Int): Int {
+        val layer = layersList[index]
+        val nextIndex = index + 1
+        val hasClippedChildren = nextIndex < layersList.size && layersList[nextIndex].isClipped && layersList[nextIndex].isVisible
+
+        if (hasClippedChildren) {
+            val saveNormal = canvas.saveLayer(null, null)
+            layer.isDrawingClippingMask = false
+            layer.draw(canvas)
+            canvas.restoreToCount(saveNormal)
+
+            val saveCount = canvas.saveLayer(null, null)
+            layer.isDrawingClippingMask = true
+            layer.draw(canvas)
+            layer.isDrawingClippingMask = false
+
+            val clipPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
+            }
+            canvas.saveLayer(null, clipPaint)
+            val finalIndex = drawChain(canvas, layersList, nextIndex)
+            canvas.restore()
+            canvas.restoreToCount(saveCount)
+            return finalIndex
+        } else {
+            val saveCount = canvas.saveLayer(null, null)
+            layer.isDrawingClippingMask = false
+            layer.draw(canvas)
+            canvas.restoreToCount(saveCount)
+
+            if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
+                var scan = nextIndex
+                while (scan < layersList.size && layersList[scan].isClipped) {
+                    scan++
+                }
+                return scan
+            }
+            return nextIndex
+        }
+    }
+
     private fun renderPageToBitmapHardware(data: ProjectData, images: Map<String, Bitmap>, targetWidth: Int, targetHeight: Int, scale: Float): Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
         val maxDim = 4096
@@ -1465,10 +1521,14 @@ object ProjectManager {
                 if (images.containsKey("images/background.png")) {
                     canvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
                 }
+                val loadedLayers = mutableListOf<Layer>()
                 for (model in data.layers) {
                     val layer = createLayerFromModel(model, images)
-                    layer?.draw(canvas)
+                    if (layer != null) {
+                        loadedLayers.add(layer)
+                    }
                 }
+                drawLayers(canvas, loadedLayers)
                 rootNode.endRecording()
 
                 val renderer = android.graphics.HardwareRenderer()
@@ -1550,10 +1610,14 @@ object ProjectManager {
             if (images.containsKey("images/background.png")) {
                 canvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
             }
+            val loadedLayers = mutableListOf<Layer>()
             for (model in data.layers) {
                 val layer = createLayerFromModel(model, images)
-                layer?.draw(canvas)
+                if (layer != null) {
+                    loadedLayers.add(layer)
+                }
             }
+            drawLayers(canvas, loadedLayers)
             rootNode.endRecording()
 
             val renderer = android.graphics.HardwareRenderer()
@@ -1707,10 +1771,14 @@ object ProjectManager {
                         if (images.containsKey("images/background.png")) {
                             tempCanvas.drawBitmap(images["images/background.png"]!!, 0f, 0f, null)
                         }
+                        val loadedLayers = mutableListOf<Layer>()
                         for (model in data.layers) {
                             val layer = createLayerFromModel(model, images)
-                            layer?.draw(tempCanvas)
+                            if (layer != null) {
+                                loadedLayers.add(layer)
+                            }
                         }
+                        drawLayers(tempCanvas, loadedLayers)
                     }
 
                     // Compress using a high JPEG quality to ensure presentable visual clarity (no blocky artifacts)
