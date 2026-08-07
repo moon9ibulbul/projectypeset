@@ -3199,91 +3199,23 @@ class TextLayer(
                     }
                 }
                 TextEffectType.SPEED_LINE -> {
+                    // Both LINEAR and RADIAL Speed Lines are clipped inside the characters/shapes
+                    val sc = targetCanvas.saveLayer(null, null)
+                    drawInner(targetCanvas)
+
                     val centerX = w / 2f
                     val centerY = h / 2f
 
-                    if (speedLineType == "LINEAR") {
-                        // Linear Speed Line is clipped inside the characters/shapes
-                        val sc = targetCanvas.saveLayer(null, null)
-                        drawInner(targetCanvas)
+                    val linePaint = android.graphics.Paint().apply {
+                        color = speedLineColor
+                        style = android.graphics.Paint.Style.FILL
+                        isAntiAlias = true
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
 
-                        val linePaint = android.graphics.Paint().apply {
-                            color = speedLineColor
-                            style = android.graphics.Paint.Style.FILL
-                            isAntiAlias = true
-                            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
-                        }
+                    val random = java.util.Random(effectSeed)
 
-                        val random = java.util.Random(effectSeed)
-                        val numLines = speedLineCount.coerceAtLeast(1)
-                        val angleRad = Math.toRadians(speedLineAngle.toDouble())
-                        val boxW = speedLineWidth
-                        val boxH = speedLineHeight
-                        val cosA = Math.cos(angleRad)
-                        val sinA = Math.sin(angleRad)
-
-                        fun toCanvasCoords(u: Float, v: Float): Pair<Float, Float> {
-                            val x = centerX + (u * cosA - v * sinA).toFloat()
-                            val y = centerY + (u * sinA + v * cosA).toFloat()
-                            return Pair(x, y)
-                        }
-
-                        for (i in 0 until numLines) {
-                            val v = (random.nextFloat() - 0.5f) * boxH
-                            val isStartSide = true // All lines start from one side (no mirroring)
-                            val actualLength = speedLineLength * (0.7f + random.nextFloat() * 0.6f)
-
-                            val halfW = boxW / 2f
-                            val uStart = if (isStartSide) -halfW else halfW
-                            val uEnd = if (isStartSide) -halfW + actualLength else halfW - actualLength
-
-                            val halfT = speedLineThickness / 2f
-                            val (p1x, p1y) = toCanvasCoords(uStart, v - halfT)
-                            val (p2x, p2y) = toCanvasCoords(uStart, v + halfT)
-                            val (endX, endY) = toCanvasCoords(uEnd, v)
-
-                            val path = android.graphics.Path().apply {
-                                moveTo(p1x, p1y)
-                                lineTo(p2x, p2y)
-                                lineTo(endX, endY)
-                                close()
-                            }
-                            targetCanvas.drawPath(path, linePaint)
-
-                            // Additional lines per line
-                            for (j in 0 until speedLineAdditional) {
-                                val subV = v + (random.nextGaussian().toFloat() * 10f)
-                                val subLength = speedLineLength * (0.3f + random.nextFloat() * 0.6f)
-                                val subThickness = speedLineThickness * (0.3f + random.nextFloat() * 0.6f)
-                                val subUEnd = if (isStartSide) -halfW + subLength else halfW - subLength
-
-                                val subHalfT = subThickness / 2f
-                                val (sp1x, sp1y) = toCanvasCoords(uStart, subV - subHalfT)
-                                val (sp2x, sp2y) = toCanvasCoords(uStart, subV + subHalfT)
-                                val (subEndX, subEndY) = toCanvasCoords(subUEnd, subV)
-
-                                val subPath = android.graphics.Path().apply {
-                                    moveTo(sp1x, sp1y)
-                                    lineTo(sp2x, sp2y)
-                                    lineTo(subEndX, subEndY)
-                                    close()
-                                }
-                                targetCanvas.drawPath(subPath, linePaint)
-                            }
-                        }
-
-                        targetCanvas.restoreToCount(sc)
-                    } else {
-                        // Radial Speed Line draws on top (already correct)
-                        drawInner(targetCanvas)
-
-                        val linePaint = android.graphics.Paint().apply {
-                            color = speedLineColor
-                            style = android.graphics.Paint.Style.FILL
-                            isAntiAlias = true
-                        }
-
-                        val random = java.util.Random(effectSeed)
+                    if (speedLineType == "RADIAL") {
                         val numLines = speedLineCount.coerceAtLeast(1)
                         val outerA = speedLineWidth / 2f
                         val outerB = speedLineHeight / 2f
@@ -3347,7 +3279,67 @@ class TextLayer(
                                 targetCanvas.drawPath(subPath, linePaint)
                             }
                         }
+                    } else {
+                        // LINEAR
+                        val numLines = speedLineCount.coerceAtLeast(1)
+                        val angleRad = Math.toRadians(speedLineAngle.toDouble())
+                        val boxW = speedLineWidth
+                        val boxH = speedLineHeight
+                        val cosA = Math.cos(angleRad)
+                        val sinA = Math.sin(angleRad)
+
+                        fun toCanvasCoords(u: Float, v: Float): Pair<Float, Float> {
+                            val x = centerX + (u * cosA - v * sinA).toFloat()
+                            val y = centerY + (u * sinA + v * cosA).toFloat()
+                            return Pair(x, y)
+                        }
+
+                        for (i in 0 until numLines) {
+                            val v = (random.nextFloat() - 0.5f) * boxH
+                            val isStartSide = true // All lines start from one side (no mirroring)
+                            val actualLength = speedLineLength * (0.7f + random.nextFloat() * 0.6f)
+
+                            val halfW = boxW / 2f
+                            val uStart = if (isStartSide) -halfW else halfW
+                            val uEnd = if (isStartSide) -halfW + actualLength else halfW - actualLength
+
+                            val halfT = speedLineThickness / 2f
+                            val (p1x, p1y) = toCanvasCoords(uStart, v - halfT)
+                            val (p2x, p2y) = toCanvasCoords(uStart, v + halfT)
+                            val (endX, endY) = toCanvasCoords(uEnd, v)
+
+                            val path = android.graphics.Path().apply {
+                                moveTo(p1x, p1y)
+                                lineTo(p2x, p2y)
+                                lineTo(endX, endY)
+                                close()
+                            }
+                            targetCanvas.drawPath(path, linePaint)
+
+                            // Additional lines per line
+                            for (j in 0 until speedLineAdditional) {
+                                val subV = v + (random.nextGaussian().toFloat() * 10f)
+                                val subLength = speedLineLength * (0.3f + random.nextFloat() * 0.6f)
+                                val subThickness = speedLineThickness * (0.3f + random.nextFloat() * 0.6f)
+                                val subUEnd = if (isStartSide) -halfW + subLength else halfW - subLength
+
+                                val subHalfT = subThickness / 2f
+                                val (sp1x, sp1y) = toCanvasCoords(uStart, subV - subHalfT)
+                                val (sp2x, sp2y) = toCanvasCoords(uStart, subV + subHalfT)
+                                val (subEndX, subEndY) = toCanvasCoords(subUEnd, subV)
+
+                                val subPath = android.graphics.Path().apply {
+                                    moveTo(sp1x, sp1y)
+                                    lineTo(sp2x, sp2y)
+                                    lineTo(subEndX, subEndY)
+                                    close()
+                                }
+                                targetCanvas.drawPath(subPath, linePaint)
+                            }
+                        }
                     }
+
+                    targetCanvas.restoreToCount(sc)
                 }
                 else -> {
                     drawInner(targetCanvas)
