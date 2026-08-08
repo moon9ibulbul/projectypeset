@@ -657,8 +657,19 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             return bitmap
         } catch (e: OutOfMemoryError) {
-            android.util.Log.e("AstralCanvasView", "OOM in getBackgroundImage")
-            return null
+            android.util.Log.e("AstralCanvasView", "OOM in getBackgroundImage (ARGB_8888), trying RGB_565 fallback")
+            System.gc()
+            try {
+                val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.RGB_565)
+                val canvas = Canvas(bitmap)
+                for (tile in backgroundTiles) {
+                    canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, null)
+                }
+                return bitmap
+            } catch (e2: OutOfMemoryError) {
+                android.util.Log.e("AstralCanvasView", "OOM in getBackgroundImage (RGB_565) fallback as well")
+                return null
+            }
         }
     }
 

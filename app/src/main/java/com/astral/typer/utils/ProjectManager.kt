@@ -1429,7 +1429,50 @@ object ProjectManager {
     }
 
     private fun saveBitmap(bitmap: Bitmap, file: File) {
-        FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        val tempFile = File(file.parentFile, "${file.name}.tmp")
+        var success = false
+        try {
+            // Try PNG first
+            try {
+                java.io.BufferedOutputStream(FileOutputStream(tempFile)).use { out ->
+                    success = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    out.flush()
+                }
+            } catch (oom: OutOfMemoryError) {
+                android.util.Log.e("ProjectManager", "OOM during PNG compression, falling back to JPEG")
+                System.gc()
+                success = false
+            } catch (e: Exception) {
+                android.util.Log.e("ProjectManager", "Error during PNG compression, falling back to JPEG", e)
+                success = false
+            }
+
+            // Fallback to JPEG if PNG failed
+            if (!success) {
+                if (tempFile.exists()) tempFile.delete()
+                try {
+                    java.io.BufferedOutputStream(FileOutputStream(tempFile)).use { out ->
+                        success = bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                        out.flush()
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.e("ProjectManager", "JPEG compression failed as well", e)
+                    success = false
+                }
+            }
+
+            if (success && tempFile.exists() && tempFile.length() > 0) {
+                if (file.exists()) file.delete()
+                if (!tempFile.renameTo(file)) {
+                    throw IOException("Failed to rename temporary file to ${file.name}")
+                }
+            } else {
+                throw IOException("Bitmap compression failed for both PNG and JPEG")
+            }
+        } catch (e: Exception) {
+            if (tempFile.exists()) tempFile.delete()
+            throw e
+        }
     }
 
     fun zipProjectFolder(folder: File, zipFile: File): Boolean {
