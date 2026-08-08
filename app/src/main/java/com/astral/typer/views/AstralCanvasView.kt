@@ -2591,7 +2591,7 @@ class AstralCanvasView @JvmOverloads constructor(
             val w = layer.getWidth().toInt().coerceAtLeast(1); val h = layer.getHeight().toInt().coerceAtLeast(1)
             val maskW = (w + pad * 2).toInt().coerceAtLeast(1)
             val maskH = (h + pad * 2).toInt().coerceAtLeast(1)
-            val maskX = localPoint[0] + w/2f + pad; val maskY = localPoint[1] + h/2f + pad
+            val maskX = localPoint[0]; val maskY = localPoint[1]
             when(event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     stylable.eraseDragRevision++
