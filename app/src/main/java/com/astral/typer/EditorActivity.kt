@@ -2377,9 +2377,10 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(sThickness)
 
-                // Slider: Line length (1 to 500)
+                // Slider: Line length (1 to max width canvas)
+                val maxLineLength = canvasView.canvasWidth.coerceAtLeast(1)
                 val currentLength = stylableLayer.speedLineLength
-                val sLength = createSlider("Line length: ${currentLength.toInt()} px", currentLength.toInt().coerceIn(1, 500), 500) { }
+                val sLength = createSlider("Line length: ${currentLength.toInt()} px", currentLength.toInt().coerceIn(1, maxLineLength), maxLineLength) { }
                 val tvLength = sLength.findViewWithTag<TextView>("SLIDER_LABEL")
                 sLength.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {

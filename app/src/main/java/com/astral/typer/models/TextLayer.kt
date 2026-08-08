@@ -2017,9 +2017,10 @@ class TextLayer(
                     val prevColor = paint.color
                     val prevShader = paint.shader
                     val prevAlpha = paint.alpha
-                    paint.color = Color.WHITE
+                    val textAlpha = Color.alpha(this.color)
+                    paint.color = if (textAlpha != 255) Color.argb(textAlpha, 255, 255, 255) else Color.WHITE
                     paint.shader = null
-                    paint.alpha = 255
+                    paint.alpha = textAlpha
                     paint.clearShadowLayer()
                     layout.draw(targetCanvas)
 

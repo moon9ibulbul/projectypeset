@@ -514,7 +514,9 @@ class ShapeLayer(
                 val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
                 if (hasSpeedLine) {
                     val sc = targetCanvas.saveLayer(null, null)
-                    renderSvgManipulated(targetCanvas, fill = Color.WHITE, stroke = null)
+                    val fillAlpha = Color.alpha(this.color)
+                    val fillCol = if (fillAlpha != 255) Color.argb(fillAlpha, 255, 255, 255) else Color.WHITE
+                    renderSvgManipulated(targetCanvas, fill = fillCol, stroke = null)
 
                     val centerX = w / 2f
                     val centerY = h / 2f
