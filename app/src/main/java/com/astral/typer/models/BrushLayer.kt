@@ -150,6 +150,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
+    override var shadowThickness: Float = 0f
 
     override var isGradient: Boolean = false
     override var gradientStartColor: Int = Color.TRANSPARENT
@@ -382,6 +383,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             brushSmudge = this@BrushLayer.brushSmudge
             brushSmudgeLength = this@BrushLayer.brushSmudgeLength
             brushSlowTracking = this@BrushLayer.brushSlowTracking
+            shadowThickness = this@BrushLayer.shadowThickness
 
             // Speed Line
             speedLineType = this@BrushLayer.speedLineType
@@ -1563,6 +1565,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         shadowDy *= 2f
         motionShadowDistance *= 2f
         motionShadowThickness *= 2f
+        shadowThickness *= 2f
         blurRadius *= 2f
         longShadowLength *= 2f
         neonRadius *= 2f

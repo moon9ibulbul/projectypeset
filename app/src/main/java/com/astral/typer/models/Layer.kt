@@ -19,6 +19,7 @@ interface StylableLayer {
     var motionShadowAngle: Int
     var motionShadowDistance: Float
     var motionShadowThickness: Float
+    var shadowThickness: Float
 
     // Gradient
     var isGradient: Boolean

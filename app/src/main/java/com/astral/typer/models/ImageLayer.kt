@@ -32,6 +32,7 @@ class ImageLayer(
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
+    override var shadowThickness: Float = 0f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -570,6 +571,7 @@ class ImageLayer(
         newLayer.warpMesh = warpMesh?.clone()
 
         newLayer.motionShadowThickness = this.motionShadowThickness
+        newLayer.shadowThickness = this.shadowThickness
         newLayer.chromaticAngle = this.chromaticAngle
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed
@@ -615,6 +617,7 @@ class ImageLayer(
         shadowDy *= 2f
         motionShadowDistance *= 2f
         motionShadowThickness *= 2f
+        shadowThickness *= 2f
         blurRadius *= 2f
         longShadowLength *= 2f
         neonRadius *= 2f

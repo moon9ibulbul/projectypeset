@@ -497,6 +497,7 @@ class EditorActivity : AppCompatActivity() {
                     layer.isMotionShadow = style.isMotionShadow
                     layer.motionShadowAngle = style.motionAngle
                     layer.motionShadowDistance = style.motionDist
+                    layer.shadowThickness = style.shadowThickness ?: 0f
                     layer.isGradient = style.isGradient
                     layer.gradientStartColor = style.gradientStart
                     layer.gradientEndColor = style.gradientEnd
@@ -3708,6 +3709,7 @@ class EditorActivity : AppCompatActivity() {
         layer.isMotionShadow = style.isMotionShadow
         layer.motionShadowAngle = style.motionAngle
         layer.motionShadowDistance = style.motionDist
+        layer.shadowThickness = style.shadowThickness ?: 0f
         layer.isGradient = style.isGradient
         layer.gradientStartColor = style.gradientStart
         layer.gradientEndColor = style.gradientEnd
@@ -6411,6 +6413,10 @@ class EditorActivity : AppCompatActivity() {
             })
             layout.addView(createSlider("DY", (currentShadowDy + 50).toInt(), 100) {
                 stylableLayer.shadowDy = (it - 50).toFloat()
+                canvasView.invalidate()
+            })
+            layout.addView(createSlider("Thickness", stylableLayer.shadowThickness.toInt(), 50) {
+                stylableLayer.shadowThickness = it.toFloat()
                 canvasView.invalidate()
             })
             val btnCenter = android.widget.Button(this@EditorActivity).apply {
