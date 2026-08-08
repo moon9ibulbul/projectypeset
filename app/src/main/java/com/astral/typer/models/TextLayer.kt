@@ -419,6 +419,7 @@ class TextLayer(
             val pVal = when (span) {
                 is android.text.style.StyleSpan -> span.style
                 is android.text.style.ForegroundColorSpan -> span.foregroundColor
+                is android.text.style.BackgroundColorSpan -> span.backgroundColor
                 is android.text.style.UnderlineSpan -> 1
                 is android.text.style.StrikethroughSpan -> 2
                 is CustomTypefaceSpan -> span.fontPath?.hashCode() ?: 0
@@ -1056,8 +1057,8 @@ class TextLayer(
                     text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
                 ).setAlignment(textAlign)
                  .setLineSpacing(lineSpacing, 1.0f)
-                 .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
-                 .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
+                 .setHyphenationFrequency(if (isJustified) Layout.HYPHENATION_FREQUENCY_NORMAL else Layout.HYPHENATION_FREQUENCY_NONE)
+                 .setBreakStrategy(if (isJustified) Layout.BREAK_STRATEGY_BALANCED else Layout.BREAK_STRATEGY_HIGH_QUALITY)
 
                 if (isJustified && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     b.setJustificationMode(1)
@@ -1780,6 +1781,7 @@ class TextLayer(
                 if (i in start until end) {
                     val copiedSpan = when (span) {
                         is android.text.style.ForegroundColorSpan -> android.text.style.ForegroundColorSpan(span.foregroundColor)
+                        is android.text.style.BackgroundColorSpan -> android.text.style.BackgroundColorSpan(span.backgroundColor)
                         is android.text.style.StyleSpan -> android.text.style.StyleSpan(span.style)
                         is android.text.style.UnderlineSpan -> android.text.style.UnderlineSpan()
                         is android.text.style.StrikethroughSpan -> android.text.style.StrikethroughSpan()
@@ -2829,8 +2831,8 @@ class TextLayer(
                                 cachedWavyHash = currentHash
                             }
 
-                            val meshW = 20
-                            val meshH = 20
+                            val meshW = 40
+                            val meshH = 120
                             val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
                             val time = (System.currentTimeMillis() % 100000) / 1000f
                             var idx = 0
