@@ -1474,23 +1474,83 @@ class TextLayer(
                      val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
                      val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
                      if (bmpW > 0 && bmpH > 0) {
-                         val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = false)
+                         // 1. Ensure cleanContentCache is valid
+                         val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = false)
+                         val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
+                                 cleanContentCache!!.width == bmpW && cleanContentCache!!.height == bmpH &&
+                                 cleanContentHash == cleanHash
+
+                         if (!cleanValid) {
+                             cleanContentCache?.recycle()
+                             val newClean = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                             val c = Canvas(newClean)
+                             c.scale(qualityScale, qualityScale)
+                             c.translate(pad, pad)
+                             drawCleanContent(c, layout, w, ch, skipEffects = false)
+                             cleanContentCache = newClean
+                             cleanContentHash = cleanHash
+                             erasedContentHash = -1 // force update erased content
+                         }
+
                          val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
                          val destRect = RectF(
                              -w / 2f - pad,
                              -h / 2f - pad,
-                             -w / 2f - pad + finalBmp.width / qualityScale,
-                             -h / 2f - pad + finalBmp.height / qualityScale
+                             -w / 2f - pad + cleanContentCache!!.width / qualityScale,
+                             -h / 2f - pad + cleanContentCache!!.height / qualityScale
                          )
+
+                         val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                         }
+                         val maskDest = if (eraseMask != null) {
+                             RectF(
+                                 -w / 2f - pad,
+                                 -h / 2f - pad,
+                                 -w / 2f - pad + eraseMask!!.width,
+                                 -h / 2f - pad + eraseMask!!.height
+                             )
+                         } else null
+
+                         val previewPaint = if (activeErasePath != null) {
+                             Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                 color = Color.BLACK
+                                 style = Paint.Style.STROKE
+                                 strokeWidth = activeEraseSize
+                                 alpha = activeEraseOpacity
+                                 strokeCap = Paint.Cap.ROUND
+                                 strokeJoin = Paint.Join.ROUND
+                                 xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                                 if (activeEraseHardness < 100) {
+                                     val radius = activeEraseSize / 2f
+                                     val blur = radius * (1f - (activeEraseHardness / 100f))
+                                     if (blur > 0.5f) {
+                                         maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                                     }
+                                 }
+                             }
+                         } else null
 
                          if (fixedHeight != null && fixedHeight!! > 0) {
                              canvas.save()
                              canvas.clipRect(-w / 2f - pad, -h / 2f - pad, w / 2f + pad, h / 2f + pad)
-                             canvas.drawBitmap(finalBmp, null, destRect, paint)
+                             canvas.drawBitmap(cleanContentCache!!, null, destRect, paint)
+                             if (eraseMask != null && maskDest != null) {
+                                 canvas.drawBitmap(eraseMask!!, null, maskDest, maskPaint)
+                             }
+                             if (activeErasePath != null && previewPaint != null) {
+                                 canvas.drawPath(activeErasePath!!, previewPaint)
+                             }
                              canvas.restore()
                          } else {
-                             canvas.drawBitmap(finalBmp, null, destRect, paint)
+                             canvas.drawBitmap(cleanContentCache!!, null, destRect, paint)
+                             if (eraseMask != null && maskDest != null) {
+                                 canvas.drawBitmap(eraseMask!!, null, maskDest, maskPaint)
+                             }
+                             if (activeErasePath != null && previewPaint != null) {
+                                 canvas.drawPath(activeErasePath!!, previewPaint)
+                             }
                          }
                      }
                  } else {
