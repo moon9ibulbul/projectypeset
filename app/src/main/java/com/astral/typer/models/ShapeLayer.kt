@@ -514,9 +514,54 @@ class ShapeLayer(
                 val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
                 if (hasSpeedLine) {
                     val sc = targetCanvas.saveLayer(null, null)
-                    val fillAlpha = Color.alpha(this.color)
-                    val fillCol = if (fillAlpha != 255) Color.argb(fillAlpha, 255, 255, 255) else Color.WHITE
-                    renderSvgManipulated(targetCanvas, fill = fillCol, stroke = null)
+                    val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
+                    val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
+                                      else if (isGradient && isGradientText) gradientShader
+                                      else if (textureBitmap != null) {
+                                          val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                          val matrix = Matrix()
+                                          matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                          shader.setLocalMatrix(matrix)
+                                          shader
+                                      } else null
+
+                    val colorToUse = if (fillShaderToUse != null) Color.WHITE else color
+                    renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = fillShaderToUse)
+
+                    // 4. Built-in Pattern Overlay
+                    if (patternName != null) {
+                        val context = com.astral.typer.TyperApplication.instance
+                        if (context != null) {
+                            val currentPatternHash = listOf(patternName, patternColor, patternScale, patternRotation, patternAlpha, textureOffsetX, textureOffsetY).hashCode()
+                            if (cachedPatternShader == null || cachedPatternHash != currentPatternHash) {
+                                val patternBmp = com.astral.typer.utils.PatternManager.getPatternBitmap(context, patternName!!, patternColor)
+                                if (patternBmp != null) {
+                                    val shader = android.graphics.BitmapShader(patternBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                    val matrix = Matrix()
+                                    matrix.postScale(patternScale, patternScale)
+                                    matrix.postRotate(patternRotation, patternBmp.width * patternScale / 2f, patternBmp.height * patternScale / 2f)
+                                    matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                    shader.setLocalMatrix(matrix)
+                                    cachedPatternShader = shader
+                                    cachedPatternHash = currentPatternHash
+                                    cachedPatternXfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                }
+                            }
+
+                            if (cachedPatternShader != null) {
+                                // Pattern overlay using SRC_ATOP over the fill
+                                targetCanvas.saveLayer(null, null)
+                                renderSvgManipulated(targetCanvas, fill = Color.WHITE, stroke = null)
+
+                                val p = Paint(Paint.ANTI_ALIAS_FLAG)
+                                p.shader = cachedPatternShader
+                                p.alpha = patternAlpha
+                                p.xfermode = cachedPatternXfermode
+                                targetCanvas.drawRect(0f, 0f, w, h, p)
+                                targetCanvas.restore()
+                            }
+                        }
+                    }
 
                     val centerX = w / 2f
                     val centerY = h / 2f
@@ -525,7 +570,7 @@ class ShapeLayer(
                         color = speedLineColor
                         style = android.graphics.Paint.Style.FILL
                         isAntiAlias = true
-                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
                     }
 
                     val random = java.util.Random(effectSeed)

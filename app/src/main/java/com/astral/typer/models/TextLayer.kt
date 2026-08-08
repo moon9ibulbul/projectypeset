@@ -2017,10 +2017,33 @@ class TextLayer(
                     val prevColor = paint.color
                     val prevShader = paint.shader
                     val prevAlpha = paint.alpha
-                    val textAlpha = Color.alpha(this.color)
-                    paint.color = if (textAlpha != 255) Color.argb(textAlpha, 255, 255, 255) else Color.WHITE
-                    paint.shader = null
-                    paint.alpha = textAlpha
+
+                    val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
+                    if (hasMultiGradient) {
+                        val mShader = if (isCharByChar) {
+                            val shader = getMultiGradientShader(fullW, fullH, layout)
+                            val mat = Matrix()
+                            mat.postTranslate(-charLeft, -charTop)
+                            shader.setLocalMatrix(mat)
+                            shader
+                        } else {
+                            getMultiGradientShader(w, h, layout)
+                        }
+                        paint.shader = mShader
+                        paint.color = Color.WHITE
+                    } else if (isGradient && isGradientText) {
+                        paint.shader = gradientShader
+                        paint.color = Color.WHITE
+                    } else if (textureBitmap != null) {
+                        val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                        val matrix = Matrix()
+                        matrix.postTranslate(textureOffsetX, textureOffsetY)
+                        shader.setLocalMatrix(matrix)
+                        paint.shader = shader
+                    } else {
+                        paint.color = modulateColor(color)
+                    }
+
                     paint.clearShadowLayer()
                     layout.draw(targetCanvas)
 
@@ -2031,7 +2054,7 @@ class TextLayer(
                         color = speedLineColor
                         style = android.graphics.Paint.Style.FILL
                         isAntiAlias = true
-                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
                     }
 
                     val random = java.util.Random(effectSeed)
