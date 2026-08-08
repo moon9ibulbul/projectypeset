@@ -145,6 +145,26 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private val changeBaseImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                val inputStream = contentResolver.openInputStream(it)
+                val options = android.graphics.BitmapFactory.Options().apply {
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                }
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
+                if (bitmap != null) {
+                    canvasView.setBackgroundImage(bitmap)
+                    Toast.makeText(this, "Base image updated!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private var isFontPickerVisible = false
     private lateinit var sidebarBinding: com.astral.typer.databinding.LayoutSidebarSaveBinding
 
@@ -2841,6 +2861,10 @@ class EditorActivity : AppCompatActivity() {
             if (!currentProjectName.isNullOrEmpty()) {
                 sidebarBinding.etProjectName.setText(currentProjectName)
             }
+        }
+
+        sidebarBinding.btnChangeBaseImage.setOnClickListener {
+            changeBaseImageLauncher.launch("image/*")
         }
 
         sidebarBinding.btnSaveFileOption.setOnClickListener {
