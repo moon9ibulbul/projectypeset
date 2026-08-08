@@ -89,6 +89,7 @@ object ProjectManager {
         val shadowColor: Int? = null, val shadowRadius: Float? = null, val shadowDx: Float? = null, val shadowDy: Float? = null,
         val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
         val motionShadowThickness: Float? = null,
+        val shadowThickness: Float? = null,
 
         // Gradient
         val isGradient: Boolean? = null, val gradientStartColor: Int? = null, val gradientEndColor: Int? = null, val gradientAngle: Int? = null,
@@ -326,6 +327,7 @@ object ProjectManager {
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowThickness = layer.motionShadowThickness,
+                        shadowThickness = layer.shadowThickness,
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
@@ -453,6 +455,7 @@ object ProjectManager {
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowThickness = layer.motionShadowThickness,
+                        shadowThickness = layer.shadowThickness,
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
                         gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
@@ -700,8 +703,8 @@ object ProjectManager {
             val autosaves = allProjects.filter { it.name.startsWith("autosave_") }
                 .sortedByDescending { it.lastModified() }
 
-            if (autosaves.size > 3) {
-                for (i in 3 until autosaves.size) {
+            if (autosaves.size > 1) {
+                for (i in 1 until autosaves.size) {
                     autosaves[i].delete()
                     // Delete thumbnail cache if exists
                     try {
@@ -921,6 +924,7 @@ object ProjectManager {
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowThickness?.let { layer.motionShadowThickness = it }
+            model.shadowThickness?.let { layer.shadowThickness = it }
 
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
@@ -1117,6 +1121,7 @@ object ProjectManager {
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowThickness?.let { layer.motionShadowThickness = it }
+            model.shadowThickness?.let { layer.shadowThickness = it }
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
             model.gradientEndColor?.let { layer.gradientEndColor = it }

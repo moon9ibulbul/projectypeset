@@ -233,7 +233,8 @@ object StyleManager {
         val patternScale: Float? = 1.0f,
         val patternRotation: Float? = 0f,
         val caseType: String? = "NORMAL",
-        val chromaticAngle: Float? = 0f
+        val chromaticAngle: Float? = 0f,
+        val shadowThickness: Float? = 0f
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -279,7 +280,7 @@ object StyleManager {
             l.halftoneType, l.halftoneAlpha, l.halftoneRange,
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType, l.chromaticAngle
+            l.caseType, l.chromaticAngle, l.shadowThickness
         )
     }
 
@@ -336,6 +337,7 @@ object StyleManager {
         l.motionShadowAngle = m.motionAngle
         l.motionShadowDistance = m.motionDist
         l.motionShadowThickness = m.motionThickness
+        l.shadowThickness = m.shadowThickness ?: 0f
 
         l.blendMode = m.blendMode ?: "NORMAL"
         l.isOpacityGradient = m.isOpacityGradient

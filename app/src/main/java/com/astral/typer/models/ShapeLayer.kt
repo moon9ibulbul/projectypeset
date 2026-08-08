@@ -36,6 +36,7 @@ class ShapeLayer(
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
+    override var shadowThickness: Float = 0f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -796,7 +797,11 @@ class ShapeLayer(
                 }
 
                 targetCanvas.saveLayer(null, p)
-                renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = null)
+                if (shadowThickness > 0f) {
+                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness)
+                } else {
+                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = null)
+                }
                 targetCanvas.restore()
                 targetCanvas.restore()
             }
@@ -1693,7 +1698,8 @@ class ShapeLayer(
 
     override fun calculatePadding(): Float {
         var p = strokeWidth + doubleStrokeWidth + tripleStrokeWidth
-        p = Math.max(p, shadowRadius + Math.max(Math.abs(shadowDx), Math.abs(shadowDy)))
+        val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
+        p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
 
         var effectExpansion = 0f
@@ -1911,7 +1917,7 @@ class ShapeLayer(
         newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
-        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness
+        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness; newLayer.shadowThickness = shadowThickness
         newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.hasMiddleColor = hasMiddleColor; newLayer.gradientMiddleColor = gradientMiddleColor; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke = isGradientStroke; newLayer.isGradientShadow = isGradientShadow
         newLayer.gradientStartPos = gradientStartPos; newLayer.gradientMiddlePos = gradientMiddlePos; newLayer.gradientEndPos = gradientEndPos
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
@@ -1999,6 +2005,7 @@ class ShapeLayer(
         shadowDy *= 2f
         motionShadowDistance *= 2f
         motionShadowThickness *= 2f
+        shadowThickness *= 2f
         blurRadius *= 2f
         longShadowLength *= 2f
         neonRadius *= 2f
