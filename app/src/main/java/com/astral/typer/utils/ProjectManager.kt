@@ -293,6 +293,11 @@ object ProjectManager {
                         val hexColor = String.format("#%08X", fc.foregroundColor)
                         spanModels.add(SpanModel("COLOR", spanStr.getSpanStart(fc), spanStr.getSpanEnd(fc), hexColor))
                     }
+                    val backgroundColors = spanStr.getSpans(0, spanStr.length, android.text.style.BackgroundColorSpan::class.java)
+                    for (bc in backgroundColors) {
+                        val hexColor = String.format("#%08X", bc.backgroundColor)
+                        spanModels.add(SpanModel("HIGHLIGHT", spanStr.getSpanStart(bc), spanStr.getSpanEnd(bc), hexColor))
+                    }
                     val customFonts = spanStr.getSpans(0, spanStr.length, CustomTypefaceSpan::class.java)
                     for (cf in customFonts) {
                         spanModels.add(SpanModel("FONT", spanStr.getSpanStart(cf), spanStr.getSpanEnd(cf), cf.fontPath))
@@ -857,6 +862,13 @@ object ProjectManager {
                                  span.value?.let { colorStr ->
                                      try {
                                          sb.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor(colorStr)), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                     } catch (e: Exception) {}
+                                 }
+                             }
+                             "HIGHLIGHT" -> {
+                                 span.value?.let { colorStr ->
+                                     try {
+                                         sb.setSpan(android.text.style.BackgroundColorSpan(Color.parseColor(colorStr)), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                      } catch (e: Exception) {}
                                  }
                              }

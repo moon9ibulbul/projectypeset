@@ -4535,6 +4535,12 @@ class EditorActivity : AppCompatActivity() {
             val existing = et.editableText.getSpans(actualStart, actualEnd, ForegroundColorSpan::class.java)
             for (s in existing) et.editableText.removeSpan(s)
             et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else if (span is android.text.style.BackgroundColorSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, android.text.style.BackgroundColorSpan::class.java)
+            for (s in existing) et.editableText.removeSpan(s)
+            if (span.backgroundColor != Color.TRANSPARENT) {
+                et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
         } else if (span is CustomTypefaceSpan) {
             val existing = et.editableText.getSpans(actualStart, actualEnd, CustomTypefaceSpan::class.java)
             for (s in existing) et.editableText.removeSpan(s)
@@ -5103,126 +5109,329 @@ class EditorActivity : AppCompatActivity() {
     }
 
     // --- COLOR MENU ---
+    private fun getActiveHighlightColor(layer: TextLayer): Int {
+        val et = activeEditText
+        val start = et?.selectionStart ?: -1
+        val end = et?.selectionEnd ?: -1
+        val actualStart = if (start != -1 && end != -1 && start != end) start else 0
+        val actualEnd = if (start != -1 && end != -1 && start != end) end else et?.length() ?: 0
+        val spans = et?.editableText?.getSpans(actualStart, actualEnd, android.text.style.BackgroundColorSpan::class.java)
+            ?: layer.text.getSpans(0, layer.text.length, android.text.style.BackgroundColorSpan::class.java)
+        return spans.firstOrNull()?.backgroundColor ?: Color.TRANSPARENT
+    }
+
     private fun showColorPicker() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() ?: return
         if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer && layer !is com.astral.typer.models.BrushLayer) return
 
+        // Outer vertical ScrollView to prevent layout squeezing inside the fixed height panel
+        val outerScroll = android.widget.ScrollView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        val contentLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
         if (layer is TextLayer) {
-            container.addView(createInputView(layer, false))
-        }
+            contentLayout.addView(createInputView(layer, false))
 
-        val scroll = HorizontalScrollView(this).apply {
-             isHorizontalScrollBarEnabled = false
-        }
-        val list = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
-            gravity = Gravity.CENTER_VERTICAL
-        }
+            // 1. Text Color Section
+            val tvTextColor = TextView(this).apply {
+                text = "Text Color"
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                setPadding(dpToPx(16), dpToPx(4), dpToPx(16), 0)
+            }
+            contentLayout.addView(tvTextColor)
 
-        val btnEyedropper = android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_menu_eyedropper)
-            setColorFilter(Color.WHITE)
-            setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
-            background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(8).toFloat()
+            val scrollText = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
             }
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 0, dpToPx(16), 0)
+            val listText = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dpToPx(16), dpToPx(4), dpToPx(16), dpToPx(4))
+                gravity = Gravity.CENTER_VERTICAL
             }
-            setOnClickListener {
-                 canvasView.setEyedropperMode(true)
-                 canvasView.onColorPickedListener = { color ->
-                      val et = activeEditText
-                      if (et != null && et.selectionStart != et.selectionEnd) {
+
+            val btnEyedropperText = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_menu_eyedropper)
+                setColorFilter(Color.WHITE)
+                setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, dpToPx(16), 0)
+                }
+                setOnClickListener {
+                    canvasView.setEyedropperMode(true)
+                    canvasView.onColorPickedListener = { color ->
+                        val et = activeEditText
+                        if (et != null && et.selectionStart != et.selectionEnd) {
                             applySpanToSelection(ForegroundColorSpan(color))
-                      } else {
-                            // Apply Color and Disable Gradient
-                            if (layer is TextLayer) {
-                                layer.color = color; layer.isGradient = false
-                            } else if (layer is com.astral.typer.models.ShapeLayer) {
-                                layer.color = color; layer.isGradient = false
-                            } else if (layer is com.astral.typer.models.BrushLayer) {
-                                layer.brushColor = color
-                            }
+                        } else {
+                            layer.color = color; layer.isGradient = false
                             canvasView.invalidate()
-                      }
-                      Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
-                 }
-                 Toast.makeText(context, "Tap canvas to pick", Toast.LENGTH_SHORT).show()
+                        }
+                        Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
+                    }
+                    Toast.makeText(context, "Tap canvas to pick", Toast.LENGTH_SHORT).show()
+                }
             }
-        }
-        list.addView(btnEyedropper)
+            listText.addView(btnEyedropperText)
 
-        val btnPalette = android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_menu_palette)
-            setColorFilter(Color.WHITE)
-            setPadding(24, 16, 24, 16)
-            background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(8).toFloat()
+            val btnPaletteText = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_menu_palette)
+                setColorFilter(Color.WHITE)
+                setPadding(24, 16, 24, 16)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, 16, 0)
+                }
+                setOnClickListener {
+                    ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layer.color) { color ->
+                        val et = activeEditText
+                        if (et != null && et.selectionStart != et.selectionEnd) {
+                            applySpanToSelection(ForegroundColorSpan(color))
+                        } else {
+                            layer.color = color; layer.isGradient = false
+                            canvasView.invalidate()
+                        }
+                        showColorPicker()
+                    }
+                }
             }
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 0, 16, 0)
-            }
-            setOnClickListener {
-                val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else if (layer is com.astral.typer.models.BrushLayer) (layer as com.astral.typer.models.BrushLayer).brushColor else Color.BLACK
-                ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layerColor) { color ->
+            listText.addView(btnPaletteText)
+
+            val paletteViewText = ColorPickerHelper.createPaletteView(
+                this,
+                { color ->
                     val et = activeEditText
                     if (et != null && et.selectionStart != et.selectionEnd) {
                         applySpanToSelection(ForegroundColorSpan(color))
                     } else {
-                        // Apply Color and Disable Gradient
-                        if (layer is TextLayer) {
-                            (layer as TextLayer).color = color; (layer as TextLayer).isGradient = false
-                        } else if (layer is com.astral.typer.models.ShapeLayer) {
-                            (layer as com.astral.typer.models.ShapeLayer).color = color; (layer as com.astral.typer.models.ShapeLayer).isGradient = false
-                        } else if (layer is com.astral.typer.models.BrushLayer) {
-                            (layer as com.astral.typer.models.BrushLayer).brushColor = color
+                        val layerIsGradient = layer.isGradient
+                        if (layer.color != color || layerIsGradient) {
+                            layer.color = color; layer.isGradient = false
+                            canvasView.invalidate()
                         }
-                        canvasView.invalidate()
+                    }
+                    showColorPicker()
+                },
+                null,
+                layer.color
+            )
+            listText.addView(paletteViewText)
+            scrollText.addView(listText)
+            contentLayout.addView(scrollText)
+
+            // 2. Highlight Color Section
+            val tvHighlightColor = TextView(this).apply {
+                text = "Highlight Color"
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                setPadding(dpToPx(16), dpToPx(4), dpToPx(16), 0)
+            }
+            contentLayout.addView(tvHighlightColor)
+
+            val scrollHighlight = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+            }
+            val listHighlight = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dpToPx(16), dpToPx(4), dpToPx(16), dpToPx(4))
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val btnEyedropperHighlight = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_menu_eyedropper)
+                setColorFilter(Color.WHITE)
+                setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, dpToPx(16), 0)
+                }
+                setOnClickListener {
+                    canvasView.setEyedropperMode(true)
+                    canvasView.onColorPickedListener = { color ->
+                        val et = activeEditText
+                        if (et != null) {
+                            applySpanToSelection(android.text.style.BackgroundColorSpan(color))
+                        }
+                        Toast.makeText(context, "Highlight Color Picked", Toast.LENGTH_SHORT).show()
+                    }
+                    Toast.makeText(context, "Tap canvas to pick", Toast.LENGTH_SHORT).show()
+                }
+            }
+            listHighlight.addView(btnEyedropperHighlight)
+
+            val btnPaletteHighlight = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_menu_palette)
+                setColorFilter(Color.WHITE)
+                setPadding(24, 16, 24, 16)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, 16, 0)
+                }
+                setOnClickListener {
+                    val currentHighlightColor = getActiveHighlightColor(layer)
+                    ColorPickerHelper.showColorPickerDialog(this@EditorActivity, currentHighlightColor) { color ->
+                        val et = activeEditText
+                        if (et != null) {
+                            applySpanToSelection(android.text.style.BackgroundColorSpan(color))
+                        }
+                        showColorPicker()
+                    }
+                }
+            }
+            listHighlight.addView(btnPaletteHighlight)
+
+            val btnNoHighlight = TextView(this).apply {
+                text = "None"
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#444444"))
+                    setStroke(dpToPx(1), Color.RED)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dpToPx(40)).apply {
+                    setMargins(0, 0, dpToPx(16), 0)
+                }
+                setOnClickListener {
+                    val et = activeEditText
+                    if (et != null) {
+                        applySpanToSelection(android.text.style.BackgroundColorSpan(Color.TRANSPARENT))
                     }
                     showColorPicker()
                 }
             }
-        }
-        list.addView(btnPalette)
+            listHighlight.addView(btnNoHighlight)
 
-        // Add saved colors view using helper
-        val paletteView = ColorPickerHelper.createPaletteView(
-            this,
-            { color ->
-                val et = activeEditText
-                if (et != null && et.selectionStart != et.selectionEnd) {
-                    applySpanToSelection(ForegroundColorSpan(color))
-                } else {
-                    val layerColor = if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else if (layer is com.astral.typer.models.BrushLayer) (layer as com.astral.typer.models.BrushLayer).brushColor else 0
-                    val layerIsGradient = if (layer is TextLayer) (layer as TextLayer).isGradient else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).isGradient else false
+            val currentHighlightColor = getActiveHighlightColor(layer)
+            val paletteViewHighlight = ColorPickerHelper.createPaletteView(
+                this,
+                { color ->
+                    val et = activeEditText
+                    if (et != null) {
+                        applySpanToSelection(android.text.style.BackgroundColorSpan(color))
+                    }
+                    showColorPicker()
+                },
+                null,
+                currentHighlightColor
+            )
+            listHighlight.addView(paletteViewHighlight)
+            scrollHighlight.addView(listHighlight)
+            contentLayout.addView(scrollHighlight)
 
-                    if (layerColor == color && !layerIsGradient) {
-                        // Already active and solid.
-                    } else {
-                        if (layer is TextLayer) {
-                            (layer as TextLayer).color = color; (layer as TextLayer).isGradient = false
-                        } else if (layer is com.astral.typer.models.ShapeLayer) {
-                            (layer as com.astral.typer.models.ShapeLayer).color = color; (layer as com.astral.typer.models.ShapeLayer).isGradient = false
+        } else {
+            val scroll = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+            }
+            val list = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val btnEyedropper = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_menu_eyedropper)
+                setColorFilter(Color.WHITE)
+                setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, dpToPx(16), 0)
+                }
+                setOnClickListener {
+                    canvasView.setEyedropperMode(true)
+                    canvasView.onColorPickedListener = { color ->
+                        if (layer is com.astral.typer.models.ShapeLayer) {
+                            layer.color = color; layer.isGradient = false
                         } else if (layer is com.astral.typer.models.BrushLayer) {
-                            (layer as com.astral.typer.models.BrushLayer).brushColor = color
+                            layer.brushColor = color
                         }
                         canvasView.invalidate()
+                        Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
+                    }
+                    Toast.makeText(context, "Tap canvas to pick", Toast.LENGTH_SHORT).show()
+                }
+            }
+            list.addView(btnEyedropper)
+
+            val btnPalette = android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.ic_menu_palette)
+                setColorFilter(Color.WHITE)
+                setPadding(24, 16, 24, 16)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, 16, 0)
+                }
+                setOnClickListener {
+                    val layerColor = if (layer is com.astral.typer.models.ShapeLayer) layer.color else if (layer is com.astral.typer.models.BrushLayer) layer.brushColor else Color.BLACK
+                    ColorPickerHelper.showColorPickerDialog(this@EditorActivity, layerColor) { color ->
+                        if (layer is com.astral.typer.models.ShapeLayer) {
+                            layer.color = color; layer.isGradient = false
+                        } else if (layer is com.astral.typer.models.BrushLayer) {
+                            layer.brushColor = color
+                        }
+                        canvasView.invalidate()
+                        showColorPicker()
                     }
                 }
-                showColorPicker()
-            },
-            null, // No add button here? Or keep it? The helper has logic for saved colors internally.
-            if (layer is TextLayer) (layer as TextLayer).color else if (layer is com.astral.typer.models.ShapeLayer) (layer as com.astral.typer.models.ShapeLayer).color else if (layer is com.astral.typer.models.BrushLayer) (layer as com.astral.typer.models.BrushLayer).brushColor else Color.BLACK // Selected color
-        )
-        list.addView(paletteView)
+            }
+            list.addView(btnPalette)
 
-        scroll.addView(list)
-        container.addView(scroll)
+            val layerColor = if (layer is com.astral.typer.models.ShapeLayer) layer.color else if (layer is com.astral.typer.models.BrushLayer) layer.brushColor else 0
+            val paletteView = ColorPickerHelper.createPaletteView(
+                this,
+                { color ->
+                    if (layer is com.astral.typer.models.ShapeLayer) {
+                        layer.color = color; layer.isGradient = false
+                    } else if (layer is com.astral.typer.models.BrushLayer) {
+                        layer.brushColor = color
+                    }
+                    canvasView.invalidate()
+                    showColorPicker()
+                },
+                null,
+                layerColor
+            )
+            list.addView(paletteView)
+
+            scroll.addView(list)
+            contentLayout.addView(scroll)
+        }
+
+        outerScroll.addView(contentLayout)
+        container.addView(outerScroll)
     }
 
     private fun showBrushMenu() {
