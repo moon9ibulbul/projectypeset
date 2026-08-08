@@ -1467,17 +1467,44 @@ class TextLayer(
             } else if (isPerspective && perspectivePoints != null) {
                  drawPerspective(canvas, layout, w, h, ch, skipEffects = false)
             } else {
-                 // If fixedHeight is set, we need to clip the content area
-                 if (fixedHeight != null && fixedHeight!! > 0) {
-                     canvas.save()
-                     val pad = calculatePadding()
-                     canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
-                     canvas.translate(dx, dy)
-                     drawContent(canvas, layout, w, h, skipEffects = false)
-                     canvas.restore()
+                 val pad = calculatePadding()
+                 val hasErase = eraseMask != null || activeErasePath != null
+                 if (hasErase) {
+                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                     val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+                     val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
+                     if (bmpW > 0 && bmpH > 0) {
+                         val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = false)
+                         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+                         val destRect = RectF(
+                             -w / 2f - pad,
+                             -h / 2f - pad,
+                             -w / 2f - pad + finalBmp.width / qualityScale,
+                             -h / 2f - pad + finalBmp.height / qualityScale
+                         )
+
+                         if (fixedHeight != null && fixedHeight!! > 0) {
+                             canvas.save()
+                             canvas.clipRect(-w / 2f - pad, -h / 2f - pad, w / 2f + pad, h / 2f + pad)
+                             canvas.drawBitmap(finalBmp, null, destRect, paint)
+                             canvas.restore()
+                         } else {
+                             canvas.drawBitmap(finalBmp, null, destRect, paint)
+                         }
+                     }
                  } else {
-                     canvas.translate(dx, dy)
-                     drawContent(canvas, layout, w, h, skipEffects = false)
+                     // If fixedHeight is set, we need to clip the content area
+                     if (fixedHeight != null && fixedHeight!! > 0) {
+                         canvas.save()
+                         canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
+                         canvas.translate(dx, dy)
+                         drawContent(canvas, layout, w, h, skipEffects = false)
+                         canvas.restore()
+                     } else {
+                         canvas.translate(dx, dy)
+                         drawContent(canvas, layout, w, h, skipEffects = false)
+                     }
                  }
             }
         }
