@@ -5125,8 +5125,24 @@ class EditorActivity : AppCompatActivity() {
         val layer = canvasView.getSelectedLayer() ?: return
         if (layer !is TextLayer && layer !is com.astral.typer.models.ShapeLayer && layer !is com.astral.typer.models.BrushLayer) return
 
+        // Outer vertical ScrollView to prevent layout squeezing inside the fixed height panel
+        val outerScroll = android.widget.ScrollView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        val contentLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
         if (layer is TextLayer) {
-            container.addView(createInputView(layer, false))
+            contentLayout.addView(createInputView(layer, false))
 
             // 1. Text Color Section
             val tvTextColor = TextView(this).apply {
@@ -5135,7 +5151,7 @@ class EditorActivity : AppCompatActivity() {
                 textSize = 12f
                 setPadding(dpToPx(16), dpToPx(4), dpToPx(16), 0)
             }
-            container.addView(tvTextColor)
+            contentLayout.addView(tvTextColor)
 
             val scrollText = HorizontalScrollView(this).apply {
                 isHorizontalScrollBarEnabled = false
@@ -5220,7 +5236,7 @@ class EditorActivity : AppCompatActivity() {
             )
             listText.addView(paletteViewText)
             scrollText.addView(listText)
-            container.addView(scrollText)
+            contentLayout.addView(scrollText)
 
             // 2. Highlight Color Section
             val tvHighlightColor = TextView(this).apply {
@@ -5229,7 +5245,7 @@ class EditorActivity : AppCompatActivity() {
                 textSize = 12f
                 setPadding(dpToPx(16), dpToPx(4), dpToPx(16), 0)
             }
-            container.addView(tvHighlightColor)
+            contentLayout.addView(tvHighlightColor)
 
             val scrollHighlight = HorizontalScrollView(this).apply {
                 isHorizontalScrollBarEnabled = false
@@ -5328,7 +5344,7 @@ class EditorActivity : AppCompatActivity() {
             )
             listHighlight.addView(paletteViewHighlight)
             scrollHighlight.addView(listHighlight)
-            container.addView(scrollHighlight)
+            contentLayout.addView(scrollHighlight)
 
         } else {
             val scroll = HorizontalScrollView(this).apply {
@@ -5411,8 +5427,11 @@ class EditorActivity : AppCompatActivity() {
             list.addView(paletteView)
 
             scroll.addView(list)
-            container.addView(scroll)
+            contentLayout.addView(scroll)
         }
+
+        outerScroll.addView(contentLayout)
+        container.addView(outerScroll)
     }
 
     private fun showBrushMenu() {
