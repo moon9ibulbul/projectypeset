@@ -580,6 +580,17 @@ class TextLayer(
         result = 31 * result + zoomBlurRadius.hashCode()
         result = 31 * result + zoomBlurStrength.hashCode()
 
+        // Speed Line
+        result = 31 * result + speedLineType.hashCode()
+        result = 31 * result + speedLineWidth.hashCode()
+        result = 31 * result + speedLineHeight.hashCode()
+        result = 31 * result + speedLineCount.hashCode()
+        result = 31 * result + speedLineThickness.hashCode()
+        result = 31 * result + speedLineLength.hashCode()
+        result = 31 * result + speedLineAdditional.hashCode()
+        result = 31 * result + speedLineColor.hashCode()
+        result = 31 * result + speedLineAngle.hashCode()
+
         return result
     }
 
