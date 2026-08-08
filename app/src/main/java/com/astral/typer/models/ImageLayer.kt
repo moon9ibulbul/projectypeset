@@ -290,6 +290,30 @@ class ImageLayer(
             canvas.drawRect(-size, -size, size, size, maskPaint)
         }
 
+        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        if (hasTransform) {
+            for (data in erasePaths) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = data.size; alpha = data.opacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (data.hardness < 100) {
+                        val r = data.size / 2f; val b = r * (1f - (data.hardness / 100f))
+                        if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                    }
+                }
+                canvas.drawPath(data.path, p)
+            }
+            if (activeErasePath != null) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (activeEraseHardness < 100) {
+                        val r = activeEraseSize / 2f; val b = r * (1f - (activeEraseHardness / 100f))
+                        if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                    }
+                }
+                canvas.drawPath(activeErasePath!!, p)
+            }
+        }
+
         canvas.restoreToCount(saveCount)
         canvas.restore()
     }
@@ -298,36 +322,39 @@ class ImageLayer(
         val dest = RectF(0f, 0f, w, h)
         canvas.drawBitmap(bitmap, null, dest, null)
 
-        val pad = calculatePadding()
-        // Apply Erase Mask
-        if (eraseMask != null) {
-            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
-        }
+        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        if (!hasTransform) {
+            val pad = calculatePadding()
+            // Apply Erase Mask
+            if (eraseMask != null) {
+                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
+            }
 
-        // Apply active erase path preview
-        if (activeErasePath != null) {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK
-                style = Paint.Style.STROKE
-                strokeWidth = activeEraseSize
-                alpha = activeEraseOpacity
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                if (activeEraseHardness < 100) {
-                    val radius = activeEraseSize / 2f
-                    val blur = radius * (1f - (activeEraseHardness / 100f))
-                    if (blur > 0.5f) {
-                        maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+            // Apply active erase path preview
+            if (activeErasePath != null) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK
+                    style = Paint.Style.STROKE
+                    strokeWidth = activeEraseSize
+                    alpha = activeEraseOpacity
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (activeEraseHardness < 100) {
+                        val radius = activeEraseSize / 2f
+                        val blur = radius * (1f - (activeEraseHardness / 100f))
+                        if (blur > 0.5f) {
+                            maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                        }
                     }
                 }
+                canvas.save()
+                canvas.translate(-pad, -pad)
+                canvas.drawPath(activeErasePath!!, p)
+                canvas.restore()
             }
-            canvas.save()
-            canvas.translate(-pad, -pad)
-            canvas.drawPath(activeErasePath!!, p)
-            canvas.restore()
         }
     }
 
@@ -479,26 +506,34 @@ class ImageLayer(
     override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
         erasePaths.add(ErasePathData(Path(path), size, opacity, hardness))
         if (eraseMask == null) {
-            // Should be initialized in AstralCanvasView onTouch
-        } else {
-             val c = Canvas(eraseMask!!)
-             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                 color = Color.BLACK
-                 style = Paint.Style.STROKE
-                 strokeWidth = size
-                 this.alpha = opacity
-                 strokeCap = Paint.Cap.ROUND
-                 strokeJoin = Paint.Join.ROUND
-                 if (hardness < 100) {
-                     val radius = size / 2f
-                     val blur = radius * (1f - (hardness / 100f))
-                     if (blur > 0.5f) {
-                        maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
-                     }
+            val pad = calculatePadding()
+            val baseW = getWidth().toInt().coerceAtLeast(1)
+            val baseH = getHeight().toInt().coerceAtLeast(1)
+            val maskW = (baseW + pad * 2).toInt().coerceAtLeast(1)
+            val maskH = (baseH + pad * 2).toInt().coerceAtLeast(1)
+            eraseMask = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
+        }
+        val c = Canvas(eraseMask!!)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+             color = Color.BLACK
+             style = Paint.Style.STROKE
+             strokeWidth = size
+             this.alpha = opacity
+             strokeCap = Paint.Cap.ROUND
+             strokeJoin = Paint.Join.ROUND
+             if (hardness < 100) {
+                 val radius = size / 2f
+                 val blur = radius * (1f - (hardness / 100f))
+                 if (blur > 0.5f) {
+                    maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
                  }
              }
-             c.drawPath(path, p)
         }
+        c.save()
+        val pad = calculatePadding()
+        c.translate(getWidth() / 2f + pad, getHeight() / 2f + pad)
+        c.drawPath(path, p)
+        c.restore()
     }
 
     override fun undoLastErasePath(baseMask: Bitmap?) {
@@ -523,6 +558,8 @@ class ImageLayer(
              c.drawBitmap(baseMask, 0f, 0f, null)
         }
 
+        c.save()
+        c.translate(baseW / 2f + pad, baseH / 2f + pad)
         for (data in erasePaths) {
              val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                  color = Color.BLACK
@@ -541,6 +578,7 @@ class ImageLayer(
              }
              c.drawPath(data.path, p)
         }
+        c.restore()
         eraseMask = newMask
     }
 

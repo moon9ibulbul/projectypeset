@@ -429,6 +429,29 @@ class ShapeLayer(
             canvas.drawRect(-size, -size, size, size, maskPaint)
         }
 
+        if (hasTransform) {
+            for (data in erasePaths) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = data.size; alpha = data.opacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (data.hardness < 100) {
+                        val r = data.size / 2f; val b = r * (1f - (data.hardness / 100f))
+                        if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                    }
+                }
+                canvas.drawPath(data.path, p)
+            }
+            if (activeErasePath != null) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (activeEraseHardness < 100) {
+                        val r = activeEraseSize / 2f; val b = r * (1f - (activeEraseHardness / 100f))
+                        if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                    }
+                }
+                canvas.drawPath(activeErasePath!!, p)
+            }
+        }
+
         canvas.restoreToCount(saveCount)
         canvas.restore()
     }
@@ -833,24 +856,27 @@ class ShapeLayer(
             drawBase(canvas)
         }
 
-        val pad = calculatePadding()
-        if (eraseMask != null) {
-            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-            canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
-        }
-        if (activeErasePath != null) {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                if (activeEraseHardness < 100) {
-                    val r = activeEraseSize / 2f
-                    val b = r * (1f - (activeEraseHardness / 100f))
-                    if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
-                }
+        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        if (!hasTransform) {
+            val pad = calculatePadding()
+            if (eraseMask != null) {
+                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+                canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
             }
-            canvas.save()
-            canvas.translate(-pad, -pad)
-            canvas.drawPath(activeErasePath!!, p)
-            canvas.restore()
+            if (activeErasePath != null) {
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = activeEraseSize; alpha = activeEraseOpacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    if (activeEraseHardness < 100) {
+                        val r = activeEraseSize / 2f
+                        val b = r * (1f - (activeEraseHardness / 100f))
+                        if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+                    }
+                }
+                canvas.save()
+                canvas.translate(-pad, -pad)
+                canvas.drawPath(activeErasePath!!, p)
+                canvas.restore()
+            }
         }
     }
 
@@ -1651,16 +1677,28 @@ class ShapeLayer(
         if (stroke != null || strokeShader != null) {
             val hex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
             val sw = strokeW
+            // Clean up any existing join/cap settings to enforce round joins/caps
+            manipulated = manipulated.replace(Regex("stroke-linejoin='[^']*'"), "")
+            manipulated = manipulated.replace(Regex("stroke-linejoin=\"[^\"]*\""), "")
+            manipulated = manipulated.replace(Regex("stroke-linecap='[^']*'"), "")
+            manipulated = manipulated.replace(Regex("stroke-linecap=\"[^\"]*\""), "")
+
             // Insert stroke attributes if not present, or replace
             if (!manipulated.contains("stroke=")) {
-                 manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' ")
-                 manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' ")
-                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' ")
-                 manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' ")
-                 manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' ")
+                 manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
             } else {
                  manipulated = manipulated.replace(Regex("stroke='[^']*'"), "stroke='$hex'")
                  manipulated = manipulated.replace(Regex("stroke-width='[^']*'"), "stroke-width='$sw'")
+                 // Enforce round join and cap on elements
+                 manipulated = manipulated.replace("<path ", "<path stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<circle ", "<circle stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<rect ", "<rect stroke-linejoin='round' stroke-linecap='round' ")
+                 manipulated = manipulated.replace("<polygon ", "<polygon stroke-linejoin='round' stroke-linecap='round' ")
             }
         }
 
@@ -1872,16 +1910,27 @@ class ShapeLayer(
 
     override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
         erasePaths.add(ErasePathData(Path(path), size, opacity, hardness))
-        if (eraseMask != null) {
-             val c = Canvas(eraseMask!!); val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                 color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = size; this.alpha = opacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
-                 if (hardness < 100) {
-                     val r = size / 2f; val b = r * (1f - (hardness / 100f))
-                     if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
-                 }
-             }
-             c.drawPath(path, p)
+        if (eraseMask == null) {
+            val pad = calculatePadding()
+            val baseW = getWidth().toInt().coerceAtLeast(1)
+            val baseH = getHeight().toInt().coerceAtLeast(1)
+            val maskW = (baseW + pad * 2).toInt().coerceAtLeast(1)
+            val maskH = (baseH + pad * 2).toInt().coerceAtLeast(1)
+            eraseMask = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
         }
+        val c = Canvas(eraseMask!!)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+             color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = size; this.alpha = opacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+             if (hardness < 100) {
+                 val r = size / 2f; val b = r * (1f - (hardness / 100f))
+                 if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
+             }
+        }
+        c.save()
+        val pad = calculatePadding()
+        c.translate(getWidth() / 2f + pad, getHeight() / 2f + pad)
+        c.drawPath(path, p)
+        c.restore()
     }
 
     override fun undoLastErasePath(baseMask: Bitmap?) {
@@ -1896,6 +1945,8 @@ class ShapeLayer(
         val maskH = (baseH + pad * 2).toInt().coerceAtLeast(1)
         val newMask = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888); val c = Canvas(newMask)
         if (baseMask != null) c.drawBitmap(baseMask, 0f, 0f, null)
+        c.save()
+        c.translate(baseW / 2f + pad, baseH / 2f + pad)
         for (data in erasePaths) {
              val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                  color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = data.size; this.alpha = data.opacity; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
@@ -1906,6 +1957,7 @@ class ShapeLayer(
              }
              c.drawPath(data.path, p)
         }
+        c.restore()
         eraseMask = newMask
     }
 
