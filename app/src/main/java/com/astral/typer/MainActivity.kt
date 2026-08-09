@@ -346,7 +346,8 @@ class MainActivity : AppCompatActivity() {
                                         text.setTextColor(Color.WHITE)
                                     }
 
-                                    if (file.isDirectory) {
+                                    val isSubFolder = file.isDirectory && !File(file, "project.json").exists()
+                                    if (isSubFolder) {
                                         img.setImageResource(android.R.drawable.ic_menu_directions)
                                     } else {
                                         img.setImageResource(android.R.drawable.ic_menu_gallery)
@@ -355,7 +356,7 @@ class MainActivity : AppCompatActivity() {
 
                                     // Async Load Thumbnail
                                     lifecycleScope.launch(Dispatchers.IO) {
-                                        val bmp = if (file.isDirectory) {
+                                        val bmp = if (isSubFolder) {
                                             ProjectManager.loadFolderThumbnail(this@MainActivity, file)
                                         } else {
                                             ProjectManager.loadThumbnail(this@MainActivity, file)
@@ -370,7 +371,7 @@ class MainActivity : AppCompatActivity() {
                                     }
 
                                     holder.itemView.setOnClickListener {
-                                        if (file.isDirectory) {
+                                        if (isSubFolder) {
                                             val intent = Intent(this@MainActivity, RecentActivity::class.java).apply {
                                                 putExtra("FOLDER_PATH", file.absolutePath)
                                             }
@@ -399,10 +400,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openProject(file: File) {
-        val intent = Intent(this, EditorActivity::class.java).apply {
-            putExtra("PROJECT_PATH", file.absolutePath)
+        if (file.isFile && file.extension == "atd") {
+            // It's an .atd file. Let's extract it to a folder in the private working directory!
+            val privateRoot = getExternalFilesDir("Projects") ?: File(filesDir, "Projects")
+            var projName = file.nameWithoutExtension
+            var targetFolder = File(privateRoot, projName)
+            var counter = 1
+            while (targetFolder.exists()) {
+                projName = "${file.nameWithoutExtension}_$counter"
+                targetFolder = File(privateRoot, projName)
+                counter++
+            }
+            targetFolder.mkdirs()
+
+            val success = ProjectManager.unzipProjectFolder(file, targetFolder)
+            if (success) {
+                val intent = Intent(this, EditorActivity::class.java).apply {
+                    putExtra("PROJECT_PATH", targetFolder.absolutePath)
+                }
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "Failed to import .atd project", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val intent = Intent(this, EditorActivity::class.java).apply {
+                putExtra("PROJECT_PATH", file.absolutePath)
+            }
+            startActivity(intent)
         }
-        startActivity(intent)
     }
 
     private fun openEditorWithImage(uri: Uri) {
