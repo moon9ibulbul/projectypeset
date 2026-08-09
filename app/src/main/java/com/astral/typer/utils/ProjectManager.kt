@@ -638,61 +638,36 @@ object ProjectManager {
 
         var success = false
 
-        // MediaStore (Android 10+)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            try {
-                val resolver = context.contentResolver
-
-                val relativePath = if (subFolder.isNullOrEmpty()) "Pictures/AstralTyper/Project" else "Pictures/AstralTyper/Project/$subFolder"
-
-                // Attempt to overwrite existing MediaStore entry by deleting it first
-                val selection = "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-                val selectionArgs = arrayOf("$cleanName.atd", "%$relativePath%")
-
-                try {
-                    resolver.query(
-                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        arrayOf(android.provider.MediaStore.MediaColumns._ID),
-                        selection,
-                        selectionArgs,
-                        null
-                    )?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val id = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns._ID))
-                            val uriToDelete = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                            resolver.delete(uriToDelete, null, null)
-                        }
-                    }
-                } catch (e: Exception) { e.printStackTrace() }
-
-                val contentValues = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$cleanName.atd")
-                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/zip")
-                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
-                }
-
-                val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { out ->
-                        ZipOutputStream(out).use { zipOut -> zipFile(tempDir, tempDir.name, zipOut) }
-                    }
-                    success = true
-                }
-            } catch (e: Exception) { e.printStackTrace() }
-        } else {
-            // Legacy (Android 9 and below)
-            try {
-                val file = getPublicProjectFile(cleanName, subFolder)
-                if (file.parentFile?.exists() == false) file.parentFile?.mkdirs()
-                success = zipFolder(tempDir, file)
-            } catch (e: Exception) { e.printStackTrace() }
+        // Try public root first
+        var targetFolder = getPublicProjectFile(cleanName, subFolder)
+        try {
+            if (targetFolder.exists()) {
+                targetFolder.deleteRecursively()
+            }
+            if (targetFolder.mkdirs() || targetFolder.exists()) {
+                tempDir.copyRecursively(targetFolder, overwrite = true)
+                success = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            success = false
         }
 
         if (!success) {
-            // Fallback
-            val file = getPrivateProjectFile(context, cleanName, subFolder)
-            file.parentFile?.mkdirs()
-            success = zipFolder(tempDir, file)
+            // Fallback to private folder
+            targetFolder = getPrivateProjectFile(context, cleanName, subFolder)
+            try {
+                if (targetFolder.exists()) {
+                    targetFolder.deleteRecursively()
+                }
+                if (targetFolder.mkdirs() || targetFolder.exists()) {
+                    tempDir.copyRecursively(targetFolder, overwrite = true)
+                    success = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                success = false
+            }
         }
 
         if (success && projectName.trim() == "autosave") {
@@ -723,6 +698,27 @@ object ProjectManager {
     }
 
     fun loadProject(context: Context, file: File): LoadResult {
+        if (file.isDirectory) {
+            val jsonFile = File(file, "project.json")
+            if (!jsonFile.exists()) return LoadResult.Error("project.json missing")
+
+            val projectData = gson.fromJson(jsonFile.readText(), ProjectData::class.java)
+            val imageMap = mutableMapOf<String, Bitmap>()
+
+            File(file, "images").listFiles()?.forEach {
+                try {
+                    val bmp = BitmapFactory.decodeFile(it.absolutePath)
+                    if (bmp != null) imageMap["images/${it.name}"] = bmp
+                } catch (e: Exception) { }
+            }
+
+            val finalData = projectData.copy(layers = projectData.layers.map { model ->
+                model
+            })
+
+            return LoadResult.Success(finalData, imageMap)
+        }
+
         val tempDir = File(context.cacheDir, "temp_load")
         if (tempDir.exists()) tempDir.deleteRecursively()
         tempDir.mkdirs()
@@ -742,11 +738,7 @@ object ProjectManager {
             } catch (e: Exception) { }
         }
 
-        val missingFonts = mutableListOf<String>()
         val finalData = projectData.copy(layers = projectData.layers.map { model ->
-            if (model.type == "TEXT" && !model.fontPath.isNullOrEmpty()) {
-                // Verify font existence logic here if needed
-            }
             model
         })
 
@@ -754,7 +746,7 @@ object ProjectManager {
     }
 
     fun loadFolderThumbnail(context: Context, folder: File): Bitmap? {
-        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedByDescending { it.lastModified() }?.take(3) ?: return null
+        val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && File(f, "project.json").exists()) }?.sortedByDescending { it.lastModified() }?.take(3) ?: return null
         if (projects.isEmpty()) return null
 
         val size = 300
@@ -789,6 +781,14 @@ object ProjectManager {
     }
 
     fun loadThumbnail(context: Context, file: File): Bitmap? {
+        if (file.isDirectory) {
+            val thumbFile = File(file, "thumbnail.png")
+            if (thumbFile.exists()) {
+                return BitmapFactory.decodeFile(thumbFile.absolutePath)
+            }
+            return null
+        }
+
         // First check cache
         val cacheDir = File(context.cacheDir, "thumbnails")
         if (!cacheDir.exists()) cacheDir.mkdirs()
@@ -818,6 +818,10 @@ object ProjectManager {
             e.printStackTrace()
         }
         return null
+    }
+
+    fun unzipProjectFolder(zipFile: File, targetDirectory: File): Boolean {
+        return unzip(zipFile, targetDirectory)
     }
 
     // Helper to Convert Model to Layer
@@ -1416,7 +1420,7 @@ object ProjectManager {
             root = File(root, subFolder)
         }
         if (!root.exists()) root.mkdirs()
-        return File(root, "$name.atd")
+        return File(root, name)
     }
 
     private fun getPrivateProjectFile(context: Context, name: String, subFolder: String? = null): File {
@@ -1425,7 +1429,7 @@ object ProjectManager {
             root = File(root, subFolder)
         }
         if (!root.exists()) root.mkdirs()
-        return File(root, "$name.atd")
+        return File(root, name)
     }
 
     private fun saveBitmap(bitmap: Bitmap, file: File) {
@@ -1774,7 +1778,7 @@ object ProjectManager {
     }
 
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
-        val projects = folder.listFiles { f -> f.extension == "atd" }?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: return false
+        val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && File(f, "project.json").exists()) }?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: return false
         if (projects.isEmpty()) return false
 
         try {

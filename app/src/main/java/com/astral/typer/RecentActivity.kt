@@ -60,7 +60,8 @@ class RecentActivity : AppCompatActivity() {
                 if (actionMode != null) {
                     toggleSelection(file)
                 } else {
-                    if (file.isDirectory) {
+                    val isSubFolder = file.isDirectory && !File(file, "project.json").exists()
+                    if (isSubFolder) {
                         openFolder(file)
                     } else {
                         openProject(file)
@@ -381,7 +382,7 @@ class RecentActivity : AppCompatActivity() {
 
         override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
             val selectedFiles = adapter.selectedItems
-            val allFolders = selectedFiles.isNotEmpty() && selectedFiles.all { it.isDirectory }
+            val allFolders = selectedFiles.isNotEmpty() && selectedFiles.all { it.isDirectory && !File(it, "project.json").exists() }
             menu.findItem(3)?.isVisible = allFolders
             return true
         }
@@ -399,7 +400,7 @@ class RecentActivity : AppCompatActivity() {
                     true
                 }
                 3 -> { // Export to PDF
-                    val selectedFolders = adapter.selectedItems.filter { it.isDirectory }
+                    val selectedFolders = adapter.selectedItems.filter { it.isDirectory && !File(it, "project.json").exists() }
                     exportMultipleFoldersToPdf(selectedFolders)
                     mode.finish()
                     true
@@ -425,8 +426,15 @@ class RecentActivity : AppCompatActivity() {
 
         for (file in files) {
             try {
-                if (file.isDirectory) {
-                    // Zip folder first
+                val isProjectFolder = file.isDirectory && File(file, "project.json").exists()
+                if (isProjectFolder) {
+                    // Compile/Zip to .atd for sharing
+                    val zipFile = File(tempDir, "${file.name}.atd")
+                    if (ProjectManager.zipProjectFolder(file, zipFile)) {
+                        uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", zipFile))
+                    }
+                } else if (file.isDirectory) {
+                    // It's a sub-folder directory, zip it as .zip
                     val zipFile = File(tempDir, "${file.name}.zip")
                     if (ProjectManager.zipProjectFolder(file, zipFile)) {
                         uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", zipFile))
@@ -531,7 +539,8 @@ class RecentActivity : AppCompatActivity() {
                 checkIcon.visibility = if (isSelected) View.VISIBLE else View.GONE
 
                 // Placeholder preview default
-                if (file.isDirectory) {
+                val isSubFolder = file.isDirectory && !File(file, "project.json").exists()
+                if (isSubFolder) {
                     previewImage.setImageResource(android.R.drawable.ic_menu_directions)
                 } else {
                     previewImage.setImageResource(android.R.drawable.ic_menu_gallery)
@@ -540,7 +549,7 @@ class RecentActivity : AppCompatActivity() {
 
                 // Async Load Thumbnail
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val bmp = if (file.isDirectory) {
+                    val bmp = if (isSubFolder) {
                         ProjectManager.loadFolderThumbnail(this@RecentActivity, file)
                     } else {
                         ProjectManager.loadThumbnail(this@RecentActivity, file)
