@@ -327,7 +327,7 @@ class MainActivity : AppCompatActivity() {
                                 if (projectIndex >= 0 && projectIndex < projects.size) {
                                     val file = projects[projectIndex]
 
-                                    val name = file.nameWithoutExtension
+                                    val name = if (file.isDirectory) file.name else file.nameWithoutExtension
                                     if (name.startsWith("autosave")) {
                                         if (name.startsWith("autosave_")) {
                                             try {

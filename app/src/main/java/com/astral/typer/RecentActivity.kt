@@ -470,7 +470,7 @@ class RecentActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             files.forEach { file ->
                 if (file.isDirectory) {
-                    if (file.deleteRecursively()) {
+                    if (ProjectManager.deleteProjectFolder(this@RecentActivity, file)) {
                         deletedCount++
                     }
                 } else {
@@ -533,7 +533,7 @@ class RecentActivity : AppCompatActivity() {
             private val previewImage: ImageView = itemView.findViewById(R.id.projectPreview)
 
             fun bind(file: File, isSelected: Boolean) {
-                nameText.text = file.nameWithoutExtension
+                nameText.text = if (file.isDirectory) file.name else file.nameWithoutExtension
 
                 selectionOverlay.visibility = if (isSelected) View.VISIBLE else View.GONE
                 checkIcon.visibility = if (isSelected) View.VISIBLE else View.GONE
