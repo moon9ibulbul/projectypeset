@@ -469,14 +469,8 @@ class RecentActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             files.forEach { file ->
-                if (file.isDirectory) {
-                    if (ProjectManager.deleteProjectFolder(this@RecentActivity, file)) {
-                        deletedCount++
-                    }
-                } else {
-                    if (file.delete()) {
-                        deletedCount++
-                    }
+                if (ProjectManager.deleteProjectFolder(this@RecentActivity, file)) {
+                    deletedCount++
                 }
             }
             withContext(Dispatchers.Main) {

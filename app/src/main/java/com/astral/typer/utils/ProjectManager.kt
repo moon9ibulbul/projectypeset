@@ -1440,7 +1440,41 @@ object ProjectManager {
 
     fun getRecentProjects(context: Context? = null, parentFolder: File? = null): List<File> {
         if (parentFolder != null) {
-            return parentFolder.listFiles()?.toList()?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: emptyList()
+            val roots = mutableListOf<File>()
+            val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+            roots.add(publicRoot)
+            val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+            roots.add(rootPath)
+            if (context != null) {
+                val privateRoot = context.getExternalFilesDir("Projects")
+                if (privateRoot != null) {
+                    roots.add(privateRoot)
+                }
+                roots.add(File(context.filesDir, "Projects"))
+            }
+            val uniqueRoots = roots.distinctBy { it.absolutePath }
+
+            var relativePath: String? = null
+            for (root in uniqueRoots.sortedByDescending { it.absolutePath.length }) {
+                if (parentFolder.absolutePath.startsWith(root.absolutePath)) {
+                    relativePath = parentFolder.absolutePath.substring(root.absolutePath.length)
+                    break
+                }
+            }
+
+            val mergedProjects = mutableListOf<File>()
+            if (relativePath != null) {
+                for (root in uniqueRoots) {
+                    val targetFolder = File(root, relativePath)
+                    if (targetFolder.exists() && targetFolder.isDirectory) {
+                        targetFolder.listFiles()?.let { mergedProjects.addAll(it) }
+                    }
+                }
+            } else {
+                parentFolder.listFiles()?.let { mergedProjects.addAll(it) }
+            }
+
+            return mergedProjects.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }.distinctBy { it.name }
         }
 
         val projects = mutableListOf<File>()
@@ -1459,6 +1493,10 @@ object ProjectManager {
              val privateRoot = context.getExternalFilesDir("Projects")
              if (privateRoot != null && privateRoot.exists()) {
                   privateRoot.listFiles()?.let { projects.addAll(it) }
+             }
+             val internalPrivateRoot = File(context.filesDir, "Projects")
+             if (internalPrivateRoot.exists()) {
+                  internalPrivateRoot.listFiles()?.let { projects.addAll(it) }
              }
         }
         return projects.sortedByDescending { it.lastModified() }.distinctBy { it.name }
@@ -1482,27 +1520,64 @@ object ProjectManager {
     }
 
     fun deleteProjectFolder(context: Context, folder: File): Boolean {
-        if (!folder.exists()) return true
+        val roots = mutableListOf<File>()
+        val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        roots.add(publicRoot)
+        val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+        roots.add(rootPath)
+        val privateRoot = context.getExternalFilesDir("Projects")
+        if (privateRoot != null) {
+            roots.add(privateRoot)
+        }
+        roots.add(File(context.filesDir, "Projects"))
 
-        // 1. Delete files inside from MediaStore first if Android 10+
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            val resolver = context.contentResolver
-            val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            val selection = "${android.provider.MediaStore.MediaColumns.DATA} LIKE ?"
-            val selectionArgs = arrayOf("${folder.absolutePath}%")
-            try {
-                resolver.delete(uri, selection, selectionArgs)
-            } catch (e: Exception) {
-                e.printStackTrace()
+        val uniqueRoots = roots.distinctBy { it.absolutePath }
+
+        var relativePath: String? = null
+        for (root in uniqueRoots.sortedByDescending { it.absolutePath.length }) {
+            if (folder.absolutePath.startsWith(root.absolutePath)) {
+                relativePath = folder.absolutePath.substring(root.absolutePath.length)
+                break
             }
         }
 
-        // 2. Also delete recursively using standard File API to ensure private files, metadata (project.json), and folders are cleaned up
-        val diskDeleted = folder.deleteRecursively()
-
-        // 3. Just in case, if the folder still exists, try deleting it directly
-        if (folder.exists()) {
-            folder.delete()
+        if (relativePath != null) {
+            for (root in uniqueRoots) {
+                val target = File(root, relativePath)
+                if (target.exists()) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val resolver = context.contentResolver
+                        val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                        val selection = "${android.provider.MediaStore.MediaColumns.DATA} LIKE ?"
+                        val selectionArgs = arrayOf("${target.absolutePath}%")
+                        try {
+                            resolver.delete(uri, selection, selectionArgs)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    target.deleteRecursively()
+                    if (target.exists()) {
+                        target.delete()
+                    }
+                }
+            }
+        } else {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val resolver = context.contentResolver
+                val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                val selection = "${android.provider.MediaStore.MediaColumns.DATA} LIKE ?"
+                val selectionArgs = arrayOf("${folder.absolutePath}%")
+                try {
+                    resolver.delete(uri, selection, selectionArgs)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            folder.deleteRecursively()
+            if (folder.exists()) {
+                folder.delete()
+            }
         }
 
         return !folder.exists()
