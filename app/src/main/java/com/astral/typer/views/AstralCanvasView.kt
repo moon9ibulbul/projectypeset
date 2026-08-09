@@ -1369,7 +1369,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun renderToBitmapHardware(): android.graphics.Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
-        val maxDim = 4096
+        val limit = com.astral.typer.utils.ProjectManager.getMaxTextureSize()
+        val maxDim = minOf(2048, limit)
         if (canvasWidth <= maxDim && canvasHeight <= maxDim) {
             try {
                 val reader = android.media.ImageReader.newInstance(
@@ -1580,10 +1581,38 @@ class AstralCanvasView @JvmOverloads constructor(
         return true
     }
 
+    private fun isBitmapCropped(bitmap: android.graphics.Bitmap): Boolean {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= 10 || h <= 10) return false
+
+        val hasBackground = backgroundTiles.isNotEmpty() || canvasColor != android.graphics.Color.TRANSPARENT
+        if (hasBackground) {
+            var rightColumnIsZero = true
+            for (y in 0 until h step (h / 10).coerceAtLeast(1)) {
+                if (bitmap.getPixel(w - 1, y) != 0) {
+                    rightColumnIsZero = false
+                    break
+                }
+            }
+            if (rightColumnIsZero) return true
+
+            var bottomRowIsZero = true
+            for (x in 0 until w step (w / 10).coerceAtLeast(1)) {
+                if (bitmap.getPixel(x, h - 1) != 0) {
+                    bottomRowIsZero = false
+                    break
+                }
+            }
+            if (bottomRowIsZero) return true
+        }
+        return false
+    }
+
     fun renderToBitmap(): android.graphics.Bitmap {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             val hwBmp = renderToBitmapHardware()
-            if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp)) {
+            if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp) && !isBitmapCropped(hwBmp)) {
                 return hwBmp
             }
         }
