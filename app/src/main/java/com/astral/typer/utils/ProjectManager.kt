@@ -42,6 +42,18 @@ object ProjectManager {
         val value: String? = null
     )
 
+    data class ErasePointModel(
+        val x: Float,
+        val y: Float
+    )
+
+    data class ErasePathModel(
+        val points: List<ErasePointModel>,
+        val size: Float,
+        val opacity: Int,
+        val hardness: Float
+    )
+
     data class LayerModel(
         val type: String, // "TEXT" or "IMAGE"
         val x: Float, val y: Float, val rotation: Float, val scaleX: Float, val scaleY: Float,
@@ -123,6 +135,7 @@ object ProjectManager {
 
         // Erase
         val eraseMaskPath: String? = null,
+        val erasePaths: List<ErasePathModel>? = null,
 
         // Effect
         val currentEffect: String? = null, val secondaryEffect: String? = null, val tertiaryEffect: String? = null, val effectSeed: Long? = null,
@@ -338,6 +351,15 @@ object ProjectManager {
                         erasePath = "images/$name"
                     }
 
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
+
                     // Extract Spans
                     val spanModels = mutableListOf<SpanModel>()
                     val spanStr = layer.text
@@ -427,6 +449,7 @@ object ProjectManager {
                         patternScale = layer.patternScale,
                         patternRotation = layer.patternRotation,
                         eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
                         glitchSeed = layer.glitchSeed,
                         decaySeed = layer.decaySeed,
@@ -521,6 +544,14 @@ object ProjectManager {
                         saveBitmap(layer.eraseMask!!, File(imagesDir, name))
                         erasePath = "images/$name"
                     }
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
                     layerModels.add(LayerModel(
                         type = "SHAPE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
@@ -544,6 +575,7 @@ object ProjectManager {
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
                         patternName = layer.patternName, patternColor = layer.patternColor, patternAlpha = layer.patternAlpha, patternScale = layer.patternScale, patternRotation = layer.patternRotation,
                         eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels,
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
                         glitchSeed = layer.glitchSeed,
                         decaySeed = layer.decaySeed,
@@ -625,6 +657,14 @@ object ProjectManager {
                         saveBitmap(layer.eraseMask!!, File(imagesDir, name))
                         erasePath = "images/$name"
                     }
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
 
                     layerModels.add(LayerModel(
                         type = "IMAGE",
@@ -636,6 +676,7 @@ object ProjectManager {
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
                         eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel
                     ))
                 } else if (layer is com.astral.typer.models.BrushLayer) {
@@ -647,6 +688,14 @@ object ProjectManager {
                         val name = "brush_erase_$index.png"
                         saveBitmap(layer.eraseMask!!, File(imagesDir, name))
                         erasePath = "images/$name"
+                    }
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
                     }
 
                     layerModels.add(LayerModel(
@@ -671,7 +720,8 @@ object ProjectManager {
                         brushSmudge = layer.brushSmudge,
                         brushSmudgeLength = layer.brushSmudgeLength,
                         brushSlowTracking = layer.brushSlowTracking,
-                        eraseMaskPath = erasePath
+                        eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels
                     ))
                 }
             }
@@ -895,6 +945,32 @@ object ProjectManager {
         return unzip(zipFile, targetDirectory)
     }
 
+    private fun restoreErasePaths(layer: Layer, model: LayerModel) {
+        if (layer is com.astral.typer.models.StylableLayer) {
+            model.erasePaths?.let { list ->
+                layer.erasePaths.clear()
+                for (epm in list) {
+                    val path = android.graphics.Path()
+                    if (epm.points.isNotEmpty()) {
+                        path.moveTo(epm.points[0].x, epm.points[0].y)
+                        for (i in 1 until epm.points.size) {
+                            path.lineTo(epm.points[i].x, epm.points[i].y)
+                        }
+                    }
+                    layer.erasePaths.add(
+                        com.astral.typer.models.ErasePathData(
+                            path = path,
+                            size = epm.size,
+                            opacity = epm.opacity,
+                            hardness = epm.hardness,
+                            points = epm.points.map { com.astral.typer.models.ErasePoint(it.x, it.y) }
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     // Helper to Convert Model to Layer
     fun createLayerFromModel(model: LayerModel, imageMap: Map<String, Bitmap>): Layer? {
         if (model.type == "IMAGE" && model.imagePath != null) {
@@ -912,6 +988,7 @@ object ProjectManager {
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
+            restoreErasePaths(layer, model)
 
             applyCommonProperties(layer, model)
             return layer
@@ -1075,6 +1152,7 @@ object ProjectManager {
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
+            restoreErasePaths(layer, model)
 
             model.currentEffect?.let {
                 try { layer.currentEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
@@ -1246,6 +1324,7 @@ object ProjectManager {
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
+            restoreErasePaths(layer, model)
             model.currentEffect?.let {
                 try { layer.currentEffect = TextEffectType.valueOf(it) } catch(e:Exception){}
             }
@@ -1379,6 +1458,7 @@ object ProjectManager {
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
+            restoreErasePaths(layer, model)
 
             applyCommonProperties(layer, model)
             return layer

@@ -296,11 +296,11 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var activeEraseHardness: Float = 0.5f
     override var eraseDragRevision: Int = 0
 
-    override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
+    override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float, points: List<ErasePoint>) {
         if (eraseMask == null) {
             eraseMask = Bitmap.createBitmap(canvasWidth.coerceAtLeast(1), canvasHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         }
-        erasePaths.add(ErasePathData(path, size, opacity, hardness))
+        erasePaths.add(ErasePathData(path, size, opacity, hardness, points))
         rebuildEraseMask(eraseMask)
     }
 
@@ -313,10 +313,18 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
     override fun rebuildEraseMask(baseMask: Bitmap?) {
         val mask = eraseMask ?: return
+        val tempBase = if (baseMask != null && baseMask === mask) {
+            baseMask.copy(baseMask.config, true)
+        } else {
+            baseMask
+        }
         mask.eraseColor(Color.TRANSPARENT)
         val c = Canvas(mask)
-        if (baseMask != null) {
-            c.drawBitmap(baseMask, 0f, 0f, null)
+        if (tempBase != null) {
+            c.drawBitmap(tempBase, 0f, 0f, null)
+            if (tempBase !== baseMask) {
+                tempBase.recycle()
+            }
         }
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK

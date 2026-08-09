@@ -169,13 +169,21 @@ interface StylableLayer {
     var activeEraseOpacity: Int
     var activeEraseHardness: Float
     var eraseDragRevision: Int
-    fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float)
+    fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float, points: List<ErasePoint> = emptyList())
     fun undoLastErasePath(baseMask: Bitmap?)
     fun rebuildEraseMask(baseMask: Bitmap?)
     fun calculatePadding(): Float
 }
 
-data class ErasePathData(val path: Path, val size: Float, val opacity: Int, val hardness: Float)
+data class ErasePoint(val x: Float, val y: Float)
+
+data class ErasePathData(
+    val path: Path,
+    val size: Float,
+    val opacity: Int,
+    val hardness: Float,
+    val points: List<ErasePoint> = emptyList()
+)
 
 abstract class Layer {
     var x: Float = 0f

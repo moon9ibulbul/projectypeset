@@ -102,6 +102,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Temp path for layer erase
     private val currentLayerErasePath = Path()
+    private val currentLayerErasePoints = mutableListOf<com.astral.typer.models.ErasePoint>()
 
     // Saved brush state variables for BrushLayer erase toggle
     private var savedBrushName: String = "pencil"
@@ -2623,8 +2624,11 @@ class AstralCanvasView @JvmOverloads constructor(
             val maskX = localPoint[0]; val maskY = localPoint[1]
             when(event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    com.astral.typer.utils.UndoManager.saveState(layers)
                     stylable.eraseDragRevision++
                     currentLayerErasePath.reset(); currentLayerErasePath.moveTo(maskX, maskY)
+                    currentLayerErasePoints.clear()
+                    currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(maskX, maskY))
                     if (stylable.eraseMask == null) {
                          stylable.eraseMask = android.graphics.Bitmap.createBitmap(maskW, maskH, android.graphics.Bitmap.Config.ARGB_8888)
                     }
@@ -2636,6 +2640,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 MotionEvent.ACTION_MOVE -> {
                     stylable.eraseDragRevision++
                     currentLayerErasePath.lineTo(maskX, maskY)
+                    currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(maskX, maskY))
                     stylable.activeErasePath = currentLayerErasePath
                     stylable.activeEraseSize = layerEraseSize
                     stylable.activeEraseOpacity = layerEraseOpacity
@@ -2646,8 +2651,9 @@ class AstralCanvasView @JvmOverloads constructor(
                     stylable.eraseDragRevision++
                     stylable.activeErasePath = null
                     if (!currentLayerErasePath.isEmpty) {
-                        stylable.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness)
+                        stylable.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness, currentLayerErasePoints.toList())
                         currentLayerErasePath.reset()
+                        currentLayerErasePoints.clear()
                     }
                     invalidate()
                 }
