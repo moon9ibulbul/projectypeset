@@ -1175,16 +1175,42 @@ class ShapeLayer(
                             node.setPosition(0, 0, nodeW, nodeH)
                             val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.FIERY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("time", 0f)
                             shader.setFloatUniform("intensity", fieryIntensity)
                             shader.setFloatUniform("color", Color.red(fieryColor)/255f, Color.green(fieryColor)/255f, Color.blue(fieryColor)/255f)
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetX", pts[0])
-                            shader.setFloatUniform("offsetY", pts[1])
+
+                            val matrix = targetCanvas.matrix
+                            val inverse = android.graphics.Matrix()
+                            if (matrix.invert(inverse)) {
+                                val mValues = FloatArray(9)
+                                matrix.getValues(mValues)
+                                val colMajorM = floatArrayOf(
+                                    mValues[0], mValues[3], mValues[6],
+                                    mValues[1], mValues[4], mValues[7],
+                                    mValues[2], mValues[5], mValues[8]
+                                )
+                                shader.setFloatUniform("uMatrix", colMajorM)
+
+                                val invValues = FloatArray(9)
+                                inverse.getValues(invValues)
+                                val colMajorInv = floatArrayOf(
+                                    invValues[0], invValues[3], invValues[6],
+                                    invValues[1], invValues[4], invValues[7],
+                                    invValues[2], invValues[5], invValues[8]
+                                )
+                                shader.setFloatUniform("uInverse", colMajorInv)
+                            } else {
+                                val identity = floatArrayOf(
+                                    1f, 0f, 0f,
+                                    0f, 1f, 0f,
+                                    0f, 0f, 1f
+                                )
+                                shader.setFloatUniform("uMatrix", identity)
+                                shader.setFloatUniform("uInverse", identity)
+                            }
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -1202,14 +1228,41 @@ class ShapeLayer(
                             node.setPosition(0, 0, nodeW, nodeH)
                             val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.WAVY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("time", 0f)
                             shader.setFloatUniform("intensity", wavyIntensity); shader.setFloatUniform("frequency", wavyFrequency)
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetY", pts[1])
+
+                            val matrix = targetCanvas.matrix
+                            val inverse = android.graphics.Matrix()
+                            if (matrix.invert(inverse)) {
+                                val mValues = FloatArray(9)
+                                matrix.getValues(mValues)
+                                val colMajorM = floatArrayOf(
+                                    mValues[0], mValues[3], mValues[6],
+                                    mValues[1], mValues[4], mValues[7],
+                                    mValues[2], mValues[5], mValues[8]
+                                )
+                                shader.setFloatUniform("uMatrix", colMajorM)
+
+                                val invValues = FloatArray(9)
+                                inverse.getValues(invValues)
+                                val colMajorInv = floatArrayOf(
+                                    invValues[0], invValues[3], invValues[6],
+                                    invValues[1], invValues[4], invValues[7],
+                                    invValues[2], invValues[5], invValues[8]
+                                )
+                                shader.setFloatUniform("uInverse", colMajorInv)
+                            } else {
+                                val identity = floatArrayOf(
+                                    1f, 0f, 0f,
+                                    0f, 1f, 0f,
+                                    0f, 0f, 1f
+                                )
+                                shader.setFloatUniform("uMatrix", identity)
+                                shader.setFloatUniform("uInverse", identity)
+                            }
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
