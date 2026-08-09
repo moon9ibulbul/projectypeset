@@ -212,6 +212,77 @@ object ProjectManager {
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
+    private var cachedMaxTextureSize = 0
+
+    fun getMaxTextureSize(): Int {
+        if (cachedMaxTextureSize > 0) return cachedMaxTextureSize
+
+        // Try calling GLES20 directly first (in case we are already on a GL thread)
+        val max = IntArray(1)
+        try {
+            android.opengl.GLES20.glGetIntegerv(android.opengl.GLES20.GL_MAX_TEXTURE_SIZE, max, 0)
+            if (max[0] > 0) {
+                cachedMaxTextureSize = max[0]
+                return cachedMaxTextureSize
+            }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+
+        // Create dummy EGL context to query GL_MAX_TEXTURE_SIZE
+        try {
+            val egl = javax.microedition.khronos.egl.EGLContext.getEGL() as javax.microedition.khronos.egl.EGL10
+            val dpy = egl.eglGetDisplay(javax.microedition.khronos.egl.EGL10.EGL_DEFAULT_DISPLAY)
+            val vers = IntArray(2)
+            egl.eglInitialize(dpy, vers)
+
+            val configAttr = intArrayOf(
+                javax.microedition.khronos.egl.EGL10.EGL_SURFACE_TYPE, javax.microedition.khronos.egl.EGL10.EGL_PBUFFER_BIT,
+                javax.microedition.khronos.egl.EGL10.EGL_RED_SIZE, 8,
+                javax.microedition.khronos.egl.EGL10.EGL_GREEN_SIZE, 8,
+                javax.microedition.khronos.egl.EGL10.EGL_BLUE_SIZE, 8,
+                javax.microedition.khronos.egl.EGL10.EGL_ALPHA_SIZE, 8,
+                javax.microedition.khronos.egl.EGL10.EGL_NONE
+            )
+            val configs = arrayOfNulls<javax.microedition.khronos.egl.EGLConfig>(1)
+            val numConfig = IntArray(1)
+            egl.eglChooseConfig(dpy, configAttr, configs, 1, numConfig)
+            if (numConfig[0] > 0) {
+                val config = configs[0]
+                val attribList = intArrayOf(
+                    0x3098, 2, // EGL_CONTEXT_CLIENT_VERSION = 2
+                    javax.microedition.khronos.egl.EGL10.EGL_NONE
+                )
+                val ctx = egl.eglCreateContext(dpy, config, javax.microedition.khronos.egl.EGL10.EGL_NO_CONTEXT, attribList)
+                val pbufferAttr = intArrayOf(
+                    javax.microedition.khronos.egl.EGL10.EGL_WIDTH, 1,
+                    javax.microedition.khronos.egl.EGL10.EGL_HEIGHT, 1,
+                    javax.microedition.khronos.egl.EGL10.EGL_NONE
+                )
+                val surf = egl.eglCreatePbufferSurface(dpy, config, pbufferAttr)
+                egl.eglMakeCurrent(dpy, surf, surf, ctx)
+
+                val maxTex = IntArray(1)
+                android.opengl.GLES20.glGetIntegerv(android.opengl.GLES20.GL_MAX_TEXTURE_SIZE, maxTex, 0)
+
+                egl.eglMakeCurrent(dpy, javax.microedition.khronos.egl.EGL10.EGL_NO_SURFACE, javax.microedition.khronos.egl.EGL10.EGL_NO_SURFACE, javax.microedition.khronos.egl.EGL10.EGL_NO_CONTEXT)
+                egl.eglDestroySurface(dpy, surf)
+                egl.eglDestroyContext(dpy, ctx)
+                egl.eglTerminate(dpy)
+
+                if (maxTex[0] > 0) {
+                    cachedMaxTextureSize = maxTex[0]
+                    return cachedMaxTextureSize
+                }
+            }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+
+        cachedMaxTextureSize = 2048 // Absolute safe fallback
+        return cachedMaxTextureSize
+    }
+
     @Volatile
     var isSaving = false
 
@@ -1592,7 +1663,8 @@ object ProjectManager {
 
     private fun renderPageToBitmapHardware(data: ProjectData, images: Map<String, Bitmap>, targetWidth: Int, targetHeight: Int, scale: Float): Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
-        val maxDim = 4096
+        val limit = getMaxTextureSize()
+        val maxDim = minOf(2048, limit)
         if (targetWidth <= maxDim && targetHeight <= maxDim) {
             try {
                 val reader = android.media.ImageReader.newInstance(
@@ -1804,6 +1876,34 @@ object ProjectManager {
         return true
     }
 
+    private fun isBitmapCropped(bitmap: Bitmap, data: ProjectData, images: Map<String, Bitmap>): Boolean {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= 10 || h <= 10) return false
+
+        val hasBackground = images.containsKey("images/background.png") || data.canvasColor != android.graphics.Color.TRANSPARENT
+        if (hasBackground) {
+            var rightColumnIsZero = true
+            for (y in 0 until h step (h / 10).coerceAtLeast(1)) {
+                if (bitmap.getPixel(w - 1, y) != 0) {
+                    rightColumnIsZero = false
+                    break
+                }
+            }
+            if (rightColumnIsZero) return true
+
+            var bottomRowIsZero = true
+            for (x in 0 until w step (w / 10).coerceAtLeast(1)) {
+                if (bitmap.getPixel(x, h - 1) != 0) {
+                    bottomRowIsZero = false
+                    break
+                }
+            }
+            if (bottomRowIsZero) return true
+        }
+        return false
+    }
+
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
         val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && File(f, "project.json").exists()) }?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: return false
         if (projects.isEmpty()) return false
@@ -1847,7 +1947,7 @@ object ProjectManager {
                     var pageBitmap: Bitmap? = null
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                         val hwBmp = renderPageToBitmapHardware(data, images, targetPageWidth, targetHeight, scale)
-                        if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp)) {
+                        if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp) && !isBitmapCropped(hwBmp, data, images)) {
                             pageBitmap = hwBmp
                         }
                     }
