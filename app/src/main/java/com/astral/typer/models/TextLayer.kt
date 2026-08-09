@@ -893,8 +893,8 @@ class TextLayer(
         return newLayer
     }
 
-    override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float) {
-        erasePaths.add(ErasePathData(Path(path), size, opacity, hardness))
+    override fun addErasePath(path: Path, size: Float, opacity: Int, hardness: Float, points: List<ErasePoint>) {
+        erasePaths.add(ErasePathData(Path(path), size, opacity, hardness, points))
         // We also need to update the bitmap to reflect this change
         if (eraseMask == null) {
             val pad = calculatePadding()
