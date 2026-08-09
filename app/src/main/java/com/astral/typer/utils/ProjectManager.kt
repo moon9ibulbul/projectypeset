@@ -642,7 +642,7 @@ object ProjectManager {
         var targetFolder = getPublicProjectFile(cleanName, subFolder)
         try {
             if (targetFolder.exists()) {
-                targetFolder.deleteRecursively()
+                deleteProjectFolder(context, targetFolder)
             }
             if (targetFolder.mkdirs() || targetFolder.exists()) {
                 tempDir.copyRecursively(targetFolder, overwrite = true)
@@ -658,7 +658,7 @@ object ProjectManager {
             targetFolder = getPrivateProjectFile(context, cleanName, subFolder)
             try {
                 if (targetFolder.exists()) {
-                    targetFolder.deleteRecursively()
+                    deleteProjectFolder(context, targetFolder)
                 }
                 if (targetFolder.mkdirs() || targetFolder.exists()) {
                     tempDir.copyRecursively(targetFolder, overwrite = true)
@@ -685,7 +685,7 @@ object ProjectManager {
 
             if (autosaves.size > 1) {
                 for (i in 1 until autosaves.size) {
-                    autosaves[i].delete()
+                    deleteProjectFolder(context, autosaves[i])
                     // Delete thumbnail cache if exists
                     try {
                         val cacheDir = File(context.cacheDir, "thumbnails")
@@ -1408,6 +1408,33 @@ object ProjectManager {
         val ext = if (file.isDirectory) "" else "." + file.extension
         val target = File(file.parentFile, newName + ext)
         return file.renameTo(target)
+    }
+
+    fun deleteProjectFolder(context: Context, folder: File): Boolean {
+        if (!folder.exists()) return true
+
+        // 1. Delete files inside from MediaStore first if Android 10+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val selection = "${android.provider.MediaStore.MediaColumns.DATA} LIKE ?"
+            val selectionArgs = arrayOf("${folder.absolutePath}%")
+            try {
+                resolver.delete(uri, selection, selectionArgs)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Also delete recursively using standard File API to ensure private files, metadata (project.json), and folders are cleaned up
+        val diskDeleted = folder.deleteRecursively()
+
+        // 3. Just in case, if the folder still exists, try deleting it directly
+        if (folder.exists()) {
+            folder.delete()
+        }
+
+        return !folder.exists()
     }
 
     private fun getPublicProjectFile(name: String, subFolder: String? = null): File {

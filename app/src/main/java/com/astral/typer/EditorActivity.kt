@@ -206,7 +206,7 @@ class EditorActivity : AppCompatActivity() {
 
         if (projectPath != null) {
              val file = java.io.File(projectPath)
-             currentProjectName = file.nameWithoutExtension
+             currentProjectName = if (file.isDirectory) file.name else file.nameWithoutExtension
              val parent = file.parentFile
              if (parent != null && parent.name != "Project" && parent.name != "Projects") {
                  parentFolderName = parent.name
