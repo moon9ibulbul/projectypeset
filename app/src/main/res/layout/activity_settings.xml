@@ -54,14 +54,6 @@
             android:checked="true"/>
 
         <CheckBox
-            android:id="@+id/cbAutosave"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Enable Autosave"
-            android:textColor="@android:color/white"
-            android:checked="true"/>
-
-        <CheckBox
             android:id="@+id/cbDisableSnap"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
