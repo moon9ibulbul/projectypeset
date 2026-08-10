@@ -199,6 +199,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var effectSeed: Long = 0L
     override var glitchSeed: Long = 0L
     override var decaySeed: Long = 0L
+    override var woodScratchSeed: Long = 0L
     override var blurRadius: Float = 0f
     override var longShadowLength: Float = 0f
     override var longShadowColor: Int = Color.TRANSPARENT
@@ -245,6 +246,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var radialBlurCenterY: Float = 0.5f
     override var decayIntensity: Float = 0f
     override var decayFadingLevel: Float = 0f
+    override var woodScratchIntensity: Float = 0.5f
+    override var woodScratchColor: Int = Color.TRANSPARENT
 
     // Twist
     override var twistAngle: Float = 4.0f

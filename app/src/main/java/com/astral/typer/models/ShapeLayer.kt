@@ -189,6 +189,8 @@ class ShapeLayer(
     // Text Decay
     override var decayIntensity: Float = 0.5f
     override var decayFadingLevel: Float = 0.5f
+    override var woodScratchIntensity: Float = 0.5f
+    override var woodScratchColor: Int = android.graphics.Color.TRANSPARENT
 
     // Twist
     override var twistAngle: Float = 4.0f
@@ -234,6 +236,7 @@ class ShapeLayer(
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
     override var decaySeed: Long = System.currentTimeMillis()
+    override var woodScratchSeed: Long = System.currentTimeMillis()
 
     @Transient
     private var cachedPixelBitmap: Bitmap? = null
@@ -380,6 +383,7 @@ class ShapeLayer(
             it == TextEffectType.RADIAL_BLUR ||
             it == TextEffectType.HALFTONE ||
             it == TextEffectType.TEXT_DECAY ||
+            it == TextEffectType.WOOD_SCRATCH ||
             it == TextEffectType.TWIST ||
             it == TextEffectType.BULGE_PINCH ||
             it == TextEffectType.REFLECTION ||
@@ -1478,6 +1482,34 @@ class ShapeLayer(
                         } catch (e: Exception) { drawInner(targetCanvas) }
                     } else drawInner(targetCanvas)
                 }
+                TextEffectType.WOOD_SCRATCH -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("WoodScratchNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
+                            val shader = android.graphics.RuntimeShader(TextLayer.WOOD_SCRATCH_SHADER)
+                            shader.setFloatUniform("intensity", woodScratchIntensity)
+                            shader.setFloatUniform("seed", (woodScratchSeed % 10000).toFloat())
+                            shader.setFloatUniform("scratchColor",
+                                Color.red(woodScratchColor) / 255f,
+                                Color.green(woodScratchColor) / 255f,
+                                Color.blue(woodScratchColor) / 255f,
+                                Color.alpha(woodScratchColor) / 255f
+                            )
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        TextLayer.drawWoodScratchSoftware(
+                            targetCanvas, w, h, calculatePadding(),
+                            woodScratchIntensity, woodScratchSeed, woodScratchColor, drawInner
+                        )
+                    }
+                }
                 TextEffectType.TWIST -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -1985,6 +2017,8 @@ class ShapeLayer(
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
         newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
+        newLayer.decaySeed = decaySeed; newLayer.woodScratchSeed = woodScratchSeed
+        newLayer.woodScratchIntensity = woodScratchIntensity; newLayer.woodScratchColor = woodScratchColor
 
         // Twist
         newLayer.twistAngle = twistAngle

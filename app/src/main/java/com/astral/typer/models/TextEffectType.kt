@@ -20,5 +20,6 @@ enum class TextEffectType {
     BULGE_PINCH,
     REFLECTION,
     ZOOM_BLUR,
-    SPEED_LINE
+    SPEED_LINE,
+    WOOD_SCRATCH
 }

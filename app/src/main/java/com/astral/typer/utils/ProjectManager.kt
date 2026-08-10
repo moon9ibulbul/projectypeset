@@ -141,6 +141,7 @@ object ProjectManager {
         val currentEffect: String? = null, val secondaryEffect: String? = null, val tertiaryEffect: String? = null, val effectSeed: Long? = null,
         val glitchSeed: Long? = null,
         val decaySeed: Long? = null,
+        val woodScratchSeed: Long? = null,
         val chromaticColors: List<Int>? = null,
         val blurRadius: Float? = null,
         val longShadowLength: Float? = null, val longShadowColor: Int? = null, val longShadowAngle: Float? = null,
@@ -173,6 +174,8 @@ object ProjectManager {
         val radialBlurInnerRadius: Float? = null, val radialBlurMotionStrength: Float? = null,
         val radialBlurCenterX: Float? = null, val radialBlurCenterY: Float? = null,
         val decayIntensity: Float? = null, val decayFadingLevel: Float? = null,
+        val woodScratchIntensity: Float? = null,
+        val woodScratchColor: Int? = null,
 
         // Twist
         val twistAngle: Float? = null,
@@ -453,6 +456,7 @@ object ProjectManager {
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
                         glitchSeed = layer.glitchSeed,
                         decaySeed = layer.decaySeed,
+                        woodScratchSeed = layer.woodScratchSeed,
                         chromaticColors = layer.chromaticColors.toList(),
                         blurRadius = layer.blurRadius,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
@@ -481,6 +485,8 @@ object ProjectManager {
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+                        woodScratchIntensity = layer.woodScratchIntensity,
+                        woodScratchColor = layer.woodScratchColor,
 
                         // Twist
                         twistAngle = layer.twistAngle,
@@ -579,6 +585,7 @@ object ProjectManager {
                         currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
                         glitchSeed = layer.glitchSeed,
                         decaySeed = layer.decaySeed,
+                        woodScratchSeed = layer.woodScratchSeed,
                         chromaticColors = layer.chromaticColors.toList(), blurRadius = layer.blurRadius,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
@@ -599,6 +606,8 @@ object ProjectManager {
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+                        woodScratchIntensity = layer.woodScratchIntensity,
+                        woodScratchColor = layer.woodScratchColor,
 
                         // Twist
                         twistAngle = layer.twistAngle,
@@ -1053,6 +1062,9 @@ object ProjectManager {
             model.warpMesh?.let { layer.warpMesh = it.toFloatArray() }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
+            model.woodScratchIntensity?.let { layer.woodScratchIntensity = it }
+            model.woodScratchColor?.let { layer.woodScratchColor = it }
+            model.woodScratchSeed?.let { layer.woodScratchSeed = it }
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
@@ -1234,9 +1246,11 @@ object ProjectManager {
             model.effectSeed?.let { layer.effectSeed = it }
             model.glitchSeed?.let { layer.glitchSeed = it }
             model.decaySeed?.let { layer.decaySeed = it }
+            model.woodScratchSeed?.let { layer.woodScratchSeed = it }
             model.effectSeed?.let {
                 if (model.glitchSeed == null) layer.glitchSeed = it
                 if (model.decaySeed == null) layer.decaySeed = it
+                if (model.woodScratchSeed == null) layer.woodScratchSeed = it
             }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
 
@@ -1285,6 +1299,8 @@ object ProjectManager {
             model.radialBlurCenterY?.let { layer.radialBlurCenterY = it }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
+            model.woodScratchIntensity?.let { layer.woodScratchIntensity = it }
+            model.woodScratchColor?.let { layer.woodScratchColor = it }
 
             // Twist
             model.twistAngle?.let { layer.twistAngle = it }
@@ -1405,9 +1421,11 @@ object ProjectManager {
             model.effectSeed?.let { layer.effectSeed = it }
             model.glitchSeed?.let { layer.glitchSeed = it }
             model.decaySeed?.let { layer.decaySeed = it }
+            model.woodScratchSeed?.let { layer.woodScratchSeed = it }
             model.effectSeed?.let {
                 if (model.glitchSeed == null) layer.glitchSeed = it
                 if (model.decaySeed == null) layer.decaySeed = it
+                if (model.woodScratchSeed == null) layer.woodScratchSeed = it
             }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
             model.blurRadius?.let { layer.blurRadius = it }
@@ -1451,6 +1469,8 @@ object ProjectManager {
             model.radialBlurCenterY?.let { layer.radialBlurCenterY = it }
             model.decayIntensity?.let { layer.decayIntensity = it }
             model.decayFadingLevel?.let { layer.decayFadingLevel = it }
+            model.woodScratchIntensity?.let { layer.woodScratchIntensity = it }
+            model.woodScratchColor?.let { layer.woodScratchColor = it }
 
             // Twist
             model.twistAngle?.let { layer.twistAngle = it }
