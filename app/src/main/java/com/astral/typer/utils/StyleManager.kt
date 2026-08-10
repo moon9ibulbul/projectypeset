@@ -148,6 +148,8 @@ object StyleManager {
 
         val decayIntensity: Float = 0.5f,
         val decayFadingLevel: Float = 0.5f,
+        val woodScratchIntensity: Float = 0.5f,
+        val woodScratchColor: Int = Color.TRANSPARENT,
 
         // Twist
         val twistAngle: Float = 4.0f,
@@ -263,6 +265,7 @@ object StyleManager {
             l.radialBlurInnerRadius, l.radialBlurMotionStrength,
             l.radialBlurCenterX, l.radialBlurCenterY,
             l.decayIntensity, l.decayFadingLevel,
+            l.woodScratchIntensity, l.woodScratchColor,
             l.twistAngle, l.twistOffsetX, l.twistOffsetY, l.twistRadius,
             l.bulgeCenterX, l.bulgeCenterY, l.bulgeRadius, l.bulgeStrength,
             l.reflectionAlphaStart, l.reflectionAlphaEnd, l.reflectionAmplitudeStart, l.reflectionAmplitudeEnd, l.reflectionBoundary, l.reflectionMirror, l.reflectionTime, l.reflectionWavelengthStart, l.reflectionWavelengthEnd,
@@ -351,6 +354,8 @@ object StyleManager {
         l.radialBlurCenterY = m.radialBlurCenterY
         l.decayIntensity = m.decayIntensity
         l.decayFadingLevel = m.decayFadingLevel
+        l.woodScratchIntensity = m.woodScratchIntensity
+        l.woodScratchColor = m.woodScratchColor
 
         // Twist
         l.twistAngle = m.twistAngle

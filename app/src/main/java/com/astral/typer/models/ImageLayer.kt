@@ -90,6 +90,7 @@ class ImageLayer(
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
     override var decaySeed: Long = System.currentTimeMillis()
+    override var woodScratchSeed: Long = System.currentTimeMillis()
     override var blurRadius: Float = 0f
     override var longShadowLength: Float = 30f
     override var longShadowColor: Int = Color.DKGRAY
@@ -136,6 +137,8 @@ class ImageLayer(
     override var radialBlurCenterY: Float = 0.5f
     override var decayIntensity: Float = 0.5f
     override var decayFadingLevel: Float = 0.5f
+    override var woodScratchIntensity: Float = 0.5f
+    override var woodScratchColor: Int = Color.TRANSPARENT
 
     // Twist
     override var twistAngle: Float = 4.0f
@@ -614,6 +617,9 @@ class ImageLayer(
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed
         newLayer.decaySeed = this.decaySeed
+        newLayer.woodScratchSeed = this.woodScratchSeed
+        newLayer.woodScratchIntensity = this.woodScratchIntensity
+        newLayer.woodScratchColor = this.woodScratchColor
 
         // Speed Line
         newLayer.speedLineType = this.speedLineType

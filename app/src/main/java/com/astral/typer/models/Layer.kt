@@ -119,6 +119,9 @@ interface StylableLayer {
     var radialBlurCenterY: Float
     var decayIntensity: Float
     var decayFadingLevel: Float
+    var woodScratchIntensity: Float
+    var woodScratchSeed: Long
+    var woodScratchColor: Int
 
     // Twist
     var twistAngle: Float

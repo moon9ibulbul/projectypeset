@@ -313,6 +313,8 @@ class TextLayer(
     // Text Decay
     override var decayIntensity: Float = 0.5f
     override var decayFadingLevel: Float = 0.5f
+    override var woodScratchIntensity: Float = 0.5f
+    override var woodScratchColor: Int = android.graphics.Color.TRANSPARENT
 
     // Twist
     override var twistAngle: Float = 4.0f
@@ -362,6 +364,7 @@ class TextLayer(
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
     override var decaySeed: Long = System.currentTimeMillis()
+    override var woodScratchSeed: Long = System.currentTimeMillis()
 
     // Caching for Pixelation
     @Transient
@@ -501,6 +504,7 @@ class TextLayer(
         result = 31 * result + effectSeed.hashCode()
         result = 31 * result + glitchSeed.hashCode()
         result = 31 * result + decaySeed.hashCode()
+        result = 31 * result + woodScratchSeed.hashCode()
         result = 31 * result + blurRadius.hashCode()
         result = 31 * result + longShadowLength.hashCode()
         result = 31 * result + longShadowColor
@@ -543,6 +547,8 @@ class TextLayer(
         result = 31 * result + radialBlurCenterY.hashCode()
         result = 31 * result + decayIntensity.hashCode()
         result = 31 * result + decayFadingLevel.hashCode()
+        result = 31 * result + woodScratchIntensity.hashCode()
+        result = 31 * result + woodScratchColor.hashCode()
 
         // Wavy & Fiery
         result = 31 * result + fieryColor
@@ -820,6 +826,7 @@ class TextLayer(
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed
         newLayer.decaySeed = this.decaySeed
+        newLayer.woodScratchSeed = this.woodScratchSeed
 
         newLayer.fieryColor = this.fieryColor
         newLayer.fieryIntensity = this.fieryIntensity
@@ -838,6 +845,8 @@ class TextLayer(
         newLayer.radialBlurCenterY = this.radialBlurCenterY
         newLayer.decayIntensity = this.decayIntensity
         newLayer.decayFadingLevel = this.decayFadingLevel
+        newLayer.woodScratchIntensity = this.woodScratchIntensity
+        newLayer.woodScratchColor = this.woodScratchColor
 
         // Twist
         newLayer.twistAngle = this.twistAngle
@@ -1423,6 +1432,7 @@ class TextLayer(
             it == TextEffectType.RADIAL_BLUR ||
             it == TextEffectType.HALFTONE ||
             it == TextEffectType.TEXT_DECAY ||
+            it == TextEffectType.WOOD_SCRATCH ||
             it == TextEffectType.TWIST ||
             it == TextEffectType.BULGE_PINCH ||
             it == TextEffectType.REFLECTION ||
@@ -3466,6 +3476,40 @@ class TextLayer(
                         drawTextDecaySoftware(targetCanvas, w, h, drawInner)
                     }
                 }
+                TextEffectType.WOOD_SCRATCH -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("WoodScratchNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(WOOD_SCRATCH_SHADER)
+                            shader.setFloatUniform("intensity", woodScratchIntensity)
+                            shader.setFloatUniform("seed", (woodScratchSeed % 10000).toFloat())
+                            shader.setFloatUniform("scratchColor",
+                                Color.red(woodScratchColor) / 255f,
+                                Color.green(woodScratchColor) / 255f,
+                                Color.blue(woodScratchColor) / 255f,
+                                Color.alpha(woodScratchColor) / 255f
+                            )
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawWoodScratchSoftware(targetCanvas, w, h, drawInner)
+                    }
+                }
                 TextEffectType.TWIST -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -3729,6 +3773,10 @@ class TextLayer(
         noise1.recycle()
         noise2.recycle()
         noise3.recycle()
+    }
+
+    private fun drawWoodScratchSoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        drawWoodScratchSoftware(targetCanvas, w, h, calculatePadding(), woodScratchIntensity, woodScratchSeed, woodScratchColor, drawInner)
     }
 
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
@@ -4376,6 +4424,154 @@ class TextLayer(
                 }
             }
         """
+
+        const val WOOD_SCRATCH_SHADER = """
+            uniform shader content;
+            uniform float intensity;
+            uniform float seed;
+            uniform float4 scratchColor;
+
+            float rand(float2 co) {
+                return fract(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
+            }
+
+            float noise(float2 p) {
+                float2 i = floor(p);
+                float2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = rand(i);
+                float b = rand(i + float2(1.0, 0.0));
+                float c = rand(i + float2(0.0, 1.0));
+                float d = rand(i + float2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+
+            half4 main(float2 coord) {
+                half4 c = content.eval(coord);
+                if (c.a == 0.0) return half4(0);
+
+                // Group 1: 30 degrees slanted scratches
+                float2 p1 = float2(coord.x * 0.866 - coord.y * 0.5, coord.x * 0.5 + coord.y * 0.866);
+                float n1 = noise(float2(p1.x * 0.02, p1.y * 0.6) + seed);
+                n1 += noise(float2(p1.x * 0.05, p1.y * 1.2) + seed * 1.3) * 0.5;
+                n1 /= 1.5;
+                float scratch1 = 1.0 - smoothstep(0.0, 0.08 * intensity, abs(n1 - 0.5));
+
+                // Group 2: -60 degrees slanted scratches (perpendicular angle, finer lines)
+                float2 p2 = float2(coord.x * 0.5 + coord.y * 0.866, -coord.x * 0.866 + coord.y * 0.5);
+                float n2 = noise(float2(p2.x * 0.04, p2.y * 0.9) + seed * 2.1);
+                n2 += noise(float2(p2.x * 0.09, p2.y * 1.8) + seed * 2.7) * 0.5;
+                n2 /= 1.5;
+                float scratch2 = 1.0 - smoothstep(0.0, 0.06 * intensity, abs(n2 - 0.5));
+
+                // Combine scratch masks
+                float scratchMask = max(scratch1, scratch2);
+
+                if (scratchColor.a == 0.0) {
+                    return half4(c.rgb, c.a * (1.0 - scratchMask));
+                } else {
+                    float blendAlpha = scratchMask * scratchColor.a;
+                    return half4(mix(c.rgb, scratchColor.rgb, blendAlpha), c.a);
+                }
+            }
+        """
+
+        fun drawWoodScratchSoftware(
+            targetCanvas: Canvas,
+            w: Float,
+            h: Float,
+            pad: Float,
+            woodScratchIntensity: Float,
+            woodScratchSeed: Long,
+            woodScratchColor: Int,
+            drawInner: (Canvas) -> Unit
+        ) {
+            val bmpW = Math.ceil((w + pad * 2).toDouble()).toInt()
+            val bmpH = Math.ceil((h + pad * 2).toDouble()).toInt()
+
+            if (bmpW <= 0 || bmpH <= 0) {
+                drawInner(targetCanvas)
+                return
+            }
+
+            // Render source to bitmap
+            val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val srcCanvas = Canvas(srcBmp)
+            srcCanvas.translate(pad, pad)
+            drawInner(srcCanvas)
+
+            // Draw scratch lines onto srcBmp
+            val scratchCanvas = Canvas(srcBmp)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+            }
+
+            val isCarveOut = Color.alpha(woodScratchColor) == 0
+            if (isCarveOut) {
+                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                paint.color = Color.BLACK // DST_OUT uses alpha of the paint to clear
+            } else {
+                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                paint.color = woodScratchColor
+            }
+
+            val random = java.util.Random(woodScratchSeed)
+
+            // Number of scratches based on intensity
+            val scratchCount = (150 * woodScratchIntensity).toInt()
+
+            // Draw group 1: 30 degrees slanted lines
+            val cos30 = 0.866f
+            val sin30 = 0.5f
+
+            for (i in 0 until scratchCount) {
+                val startX = random.nextFloat() * bmpW
+                val startY = random.nextFloat() * bmpH
+                val length = (20f + random.nextFloat() * 80f)
+                val thickness = (0.5f + random.nextFloat() * 1.5f)
+
+                paint.strokeWidth = thickness
+                if (isCarveOut) {
+                    paint.alpha = (50 + random.nextInt(206))
+                } else {
+                    paint.alpha = Color.alpha(woodScratchColor)
+                }
+
+                val endX = startX + cos30 * length
+                val endY = startY + sin30 * length
+                scratchCanvas.drawLine(startX, startY, endX, endY, paint)
+            }
+
+            // Draw group 2: -60 degrees slanted lines
+            val cosMinus60 = 0.5f
+            val sinMinus60 = -0.866f
+            val scratchCount2 = (100 * woodScratchIntensity).toInt()
+            for (i in 0 until scratchCount2) {
+                val startX = random.nextFloat() * bmpW
+                val startY = random.nextFloat() * bmpH
+                val length = (15f + random.nextFloat() * 50f)
+                val thickness = (0.3f + random.nextFloat() * 1.0f)
+
+                paint.strokeWidth = thickness
+                if (isCarveOut) {
+                    paint.alpha = (40 + random.nextInt(150))
+                } else {
+                    paint.alpha = Color.alpha(woodScratchColor)
+                }
+
+                val endX = startX + cosMinus60 * length
+                val endY = startY + sinMinus60 * length
+                scratchCanvas.drawLine(startX, startY, endX, endY, paint)
+            }
+
+            targetCanvas.save()
+            targetCanvas.translate(-pad, -pad)
+            targetCanvas.drawBitmap(srcBmp, 0f, 0f, null)
+            targetCanvas.restore()
+
+            srcBmp.recycle()
+        }
     }
 
     override fun doubleResolution() {

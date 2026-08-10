@@ -1064,6 +1064,9 @@ class EditorActivity : AppCompatActivity() {
                 if (stylableLayer.decayIntensity == 0f) stylableLayer.decayIntensity = 0.5f
                 if (stylableLayer.decayFadingLevel == 0f) stylableLayer.decayFadingLevel = 0.5f
             }
+            if (effect == TextEffectType.WOOD_SCRATCH) {
+                if (stylableLayer.woodScratchIntensity == 0f) stylableLayer.woodScratchIntensity = 0.5f
+            }
             if (effect == TextEffectType.MOTION_BLUR) {
                 if (stylableLayer.motionBlurKernelSize == 0) stylableLayer.motionBlurKernelSize = 5
                 if (stylableLayer.motionBlurVelocityX == 0f && stylableLayer.motionBlurVelocityY == 0f) {
@@ -1132,6 +1135,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Reflection", TextEffectType.REFLECTION)
         addEffectCard("Zoom Blur", TextEffectType.ZOOM_BLUR)
         addEffectCard("Speed Line", TextEffectType.SPEED_LINE)
+        addEffectCard("Wood Scratch", TextEffectType.WOOD_SCRATCH)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -2471,6 +2475,76 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
                 settingsLayout.addView(btnSeed)
+        }
+
+        if (isEffectActive(TextEffectType.WOOD_SCRATCH)) {
+                // Slider: Intensity (0 to 100%)
+                val currentIntensity = stylableLayer.woodScratchIntensity
+                val s1 = createSlider("Intensity: ${(currentIntensity * 100).toInt()}%", (currentIntensity * 100).toInt(), 100) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.woodScratchIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Title: Scratch Color
+                val tvColorLabel = TextView(this).apply { text = "Scratch Color"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 8) }
+                settingsLayout.addView(tvColorLabel)
+
+                // Row for Cutout (Transparent) option + Custom Color Picker
+                val colorContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+
+                val btnTransparent = android.widget.Button(this).apply {
+                    text = "Cutout (Transparent)"
+                    setTextColor(Color.WHITE)
+                    textSize = 12f
+                    background = GradientDrawable().apply {
+                        setColor(if (stylableLayer.woodScratchColor == Color.TRANSPARENT) Color.parseColor("#BB86FC") else Color.DKGRAY)
+                        cornerRadius = dpToPx(8).toFloat()
+                    }
+                    setOnClickListener {
+                        stylableLayer.woodScratchColor = Color.TRANSPARENT
+                        canvasView.invalidate()
+                        showEffectMenu() // refresh to show updated selection
+                    }
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        setMargins(0, 0, dpToPx(8), 0)
+                    }
+                }
+                colorContainer.addView(btnTransparent)
+
+                // Create the color scroll. If woodScratchColor is transparent, pass default/black to the palette highlight
+                val displayColor = if (stylableLayer.woodScratchColor == Color.TRANSPARENT) Color.BLACK else stylableLayer.woodScratchColor
+                val colorScroll = createColorScroll(displayColor,
+                    { c -> stylableLayer.woodScratchColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(displayColor) { c -> stylableLayer.woodScratchColor = c; canvasView.invalidate(); showEffectMenu() } }
+                )
+                colorContainer.addView(colorScroll)
+                settingsLayout.addView(colorContainer)
+
+                // Seed randomizer button
+                val btnScratchSeed = android.widget.Button(this).apply {
+                    text = "Randomize Scratches"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        stylableLayer.woodScratchSeed = java.util.Random().nextLong()
+                        canvasView.invalidate()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        setMargins(0, dpToPx(16), 0, 0)
+                    }
+                }
+                settingsLayout.addView(btnScratchSeed)
         }
 
         mainLayout.addView(settingsLayout)
