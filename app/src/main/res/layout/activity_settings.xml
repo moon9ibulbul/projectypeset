@@ -326,6 +326,14 @@
                 android:text="Auto Watermark"
                 android:textColor="@android:color/white"/>
 
+            <CheckBox
+                android:id="@+id/cbWatermarkAutoScaling"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Auto Scaling"
+                android:textColor="@android:color/white"
+                android:layout_marginTop="8dp"/>
+
             <LinearLayout
                 android:id="@+id/layoutWatermarkPosition"
                 android:layout_width="match_parent"

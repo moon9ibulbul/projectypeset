@@ -38,6 +38,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var tvWatermarkOpacity: TextView
     private lateinit var sbWatermarkOpacity: android.widget.SeekBar
     private lateinit var cbAutoWatermark: CheckBox
+    private lateinit var cbWatermarkAutoScaling: CheckBox
     private lateinit var layoutWatermarkPosition: android.widget.LinearLayout
     private lateinit var spinnerWatermarkPosition: android.widget.Spinner
 
@@ -134,6 +135,13 @@ class SettingsActivity : AppCompatActivity() {
         cbAutoWatermark.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("auto_watermark", isChecked).apply()
             layoutWatermarkPosition.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
+        }
+
+        cbWatermarkAutoScaling = findViewById(R.id.cbWatermarkAutoScaling)
+        val isWatermarkAutoScaling = settingsPrefs.getBoolean("watermark_auto_scaling", false)
+        cbWatermarkAutoScaling.isChecked = isWatermarkAutoScaling
+        cbWatermarkAutoScaling.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("watermark_auto_scaling", isChecked).apply()
         }
 
         // Spinner Setup
