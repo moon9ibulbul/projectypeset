@@ -819,14 +819,48 @@ object ProjectManager {
     }
 
     fun loadProject(context: Context, file: File): LoadResult {
-        if (file.isDirectory) {
-            val jsonFile = File(file, "project.json")
+        var resolvedFile = file
+        if (file.isDirectory && !File(file, "project.json").exists()) {
+            val roots = mutableListOf<File>()
+            val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+            roots.add(publicRoot)
+            val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+            roots.add(rootPath)
+            val privateRoot = context.getExternalFilesDir("Projects")
+            if (privateRoot != null) {
+                roots.add(privateRoot)
+            }
+            roots.add(File(context.filesDir, "Projects"))
+            val uniqueRoots = roots.distinctBy { it.absolutePath }
+
+            var relativePath: String? = null
+            for (root in uniqueRoots.sortedByDescending { it.absolutePath.length }) {
+                if (file.absolutePath.startsWith(root.absolutePath)) {
+                    relativePath = file.absolutePath.substring(root.absolutePath.length)
+                    break
+                }
+            }
+
+            if (relativePath != null) {
+                for (root in uniqueRoots) {
+                    val candidate = File(root, relativePath)
+                    if (File(candidate, "project.json").exists()) {
+                        resolvedFile = candidate
+                        break
+                    }
+                }
+            }
+        }
+
+        val finalFile = resolvedFile
+        if (finalFile.isDirectory) {
+            val jsonFile = File(finalFile, "project.json")
             if (!jsonFile.exists()) return LoadResult.Error("project.json missing")
 
             val projectData = gson.fromJson(jsonFile.readText(), ProjectData::class.java)
             val imageMap = mutableMapOf<String, Bitmap>()
 
-            File(file, "images").listFiles()?.forEach {
+            File(finalFile, "images").listFiles()?.forEach {
                 try {
                     val bmp = BitmapFactory.decodeFile(it.absolutePath)
                     if (bmp != null) imageMap["images/${it.name}"] = bmp
@@ -867,7 +901,7 @@ object ProjectManager {
     }
 
     fun loadFolderThumbnail(context: Context, folder: File): Bitmap? {
-        val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && File(f, "project.json").exists()) }?.sortedByDescending { it.lastModified() }?.take(3) ?: return null
+        val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && isProjectDirectory(context, f)) }?.sortedByDescending { it.lastModified() }?.take(3) ?: return null
         if (projects.isEmpty()) return null
 
         val size = 300
@@ -902,8 +936,42 @@ object ProjectManager {
     }
 
     fun loadThumbnail(context: Context, file: File): Bitmap? {
-        if (file.isDirectory) {
-            val thumbFile = File(file, "thumbnail.png")
+        var resolvedFile = file
+        if (file.isDirectory && !File(file, "project.json").exists()) {
+            val roots = mutableListOf<File>()
+            val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+            roots.add(publicRoot)
+            val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+            roots.add(rootPath)
+            val privateRoot = context.getExternalFilesDir("Projects")
+            if (privateRoot != null) {
+                roots.add(privateRoot)
+            }
+            roots.add(File(context.filesDir, "Projects"))
+            val uniqueRoots = roots.distinctBy { it.absolutePath }
+
+            var relativePath: String? = null
+            for (root in uniqueRoots.sortedByDescending { it.absolutePath.length }) {
+                if (file.absolutePath.startsWith(root.absolutePath)) {
+                    relativePath = file.absolutePath.substring(root.absolutePath.length)
+                    break
+                }
+            }
+
+            if (relativePath != null) {
+                for (root in uniqueRoots) {
+                    val candidate = File(root, relativePath)
+                    if (File(candidate, "project.json").exists()) {
+                        resolvedFile = candidate
+                        break
+                    }
+                }
+            }
+        }
+
+        val finalFile = resolvedFile
+        if (finalFile.isDirectory) {
+            val thumbFile = File(finalFile, "thumbnail.png")
             if (thumbFile.exists()) {
                 return BitmapFactory.decodeFile(thumbFile.absolutePath)
             }
@@ -1518,6 +1586,43 @@ object ProjectManager {
         return false
     }
 
+    fun isProjectDirectory(context: Context?, file: File): Boolean {
+        if (!file.isDirectory) return false
+        if (File(file, "project.json").exists()) return true
+
+        val roots = mutableListOf<File>()
+        val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+        roots.add(publicRoot)
+        val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+        roots.add(rootPath)
+        if (context != null) {
+            val privateRoot = context.getExternalFilesDir("Projects")
+            if (privateRoot != null) {
+                roots.add(privateRoot)
+            }
+            roots.add(File(context.filesDir, "Projects"))
+        }
+        val uniqueRoots = roots.distinctBy { it.absolutePath }
+
+        var relativePath: String? = null
+        for (root in uniqueRoots.sortedByDescending { it.absolutePath.length }) {
+            if (file.absolutePath.startsWith(root.absolutePath)) {
+                relativePath = file.absolutePath.substring(root.absolutePath.length)
+                break
+            }
+        }
+
+        if (relativePath != null) {
+            for (root in uniqueRoots) {
+                val targetFile = File(File(root, relativePath), "project.json")
+                if (targetFile.exists()) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     fun getRecentProjects(context: Context? = null, parentFolder: File? = null): List<File> {
         if (parentFolder != null) {
             val roots = mutableListOf<File>()
@@ -1554,7 +1659,17 @@ object ProjectManager {
                 parentFolder.listFiles()?.let { mergedProjects.addAll(it) }
             }
 
-            return mergedProjects.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }.distinctBy { it.name }
+            return mergedProjects.sortedWith { f1, f2 ->
+                val f1HasJson = File(f1, "project.json").exists()
+                val f2HasJson = File(f2, "project.json").exists()
+                if (f1HasJson && !f2HasJson) {
+                    -1
+                } else if (!f1HasJson && f2HasJson) {
+                    1
+                } else {
+                    AlphanumComparator.compare(f1.name, f2.name)
+                }
+            }.distinctBy { it.name }
         }
 
         val projects = mutableListOf<File>()
@@ -1579,7 +1694,17 @@ object ProjectManager {
                   internalPrivateRoot.listFiles()?.let { projects.addAll(it) }
              }
         }
-        return projects.sortedByDescending { it.lastModified() }.distinctBy { it.name }
+        return projects.sortedWith { f1, f2 ->
+            val f1HasJson = File(f1, "project.json").exists()
+            val f2HasJson = File(f2, "project.json").exists()
+            if (f1HasJson && !f2HasJson) {
+                -1
+            } else if (!f1HasJson && f2HasJson) {
+                1
+            } else {
+                f2.lastModified().compareTo(f1.lastModified())
+            }
+        }.distinctBy { it.name }
     }
 
     fun createFolder(context: Context, parentFolder: File?, name: String): Boolean {
@@ -2060,7 +2185,7 @@ object ProjectManager {
     }
 
     fun exportFolderToPdf(context: Context, folder: File, outputFile: File, quality: Int = 80, onProgress: (Int, Int) -> Unit = {_,_ ->}): Boolean {
-        val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && File(f, "project.json").exists()) }?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: return false
+        val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && isProjectDirectory(context, f)) }?.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) } ?: return false
         if (projects.isEmpty()) return false
 
         try {
