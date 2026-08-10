@@ -2936,7 +2936,7 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(FIERY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("time", 0f)
                             shader.setFloatUniform("intensity", fieryIntensity)
                             val r = Color.red(fieryColor) / 255f
                             val g = Color.green(fieryColor) / 255f
@@ -2945,10 +2945,36 @@ class TextLayer(
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetX", pts[0])
-                            shader.setFloatUniform("offsetY", pts[1])
+
+                            val matrix = targetCanvas.matrix
+                            val inverse = android.graphics.Matrix()
+                            if (matrix.invert(inverse)) {
+                                val mValues = FloatArray(9)
+                                matrix.getValues(mValues)
+                                val colMajorM = floatArrayOf(
+                                    mValues[0], mValues[3], mValues[6],
+                                    mValues[1], mValues[4], mValues[7],
+                                    mValues[2], mValues[5], mValues[8]
+                                )
+                                shader.setFloatUniform("uMatrix", colMajorM)
+
+                                val invValues = FloatArray(9)
+                                inverse.getValues(invValues)
+                                val colMajorInv = floatArrayOf(
+                                    invValues[0], invValues[3], invValues[6],
+                                    invValues[1], invValues[4], invValues[7],
+                                    invValues[2], invValues[5], invValues[8]
+                                )
+                                shader.setFloatUniform("uInverse", colMajorInv)
+                            } else {
+                                val identity = floatArrayOf(
+                                    1f, 0f, 0f,
+                                    0f, 1f, 0f,
+                                    0f, 0f, 1f
+                                )
+                                shader.setFloatUniform("uMatrix", identity)
+                                shader.setFloatUniform("uInverse", identity)
+                            }
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -2971,15 +2997,42 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(WAVY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            shader.setFloatUniform("time", 0f)
                             shader.setFloatUniform("intensity", wavyIntensity)
                             shader.setFloatUniform("frequency", wavyFrequency)
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetY", pts[1])
+
+                            val matrix = targetCanvas.matrix
+                            val inverse = android.graphics.Matrix()
+                            if (matrix.invert(inverse)) {
+                                val mValues = FloatArray(9)
+                                matrix.getValues(mValues)
+                                val colMajorM = floatArrayOf(
+                                    mValues[0], mValues[3], mValues[6],
+                                    mValues[1], mValues[4], mValues[7],
+                                    mValues[2], mValues[5], mValues[8]
+                                )
+                                shader.setFloatUniform("uMatrix", colMajorM)
+
+                                val invValues = FloatArray(9)
+                                inverse.getValues(invValues)
+                                val colMajorInv = floatArrayOf(
+                                    invValues[0], invValues[3], invValues[6],
+                                    invValues[1], invValues[4], invValues[7],
+                                    invValues[2], invValues[5], invValues[8]
+                                )
+                                shader.setFloatUniform("uInverse", colMajorInv)
+                            } else {
+                                val identity = floatArrayOf(
+                                    1f, 0f, 0f,
+                                    0f, 1f, 0f,
+                                    0f, 0f, 1f
+                                )
+                                shader.setFloatUniform("uMatrix", identity)
+                                shader.setFloatUniform("uInverse", identity)
+                            }
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -3011,7 +3064,7 @@ class TextLayer(
                             val meshW = 40
                             val meshH = 120
                             val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
-                            val time = (System.currentTimeMillis() % 100000) / 1000f
+                            val time = 0f
                             var idx = 0
                             for (i in 0..meshH) {
                                 val v = i.toFloat() / meshH
@@ -3995,8 +4048,8 @@ class TextLayer(
             uniform float time;
             uniform float intensity;
             uniform float3 color;
-            uniform float offsetX;
-            uniform float offsetY;
+            uniform float3x3 uInverse;
+            uniform float3x3 uMatrix;
 
             float hash(float2 p) {
                 return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
@@ -4011,14 +4064,19 @@ class TextLayer(
             }
 
             half4 main(float2 coord) {
-                float2 localCoord = coord - float2(offsetX, offsetY);
+                float3 local3 = uInverse * float3(coord, 1.0);
+                float2 localCoord = local3.xy / local3.z;
+
                 float2 noiseCoord = localCoord * 0.02 + float2(0.0, -time * 2.0);
                 float n = noise(noiseCoord);
                 float n2 = noise(localCoord * 0.05 + float2(0.0, -time * 3.5));
 
-                float2 uv = coord;
-                uv.y += (n * 0.7 + n2 * 0.3) * intensity * 40.0;
-                uv.x += sin(localCoord.y * 0.05 - time * 6.0) * intensity * 8.0;
+                float2 displacedLocal = localCoord;
+                displacedLocal.y += (n * 0.7 + n2 * 0.3) * intensity * 40.0;
+                displacedLocal.x += sin(localCoord.y * 0.05 - time * 6.0) * intensity * 8.0;
+
+                float3 device3 = uMatrix * float3(displacedLocal, 1.0);
+                float2 uv = device3.xy / device3.z;
 
                 half4 displaced = content.eval(uv);
                 if (displaced.a == 0.0) return half4(0.0);
@@ -4034,11 +4092,20 @@ class TextLayer(
             uniform float time;
             uniform float intensity;
             uniform float frequency;
-            uniform float offsetY;
+            uniform float3x3 uInverse;
+            uniform float3x3 uMatrix;
 
             half4 main(float2 coord) {
-                float offset = sin((coord.y - offsetY) * 0.05 * frequency + time * 5.0) * intensity * 10.0;
-                return content.eval(coord + float2(offset, 0));
+                float3 local3 = uInverse * float3(coord, 1.0);
+                float2 localCoord = local3.xy / local3.z;
+
+                float offset = sin(localCoord.y * 0.05 * frequency + time * 5.0) * intensity * 10.0;
+                localCoord.x += offset;
+
+                float3 device3 = uMatrix * float3(localCoord, 1.0);
+                float2 deviceCoord = device3.xy / device3.z;
+
+                return content.eval(deviceCoord);
             }
         """
 
