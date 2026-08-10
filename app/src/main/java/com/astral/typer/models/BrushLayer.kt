@@ -174,6 +174,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var doubleStrokeWidth: Float = 0f
     override var tripleStrokeColor: Int = Color.TRANSPARENT
     override var tripleStrokeWidth: Float = 0f
+    override var isRoughStroke: Boolean = false
 
     override var isPerspective: Boolean = false
     override var perspectivePoints: FloatArray? = null
@@ -395,6 +396,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             brushSmudgeLength = this@BrushLayer.brushSmudgeLength
             brushSlowTracking = this@BrushLayer.brushSlowTracking
             shadowThickness = this@BrushLayer.shadowThickness
+            isRoughStroke = this@BrushLayer.isRoughStroke
 
             // Speed Line
             speedLineType = this@BrushLayer.speedLineType

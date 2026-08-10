@@ -106,6 +106,7 @@ object StyleManager {
         val doubleStrokeWidth: Float,
         val tripleStrokeColor: Int? = null,
         val tripleStrokeWidth: Float? = null,
+        val isRoughStroke: Boolean? = false,
         val isGradient: Boolean,
         val gradientStart: Int,
         val gradientEnd: Int,
@@ -252,6 +253,7 @@ object StyleManager {
             l.shadowColor, l.shadowRadius, l.shadowDx, l.shadowDy,
             l.strokeColor, l.strokeWidth, l.doubleStrokeColor, l.doubleStrokeWidth,
             l.tripleStrokeColor, l.tripleStrokeWidth,
+            l.isRoughStroke,
             l.isGradient, l.gradientStartColor, l.gradientEndColor, l.gradientAngle,
             l.hasMiddleColor, l.gradientMiddleColor,
             l.gradientStartPos, l.gradientMiddlePos, l.gradientEndPos,
@@ -319,6 +321,7 @@ object StyleManager {
         l.doubleStrokeWidth = m.doubleStrokeWidth
         l.tripleStrokeColor = m.tripleStrokeColor ?: Color.WHITE
         l.tripleStrokeWidth = m.tripleStrokeWidth ?: 0f
+        l.isRoughStroke = m.isRoughStroke ?: false
 
         l.isGradient = m.isGradient
         l.gradientStartColor = m.gradientStart

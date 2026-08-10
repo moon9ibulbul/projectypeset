@@ -63,6 +63,7 @@ class ShapeLayer(
     override var doubleStrokeWidth: Float = 0f
     override var tripleStrokeColor: Int = Color.WHITE
     override var tripleStrokeWidth: Float = 0f
+    override var isRoughStroke: Boolean = false
 
     // Perspective
     override var isPerspective: Boolean = false
@@ -1789,10 +1790,12 @@ class ShapeLayer(
             val alphaToUse = if (fill != null) Color.alpha(fill) else if (stroke != null) Color.alpha(stroke) else 255
             val layerPaint = if (alphaToUse < 255) Paint(Paint.ANTI_ALIAS_FLAG).apply { alpha = alphaToUse } else null
 
+            val targetCanvas = if (isRoughStroke) RoughCanvas(canvas, true) else canvas
+
             if (fillShader != null || strokeShader != null) {
                 // If shader is present, we render to a layer and apply shader via SRC_IN
                 canvas.saveLayer(null, layerPaint)
-                mSvg.renderToCanvas(canvas)
+                mSvg.renderToCanvas(targetCanvas)
 
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
                 p.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
@@ -1804,10 +1807,10 @@ class ShapeLayer(
             } else {
                 if (layerPaint != null) {
                     canvas.saveLayer(null, layerPaint)
-                    mSvg.renderToCanvas(canvas)
+                    mSvg.renderToCanvas(targetCanvas)
                     canvas.restore()
                 } else {
-                    mSvg.renderToCanvas(canvas)
+                    mSvg.renderToCanvas(targetCanvas)
                 }
             }
         } catch (e: Exception) {}
@@ -2053,6 +2056,7 @@ class ShapeLayer(
         newLayer.gradientStartPos = gradientStartPos; newLayer.gradientMiddlePos = gradientMiddlePos; newLayer.gradientEndPos = gradientEndPos
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
         newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth; newLayer.tripleStrokeColor = tripleStrokeColor; newLayer.tripleStrokeWidth = tripleStrokeWidth
+        newLayer.isRoughStroke = isRoughStroke
         newLayer.isPerspective = isPerspective; newLayer.perspectivePoints = perspectivePoints?.clone()
         newLayer.isWarp = isWarp; newLayer.warpRows = warpRows; newLayer.warpCols = warpCols; newLayer.warpMesh = warpMesh?.clone()
         newLayer.textureBitmap = textureBitmap; newLayer.textureOffsetX = textureOffsetX; newLayer.textureOffsetY = textureOffsetY
@@ -2184,4 +2188,87 @@ class ShapeLayer(
         scaleX /= 2f
         scaleY /= 2f
     }
+}
+
+@Suppress("DEPRECATION")
+class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas() {
+    override fun getWidth(): Int = delegate.width
+    override fun getHeight(): Int = delegate.height
+    override fun getDensity(): Int = delegate.density
+    override fun setDensity(density: Int) { delegate.density = density }
+    override fun isHardwareAccelerated(): Boolean = delegate.isHardwareAccelerated
+
+    override fun save(): Int = delegate.save()
+    override fun saveLayer(bounds: android.graphics.RectF?, paint: Paint?): Int = delegate.saveLayer(bounds, paint)
+    override fun saveLayer(bounds: android.graphics.RectF?, paint: Paint?, saveFlags: Int): Int = delegate.saveLayer(bounds, paint, saveFlags)
+    override fun saveLayer(left: Float, top: Float, right: Float, bottom: Float, paint: Paint?): Int = delegate.saveLayer(left, top, right, bottom, paint)
+    override fun saveLayer(left: Float, top: Float, right: Float, bottom: Float, paint: Paint?, saveFlags: Int): Int = delegate.saveLayer(left, top, right, bottom, paint, saveFlags)
+
+    override fun restore() = delegate.restore()
+    override fun getSaveCount(): Int = delegate.saveCount
+    override fun restoreToCount(saveCount: Int) = delegate.restoreToCount(saveCount)
+
+    override fun translate(dx: Float, dy: Float) = delegate.translate(dx, dy)
+    override fun scale(sx: Float, sy: Float) = delegate.scale(sx, sy)
+    override fun concat(matrix: android.graphics.Matrix?) = delegate.concat(matrix)
+
+    override fun clipRect(rect: android.graphics.RectF): Boolean = delegate.clipRect(rect)
+    override fun clipRect(rect: android.graphics.Rect): Boolean = delegate.clipRect(rect)
+    override fun clipRect(left: Float, top: Float, right: Float, bottom: Float): Boolean = delegate.clipRect(left, top, right, bottom)
+    override fun clipPath(path: android.graphics.Path): Boolean = delegate.clipPath(path)
+
+    override fun getMatrix(matrix: android.graphics.Matrix) = delegate.getMatrix(matrix)
+    override fun setMatrix(matrix: android.graphics.Matrix?) {
+        delegate.setMatrix(matrix)
+    }
+
+    override fun drawPath(path: android.graphics.Path, paint: Paint) {
+        val originalEffect = paint.pathEffect
+        if (isRough && paint.style == Paint.Style.STROKE) {
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+        }
+        delegate.drawPath(path, paint)
+        paint.pathEffect = originalEffect
+    }
+
+    override fun drawRect(rect: android.graphics.RectF, paint: Paint) {
+        val originalEffect = paint.pathEffect
+        if (isRough && paint.style == Paint.Style.STROKE) {
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+        }
+        delegate.drawRect(rect, paint)
+        paint.pathEffect = originalEffect
+    }
+
+    override fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) {
+        val originalEffect = paint.pathEffect
+        if (isRough && paint.style == Paint.Style.STROKE) {
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+        }
+        delegate.drawCircle(cx, cy, radius, paint)
+        paint.pathEffect = originalEffect
+    }
+
+    override fun drawOval(oval: android.graphics.RectF, paint: Paint) {
+        val originalEffect = paint.pathEffect
+        if (isRough && paint.style == Paint.Style.STROKE) {
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+        }
+        delegate.drawOval(oval, paint)
+        paint.pathEffect = originalEffect
+    }
+
+    override fun drawLine(startX: Float, startY: Float, stopX: Float, stopY: Float, paint: Paint) {
+        val originalEffect = paint.pathEffect
+        if (isRough && paint.style == Paint.Style.STROKE) {
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+        }
+        delegate.drawLine(startX, startY, stopX, stopY, paint)
+        paint.pathEffect = originalEffect
+    }
+
+    override fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) = delegate.drawBitmap(bitmap, left, top, paint)
+    override fun drawBitmap(bitmap: Bitmap, src: android.graphics.Rect?, dst: android.graphics.RectF, paint: Paint?) = delegate.drawBitmap(bitmap, src, dst, paint)
+    override fun drawBitmap(bitmap: Bitmap, src: android.graphics.Rect?, dst: android.graphics.Rect, paint: Paint?) = delegate.drawBitmap(bitmap, src, dst, paint)
+    override fun drawBitmap(bitmap: Bitmap, matrix: android.graphics.Matrix, paint: Paint?) = delegate.drawBitmap(bitmap, matrix, paint)
 }

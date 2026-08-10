@@ -7602,6 +7602,19 @@ class EditorActivity : AppCompatActivity() {
             mainLayout.addView(layout3rd)
         }
 
+        // ==================== Checkbox for Rough Stroke ====================
+        val cbRoughStroke = android.widget.CheckBox(this).apply {
+            text = "Rough Stroke"
+            setTextColor(Color.WHITE)
+            isChecked = stylableLayer.isRoughStroke
+            setPadding(16, 8, 16, 8)
+            setOnCheckedChangeListener { _, isChecked ->
+                stylableLayer.isRoughStroke = isChecked
+                canvasView.invalidate()
+            }
+        }
+        mainLayout.addView(cbRoughStroke)
+
         scroll.addView(mainLayout)
         container.addView(scroll)
     }
