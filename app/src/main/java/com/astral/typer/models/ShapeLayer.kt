@@ -370,9 +370,9 @@ class ShapeLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(tertiaryEffect)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
@@ -383,7 +383,6 @@ class ShapeLayer(
             it == TextEffectType.RADIAL_BLUR ||
             it == TextEffectType.HALFTONE ||
             it == TextEffectType.TEXT_DECAY ||
-            it == TextEffectType.WOOD_SCRATCH ||
             it == TextEffectType.TWIST ||
             it == TextEffectType.BULGE_PINCH ||
             it == TextEffectType.REFLECTION ||
@@ -539,237 +538,285 @@ class ShapeLayer(
                 val shaderToUse = if (isGradient && isGradientShadow) gradientShader else null
                 renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = shaderToUse)
             } else {
-                val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
-                if (hasSpeedLine) {
-                    val sc = targetCanvas.saveLayer(null, null)
-                    val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
-                    val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
-                                      else if (isGradient && isGradientText) gradientShader
-                                      else if (textureBitmap != null) {
-                                          val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                                          val matrix = Matrix()
-                                          matrix.postTranslate(textureOffsetX, textureOffsetY)
-                                          shader.setLocalMatrix(matrix)
-                                          shader
-                                      } else null
+                val drawFillContent = { fillCanvas: Canvas ->
+                    val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
+                    if (hasSpeedLine) {
+                        val sc = fillCanvas.saveLayer(null, null)
+                        val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
+                        val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
+                                          else if (isGradient && isGradientText) gradientShader
+                                          else if (textureBitmap != null) {
+                                              val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                              val matrix = Matrix()
+                                              matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                              shader.setLocalMatrix(matrix)
+                                              shader
+                                          } else null
 
-                    val colorToUse = if (fillShaderToUse != null) Color.WHITE else color
-                    renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = fillShaderToUse)
+                        val colorToUse = if (fillShaderToUse != null) Color.WHITE else color
+                        renderSvgManipulated(fillCanvas, fill = colorToUse, stroke = null, fillShader = fillShaderToUse)
 
-                    // 4. Built-in Pattern Overlay
-                    if (patternName != null) {
-                        val context = com.astral.typer.TyperApplication.instance
-                        if (context != null) {
-                            val currentPatternHash = listOf(patternName, patternColor, patternScale, patternRotation, patternAlpha, textureOffsetX, textureOffsetY).hashCode()
-                            if (cachedPatternShader == null || cachedPatternHash != currentPatternHash) {
-                                val patternBmp = com.astral.typer.utils.PatternManager.getPatternBitmap(context, patternName!!, patternColor)
-                                if (patternBmp != null) {
-                                    val shader = android.graphics.BitmapShader(patternBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                                    val matrix = Matrix()
-                                    matrix.postScale(patternScale, patternScale)
-                                    matrix.postRotate(patternRotation, patternBmp.width * patternScale / 2f, patternBmp.height * patternScale / 2f)
-                                    matrix.postTranslate(textureOffsetX, textureOffsetY)
-                                    shader.setLocalMatrix(matrix)
-                                    cachedPatternShader = shader
-                                    cachedPatternHash = currentPatternHash
-                                    cachedPatternXfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                        // 4. Built-in Pattern Overlay
+                        if (patternName != null) {
+                            val context = com.astral.typer.TyperApplication.instance
+                            if (context != null) {
+                                val currentPatternHash = listOf(patternName, patternColor, patternScale, patternRotation, patternAlpha, textureOffsetX, textureOffsetY).hashCode()
+                                if (cachedPatternShader == null || cachedPatternHash != currentPatternHash) {
+                                    val patternBmp = com.astral.typer.utils.PatternManager.getPatternBitmap(context, patternName!!, patternColor)
+                                    if (patternBmp != null) {
+                                        val shader = android.graphics.BitmapShader(patternBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                        val matrix = Matrix()
+                                        matrix.postScale(patternScale, patternScale)
+                                        matrix.postRotate(patternRotation, patternBmp.width * patternScale / 2f, patternBmp.height * patternScale / 2f)
+                                        matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                        shader.setLocalMatrix(matrix)
+                                        cachedPatternShader = shader
+                                        cachedPatternHash = currentPatternHash
+                                        cachedPatternXfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                    }
+                                }
+
+                                if (cachedPatternShader != null) {
+                                    // Pattern overlay using SRC_ATOP over the fill
+                                    fillCanvas.saveLayer(null, null)
+                                    renderSvgManipulated(fillCanvas, fill = Color.WHITE, stroke = null)
+
+                                    val p = Paint(Paint.ANTI_ALIAS_FLAG)
+                                    p.shader = cachedPatternShader
+                                    p.alpha = patternAlpha
+                                    p.xfermode = cachedPatternXfermode
+                                    fillCanvas.drawRect(0f, 0f, w, h, p)
+                                    fillCanvas.restore()
                                 }
                             }
-
-                            if (cachedPatternShader != null) {
-                                // Pattern overlay using SRC_ATOP over the fill
-                                targetCanvas.saveLayer(null, null)
-                                renderSvgManipulated(targetCanvas, fill = Color.WHITE, stroke = null)
-
-                                val p = Paint(Paint.ANTI_ALIAS_FLAG)
-                                p.shader = cachedPatternShader
-                                p.alpha = patternAlpha
-                                p.xfermode = cachedPatternXfermode
-                                targetCanvas.drawRect(0f, 0f, w, h, p)
-                                targetCanvas.restore()
-                            }
                         }
-                    }
 
-                    val centerX = w / 2f
-                    val centerY = h / 2f
+                        val centerX = w / 2f
+                        val centerY = h / 2f
 
-                    val linePaint = android.graphics.Paint().apply {
-                        color = speedLineColor
-                        style = android.graphics.Paint.Style.FILL
-                        isAntiAlias = true
-                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
-                    }
+                        val linePaint = android.graphics.Paint().apply {
+                            color = speedLineColor
+                            style = android.graphics.Paint.Style.FILL
+                            isAntiAlias = true
+                            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
+                        }
 
-                    val random = java.util.Random(effectSeed)
+                        val random = java.util.Random(effectSeed)
 
-                    if (speedLineType == "RADIAL") {
-                        val numLines = speedLineCount.coerceAtLeast(1)
-                        val outerA = speedLineWidth / 2f
-                        val outerB = speedLineHeight / 2f
+                        if (speedLineType == "RADIAL") {
+                            val numLines = speedLineCount.coerceAtLeast(1)
+                            val outerA = speedLineWidth / 2f
+                            val outerB = speedLineHeight / 2f
 
-                        for (i in 0 until numLines) {
-                            val baseAngle = (2f * Math.PI * i / numLines) + (random.nextDouble() * 0.1)
-                            val actualLength = speedLineLength * (0.7f + random.nextFloat() * 0.6f)
-                            val cosA = Math.cos(baseAngle)
-                            val sinA = Math.sin(baseAngle)
-                            val startX = centerX + (outerA * cosA).toFloat()
-                            val startY = centerY + (outerB * sinA).toFloat()
-                            val endX = centerX + ((outerA - actualLength).coerceAtLeast(0f) * cosA).toFloat()
-                            val endY = centerY + ((outerB - actualLength).coerceAtLeast(0f) * sinA).toFloat()
+                            for (i in 0 until numLines) {
+                                val baseAngle = (2f * Math.PI * i / numLines) + (random.nextDouble() * 0.1)
+                                val actualLength = speedLineLength * (0.7f + random.nextFloat() * 0.6f)
+                                val cosA = Math.cos(baseAngle)
+                                val sinA = Math.sin(baseAngle)
+                                val startX = centerX + (outerA * cosA).toFloat()
+                                val startY = centerY + (outerB * sinA).toFloat()
+                                val endX = centerX + ((outerA - actualLength).coerceAtLeast(0f) * cosA).toFloat()
+                                val endY = centerY + ((outerB - actualLength).coerceAtLeast(0f) * sinA).toFloat()
 
-                            val perpCos = -sinA
-                            val perpSin = cosA
-                            val halfT = speedLineThickness / 2f
-                            val p1x = startX - (halfT * perpCos).toFloat()
-                            val p1y = startY - (halfT * perpSin).toFloat()
-                            val p2x = startX + (halfT * perpCos).toFloat()
-                            val p2y = startY + (halfT * perpSin).toFloat()
+                                val perpCos = -sinA
+                                val perpSin = cosA
+                                val halfT = speedLineThickness / 2f
+                                val p1x = startX - (halfT * perpCos).toFloat()
+                                val p1y = startY - (halfT * perpSin).toFloat()
+                                val p2x = startX + (halfT * perpCos).toFloat()
+                                val p2y = startY + (halfT * perpSin).toFloat()
 
-                            val path = android.graphics.Path().apply {
-                                moveTo(p1x, p1y)
-                                lineTo(p2x, p2y)
-                                lineTo(endX, endY)
-                                close()
-                            }
-                            targetCanvas.drawPath(path, linePaint)
-
-                            for (j in 0 until speedLineAdditional) {
-                                val subAngle = baseAngle + (random.nextGaussian() * 0.05)
-                                val subLength = speedLineLength * (0.3f + random.nextFloat() * 0.6f)
-                                val subThickness = speedLineThickness * (0.3f + random.nextFloat() * 0.6f)
-
-                                val cosSub = Math.cos(subAngle)
-                                val sinSub = Math.sin(subAngle)
-                                val subStartX = centerX + (outerA * cosSub).toFloat()
-                                val subStartY = centerY + (outerB * sinSub).toFloat()
-                                val subEndX = centerX + ((outerA - subLength).coerceAtLeast(0f) * cosSub).toFloat()
-                                val subEndY = centerY + ((outerB - subLength).coerceAtLeast(0f) * sinSub).toFloat()
-
-                                val subPerpCos = -sinSub
-                                val subPerpSin = cosSub
-                                val subHalfT = subThickness / 2f
-                                val sp1x = subStartX - (subHalfT * subPerpCos).toFloat()
-                                val sp1y = subStartY - (subHalfT * subPerpSin).toFloat()
-                                val sp2x = subStartX + (subHalfT * subPerpCos).toFloat()
-                                val sp2y = subStartY + (subHalfT * subPerpSin).toFloat()
-
-                                val subPath = android.graphics.Path().apply {
-                                    moveTo(sp1x, sp1y)
-                                    lineTo(sp2x, sp2y)
-                                    lineTo(subEndX, subEndY)
+                                val path = android.graphics.Path().apply {
+                                    moveTo(p1x, p1y)
+                                    lineTo(p2x, p2y)
+                                    lineTo(endX, endY)
                                     close()
                                 }
-                                targetCanvas.drawPath(subPath, linePaint)
+                                fillCanvas.drawPath(path, linePaint)
+
+                                for (j in 0 until speedLineAdditional) {
+                                    val subAngle = baseAngle + (random.nextGaussian() * 0.05)
+                                    val subLength = speedLineLength * (0.3f + random.nextFloat() * 0.6f)
+                                    val subThickness = speedLineThickness * (0.3f + random.nextFloat() * 0.6f)
+
+                                    val cosSub = Math.cos(subAngle)
+                                    val sinSub = Math.sin(subAngle)
+                                    val subStartX = centerX + (outerA * cosSub).toFloat()
+                                    val subStartY = centerY + (outerB * sinSub).toFloat()
+                                    val subEndX = centerX + ((outerA - subLength).coerceAtLeast(0f) * cosSub).toFloat()
+                                    val subEndY = centerY + ((outerB - subLength).coerceAtLeast(0f) * sinSub).toFloat()
+
+                                    val subPerpCos = -sinSub
+                                    val subPerpSin = cosSub
+                                    val subHalfT = subThickness / 2f
+                                    val sp1x = subStartX - (subHalfT * subPerpCos).toFloat()
+                                    val sp1y = subStartY - (subHalfT * subPerpSin).toFloat()
+                                    val sp2x = subStartX + (subHalfT * subPerpCos).toFloat()
+                                    val sp2y = subStartY + (subHalfT * subPerpSin).toFloat()
+
+                                    val subPath = android.graphics.Path().apply {
+                                        moveTo(sp1x, sp1y)
+                                        lineTo(sp2x, sp2y)
+                                        lineTo(subEndX, subEndY)
+                                        close()
+                                    }
+                                    fillCanvas.drawPath(subPath, linePaint)
+                                }
+                            }
+                        } else {
+                            val numLines = speedLineCount.coerceAtLeast(1)
+                            val angleRad = Math.toRadians(speedLineAngle.toDouble())
+                            val boxW = speedLineWidth
+                            val boxH = speedLineHeight
+                            val cosA = Math.cos(angleRad)
+                            val sinA = Math.sin(angleRad)
+
+                            fun toCanvasCoords(u: Float, v: Float): Pair<Float, Float> {
+                                val x = centerX + (u * cosA - v * sinA).toFloat()
+                                val y = centerY + (u * sinA + v * cosA).toFloat()
+                                return Pair(x, y)
+                            }
+
+                            for (i in 0 until numLines) {
+                                val v = (random.nextFloat() - 0.5f) * boxH
+                                val isStartSide = true
+                                val actualLength = speedLineLength * (0.7f + random.nextFloat() * 0.6f)
+
+                                val halfW = boxW / 2f
+                                val uStart = if (isStartSide) -halfW else halfW
+                                val uEnd = if (isStartSide) -halfW + actualLength else halfW - actualLength
+
+                                val halfT = speedLineThickness / 2f
+                                val (p1x, p1y) = toCanvasCoords(uStart, v - halfT)
+                                val (p2x, p2y) = toCanvasCoords(uStart, v + halfT)
+                                val (endX, endY) = toCanvasCoords(uEnd, v)
+
+                                val path = android.graphics.Path().apply {
+                                    moveTo(p1x, p1y)
+                                    lineTo(p2x, p2y)
+                                    lineTo(endX, endY)
+                                    close()
+                                }
+                                fillCanvas.drawPath(path, linePaint)
+
+                                for (j in 0 until speedLineAdditional) {
+                                    val subV = v + (random.nextGaussian().toFloat() * 10f)
+                                    val subLength = speedLineLength * (0.3f + random.nextFloat() * 0.6f)
+                                    val subThickness = speedLineThickness * (0.3f + random.nextFloat() * 0.6f)
+                                    val subUEnd = if (isStartSide) -halfW + subLength else halfW - subLength
+
+                                    val subHalfT = subThickness / 2f
+                                    val (sp1x, sp1y) = toCanvasCoords(uStart, subV - subHalfT)
+                                    val (sp2x, sp2y) = toCanvasCoords(uStart, subV + subHalfT)
+                                    val (subEndX, subEndY) = toCanvasCoords(subUEnd, subV)
+
+                                    val subPath = android.graphics.Path().apply {
+                                        moveTo(sp1x, sp1y)
+                                        lineTo(sp2x, sp2y)
+                                        lineTo(subEndX, subEndY)
+                                        close()
+                                    }
+                                    fillCanvas.drawPath(subPath, linePaint)
+                                }
                             }
                         }
+                        fillCanvas.restoreToCount(sc)
                     } else {
-                        val numLines = speedLineCount.coerceAtLeast(1)
-                        val angleRad = Math.toRadians(speedLineAngle.toDouble())
-                        val boxW = speedLineWidth
-                        val boxH = speedLineHeight
-                        val cosA = Math.cos(angleRad)
-                        val sinA = Math.sin(angleRad)
+                        val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
+                        val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
+                                          else if (isGradient && isGradientText) gradientShader
+                                          else if (textureBitmap != null) {
+                                              val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                              val matrix = Matrix()
+                                              matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                              shader.setLocalMatrix(matrix)
+                                              shader
+                                          } else null
 
-                        fun toCanvasCoords(u: Float, v: Float): Pair<Float, Float> {
-                            val x = centerX + (u * cosA - v * sinA).toFloat()
-                            val y = centerY + (u * sinA + v * cosA).toFloat()
-                            return Pair(x, y)
-                        }
+                        val colorToUse = if (fillShaderToUse != null) Color.WHITE else color
+                        renderSvgManipulated(fillCanvas, fill = colorToUse, stroke = null, fillShader = fillShaderToUse)
 
-                        for (i in 0 until numLines) {
-                            val v = (random.nextFloat() - 0.5f) * boxH
-                            val isStartSide = true
-                            val actualLength = speedLineLength * (0.7f + random.nextFloat() * 0.6f)
-
-                            val halfW = boxW / 2f
-                            val uStart = if (isStartSide) -halfW else halfW
-                            val uEnd = if (isStartSide) -halfW + actualLength else halfW - actualLength
-
-                            val halfT = speedLineThickness / 2f
-                            val (p1x, p1y) = toCanvasCoords(uStart, v - halfT)
-                            val (p2x, p2y) = toCanvasCoords(uStart, v + halfT)
-                            val (endX, endY) = toCanvasCoords(uEnd, v)
-
-                            val path = android.graphics.Path().apply {
-                                moveTo(p1x, p1y)
-                                lineTo(p2x, p2y)
-                                lineTo(endX, endY)
-                                close()
-                            }
-                            targetCanvas.drawPath(path, linePaint)
-
-                            for (j in 0 until speedLineAdditional) {
-                                val subV = v + (random.nextGaussian().toFloat() * 10f)
-                                val subLength = speedLineLength * (0.3f + random.nextFloat() * 0.6f)
-                                val subThickness = speedLineThickness * (0.3f + random.nextFloat() * 0.6f)
-                                val subUEnd = if (isStartSide) -halfW + subLength else halfW - subLength
-
-                                val subHalfT = subThickness / 2f
-                                val (sp1x, sp1y) = toCanvasCoords(uStart, subV - subHalfT)
-                                val (sp2x, sp2y) = toCanvasCoords(uStart, subV + subHalfT)
-                                val (subEndX, subEndY) = toCanvasCoords(subUEnd, subV)
-
-                                val subPath = android.graphics.Path().apply {
-                                    moveTo(sp1x, sp1y)
-                                    lineTo(sp2x, sp2y)
-                                    lineTo(subEndX, subEndY)
-                                    close()
+                        // 4. Built-in Pattern Overlay
+                        if (patternName != null) {
+                            val context = com.astral.typer.TyperApplication.instance
+                            if (context != null) {
+                                val currentPatternHash = listOf(patternName, patternColor, patternScale, patternRotation, patternAlpha, textureOffsetX, textureOffsetY).hashCode()
+                                if (cachedPatternShader == null || cachedPatternHash != currentPatternHash) {
+                                    val patternBmp = com.astral.typer.utils.PatternManager.getPatternBitmap(context, patternName!!, patternColor)
+                                    if (patternBmp != null) {
+                                        val shader = android.graphics.BitmapShader(patternBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                        val matrix = Matrix()
+                                        matrix.postScale(patternScale, patternScale)
+                                        matrix.postRotate(patternRotation, patternBmp.width * patternScale / 2f, patternBmp.height * patternScale / 2f)
+                                        matrix.postTranslate(textureOffsetX, textureOffsetY)
+                                        shader.setLocalMatrix(matrix)
+                                        cachedPatternShader = shader
+                                        cachedPatternHash = currentPatternHash
+                                        cachedPatternXfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                    }
                                 }
-                                targetCanvas.drawPath(subPath, linePaint)
+
+                                if (cachedPatternShader != null) {
+                                    // Pattern overlay using SRC_ATOP over the fill
+                                    fillCanvas.saveLayer(null, null)
+                                    renderSvgManipulated(fillCanvas, fill = Color.WHITE, stroke = null)
+
+                                    val p = Paint(Paint.ANTI_ALIAS_FLAG)
+                                    p.shader = cachedPatternShader
+                                    p.alpha = patternAlpha
+                                    p.xfermode = cachedPatternXfermode
+                                    fillCanvas.drawRect(0f, 0f, w, h, p)
+                                    fillCanvas.restore()
+                                }
                             }
                         }
                     }
-                    targetCanvas.restoreToCount(sc)
+                }
+
+                val hasWoodScratch = !skipEffects && (currentEffect == TextEffectType.WOOD_SCRATCH || secondaryEffect == TextEffectType.WOOD_SCRATCH || tertiaryEffect == TextEffectType.WOOD_SCRATCH)
+                if (hasWoodScratch) {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val padVal = calculatePadding()
+                            val nodeW = (w + padVal * 2).toInt().coerceAtLeast(1)
+                            val nodeH = (h + padVal * 2).toInt().coerceAtLeast(1)
+
+                            val node = android.graphics.RenderNode("WoodScratchNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val rc = node.beginRecording()
+                            rc.translate(padVal, padVal)
+                            drawFillContent(rc)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.WOOD_SCRATCH_SHADER)
+                            shader.setFloatUniform("intensity", woodScratchIntensity)
+                            shader.setFloatUniform("seed", (woodScratchSeed % 10000).toFloat())
+                            shader.setFloatUniform("scratchColor",
+                                Color.red(woodScratchColor) / 255f,
+                                Color.green(woodScratchColor) / 255f,
+                                Color.blue(woodScratchColor) / 255f,
+                                Color.alpha(woodScratchColor) / 255f
+                            )
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(-padVal, -padVal)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        val padVal = calculatePadding()
+                        TextLayer.drawWoodScratchSoftware(
+                            targetCanvas, w, h, padVal,
+                            woodScratchIntensity, woodScratchSeed, woodScratchColor, drawFillContent
+                        )
+                    }
                 } else {
-                    val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
-                    val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
-                                      else if (isGradient && isGradientText) gradientShader
-                                      else if (textureBitmap != null) {
-                                          val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                                          val matrix = Matrix()
-                                          matrix.postTranslate(textureOffsetX, textureOffsetY)
-                                          shader.setLocalMatrix(matrix)
-                                          shader
-                                      } else null
-
-                    val colorToUse = if (fillShaderToUse != null) Color.WHITE else color
-                    renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = fillShaderToUse)
-
-                    // 4. Built-in Pattern Overlay
-                    if (patternName != null) {
-                        val context = com.astral.typer.TyperApplication.instance
-                        if (context != null) {
-                            val currentPatternHash = listOf(patternName, patternColor, patternScale, patternRotation, patternAlpha, textureOffsetX, textureOffsetY).hashCode()
-                            if (cachedPatternShader == null || cachedPatternHash != currentPatternHash) {
-                                val patternBmp = com.astral.typer.utils.PatternManager.getPatternBitmap(context, patternName!!, patternColor)
-                                if (patternBmp != null) {
-                                    val shader = android.graphics.BitmapShader(patternBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                                    val matrix = Matrix()
-                                    matrix.postScale(patternScale, patternScale)
-                                    matrix.postRotate(patternRotation, patternBmp.width * patternScale / 2f, patternBmp.height * patternScale / 2f)
-                                    matrix.postTranslate(textureOffsetX, textureOffsetY)
-                                    shader.setLocalMatrix(matrix)
-                                    cachedPatternShader = shader
-                                    cachedPatternHash = currentPatternHash
-                                    cachedPatternXfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
-                                }
-                            }
-
-                            if (cachedPatternShader != null) {
-                                // Pattern overlay using SRC_ATOP over the fill
-                                targetCanvas.saveLayer(null, null)
-                                renderSvgManipulated(targetCanvas, fill = Color.WHITE, stroke = null)
-
-                                val p = Paint(Paint.ANTI_ALIAS_FLAG)
-                                p.shader = cachedPatternShader
-                                p.alpha = patternAlpha
-                                p.xfermode = cachedPatternXfermode
-                                targetCanvas.drawRect(0f, 0f, w, h, p)
-                                targetCanvas.restore()
-                            }
-                        }
-                    }
+                    drawFillContent(targetCanvas)
                 }
             }
         }
@@ -840,9 +887,9 @@ class ShapeLayer(
         val drawBase = { innerCanvas: Canvas -> drawMain(innerCanvas) }
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(tertiaryEffect)
 
         val hasEffects = activeEffects.isNotEmpty() && !skipEffects
         if (hasEffects) {
