@@ -7886,6 +7886,7 @@ class EditorActivity : AppCompatActivity() {
                 val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
                 val opacity = settingsPrefs.getInt("watermark_opacity", 255)
                 val position = if (isAuto) settingsPrefs.getString("watermark_position", "Center") ?: "Center" else "Center"
+                val autoScaling = settingsPrefs.getBoolean("watermark_auto_scaling", false)
 
                 val layer = ImageLayer(bitmap, null)
                 layer.opacity = opacity
@@ -7893,7 +7894,18 @@ class EditorActivity : AppCompatActivity() {
                 val cw = canvasView.canvasWidth
                 val ch = canvasView.canvasHeight
 
-                val posPoint = calculateWatermarkPosition(position, cw, ch, bitmap.width, bitmap.height)
+                var scale = 1f
+                if (autoScaling && bitmap.width > 0) {
+                    val scaleFactorPercent = settingsPrefs.getInt("watermark_scale_factor", 25)
+                    scale = (cw * (scaleFactorPercent / 100f)) / bitmap.width
+                }
+                layer.scaleX = scale
+                layer.scaleY = scale
+
+                val scaledW = (bitmap.width * scale).toInt()
+                val scaledH = (bitmap.height * scale).toInt()
+
+                val posPoint = calculateWatermarkPosition(position, cw, ch, scaledW, scaledH)
                 layer.x = posPoint.x
                 layer.y = posPoint.y
 
