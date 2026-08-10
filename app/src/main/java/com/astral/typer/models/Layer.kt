@@ -45,6 +45,7 @@ interface StylableLayer {
     var doubleStrokeWidth: Float
     var tripleStrokeColor: Int
     var tripleStrokeWidth: Float
+    var isRoughStroke: Boolean
 
     // Perspective & Warp
     var isPerspective: Boolean

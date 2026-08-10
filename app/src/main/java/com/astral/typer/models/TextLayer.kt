@@ -146,6 +146,7 @@ class TextLayer(
     override var doubleStrokeWidth: Float = 0f
     override var tripleStrokeColor: Int = Color.WHITE
     override var tripleStrokeWidth: Float = 0f
+    override var isRoughStroke: Boolean = false
 
     // Perspective
     override var isPerspective: Boolean = false
@@ -753,6 +754,7 @@ class TextLayer(
         newLayer.doubleStrokeWidth = this.doubleStrokeWidth
         newLayer.tripleStrokeColor = this.tripleStrokeColor
         newLayer.tripleStrokeWidth = this.tripleStrokeWidth
+        newLayer.isRoughStroke = this.isRoughStroke
         newLayer.boxWidth = this.boxWidth
         newLayer.fixedHeight = this.fixedHeight
         newLayer.isOval = this.isOval
@@ -2119,6 +2121,7 @@ class TextLayer(
             val originalAlpha = paint.alpha
             val originalStrokeJoin = paint.strokeJoin
             val originalStrokeCap = paint.strokeCap
+            val originalPathEffect = paint.pathEffect
 
             paint.strokeJoin = Paint.Join.ROUND
             paint.strokeCap = Paint.Cap.ROUND
@@ -2139,6 +2142,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
+                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
                 layout.draw(targetCanvas)
             }
 
@@ -2149,6 +2153,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
+                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
                 layout.draw(targetCanvas)
             }
 
@@ -2167,12 +2172,14 @@ class TextLayer(
                     paint.color = modulateColor(strokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
+                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
                 layout.draw(targetCanvas)
             }
 
             // 3. Fill
             paint.style = Paint.Style.FILL
             paint.strokeWidth = 0f
+            paint.pathEffect = null
             if (silhouetteColor != null) {
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor!!)
@@ -2484,6 +2491,7 @@ class TextLayer(
             paint.alpha = originalAlpha
             paint.strokeJoin = originalStrokeJoin
             paint.strokeCap = originalStrokeCap
+            paint.pathEffect = originalPathEffect
         }
 
         val drawShadows = { targetCanvas: Canvas ->
@@ -2495,6 +2503,7 @@ class TextLayer(
             val originalAlpha = paint.alpha
             val originalStrokeJoin = paint.strokeJoin
             val originalStrokeCap = paint.strokeCap
+            val originalPathEffect = paint.pathEffect
 
             paint.strokeJoin = Paint.Join.ROUND
             paint.strokeCap = Paint.Cap.ROUND
@@ -2566,14 +2575,17 @@ class TextLayer(
                         // Draw stroke (thick part)
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
+                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
                         layout.draw(targetCanvas)
 
                         // Draw fill
                         paint.style = Paint.Style.FILL
+                        paint.pathEffect = null
                         layout.draw(targetCanvas)
 
                         paint.style = shadowStyle
                         paint.strokeWidth = shadowStrokeWidth
+                        paint.pathEffect = null
                     } else {
                         layout.draw(targetCanvas)
                     }
@@ -2596,10 +2608,12 @@ class TextLayer(
                         // Draw stroke (thick part)
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
+                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
                         layout.draw(targetCanvas)
 
                         // Draw fill
                         paint.style = Paint.Style.FILL
+                        paint.pathEffect = null
                         layout.draw(targetCanvas)
 
                         targetCanvas.restore()
@@ -2609,6 +2623,7 @@ class TextLayer(
                         paint.shader = shadowShader
                         paint.color = shadowOrigColor
                         paint.maskFilter = shadowMaskFilter
+                        paint.pathEffect = null
                     } else {
                         paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
                         layout.draw(targetCanvas)
@@ -2626,6 +2641,7 @@ class TextLayer(
             paint.alpha = originalAlpha
             paint.strokeJoin = originalStrokeJoin
             paint.strokeCap = originalStrokeCap
+            paint.pathEffect = originalPathEffect
         }
 
         if (!isDrawingClippingMask) {
