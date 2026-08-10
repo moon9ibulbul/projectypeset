@@ -373,7 +373,7 @@ class EditorActivity : AppCompatActivity() {
         super.onPause()
         // Auto Save
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
-        val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
+        val enableAutosave = false
         if (!enableAutosave) return
 
         // Capture data on Main Thread

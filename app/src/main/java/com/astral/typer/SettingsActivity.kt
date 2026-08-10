@@ -28,7 +28,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var cbStyle: CheckBox
     private lateinit var cbFavorite: CheckBox
     private lateinit var cbMyFont: CheckBox
-    private lateinit var cbAutosave: CheckBox
 
     // Watermark Views
     private lateinit var cbEnableWatermark: CheckBox
@@ -78,13 +77,8 @@ class SettingsActivity : AppCompatActivity() {
         cbStyle = findViewById(R.id.cbStyle)
         cbFavorite = findViewById(R.id.cbFavorite)
         cbMyFont = findViewById(R.id.cbMyFont)
-        cbAutosave = findViewById(R.id.cbAutosave)
 
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
-        cbAutosave.isChecked = settingsPrefs.getBoolean("enable_autosave", false)
-        cbAutosave.setOnCheckedChangeListener { _, isChecked ->
-            settingsPrefs.edit().putBoolean("enable_autosave", isChecked).apply()
-        }
 
         val cbDisableSnap = findViewById<CheckBox>(R.id.cbDisableSnap)
         cbDisableSnap.isChecked = settingsPrefs.getBoolean("disable_snap_to_center", false)
