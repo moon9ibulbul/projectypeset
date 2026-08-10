@@ -7896,7 +7896,8 @@ class EditorActivity : AppCompatActivity() {
 
                 var scale = 1f
                 if (autoScaling && bitmap.width > 0) {
-                    scale = (cw * 0.25f) / bitmap.width
+                    val scaleFactorPercent = settingsPrefs.getInt("watermark_scale_factor", 25)
+                    scale = (cw * (scaleFactorPercent / 100f)) / bitmap.width
                 }
                 layer.scaleX = scale
                 layer.scaleY = scale

@@ -335,6 +335,30 @@
                 android:layout_marginTop="8dp"/>
 
             <LinearLayout
+                android:id="@+id/layoutWatermarkScale"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:id="@+id/tvWatermarkScale"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Watermark Scale Factor: 25%"
+                    android:textColor="@android:color/white"/>
+
+                <SeekBar
+                    android:id="@+id/sbWatermarkScale"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="25"
+                    android:layout_marginTop="4dp"/>
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/layoutWatermarkPosition"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

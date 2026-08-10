@@ -39,6 +39,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var sbWatermarkOpacity: android.widget.SeekBar
     private lateinit var cbAutoWatermark: CheckBox
     private lateinit var cbWatermarkAutoScaling: CheckBox
+    private lateinit var layoutWatermarkScale: android.widget.LinearLayout
+    private lateinit var tvWatermarkScale: TextView
+    private lateinit var sbWatermarkScale: android.widget.SeekBar
     private lateinit var layoutWatermarkPosition: android.widget.LinearLayout
     private lateinit var spinnerWatermarkPosition: android.widget.Spinner
 
@@ -138,11 +141,32 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         cbWatermarkAutoScaling = findViewById(R.id.cbWatermarkAutoScaling)
+        layoutWatermarkScale = findViewById(R.id.layoutWatermarkScale)
+        tvWatermarkScale = findViewById(R.id.tvWatermarkScale)
+        sbWatermarkScale = findViewById(R.id.sbWatermarkScale)
+
         val isWatermarkAutoScaling = settingsPrefs.getBoolean("watermark_auto_scaling", false)
         cbWatermarkAutoScaling.isChecked = isWatermarkAutoScaling
+        layoutWatermarkScale.visibility = if (isWatermarkAutoScaling) android.view.View.VISIBLE else android.view.View.GONE
+
         cbWatermarkAutoScaling.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("watermark_auto_scaling", isChecked).apply()
+            layoutWatermarkScale.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
         }
+
+        val watermarkScaleFactor = settingsPrefs.getInt("watermark_scale_factor", 25)
+        sbWatermarkScale.progress = watermarkScaleFactor
+        tvWatermarkScale.text = "Watermark Scale Factor: ${watermarkScaleFactor}%"
+
+        sbWatermarkScale.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                val clampedProgress = progress.coerceAtLeast(1)
+                tvWatermarkScale.text = "Watermark Scale Factor: ${clampedProgress}%"
+                settingsPrefs.edit().putInt("watermark_scale_factor", clampedProgress).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
 
         // Spinner Setup
         val positions = arrayOf("Upper left", "Top", "Upper Right", "Middle Left", "Center", "Middle Right", "Bottom Left", "Bottom", "Bottom Right", "Random")
