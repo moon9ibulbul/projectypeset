@@ -3398,62 +3398,61 @@ class EditorActivity : AppCompatActivity() {
         val isLamaAvailable = lamaProcessor.isModelAvailable()
         val isMiganAvailable = miganProcessor.isModelAvailable()
 
-        if (isLamaAvailable || isMiganAvailable) {
-            val engineLayout = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    setMargins(0,0,0,16)
-                }
+        val engineLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0,0,0,16)
             }
+        }
 
-            val modes = ArrayList<String>()
-            modes.add("OpenCV (Telea)")
-            if (isLamaAvailable) {
-                modes.add("LaMa (AI)")
-            }
-            if (isMiganAvailable) {
-                modes.add("MIGAN (AI)")
-            }
+        val modes = ArrayList<String>()
+        modes.add("OpenCV (Telea)")
+        modes.add("OpenCV (xphoto)")
+        if (isLamaAvailable) {
+            modes.add("LaMa (AI)")
+        }
+        if (isMiganAvailable) {
+            modes.add("MIGAN (AI)")
+        }
 
-            val spinner = android.widget.Spinner(this)
-            val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            spinner.adapter = adapter
+        val spinner = android.widget.Spinner(this)
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
 
-            // Set initial selection
-            spinner.setSelection(0)
-            inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+        // Set initial selection
+        spinner.setSelection(0)
+        inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
 
-            spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
-                    val selectedMode = modes[pos]
-                    when {
-                        selectedMode.contains("OpenCV") -> {
-                            inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
-                        }
-                        selectedMode.contains("LaMa") -> {
-                            inpaintManager.setEngine(InpaintManager.Engine.LAMA)
-                        }
-                        selectedMode.contains("MIGAN") -> {
-                            inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
-                        }
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
+                val selectedMode = modes[pos]
+                when {
+                    selectedMode.equals("OpenCV (Telea)") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+                    }
+                    selectedMode.equals("OpenCV (xphoto)") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.OPENCV_XPHOTO)
+                    }
+                    selectedMode.contains("LaMa") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                    }
+                    selectedMode.contains("MIGAN") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
                     }
                 }
-                override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
             }
-
-            val tvLabel = TextView(this).apply {
-                text = "Engine: "
-                setTextColor(Color.WHITE)
-            }
-            engineLayout.addView(tvLabel)
-            engineLayout.addView(spinner)
-            toolbar.addView(engineLayout)
-        } else {
-            // Just force OpenCV
-            inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+            override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
         }
+
+        val tvLabel = TextView(this).apply {
+            text = "Engine: "
+            setTextColor(Color.WHITE)
+        }
+        engineLayout.addView(tvLabel)
+        engineLayout.addView(spinner)
+        toolbar.addView(engineLayout)
 
         // 1. Brush Size / Sensitivity Slider
         val sizeLayout = LinearLayout(this).apply {

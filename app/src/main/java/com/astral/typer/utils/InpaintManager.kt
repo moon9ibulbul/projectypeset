@@ -8,9 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
+import org.opencv.core.Core
 import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
 import org.opencv.photo.Photo
+import org.opencv.xphoto.Xphoto
 
 /**
  * Manages inpainting operations, providing a robust fallback if OpenCV fails.
@@ -19,6 +21,7 @@ class InpaintManager(private val context: Context) {
 
     enum class Engine {
         OPENCV,
+        OPENCV_XPHOTO,
         LAMA,
         MIGAN
     }
@@ -114,6 +117,12 @@ class InpaintManager(private val context: Context) {
             val result = miganProcessor.inpaint(originalBitmap, maskBitmap)
             if (result != null) return result
             Log.w("InpaintManager", "MIGAN inpaint failed, falling back to OpenCV")
+        } else if (currentEngine == Engine.OPENCV_XPHOTO) {
+            if (isOpenCvInitialized) {
+                val result = inpaintWithOpenCVXPhoto(originalBitmap, maskBitmap)
+                if (result != null) return result
+                Log.w("InpaintManager", "OpenCV xphoto inpaint failed, falling back to OpenCV Telea")
+            }
         }
 
         // Try OpenCV
@@ -127,6 +136,71 @@ class InpaintManager(private val context: Context) {
             }
             // Fallback to simple Kotlin implementation
             inpaintFallback(originalBitmap, maskBitmap)
+        }
+    }
+
+    private fun inpaintWithOpenCVXPhoto(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
+        val srcMat = Mat()
+        val bgrMat = Mat()
+        val maskMat = Mat()
+        val grayMask = Mat()
+        val invertedMask = Mat()
+        val dstMat = Mat()
+        val rgbaMat = Mat()
+        val outputBitmap = Bitmap.createBitmap(originalBitmap.width, originalBitmap.height, Bitmap.Config.ARGB_8888)
+
+        var scaledMask: Bitmap? = null
+
+        try {
+            // 1. Convert Bitmaps to Mats
+            Utils.bitmapToMat(originalBitmap, srcMat)
+
+            // Convert Source to BGR (3-channel) - OpenCV Xphoto FSR_BEST expects 3-channel BGR
+            Imgproc.cvtColor(srcMat, bgrMat, Imgproc.COLOR_RGBA2BGR)
+
+            // 2. Process Mask
+            // Ensure mask is same size as original
+            val maskToUse = if (maskBitmap.width != originalBitmap.width || maskBitmap.height != originalBitmap.height) {
+                scaledMask = Bitmap.createScaledBitmap(maskBitmap, originalBitmap.width, originalBitmap.height, false)
+                scaledMask
+            } else {
+                maskBitmap
+            }
+
+            Utils.bitmapToMat(maskToUse, maskMat)
+
+            // Convert Mask to Grayscale (CV_8UC1)
+            Imgproc.cvtColor(maskMat, grayMask, Imgproc.COLOR_RGBA2GRAY)
+
+            // Invert the mask. Xphoto.inpaint definition:
+            // "mask - mask (CV_8UC1), where non-zero pixels indicate valid image area, while zero pixels indicate area to be inpainted"
+            Core.bitwise_not(grayMask, invertedMask)
+
+            // 3. Inpaint
+            // We use INPAINT_FSR_BEST for maximum high quality since it operates on cropped/sub-region
+            Xphoto.inpaint(bgrMat, invertedMask, dstMat, Xphoto.INPAINT_FSR_BEST)
+
+            // 4. Convert back to RGBA and then to Bitmap
+            Imgproc.cvtColor(dstMat, rgbaMat, Imgproc.COLOR_BGR2RGBA)
+            Utils.matToBitmap(rgbaMat, outputBitmap)
+
+            return outputBitmap
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.e("InpaintManager", "OpenCV xphoto Inpaint failed", e)
+            return null
+        } finally {
+            // Cleanup native resources to prevent memory overhead or leaks
+            try { srcMat.release() } catch(e: Exception){}
+            try { bgrMat.release() } catch(e: Exception){}
+            try { maskMat.release() } catch(e: Exception){}
+            try { grayMask.release() } catch(e: Exception){}
+            try { invertedMask.release() } catch(e: Exception){}
+            try { dstMat.release() } catch(e: Exception){}
+            try { rgbaMat.release() } catch(e: Exception){}
+
+            scaledMask?.recycle()
         }
     }
 
