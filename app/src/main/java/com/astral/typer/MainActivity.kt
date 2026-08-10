@@ -346,7 +346,7 @@ class MainActivity : AppCompatActivity() {
                                         text.setTextColor(Color.WHITE)
                                     }
 
-                                    val isSubFolder = file.isDirectory && !File(file, "project.json").exists()
+                                    val isSubFolder = file.isDirectory && !ProjectManager.isProjectDirectory(this@MainActivity, file)
                                     if (isSubFolder) {
                                         img.setImageResource(android.R.drawable.ic_menu_directions)
                                     } else {
