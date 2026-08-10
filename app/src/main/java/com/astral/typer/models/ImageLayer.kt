@@ -323,7 +323,10 @@ class ImageLayer(
 
     private fun drawContent(canvas: Canvas, w: Float, h: Float) {
         val dest = RectF(0f, 0f, w, h)
-        canvas.drawBitmap(bitmap, null, dest, null)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isFilterBitmap = true
+        }
+        canvas.drawBitmap(bitmap, null, dest, paint)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
         if (!hasTransform) {

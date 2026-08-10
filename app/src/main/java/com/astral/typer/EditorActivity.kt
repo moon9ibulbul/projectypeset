@@ -2963,6 +2963,12 @@ class EditorActivity : AppCompatActivity() {
                 }
                 override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
             }
+
+            // Setup Export Scale Spinner
+            val scales = arrayOf("1x", "2x", "3x", "4x")
+            val scaleAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, scales)
+            scaleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            sidebarBinding.spinnerExportScale.adapter = scaleAdapter
         }
 
         sidebarBinding.seekBarQuality.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -3163,11 +3169,19 @@ class EditorActivity : AppCompatActivity() {
             val formatStr = sidebarBinding.spinnerFormat.selectedItem.toString()
             val quality = sidebarBinding.seekBarQuality.progress
 
+            val scaleStr = sidebarBinding.spinnerExportScale.selectedItem?.toString() ?: "1x"
+            val scale = when(scaleStr) {
+                "2x" -> 2f
+                "3x" -> 3f
+                "4x" -> 4f
+                else -> 1f
+            }
+
             // Show Loading
             binding.loadingOverlay.visibility = View.VISIBLE
 
             // Export
-            val bitmap = canvasView.renderToBitmap() // Full resolution - Main Thread
+            val bitmap = canvasView.renderToBitmap(scale) // Upscaled resolution - Main Thread
 
             val compressFormat = when(formatStr) {
                 "JPG" -> android.graphics.Bitmap.CompressFormat.JPEG

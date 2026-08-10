@@ -1368,22 +1368,26 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
-    private fun renderToBitmapHardware(): android.graphics.Bitmap? {
+    private fun renderToBitmapHardware(scale: Float = 1f): android.graphics.Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
         val limit = com.astral.typer.utils.ProjectManager.getMaxTextureSize()
         val maxDim = minOf(2048, limit)
-        if (canvasWidth <= maxDim && canvasHeight <= maxDim) {
+        val scaledWidth = (canvasWidth * scale).toInt()
+        val scaledHeight = (canvasHeight * scale).toInt()
+        if (scaledWidth <= maxDim && scaledHeight <= maxDim) {
             try {
                 val reader = android.media.ImageReader.newInstance(
-                    canvasWidth, canvasHeight,
+                    scaledWidth, scaledHeight,
                     android.graphics.PixelFormat.RGBA_8888, 1,
                     android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or android.hardware.HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE
                 )
                 val surface = reader.surface
 
                 val rootNode = android.graphics.RenderNode("RootNode")
-                rootNode.setPosition(0, 0, canvasWidth, canvasHeight)
+                rootNode.setPosition(0, 0, scaledWidth, scaledHeight)
                 val canvas = rootNode.beginRecording()
+
+                canvas.scale(scale, scale)
 
                 // Draw Background
                 val bgPaint = Paint()
@@ -1433,13 +1437,13 @@ class AstralCanvasView @JvmOverloads constructor(
             return null
         } else {
             try {
-                val finalBitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                val finalBitmap = android.graphics.Bitmap.createBitmap(scaledWidth, scaledHeight, android.graphics.Bitmap.Config.ARGB_8888)
                 val finalCanvas = Canvas(finalBitmap)
-                for (y in 0 until canvasHeight step maxDim) {
-                    val sliceH = min(maxDim, canvasHeight - y)
-                    for (x in 0 until canvasWidth step maxDim) {
-                        val sliceW = min(maxDim, canvasWidth - x)
-                        val sliceBmp = renderSliceHardware(x, y, sliceW, sliceH)
+                for (y in 0 until scaledHeight step maxDim) {
+                    val sliceH = min(maxDim, scaledHeight - y)
+                    for (x in 0 until scaledWidth step maxDim) {
+                        val sliceW = min(maxDim, scaledWidth - x)
+                        val sliceBmp = renderSliceHardware(x, y, sliceW, sliceH, scale)
                         if (sliceBmp != null) {
                             finalCanvas.drawBitmap(sliceBmp, x.toFloat(), y.toFloat(), null)
                             sliceBmp.recycle()
@@ -1457,7 +1461,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun renderSliceHardware(startX: Int, startY: Int, sliceW: Int, sliceH: Int): android.graphics.Bitmap? {
+    private fun renderSliceHardware(startX: Int, startY: Int, sliceW: Int, sliceH: Int, scale: Float = 1f): android.graphics.Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return null
         try {
             val reader = android.media.ImageReader.newInstance(
@@ -1472,6 +1476,7 @@ class AstralCanvasView @JvmOverloads constructor(
             val canvas = rootNode.beginRecording()
 
             canvas.translate(-startX.toFloat(), -startY.toFloat())
+            canvas.scale(scale, scale)
 
             // Draw Background
             val bgPaint = Paint()
@@ -1610,16 +1615,20 @@ class AstralCanvasView @JvmOverloads constructor(
         return false
     }
 
-    fun renderToBitmap(): android.graphics.Bitmap {
+    fun renderToBitmap(scale: Float = 1f): android.graphics.Bitmap {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            val hwBmp = renderToBitmapHardware()
+            val hwBmp = renderToBitmapHardware(scale)
             if (hwBmp != null && !isBitmapBlankOrBlack(hwBmp) && !isBitmapCropped(hwBmp)) {
                 return hwBmp
             }
         }
 
-        val bitmap = android.graphics.Bitmap.createBitmap(canvasWidth, canvasHeight, android.graphics.Bitmap.Config.ARGB_8888)
+        val scaledWidth = (canvasWidth * scale).toInt()
+        val scaledHeight = (canvasHeight * scale).toInt()
+        val bitmap = android.graphics.Bitmap.createBitmap(scaledWidth, scaledHeight, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+
+        canvas.scale(scale, scale)
 
         // Draw Background
         val bgPaint = Paint()
