@@ -3398,7 +3398,8 @@ class EditorActivity : AppCompatActivity() {
         val isLamaAvailable = lamaProcessor.isModelAvailable()
         val isMiganAvailable = miganProcessor.isModelAvailable()
 
-        if (isLamaAvailable || isMiganAvailable) {
+        // PatchMatch is always available as it's a pure-code engine
+        if (true) {
             val engineLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -3409,6 +3410,7 @@ class EditorActivity : AppCompatActivity() {
 
             val modes = ArrayList<String>()
             modes.add("OpenCV (Telea)")
+            modes.add("PatchMatch (Photoshop-like)")
             if (isLamaAvailable) {
                 modes.add("LaMa (AI)")
             }
@@ -3431,6 +3433,9 @@ class EditorActivity : AppCompatActivity() {
                     when {
                         selectedMode.contains("OpenCV") -> {
                             inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+                        }
+                        selectedMode.contains("PatchMatch") -> {
+                            inpaintManager.setEngine(InpaintManager.Engine.PATCHMATCH)
                         }
                         selectedMode.contains("LaMa") -> {
                             inpaintManager.setEngine(InpaintManager.Engine.LAMA)

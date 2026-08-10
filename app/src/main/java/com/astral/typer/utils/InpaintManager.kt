@@ -20,13 +20,15 @@ class InpaintManager(private val context: Context) {
     enum class Engine {
         OPENCV,
         LAMA,
-        MIGAN
+        MIGAN,
+        PATCHMATCH
     }
 
     private var currentEngine: Engine = Engine.OPENCV
     private var isOpenCvInitialized = false
     private val lamaProcessor by lazy { LaMaProcessor(context) }
     private val miganProcessor by lazy { MiganProcessor(context) }
+    private val patchMatchProcessor by lazy { PatchMatchProcessor() }
 
     init {
         try {
@@ -114,6 +116,10 @@ class InpaintManager(private val context: Context) {
             val result = miganProcessor.inpaint(originalBitmap, maskBitmap)
             if (result != null) return result
             Log.w("InpaintManager", "MIGAN inpaint failed, falling back to OpenCV")
+        } else if (currentEngine == Engine.PATCHMATCH) {
+            val result = patchMatchProcessor.inpaint(originalBitmap, maskBitmap)
+            if (result != null) return result
+            Log.w("InpaintManager", "PatchMatch inpaint failed, falling back to OpenCV")
         }
 
         // Try OpenCV
