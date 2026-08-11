@@ -166,6 +166,12 @@ interface StylableLayer {
     var speedLineColor: Int
     var speedLineAngle: Float
 
+    // Text Tail
+    var tailLength: Float
+    var tailWavyIntensity: Float
+    var tailAngle: Float
+    var tailArrowPoint: Boolean
+
     // Erase
     var eraseMask: Bitmap?
     val erasePaths: MutableList<ErasePathData>

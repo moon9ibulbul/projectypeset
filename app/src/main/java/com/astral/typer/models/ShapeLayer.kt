@@ -235,6 +235,12 @@ class ShapeLayer(
     override var speedLineColor: Int = android.graphics.Color.BLACK
     override var speedLineAngle: Float = 0f
 
+    // Text Tail
+    override var tailLength: Float = 0f
+    override var tailWavyIntensity: Float = 0f
+    override var tailAngle: Float = 0f
+    override var tailArrowPoint: Boolean = false
+
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
     override var decaySeed: Long = System.currentTimeMillis()
@@ -412,7 +418,8 @@ class ShapeLayer(
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON
+            it == TextEffectType.NEON ||
+            it == TextEffectType.TEXT_TAIL
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -1990,11 +1997,101 @@ class ShapeLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.TEXT_TAIL -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("TextTailNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.TEXT_TAIL_SHADER)
+                            shader.setFloatUniform("len", tailLength)
+                            shader.setFloatUniform("wave", tailWavyIntensity)
+                            shader.setFloatUniform("angle", tailAngle)
+                            shader.setFloatUniform("arrow", if (tailArrowPoint) 1.0f else 0.0f)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawTextTailSoftware(targetCanvas, w, h, drawInner)
+                    }
+                }
                 TextEffectType.SPEED_LINE -> {
                     drawInner(targetCanvas)
                 }
                 else -> drawInner(targetCanvas)
              }
+    }
+
+    private fun drawTextTailSoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        if (tailLength <= 0f) {
+            drawInner(targetCanvas)
+            return
+        }
+        val bmpW = Math.ceil((w + pad * 2).toDouble()).toInt().coerceAtLeast(1)
+        val bmpH = Math.ceil((h + pad * 2).toDouble()).toInt().coerceAtLeast(1)
+        val tempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val tempCanvas = Canvas(tempBmp)
+        tempCanvas.translate(pad, pad)
+        drawInner(tempCanvas)
+
+        val rad = Math.toRadians(tailAngle.toDouble())
+        val dirX = Math.cos(rad).toFloat()
+        val dirY = Math.sin(rad).toFloat()
+        val perpX = -Math.sin(rad).toFloat()
+        val perpY = Math.cos(rad).toFloat()
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val steps = 16
+
+        for (i in steps downTo 1) {
+            val t = i.toFloat() / steps
+            val d = t * tailLength
+
+            val waveOffset = Math.sin(d * 0.05).toFloat() * tailWavyIntensity * 5.0f
+
+            val tx = -d * dirX + waveOffset * perpX
+            val ty = -d * dirY + waveOffset * perpY
+
+            var taper = 1.0f
+            if (tailArrowPoint) {
+                if (t > 0.8f) {
+                    taper = (1.0f - t) * 5.0f
+                } else {
+                    taper = 1.0f - t * 0.8f
+                }
+            } else {
+                taper = 1.0f - t * 0.9f
+            }
+            taper = taper.coerceAtLeast(0.05f)
+
+            paint.alpha = (255 * (1.0f - t) * taper).toInt().coerceIn(0, 255)
+
+            targetCanvas.save()
+            targetCanvas.translate(-pad + tx, -pad + ty)
+            targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
+            targetCanvas.restore()
+        }
+
+        paint.alpha = 255
+        targetCanvas.save()
+        targetCanvas.translate(-pad, -pad)
+        targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
+        targetCanvas.restore()
+
+        tempBmp.recycle()
     }
 
     private fun drawDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
@@ -2157,6 +2254,9 @@ class ShapeLayer(
                     val halfH = speedLineHeight / 2f
                     val expansion = Math.max(halfW - getWidth() / 2f, halfH - getHeight() / 2f).coerceAtLeast(0f)
                     effectExpansion = Math.max(effectExpansion, expansion)
+                }
+                TextEffectType.TEXT_TAIL -> {
+                    effectExpansion = Math.max(effectExpansion, tailLength + tailWavyIntensity * 5f + 20f)
                 }
                 else -> {}
             }
@@ -2417,6 +2517,12 @@ class ShapeLayer(
         newLayer.speedLineAdditional = speedLineAdditional
         newLayer.speedLineColor = speedLineColor
         newLayer.speedLineAngle = speedLineAngle
+
+        // Text Tail
+        newLayer.tailLength = tailLength
+        newLayer.tailWavyIntensity = tailWavyIntensity
+        newLayer.tailAngle = tailAngle
+        newLayer.tailArrowPoint = tailArrowPoint
 
         return newLayer
     }

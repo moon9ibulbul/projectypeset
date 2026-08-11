@@ -359,6 +359,12 @@ class TextLayer(
     override var speedLineColor: Int = android.graphics.Color.BLACK
     override var speedLineAngle: Float = 0f
 
+    // Text Tail
+    override var tailLength: Float = 0f
+    override var tailWavyIntensity: Float = 0f
+    override var tailAngle: Float = 0f
+    override var tailArrowPoint: Boolean = false
+
     // Shape
     var isOval: Boolean = false
 
@@ -606,6 +612,12 @@ class TextLayer(
         result = 31 * result + fieryIntensity.hashCode()
         result = 31 * result + wavyIntensity.hashCode()
         result = 31 * result + wavyFrequency.hashCode()
+
+        // Text Tail
+        result = 31 * result + tailLength.hashCode()
+        result = 31 * result + tailWavyIntensity.hashCode()
+        result = 31 * result + tailAngle.hashCode()
+        result = 31 * result + tailArrowPoint.hashCode()
 
         // Twist
         result = 31 * result + twistAngle.hashCode()
@@ -946,6 +958,12 @@ class TextLayer(
         newLayer.speedLineColor = this.speedLineColor
         newLayer.speedLineAngle = this.speedLineAngle
 
+        // Text Tail
+        newLayer.tailLength = this.tailLength
+        newLayer.tailWavyIntensity = this.tailWavyIntensity
+        newLayer.tailAngle = this.tailAngle
+        newLayer.tailArrowPoint = this.tailArrowPoint
+
         newLayer.x = this.x
         newLayer.y = this.y
         newLayer.rotation = this.rotation
@@ -1098,6 +1116,9 @@ class TextLayer(
                     val halfH = speedLineHeight / 2f
                     val expansion = Math.max(halfW - getWidth() / 2f, halfH - getHeight() / 2f).coerceAtLeast(0f)
                     effectExpansion = Math.max(effectExpansion, expansion)
+                }
+                TextEffectType.TEXT_TAIL -> {
+                    effectExpansion = Math.max(effectExpansion, tailLength + tailWavyIntensity * 5f + 20f)
                 }
                 else -> {}
             }
@@ -1494,7 +1515,8 @@ class TextLayer(
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON
+            it == TextEffectType.NEON ||
+            it == TextEffectType.TEXT_TAIL
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -4206,6 +4228,36 @@ class TextLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.TEXT_TAIL -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("TextTailNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TEXT_TAIL_SHADER)
+                            shader.setFloatUniform("len", tailLength)
+                            shader.setFloatUniform("wave", tailWavyIntensity)
+                            shader.setFloatUniform("angle", tailAngle)
+                            shader.setFloatUniform("arrow", if (tailArrowPoint) 1.0f else 0.0f)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {}
+                    }
+                    if (!useRenderEffect) {
+                        drawTextTailSoftware(targetCanvas, w, h, drawInner)
+                    }
+                }
                 TextEffectType.SPEED_LINE -> {
                     drawInner(targetCanvas)
                 }
@@ -4348,6 +4400,66 @@ class TextLayer(
         drawWoodScratchSoftware(targetCanvas, w, h, calculatePadding(), woodScratchIntensity, woodScratchSeed, woodScratchColor, drawInner)
     }
 
+    private fun drawTextTailSoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
+        val pad = calculatePadding()
+        if (tailLength <= 0f) {
+            drawInner(targetCanvas)
+            return
+        }
+        val bmpW = Math.ceil((w + pad * 2).toDouble()).toInt().coerceAtLeast(1)
+        val bmpH = Math.ceil((h + pad * 2).toDouble()).toInt().coerceAtLeast(1)
+        val tempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val tempCanvas = Canvas(tempBmp)
+        tempCanvas.translate(pad, pad)
+        drawInner(tempCanvas)
+
+        val rad = Math.toRadians(tailAngle.toDouble())
+        val dirX = Math.cos(rad).toFloat()
+        val dirY = Math.sin(rad).toFloat()
+        val perpX = -Math.sin(rad).toFloat()
+        val perpY = Math.cos(rad).toFloat()
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val steps = 16
+
+        for (i in steps downTo 1) {
+            val t = i.toFloat() / steps
+            val d = t * tailLength
+
+            val waveOffset = Math.sin(d * 0.05).toFloat() * tailWavyIntensity * 5.0f
+
+            val tx = -d * dirX + waveOffset * perpX
+            val ty = -d * dirY + waveOffset * perpY
+
+            var taper = 1.0f
+            if (tailArrowPoint) {
+                if (t > 0.8f) {
+                    taper = (1.0f - t) * 5.0f
+                } else {
+                    taper = 1.0f - t * 0.8f
+                }
+            } else {
+                taper = 1.0f - t * 0.9f
+            }
+            taper = taper.coerceAtLeast(0.05f)
+
+            paint.alpha = (255 * (1.0f - t) * taper).toInt().coerceIn(0, 255)
+
+            targetCanvas.save()
+            targetCanvas.translate(-pad + tx, -pad + ty)
+            targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
+            targetCanvas.restore()
+        }
+
+        paint.alpha = 255
+        targetCanvas.save()
+        targetCanvas.translate(-pad, -pad)
+        targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
+        targetCanvas.restore()
+
+        tempBmp.recycle()
+    }
+
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
         val matrix = Matrix()
         val srcPts = floatArrayOf(
@@ -4361,6 +4473,62 @@ class TextLayer(
     }
 
     companion object {
+
+        const val TEXT_TAIL_SHADER = """
+            uniform shader content;
+            uniform float len;
+            uniform float wave;
+            uniform float angle;
+            uniform float arrow;
+
+            half4 main(float2 coord) {
+                half4 original = content.eval(coord);
+                if (len <= 0.0) {
+                    return original;
+                }
+
+                float rad = radians(angle);
+                float2 dir = float2(cos(rad), sin(rad));
+                float2 perp = float2(-sin(rad), cos(rad));
+
+                half4 col = original;
+
+                const int STEPS = 16;
+                for (int i = 1; i <= STEPS; i++) {
+                    float t = float(i) / float(STEPS);
+                    float d = t * len;
+
+                    float wave_offset = sin(d * 0.05) * wave * 5.0;
+                    float2 test_coord = coord - d * dir;
+
+                    float taper = 1.0;
+                    if (arrow > 0.5) {
+                        if (t > 0.8) {
+                            taper = (1.0 - t) * 5.0;
+                        } else {
+                            taper = 1.0 - t * 0.8;
+                        }
+                    } else {
+                        taper = 1.0 - t * 0.9;
+                    }
+                    taper = max(0.05, taper);
+
+                    float perp_dist = dot(coord - test_coord, perp);
+                    test_coord = test_coord + perp * (perp_dist * (1.0 / taper - 1.0) + wave_offset);
+
+                    half4 sampled = content.eval(test_coord);
+                    if (sampled.a > 0.0) {
+                        float alpha_fade = 1.0 - t;
+                        sampled.a *= alpha_fade;
+                        sampled.rgb *= alpha_fade;
+
+                        col = sampled + col * (1.0 - sampled.a);
+                        break;
+                    }
+                }
+                return col;
+            }
+        """
 
         const val CHROMATIC_ABERRATION_SHADER = """
             uniform shader content;
