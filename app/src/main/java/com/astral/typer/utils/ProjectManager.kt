@@ -114,6 +114,7 @@ object ProjectManager {
         val doubleStrokeColor: Int? = null, val doubleStrokeWidth: Float? = null,
         val tripleStrokeColor: Int? = null, val tripleStrokeWidth: Float? = null,
         val isRoughStroke: Boolean? = null,
+        val roughStrokeRoughness: Float? = null,
 
         // Perspective
         val isPerspective: Boolean? = null, val perspectivePoints: List<Float>? = null,
@@ -440,6 +441,7 @@ object ProjectManager {
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
+                        roughStrokeRoughness = layer.roughStrokeRoughness,
 
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.mainWarpRows, warpCols = layer.mainWarpCols, warpMesh = layer.mainWarpMesh?.toList(),
@@ -579,6 +581,7 @@ object ProjectManager {
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
+                        roughStrokeRoughness = layer.roughStrokeRoughness,
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
@@ -1193,6 +1196,7 @@ object ProjectManager {
             model.tripleStrokeColor?.let { layer.tripleStrokeColor = it }
             model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isRoughStroke?.let { layer.isRoughStroke = it }
+            model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
 
             model.isPerspective?.let { layer.isPerspective = it }
             model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
@@ -1394,6 +1398,7 @@ object ProjectManager {
             model.tripleStrokeColor?.let { layer.tripleStrokeColor = it }
             model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isRoughStroke?.let { layer.isRoughStroke = it }
+            model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
             model.isPerspective?.let { layer.isPerspective = it }
             model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
             model.isWarp?.let { layer.isWarp = it }

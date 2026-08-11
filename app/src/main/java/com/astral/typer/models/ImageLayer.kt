@@ -59,6 +59,7 @@ class ImageLayer(
     override var tripleStrokeColor: Int = Color.WHITE
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
+    override var roughStrokeRoughness: Float = 3f
 
     // Perspective & Warp
     override var isPerspective: Boolean = false
@@ -615,6 +616,7 @@ class ImageLayer(
         newLayer.warpCols = warpCols
         newLayer.warpMesh = warpMesh?.clone()
         newLayer.isRoughStroke = this.isRoughStroke
+        newLayer.roughStrokeRoughness = this.roughStrokeRoughness
 
         newLayer.motionShadowThickness = this.motionShadowThickness
         newLayer.shadowThickness = this.shadowThickness

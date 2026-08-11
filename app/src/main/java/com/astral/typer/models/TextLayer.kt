@@ -147,6 +147,7 @@ class TextLayer(
     override var tripleStrokeColor: Int = Color.WHITE
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
+    override var roughStrokeRoughness: Float = 3f
 
     // Perspective
     override var isPerspective: Boolean = false
@@ -533,6 +534,8 @@ class TextLayer(
         result = 31 * result + doubleStrokeWidth.hashCode()
         result = 31 * result + tripleStrokeColor
         result = 31 * result + tripleStrokeWidth.hashCode()
+        result = 31 * result + isRoughStroke.hashCode()
+        result = 31 * result + roughStrokeRoughness.hashCode()
         result = 31 * result + (textureBitmap?.hashCode() ?: 0)
         result = 31 * result + textureOffsetX.hashCode()
         result = 31 * result + textureOffsetY.hashCode()
@@ -798,6 +801,7 @@ class TextLayer(
         newLayer.tripleStrokeColor = this.tripleStrokeColor
         newLayer.tripleStrokeWidth = this.tripleStrokeWidth
         newLayer.isRoughStroke = this.isRoughStroke
+        newLayer.roughStrokeRoughness = this.roughStrokeRoughness
         newLayer.boxWidth = this.boxWidth
         newLayer.fixedHeight = this.fixedHeight
         newLayer.isOval = this.isOval
@@ -2610,7 +2614,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
+                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                 layout.draw(targetCanvas)
             }
 
@@ -2621,7 +2625,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
+                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                 layout.draw(targetCanvas)
             }
 
@@ -2640,7 +2644,7 @@ class TextLayer(
                     paint.color = modulateColor(strokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
+                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                 layout.draw(targetCanvas)
             }
 
@@ -3043,7 +3047,7 @@ class TextLayer(
                         // Draw stroke (thick part)
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
-                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
+                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                         layout.draw(targetCanvas)
 
                         // Draw fill
@@ -3076,7 +3080,7 @@ class TextLayer(
                         // Draw stroke (thick part)
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
-                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, 3f) else null
+                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                         layout.draw(targetCanvas)
 
                         // Draw fill
@@ -3471,7 +3475,8 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(FIERY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            val staticTime = (effectSeed % 100000) / 1000f
+                            shader.setFloatUniform("time", staticTime)
                             shader.setFloatUniform("intensity", fieryIntensity)
                             val r = Color.red(fieryColor) / 255f
                             val g = Color.green(fieryColor) / 255f
@@ -3480,10 +3485,8 @@ class TextLayer(
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetX", pts[0])
-                            shader.setFloatUniform("offsetY", pts[1])
+                            shader.setFloatUniform("offsetX", 0f)
+                            shader.setFloatUniform("offsetY", 0f)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -3506,15 +3509,14 @@ class TextLayer(
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(WAVY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            val staticTime = (effectSeed % 100000) / 1000f
+                            shader.setFloatUniform("time", staticTime)
                             shader.setFloatUniform("intensity", wavyIntensity)
                             shader.setFloatUniform("frequency", wavyFrequency)
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetY", pts[1])
+                            shader.setFloatUniform("offsetY", 0f)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -3546,7 +3548,7 @@ class TextLayer(
                             val meshW = 40
                             val meshH = 120
                             val verts = FloatArray((meshW + 1) * (meshH + 1) * 2)
-                            val time = (System.currentTimeMillis() % 100000) / 1000f
+                            val time = (effectSeed % 100000) / 1000f
                             var idx = 0
                             for (i in 0..meshH) {
                                 val v = i.toFloat() / meshH

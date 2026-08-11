@@ -64,6 +64,7 @@ class ShapeLayer(
     override var tripleStrokeColor: Int = Color.WHITE
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
+    override var roughStrokeRoughness: Float = 3f
 
     // Perspective
     override var isPerspective: Boolean = false
@@ -504,7 +505,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, isRoughStroke, roughStrokeRoughness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -673,7 +674,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, isRoughStroke, roughStrokeRoughness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -1533,16 +1534,15 @@ class ShapeLayer(
                             node.setPosition(0, 0, nodeW, nodeH)
                             val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.FIERY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            val staticTime = (effectSeed % 100000) / 1000f
+                            shader.setFloatUniform("time", staticTime)
                             shader.setFloatUniform("intensity", fieryIntensity)
                             shader.setFloatUniform("color", Color.red(fieryColor)/255f, Color.green(fieryColor)/255f, Color.blue(fieryColor)/255f)
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetX", pts[0])
-                            shader.setFloatUniform("offsetY", pts[1])
+                            shader.setFloatUniform("offsetX", 0f)
+                            shader.setFloatUniform("offsetY", 0f)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -1560,14 +1560,13 @@ class ShapeLayer(
                             node.setPosition(0, 0, nodeW, nodeH)
                             val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
                             val shader = android.graphics.RuntimeShader(TextLayer.WAVY_SHADER)
-                            shader.setFloatUniform("time", (System.currentTimeMillis() % 100000) / 1000f)
+                            val staticTime = (effectSeed % 100000) / 1000f
+                            shader.setFloatUniform("time", staticTime)
                             shader.setFloatUniform("intensity", wavyIntensity); shader.setFloatUniform("frequency", wavyFrequency)
 
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            val pts = floatArrayOf(0f, 0f)
-                            targetCanvas.matrix.mapPoints(pts)
-                            shader.setFloatUniform("offsetY", pts[1])
+                            shader.setFloatUniform("offsetY", 0f)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.drawRenderNode(node)
@@ -2096,7 +2095,7 @@ class ShapeLayer(
             val alphaToUse = if (fill != null) Color.alpha(fill) else if (stroke != null) Color.alpha(stroke) else 255
             val layerPaint = if (alphaToUse < 255) Paint(Paint.ANTI_ALIAS_FLAG).apply { alpha = alphaToUse } else null
 
-            val targetCanvas = if (isRoughStroke) RoughCanvas(canvas, true) else canvas
+            val targetCanvas = if (isRoughStroke) RoughCanvas(canvas, true, roughStrokeRoughness) else canvas
 
             if (fillShader != null || strokeShader != null) {
                 // If shader is present, we render to a layer and apply shader via SRC_IN
@@ -2363,6 +2362,7 @@ class ShapeLayer(
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
         newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth; newLayer.tripleStrokeColor = tripleStrokeColor; newLayer.tripleStrokeWidth = tripleStrokeWidth
         newLayer.isRoughStroke = isRoughStroke
+        newLayer.roughStrokeRoughness = roughStrokeRoughness
         newLayer.isPerspective = isPerspective; newLayer.perspectivePoints = perspectivePoints?.clone()
         newLayer.isWarp = isWarp; newLayer.warpRows = warpRows; newLayer.warpCols = warpCols; newLayer.warpMesh = warpMesh?.clone()
         newLayer.textureBitmap = textureBitmap; newLayer.textureOffsetX = textureOffsetX; newLayer.textureOffsetY = textureOffsetY
@@ -2497,7 +2497,7 @@ class ShapeLayer(
 }
 
 @Suppress("DEPRECATION")
-class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas() {
+class RoughCanvas(private val delegate: Canvas, val isRough: Boolean, val roughness: Float = 3f) : Canvas() {
     override fun getWidth(): Int = delegate.width
     override fun getHeight(): Int = delegate.height
     override fun getDensity(): Int = delegate.density
@@ -2531,7 +2531,7 @@ class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas()
     override fun drawPath(path: android.graphics.Path, paint: Paint) {
         val originalEffect = paint.pathEffect
         if (isRough && paint.style == Paint.Style.STROKE) {
-            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, roughness)
         }
         delegate.drawPath(path, paint)
         paint.pathEffect = originalEffect
@@ -2540,7 +2540,7 @@ class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas()
     override fun drawRect(rect: android.graphics.RectF, paint: Paint) {
         val originalEffect = paint.pathEffect
         if (isRough && paint.style == Paint.Style.STROKE) {
-            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, roughness)
         }
         delegate.drawRect(rect, paint)
         paint.pathEffect = originalEffect
@@ -2549,7 +2549,7 @@ class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas()
     override fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) {
         val originalEffect = paint.pathEffect
         if (isRough && paint.style == Paint.Style.STROKE) {
-            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, roughness)
         }
         delegate.drawCircle(cx, cy, radius, paint)
         paint.pathEffect = originalEffect
@@ -2558,7 +2558,7 @@ class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas()
     override fun drawOval(oval: android.graphics.RectF, paint: Paint) {
         val originalEffect = paint.pathEffect
         if (isRough && paint.style == Paint.Style.STROKE) {
-            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, roughness)
         }
         delegate.drawOval(oval, paint)
         paint.pathEffect = originalEffect
@@ -2567,7 +2567,7 @@ class RoughCanvas(private val delegate: Canvas, val isRough: Boolean) : Canvas()
     override fun drawLine(startX: Float, startY: Float, stopX: Float, stopY: Float, paint: Paint) {
         val originalEffect = paint.pathEffect
         if (isRough && paint.style == Paint.Style.STROKE) {
-            paint.pathEffect = android.graphics.DiscretePathEffect(6f, 3f)
+            paint.pathEffect = android.graphics.DiscretePathEffect(6f, roughness)
         }
         delegate.drawLine(startX, startY, stopX, stopY, paint)
         paint.pathEffect = originalEffect
