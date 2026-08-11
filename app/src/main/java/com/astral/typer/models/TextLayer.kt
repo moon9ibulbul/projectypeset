@@ -364,6 +364,9 @@ class TextLayer(
     override var tailWavyIntensity: Float = 0f
     override var tailAngle: Float = 0f
     override var tailArrowPoint: Boolean = false
+    override var tailOffsetX: Float = 0f
+    override var tailOffsetY: Float = 0f
+    override var tailSeed: Long = System.currentTimeMillis()
 
     // Shape
     var isOval: Boolean = false
@@ -618,6 +621,9 @@ class TextLayer(
         result = 31 * result + tailWavyIntensity.hashCode()
         result = 31 * result + tailAngle.hashCode()
         result = 31 * result + tailArrowPoint.hashCode()
+        result = 31 * result + tailOffsetX.hashCode()
+        result = 31 * result + tailOffsetY.hashCode()
+        result = 31 * result + tailSeed.hashCode()
 
         // Twist
         result = 31 * result + twistAngle.hashCode()
@@ -963,6 +969,9 @@ class TextLayer(
         newLayer.tailWavyIntensity = this.tailWavyIntensity
         newLayer.tailAngle = this.tailAngle
         newLayer.tailArrowPoint = this.tailArrowPoint
+        newLayer.tailOffsetX = this.tailOffsetX
+        newLayer.tailOffsetY = this.tailOffsetY
+        newLayer.tailSeed = this.tailSeed
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -2645,8 +2654,10 @@ class TextLayer(
             if (layout.lineCount > 0 && tailLength > 0f) {
                 val path = android.graphics.Path()
                 val lastLine = layout.lineCount - 1
-                val startX = layout.getLineRight(lastLine) - (fontSize * 0.15f)
-                val startY = (layout.getLineBaseline(lastLine) + layout.getLineTop(lastLine)) / 2f + (fontSize * 0.1f)
+
+                // 1. Tambahkan tailOffsetX dan tailOffsetY ke titik awal (Origin)
+                val startX = layout.getLineRight(lastLine) - (fontSize * 0.15f) + tailOffsetX
+                val startY = (layout.getLineBaseline(lastLine) + layout.getLineTop(lastLine)) / 2f + (fontSize * 0.1f) + tailOffsetY
                 path.moveTo(startX, startY)
 
                 val rad = Math.toRadians(tailAngle.toDouble())
@@ -2661,12 +2672,20 @@ class TextLayer(
                 var prevX = startX
                 var prevY = startY
 
+                // 2. Inisialisasi Random menggunakan tailSeed untuk membuat variasi fase gelombang
+                val tailRandom = java.util.Random(tailSeed)
+                val phase1 = tailRandom.nextDouble() * Math.PI * 2
+                val phase2 = tailRandom.nextDouble() * Math.PI * 2
+                val phase3 = tailRandom.nextDouble() * Math.PI * 2
+
                 for (i in 1..steps) {
                     val t = i.toFloat() / steps
                     val d = t * tailLength
-                    val wave1 = Math.sin(d * 0.15)
-                    val wave2 = Math.sin(d * 0.4) * 0.5
-                    val wave3 = Math.sin(d * 0.05) * 1.5
+
+                    // 3. Masukkan phase offset ke dalam gelombang agar bentuknya berubah saat seed diganti
+                    val wave1 = Math.sin(d * 0.15 + phase1)
+                    val wave2 = Math.sin(d * 0.4 + phase2) * 0.5
+                    val wave3 = Math.sin(d * 0.05 + phase3) * 1.5
                     val waveOffset = (wave1 + wave2 + wave3).toFloat() * tailWavyIntensity * 4f
 
                     val px = startX + d * dirX + waveOffset * perpX

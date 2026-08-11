@@ -188,6 +188,9 @@ class ImageLayer(
     override var tailWavyIntensity: Float = 0f
     override var tailAngle: Float = 0f
     override var tailArrowPoint: Boolean = false
+    override var tailOffsetX: Float = 0f
+    override var tailOffsetY: Float = 0f
+    override var tailSeed: Long = System.currentTimeMillis()
 
     // Erase
     override var eraseMask: Bitmap? = null
@@ -650,6 +653,9 @@ class ImageLayer(
         newLayer.tailWavyIntensity = this.tailWavyIntensity
         newLayer.tailAngle = this.tailAngle
         newLayer.tailArrowPoint = this.tailArrowPoint
+        newLayer.tailOffsetX = this.tailOffsetX
+        newLayer.tailOffsetY = this.tailOffsetY
+        newLayer.tailSeed = this.tailSeed
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)

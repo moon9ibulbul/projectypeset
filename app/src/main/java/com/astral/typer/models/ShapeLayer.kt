@@ -240,6 +240,9 @@ class ShapeLayer(
     override var tailWavyIntensity: Float = 0f
     override var tailAngle: Float = 0f
     override var tailArrowPoint: Boolean = false
+    override var tailOffsetX: Float = 0f
+    override var tailOffsetY: Float = 0f
+    override var tailSeed: Long = System.currentTimeMillis()
 
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
@@ -2435,6 +2438,9 @@ class ShapeLayer(
         newLayer.tailWavyIntensity = tailWavyIntensity
         newLayer.tailAngle = tailAngle
         newLayer.tailArrowPoint = tailArrowPoint
+        newLayer.tailOffsetX = tailOffsetX
+        newLayer.tailOffsetY = tailOffsetY
+        newLayer.tailSeed = tailSeed
 
         return newLayer
     }
