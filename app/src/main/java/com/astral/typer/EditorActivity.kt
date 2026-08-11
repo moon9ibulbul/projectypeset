@@ -1136,6 +1136,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Zoom Blur", TextEffectType.ZOOM_BLUR)
         addEffectCard("Speed Line", TextEffectType.SPEED_LINE)
         addEffectCard("Wood Scratch", TextEffectType.WOOD_SCRATCH)
+        addEffectCard("Text Tail", TextEffectType.TEXT_TAIL)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -2547,6 +2548,71 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(btnScratchSeed)
         }
 
+        if (isEffectActive(TextEffectType.TEXT_TAIL)) {
+                // Slider: Tail Length (0 to 200)
+                val currentLength = stylableLayer.tailLength
+                val s1 = createSlider("Tail Length: ${currentLength.toInt()}", currentLength.toInt(), 200) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.tailLength = p.toFloat()
+                        tv1?.text = "Tail Length: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Slider: Tail Wavy Intensity (0 to 50)
+                val currentWavy = stylableLayer.tailWavyIntensity
+                val s2 = createSlider("Tail Wavy Intensity: ${currentWavy.toInt()}", currentWavy.toInt(), 50) { }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.tailWavyIntensity = p.toFloat()
+                        tv2?.text = "Tail Wavy Intensity: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                // Slider: Angle (0 to 360)
+                val currentAngle = stylableLayer.tailAngle
+                val s3 = createSlider("Angle: ${currentAngle.toInt()}°", currentAngle.toInt(), 360) { }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.tailAngle = p.toFloat()
+                        tv3?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
+                // Checkbox: Arrow Point
+                val cbArrow = android.widget.CheckBox(this).apply {
+                    text = "Arrow Point"
+                    setTextColor(Color.WHITE)
+                    isChecked = stylableLayer.tailArrowPoint
+                    setOnCheckedChangeListener { _, isChecked ->
+                        stylableLayer.tailArrowPoint = isChecked
+                        canvasView.invalidate()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, dpToPx(12), 0, 0)
+                    }
+                }
+                settingsLayout.addView(cbArrow)
+        }
+
         mainLayout.addView(settingsLayout)
     }
 
@@ -3865,6 +3931,12 @@ class EditorActivity : AppCompatActivity() {
         layer.neonOuterStrength = style.neonOuterStrength
         layer.neonKnockout = style.neonKnockout
         layer.neonQuality = style.neonQuality
+
+        // Text Tail properties
+        layer.tailLength = style.tailLength ?: 0f
+        layer.tailWavyIntensity = style.tailWavyIntensity ?: 0f
+        layer.tailAngle = style.tailAngle ?: 0f
+        layer.tailArrowPoint = style.tailArrowPoint ?: false
 
         // Formatting & caseType assignment
         layer.caseType = style.caseType ?: "NORMAL"

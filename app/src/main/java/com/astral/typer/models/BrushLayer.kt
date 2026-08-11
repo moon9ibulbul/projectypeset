@@ -292,6 +292,12 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var speedLineColor: Int = android.graphics.Color.BLACK
     override var speedLineAngle: Float = 0f
 
+    // Text Tail
+    override var tailLength: Float = 0f
+    override var tailWavyIntensity: Float = 0f
+    override var tailAngle: Float = 0f
+    override var tailArrowPoint: Boolean = false
+
     // Erase support
     override var eraseMask: Bitmap? = null
     override val erasePaths: MutableList<ErasePathData> = mutableListOf()
@@ -410,6 +416,12 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             speedLineAdditional = this@BrushLayer.speedLineAdditional
             speedLineColor = this@BrushLayer.speedLineColor
             speedLineAngle = this@BrushLayer.speedLineAngle
+
+            // Text Tail
+            tailLength = this@BrushLayer.tailLength
+            tailWavyIntensity = this@BrushLayer.tailWavyIntensity
+            tailAngle = this@BrushLayer.tailAngle
+            tailArrowPoint = this@BrushLayer.tailArrowPoint
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)

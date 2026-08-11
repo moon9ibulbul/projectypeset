@@ -183,6 +183,12 @@ class ImageLayer(
     override var speedLineColor: Int = android.graphics.Color.BLACK
     override var speedLineAngle: Float = 0f
 
+    // Text Tail
+    override var tailLength: Float = 0f
+    override var tailWavyIntensity: Float = 0f
+    override var tailAngle: Float = 0f
+    override var tailArrowPoint: Boolean = false
+
     // Erase
     override var eraseMask: Bitmap? = null
     override val erasePaths = mutableListOf<ErasePathData>()
@@ -638,6 +644,12 @@ class ImageLayer(
         newLayer.speedLineAdditional = this.speedLineAdditional
         newLayer.speedLineColor = this.speedLineColor
         newLayer.speedLineAngle = this.speedLineAngle
+
+        // Text Tail
+        newLayer.tailLength = this.tailLength
+        newLayer.tailWavyIntensity = this.tailWavyIntensity
+        newLayer.tailAngle = this.tailAngle
+        newLayer.tailArrowPoint = this.tailArrowPoint
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)

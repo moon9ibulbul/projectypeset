@@ -238,7 +238,11 @@ object StyleManager {
         val patternRotation: Float? = 0f,
         val caseType: String? = "NORMAL",
         val chromaticAngle: Float? = 0f,
-        val shadowThickness: Float? = 0f
+        val shadowThickness: Float? = 0f,
+        val tailLength: Float? = 0f,
+        val tailWavyIntensity: Float? = 0f,
+        val tailAngle: Float? = 0f,
+        val tailArrowPoint: Boolean? = false
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -287,7 +291,8 @@ object StyleManager {
             l.halftoneType, l.halftoneAlpha, l.halftoneRange,
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType, l.chromaticAngle, l.shadowThickness
+            l.caseType, l.chromaticAngle, l.shadowThickness,
+            l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint
         )
     }
 
@@ -443,6 +448,12 @@ object StyleManager {
         m.patternAlpha?.let { l.patternAlpha = it }
         m.patternScale?.let { l.patternScale = it }
         m.patternRotation?.let { l.patternRotation = it }
+
+        // Text Tail Restore
+        m.tailLength?.let { l.tailLength = it }
+        m.tailWavyIntensity?.let { l.tailWavyIntensity = it }
+        m.tailAngle?.let { l.tailAngle = it }
+        m.tailArrowPoint?.let { l.tailArrowPoint = it }
 
         // Formatting
         if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {

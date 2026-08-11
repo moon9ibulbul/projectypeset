@@ -220,6 +220,12 @@ object ProjectManager {
         val speedLineColor: Int? = null,
         val speedLineAngle: Float? = null,
 
+        // Text Tail
+        val tailLength: Float? = null,
+        val tailWavyIntensity: Float? = null,
+        val tailAngle: Float? = null,
+        val tailArrowPoint: Boolean? = null,
+
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -533,6 +539,12 @@ object ProjectManager {
                         speedLineColor = layer.speedLineColor,
                         speedLineAngle = layer.speedLineAngle,
 
+                        // Text Tail
+                        tailLength = layer.tailLength,
+                        tailWavyIntensity = layer.tailWavyIntensity,
+                        tailAngle = layer.tailAngle,
+                        tailArrowPoint = layer.tailArrowPoint,
+
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -655,6 +667,12 @@ object ProjectManager {
                         speedLineAdditional = layer.speedLineAdditional,
                         speedLineColor = layer.speedLineColor,
                         speedLineAngle = layer.speedLineAngle,
+
+                        // Text Tail
+                        tailLength = layer.tailLength,
+                        tailWavyIntensity = layer.tailWavyIntensity,
+                        tailAngle = layer.tailAngle,
+                        tailArrowPoint = layer.tailArrowPoint,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,
                         motionBlurOffset = layer.motionBlurOffset,
@@ -1351,6 +1369,12 @@ object ProjectManager {
             model.speedLineColor?.let { layer.speedLineColor = it }
             model.speedLineAngle?.let { layer.speedLineAngle = it }
 
+            // Text Tail
+            model.tailLength?.let { layer.tailLength = it }
+            model.tailWavyIntensity?.let { layer.tailWavyIntensity = it }
+            model.tailAngle?.let { layer.tailAngle = it }
+            model.tailArrowPoint?.let { layer.tailArrowPoint = it }
+
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -1522,6 +1546,12 @@ object ProjectManager {
             model.speedLineAdditional?.let { layer.speedLineAdditional = it }
             model.speedLineColor?.let { layer.speedLineColor = it }
             model.speedLineAngle?.let { layer.speedLineAngle = it }
+
+            // Text Tail
+            model.tailLength?.let { layer.tailLength = it }
+            model.tailWavyIntensity?.let { layer.tailWavyIntensity = it }
+            model.tailAngle?.let { layer.tailAngle = it }
+            model.tailArrowPoint?.let { layer.tailArrowPoint = it }
 
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {
