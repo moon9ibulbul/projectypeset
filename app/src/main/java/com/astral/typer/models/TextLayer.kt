@@ -1443,41 +1443,45 @@ class TextLayer(
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
-        if (useHardwareTransformEffects) {
-            val drawTransformed = { targetCanvas: Canvas ->
+        if (hasTransform) {
+            isDrawingStrokePass = true
+        }
+        try {
+            if (useHardwareTransformEffects) {
+                val drawTransformed = { targetCanvas: Canvas ->
+                    if (isWarpActive) {
+                        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                        if (_warpMesh != null && selectedWarpIndex == -1) {
+                            drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true)
+                        } else {
+                            drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
+                        }
+                    } else if (isPerspective && perspectivePoints != null) {
+                        drawPerspective(targetCanvas, layout, w, h, ch, skipEffects = true)
+                    }
+                }
+
+                fun renderChain(index: Int, targetCanvas: Canvas) {
+                    if (index < 0) {
+                        drawTransformed(targetCanvas)
+                    } else {
+                        applyEffect(activeEffects[index], targetCanvas, w, h, layout.paint, bounds) { innerCanvas ->
+                            renderChain(index - 1, innerCanvas)
+                        }
+                    }
+                }
+                renderChain(activeEffects.size - 1, canvas)
+            } else {
                 if (isWarpActive) {
                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                     if (_warpMesh != null && selectedWarpIndex == -1) {
-                        drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true)
+                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false)
                     } else {
-                        drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
+                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
                     }
                 } else if (isPerspective && perspectivePoints != null) {
-                    drawPerspective(targetCanvas, layout, w, h, ch, skipEffects = true)
-                }
-            }
-
-            fun renderChain(index: Int, targetCanvas: Canvas) {
-                if (index < 0) {
-                    drawTransformed(targetCanvas)
+                     drawPerspective(canvas, layout, w, h, ch, skipEffects = false)
                 } else {
-                    applyEffect(activeEffects[index], targetCanvas, w, h, layout.paint, bounds) { innerCanvas ->
-                        renderChain(index - 1, innerCanvas)
-                    }
-                }
-            }
-            renderChain(activeEffects.size - 1, canvas)
-        } else {
-            if (isWarpActive) {
-                val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                if (_warpMesh != null && selectedWarpIndex == -1) {
-                    drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false)
-                } else {
-                    drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
-                }
-            } else if (isPerspective && perspectivePoints != null) {
-                 drawPerspective(canvas, layout, w, h, ch, skipEffects = false)
-            } else {
                  val pad = calculatePadding()
                  val hasErase = eraseMask != null || activeErasePath != null
                  if (hasErase) {
@@ -1579,6 +1583,11 @@ class TextLayer(
                  }
             }
         }
+        } finally {
+            if (hasTransform) {
+                isDrawingStrokePass = false
+            }
+        }
 
         if (isOpacityGradient) {
             val maskPaint = Paint()
@@ -1646,15 +1655,91 @@ class TextLayer(
             val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
-            canvas.save()
-            canvas.concat(matrix)
             val destRect = RectF(
                 -w / 2f - pad,
                 -h / 2f - pad,
                 -w / 2f - pad + finalBmp.width / qualityScale,
                 -h / 2f - pad + finalBmp.height / qualityScale
             )
-            canvas.drawBitmap(finalBmp, null, destRect, paint)
+            val drawPerspectiveBmp = { p: Paint? ->
+                canvas.drawBitmap(finalBmp, null, destRect, p ?: paint)
+            }
+
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            if (hasStrokes) {
+                fun getStrokeSteps(radius: Float): Int {
+                    return when {
+                        radius <= 0f -> 0
+                        radius <= 4f -> 4
+                        radius <= 12f -> 8
+                        else -> 12
+                    }
+                }
+
+                // 3rd stroke
+                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                    val radius = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
+                    val steps = getStrokeSteps(radius)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        colorFilter = android.graphics.PorterDuffColorFilter(tripleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    for (step in 0 until steps) {
+                        val angle = (step * 2 * Math.PI / steps).toFloat()
+                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                        canvas.save()
+                        canvas.translate(dx, dy)
+                        canvas.concat(matrix)
+                        drawPerspectiveBmp(strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 2nd stroke
+                if (doubleStrokeWidth > 0f) {
+                    val radius = strokeWidth + doubleStrokeWidth * 2
+                    val steps = getStrokeSteps(radius)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        colorFilter = android.graphics.PorterDuffColorFilter(doubleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    for (step in 0 until steps) {
+                        val angle = (step * 2 * Math.PI / steps).toFloat()
+                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                        canvas.save()
+                        canvas.translate(dx, dy)
+                        canvas.concat(matrix)
+                        drawPerspectiveBmp(strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 1st stroke
+                if (strokeWidth > 0f) {
+                    val radius = strokeWidth
+                    val steps = getStrokeSteps(radius)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        colorFilter = android.graphics.PorterDuffColorFilter(strokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    for (step in 0 until steps) {
+                        val angle = (step * 2 * Math.PI / steps).toFloat()
+                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                        canvas.save()
+                        canvas.translate(dx, dy)
+                        canvas.concat(matrix)
+                        drawPerspectiveBmp(strokePaint)
+                        canvas.restore()
+                    }
+                }
+            }
+
+            canvas.save()
+            canvas.concat(matrix)
+            drawPerspectiveBmp(paint)
             canvas.restore()
         }
     }
@@ -2010,14 +2095,148 @@ class TextLayer(
                     }
 
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        canvas.drawBitmapMesh(tempBmp, meshW, meshH, paddedVerts, 0, null, 0, paint)
-                    } else {
-                        canvas.drawBitmapMesh(tempBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
+                    val drawCharMesh = { p: Paint? ->
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            canvas.drawBitmapMesh(tempBmp, meshW, meshH, paddedVerts, 0, null, 0, p ?: paint)
+                        } else {
+                            canvas.drawBitmapMesh(tempBmp, meshW, meshH, paddedVerts, 0, null, 0, p)
+                        }
                     }
+
+                    val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+                    if (hasStrokes) {
+                        fun getStrokeSteps(radius: Float): Int {
+                            return when {
+                                radius <= 0f -> 0
+                                radius <= 4f -> 4
+                                radius <= 12f -> 8
+                                else -> 12
+                            }
+                        }
+
+                        // 3rd stroke
+                        if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                            val radius = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
+                            val steps = getStrokeSteps(radius)
+                            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                isFilterBitmap = true
+                                colorFilter = android.graphics.PorterDuffColorFilter(tripleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            for (step in 0 until steps) {
+                                val angle = (step * 2 * Math.PI / steps).toFloat()
+                                val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                                val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                                canvas.save()
+                                canvas.translate(dx, dy)
+                                drawCharMesh(strokePaint)
+                                canvas.restore()
+                            }
+                        }
+
+                        // 2nd stroke
+                        if (doubleStrokeWidth > 0f) {
+                            val radius = strokeWidth + doubleStrokeWidth * 2
+                            val steps = getStrokeSteps(radius)
+                            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                isFilterBitmap = true
+                                colorFilter = android.graphics.PorterDuffColorFilter(doubleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            for (step in 0 until steps) {
+                                val angle = (step * 2 * Math.PI / steps).toFloat()
+                                val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                                val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                                canvas.save()
+                                canvas.translate(dx, dy)
+                                drawCharMesh(strokePaint)
+                                canvas.restore()
+                            }
+                        }
+
+                        // 1st stroke
+                        if (strokeWidth > 0f) {
+                            val radius = strokeWidth
+                            val steps = getStrokeSteps(radius)
+                            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                isFilterBitmap = true
+                                colorFilter = android.graphics.PorterDuffColorFilter(strokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            for (step in 0 until steps) {
+                                val angle = (step * 2 * Math.PI / steps).toFloat()
+                                val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                                val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                                canvas.save()
+                                canvas.translate(dx, dy)
+                                drawCharMesh(strokePaint)
+                                canvas.restore()
+                            }
+                        }
+                    }
+
+                    drawCharMesh(paint)
                     tempBmp.recycle()
                 }
             } else {
+                val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+                if (hasStrokes) {
+                    fun getStrokeSteps(radius: Float): Int {
+                        return when {
+                            radius <= 0f -> 0
+                            radius <= 4f -> 4
+                            radius <= 12f -> 8
+                            else -> 12
+                        }
+                    }
+
+                    // 3rd stroke
+                    if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                        val radius = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
+                        val steps = getStrokeSteps(radius)
+                        silhouetteColor = tripleStrokeColor
+                        for (step in 0 until steps) {
+                            val angle = (step * 2 * Math.PI / steps).toFloat()
+                            val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                            val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                            canvas.save()
+                            canvas.translate(-w / 2f + left + dx, -h / 2f + yTop + dy)
+                            drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
+                            canvas.restore()
+                        }
+                    }
+
+                    // 2nd stroke
+                    if (doubleStrokeWidth > 0f) {
+                        val radius = strokeWidth + doubleStrokeWidth * 2
+                        val steps = getStrokeSteps(radius)
+                        silhouetteColor = doubleStrokeColor
+                        for (step in 0 until steps) {
+                            val angle = (step * 2 * Math.PI / steps).toFloat()
+                            val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                            val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                            canvas.save()
+                            canvas.translate(-w / 2f + left + dx, -h / 2f + yTop + dy)
+                            drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
+                            canvas.restore()
+                        }
+                    }
+
+                    // 1st stroke
+                    if (strokeWidth > 0f) {
+                        val radius = strokeWidth
+                        val steps = getStrokeSteps(radius)
+                        silhouetteColor = strokeColor
+                        for (step in 0 until steps) {
+                            val angle = (step * 2 * Math.PI / steps).toFloat()
+                            val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                            val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                            canvas.save()
+                            canvas.translate(-w / 2f + left + dx, -h / 2f + yTop + dy)
+                            drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
+                            canvas.restore()
+                        }
+                    }
+                    silhouetteColor = null
+                }
+
                 canvas.save()
                 canvas.translate(-w / 2f + left, -h / 2f + yTop)
                 drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
@@ -2080,11 +2299,84 @@ class TextLayer(
             }
 
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, paint)
-            } else {
-                canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
+            val drawMesh = { p: Paint? ->
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, p ?: paint)
+                } else {
+                    canvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, p)
+                }
             }
+
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            if (hasStrokes) {
+                fun getStrokeSteps(radius: Float): Int {
+                    return when {
+                        radius <= 0f -> 0
+                        radius <= 4f -> 4
+                        radius <= 12f -> 8
+                        else -> 12
+                    }
+                }
+
+                // 3rd stroke
+                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                    val radius = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
+                    val steps = getStrokeSteps(radius)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        colorFilter = android.graphics.PorterDuffColorFilter(tripleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    for (step in 0 until steps) {
+                        val angle = (step * 2 * Math.PI / steps).toFloat()
+                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                        canvas.save()
+                        canvas.translate(dx, dy)
+                        drawMesh(strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 2nd stroke
+                if (doubleStrokeWidth > 0f) {
+                    val radius = strokeWidth + doubleStrokeWidth * 2
+                    val steps = getStrokeSteps(radius)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        colorFilter = android.graphics.PorterDuffColorFilter(doubleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    for (step in 0 until steps) {
+                        val angle = (step * 2 * Math.PI / steps).toFloat()
+                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                        canvas.save()
+                        canvas.translate(dx, dy)
+                        drawMesh(strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 1st stroke
+                if (strokeWidth > 0f) {
+                    val radius = strokeWidth
+                    val steps = getStrokeSteps(radius)
+                    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        colorFilter = android.graphics.PorterDuffColorFilter(strokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    for (step in 0 until steps) {
+                        val angle = (step * 2 * Math.PI / steps).toFloat()
+                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
+                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
+                        canvas.save()
+                        canvas.translate(dx, dy)
+                        drawMesh(strokePaint)
+                        canvas.restore()
+                    }
+                }
+            }
+
+            drawMesh(paint)
 
             if (isFreshBmp) {
                 finalBmp.recycle()
@@ -2136,7 +2428,7 @@ class TextLayer(
             }
 
             // 0. Triple Stroke
-            if (!isDrawingClippingMask && tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
                 paint.shader = null
@@ -2147,7 +2439,7 @@ class TextLayer(
             }
 
             // 1. Double Stroke
-            if (!isDrawingClippingMask && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidth > 0f && strokeWidth > 0f) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
                 paint.shader = null
@@ -2158,7 +2450,7 @@ class TextLayer(
             }
 
             // 2. Stroke
-            if (!isDrawingClippingMask && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidth > 0f) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidth
                 if (silhouetteColor != null) {

@@ -202,6 +202,7 @@ abstract class Layer {
     var isLocked: Boolean = false
     var isClipped: Boolean = false
     var isDrawingClippingMask: Boolean = false
+    @Transient var isDrawingStrokePass: Boolean = false
     var name: String = "Layer"
 
     // Opacity & Blend
