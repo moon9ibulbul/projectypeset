@@ -473,76 +473,87 @@ class ShapeLayer(
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
 
-        val drawPerspectiveContent = {
+        val drawPerspectiveContent = { p: Paint? ->
             canvas.save()
             canvas.concat(matrix)
             canvas.translate(-w / 2f, -h / 2f)
-            drawContent(canvas, w, h, skipEffects = skipEffects)
+            if (p != null) {
+                val saveLayerCount = canvas.saveLayer(null, p)
+                drawContent(canvas, w, h, skipEffects = skipEffects)
+                canvas.restoreToCount(saveLayerCount)
+            } else {
+                drawContent(canvas, w, h, skipEffects = skipEffects)
+            }
             canvas.restore()
         }
 
         val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
         if (hasStrokes) {
-            fun getStrokeSteps(radius: Float): Int {
-                return when {
-                    radius <= 0f -> 0
-                    radius <= 4f -> 4
-                    radius <= 12f -> 8
-                    else -> 12
-                }
-            }
-
             // 3rd stroke
             if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
-                val radius = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
-                val steps = getStrokeSteps(radius)
-                silhouetteColor = tripleStrokeColor
-                for (step in 0 until steps) {
-                    val angle = (step * 2 * Math.PI / steps).toFloat()
-                    val dx = radius * Math.cos(angle.toDouble()).toFloat()
-                    val dy = radius * Math.sin(angle.toDouble()).toFloat()
-                    canvas.save()
-                    canvas.translate(dx, dy)
-                    drawPerspectiveContent()
-                    canvas.restore()
+                val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2)
+                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    val r = android.graphics.Color.red(tripleStrokeColor).toFloat()
+                    val g = android.graphics.Color.green(tripleStrokeColor).toFloat()
+                    val b = android.graphics.Color.blue(tripleStrokeColor).toFloat()
+                    val cm = android.graphics.ColorMatrix(floatArrayOf(
+                        0f, 0f, 0f, 0f, r,
+                        0f, 0f, 0f, 0f, g,
+                        0f, 0f, 0f, 0f, b,
+                        0f, 0f, 0f, 100f, -250f
+                    ))
+                    colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                    alpha = android.graphics.Color.alpha(tripleStrokeColor)
                 }
+                drawPerspectiveContent(strokePaint)
             }
 
             // 2nd stroke
             if (doubleStrokeWidth > 0f) {
-                val radius = strokeWidth + doubleStrokeWidth * 2
-                val steps = getStrokeSteps(radius)
-                silhouetteColor = doubleStrokeColor
-                for (step in 0 until steps) {
-                    val angle = (step * 2 * Math.PI / steps).toFloat()
-                    val dx = radius * Math.cos(angle.toDouble()).toFloat()
-                    val dy = radius * Math.sin(angle.toDouble()).toFloat()
-                    canvas.save()
-                    canvas.translate(dx, dy)
-                    drawPerspectiveContent()
-                    canvas.restore()
+                val radius = (strokeWidth + doubleStrokeWidth * 2)
+                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    val r = android.graphics.Color.red(doubleStrokeColor).toFloat()
+                    val g = android.graphics.Color.green(doubleStrokeColor).toFloat()
+                    val b = android.graphics.Color.blue(doubleStrokeColor).toFloat()
+                    val cm = android.graphics.ColorMatrix(floatArrayOf(
+                        0f, 0f, 0f, 0f, r,
+                        0f, 0f, 0f, 0f, g,
+                        0f, 0f, 0f, 0f, b,
+                        0f, 0f, 0f, 100f, -250f
+                    ))
+                    colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                    alpha = android.graphics.Color.alpha(doubleStrokeColor)
                 }
+                drawPerspectiveContent(strokePaint)
             }
 
             // 1st stroke
             if (strokeWidth > 0f) {
                 val radius = strokeWidth
-                val steps = getStrokeSteps(radius)
-                silhouetteColor = strokeColor
-                for (step in 0 until steps) {
-                    val angle = (step * 2 * Math.PI / steps).toFloat()
-                    val dx = radius * Math.cos(angle.toDouble()).toFloat()
-                    val dy = radius * Math.sin(angle.toDouble()).toFloat()
-                    canvas.save()
-                    canvas.translate(dx, dy)
-                    drawPerspectiveContent()
-                    canvas.restore()
+                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    val r = android.graphics.Color.red(strokeColor).toFloat()
+                    val g = android.graphics.Color.green(strokeColor).toFloat()
+                    val b = android.graphics.Color.blue(strokeColor).toFloat()
+                    val cm = android.graphics.ColorMatrix(floatArrayOf(
+                        0f, 0f, 0f, 0f, r,
+                        0f, 0f, 0f, 0f, g,
+                        0f, 0f, 0f, 0f, b,
+                        0f, 0f, 0f, 100f, -250f
+                    ))
+                    colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                    alpha = android.graphics.Color.alpha(strokeColor)
                 }
+                drawPerspectiveContent(strokePaint)
             }
-            silhouetteColor = null
         }
 
-        drawPerspectiveContent()
+        drawPerspectiveContent(null)
     }
 
     private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
@@ -579,70 +590,67 @@ class ShapeLayer(
 
             val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
             if (hasStrokes) {
-                fun getStrokeSteps(radius: Float): Int {
-                    return when {
-                        radius <= 0f -> 0
-                        radius <= 4f -> 4
-                        radius <= 12f -> 8
-                        else -> 12
-                    }
-                }
-
                 // 3rd stroke
                 if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
-                    val radius = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
-                    val steps = getStrokeSteps(radius)
+                    val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2) * qualityScale
                     val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
-                        colorFilter = android.graphics.PorterDuffColorFilter(tripleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                        maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        val r = android.graphics.Color.red(tripleStrokeColor).toFloat()
+                        val g = android.graphics.Color.green(tripleStrokeColor).toFloat()
+                        val b = android.graphics.Color.blue(tripleStrokeColor).toFloat()
+                        val cm = android.graphics.ColorMatrix(floatArrayOf(
+                            0f, 0f, 0f, 0f, r,
+                            0f, 0f, 0f, 0f, g,
+                            0f, 0f, 0f, 0f, b,
+                            0f, 0f, 0f, 100f, -250f
+                        ))
+                        colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        alpha = android.graphics.Color.alpha(tripleStrokeColor)
                     }
-                    for (step in 0 until steps) {
-                        val angle = (step * 2 * Math.PI / steps).toFloat()
-                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
-                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
-                        canvas.save()
-                        canvas.translate(dx, dy)
-                        drawMesh(strokePaint)
-                        canvas.restore()
-                    }
+                    drawMesh(strokePaint)
                 }
 
                 // 2nd stroke
                 if (doubleStrokeWidth > 0f) {
-                    val radius = strokeWidth + doubleStrokeWidth * 2
-                    val steps = getStrokeSteps(radius)
+                    val radius = (strokeWidth + doubleStrokeWidth * 2) * qualityScale
                     val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
-                        colorFilter = android.graphics.PorterDuffColorFilter(doubleStrokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                        maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        val r = android.graphics.Color.red(doubleStrokeColor).toFloat()
+                        val g = android.graphics.Color.green(doubleStrokeColor).toFloat()
+                        val b = android.graphics.Color.blue(doubleStrokeColor).toFloat()
+                        val cm = android.graphics.ColorMatrix(floatArrayOf(
+                            0f, 0f, 0f, 0f, r,
+                            0f, 0f, 0f, 0f, g,
+                            0f, 0f, 0f, 0f, b,
+                            0f, 0f, 0f, 100f, -250f
+                        ))
+                        colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        alpha = android.graphics.Color.alpha(doubleStrokeColor)
                     }
-                    for (step in 0 until steps) {
-                        val angle = (step * 2 * Math.PI / steps).toFloat()
-                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
-                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
-                        canvas.save()
-                        canvas.translate(dx, dy)
-                        drawMesh(strokePaint)
-                        canvas.restore()
-                    }
+                    drawMesh(strokePaint)
                 }
 
                 // 1st stroke
                 if (strokeWidth > 0f) {
-                    val radius = strokeWidth
-                    val steps = getStrokeSteps(radius)
+                    val radius = strokeWidth * qualityScale
                     val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
-                        colorFilter = android.graphics.PorterDuffColorFilter(strokeColor, android.graphics.PorterDuff.Mode.SRC_IN)
+                        maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        val r = android.graphics.Color.red(strokeColor).toFloat()
+                        val g = android.graphics.Color.green(strokeColor).toFloat()
+                        val b = android.graphics.Color.blue(strokeColor).toFloat()
+                        val cm = android.graphics.ColorMatrix(floatArrayOf(
+                            0f, 0f, 0f, 0f, r,
+                            0f, 0f, 0f, 0f, g,
+                            0f, 0f, 0f, 0f, b,
+                            0f, 0f, 0f, 100f, -250f
+                        ))
+                        colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        alpha = android.graphics.Color.alpha(strokeColor)
                     }
-                    for (step in 0 until steps) {
-                        val angle = (step * 2 * Math.PI / steps).toFloat()
-                        val dx = radius * Math.cos(angle.toDouble()).toFloat()
-                        val dy = radius * Math.sin(angle.toDouble()).toFloat()
-                        canvas.save()
-                        canvas.translate(dx, dy)
-                        drawMesh(strokePaint)
-                        canvas.restore()
-                    }
+                    drawMesh(strokePaint)
                 }
             }
 
