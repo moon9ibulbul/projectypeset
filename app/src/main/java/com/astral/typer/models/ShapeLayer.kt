@@ -416,16 +416,16 @@ class ShapeLayer(
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
         if (hasTransform) {
-            isDrawingStrokePass = true
+            isDrawingStrokePass = !isRoughStroke
         }
         try {
             if (useHardwareTransformEffects) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarp && warpMesh != null) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                        drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true)
+                        drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true, bounds = bounds)
                     } else if (isPerspective && perspectivePoints != null) {
-                        drawPerspective(targetCanvas, w, h, skipEffects = true)
+                        drawPerspective(targetCanvas, w, h, skipEffects = true, bounds = bounds)
                     }
                 }
 
@@ -442,9 +442,9 @@ class ShapeLayer(
             } else {
                 if (isWarp && warpMesh != null) {
                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false)
+                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false, bounds = bounds)
                 } else if (isPerspective && perspectivePoints != null) {
-                     drawPerspective(canvas, w, h, skipEffects = false)
+                     drawPerspective(canvas, w, h, skipEffects = false, bounds = bounds)
                 } else {
                      canvas.translate(dx, dy)
                      drawContent(canvas, w, h, skipEffects = false)
@@ -491,7 +491,7 @@ class ShapeLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
+    private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false, bounds: RectF) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
@@ -501,13 +501,16 @@ class ShapeLayer(
         val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
+            val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
+            val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
+
             val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
-            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != bmpW || morphedBmpCache!!.height != bmpH || morphedBmpHash != shapeHash) {
+            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
-                val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
                 val tempCanvas = Canvas(morphedBmp)
                 tempCanvas.scale(qualityScale, qualityScale)
-                tempCanvas.translate(pad, pad)
+                tempCanvas.translate(-bounds.left, -bounds.top)
 
                 tempCanvas.save()
                 tempCanvas.concat(matrix)
@@ -521,7 +524,7 @@ class ShapeLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
@@ -553,7 +556,7 @@ class ShapeLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] - pad * qualityScale), (stroke3Offset[1] - pad * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] + bounds.left * qualityScale), (stroke3Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -588,7 +591,7 @@ class ShapeLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] - pad * qualityScale), (stroke2Offset[1] - pad * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] + bounds.left * qualityScale), (stroke2Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -623,7 +626,7 @@ class ShapeLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] - pad * qualityScale), (stroke1Offset[1] - pad * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] + bounds.left * qualityScale), (stroke1Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -635,12 +638,12 @@ class ShapeLayer(
 
             canvas.save()
             canvas.scale(1f / qualityScale, 1f / qualityScale)
-            canvas.drawBitmap(morphedBmp, -pad * qualityScale, -pad * qualityScale, paint)
+            canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, paint)
             canvas.restore()
         }
     }
 
-    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
+    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF) {
         val pad = calculatePadding()
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
@@ -667,13 +670,16 @@ class ShapeLayer(
                 }
             }
 
+            val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
+            val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
+
             val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
-            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != bmpW || morphedBmpCache!!.height != bmpH || morphedBmpHash != shapeHash) {
+            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
-                val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
                 val tempCanvas = Canvas(morphedBmp)
                 tempCanvas.scale(qualityScale, qualityScale)
-                tempCanvas.translate(w / 2f + pad, h / 2f + pad)
+                tempCanvas.translate(-bounds.left, -bounds.top)
                 val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
                 tempCanvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
                 morphedBmpCache = morphedBmp
@@ -683,7 +689,7 @@ class ShapeLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
@@ -715,7 +721,7 @@ class ShapeLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] - (w / 2f + pad) * qualityScale), (stroke3Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] + bounds.left * qualityScale), (stroke3Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -750,7 +756,7 @@ class ShapeLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] - (w / 2f + pad) * qualityScale), (stroke2Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] + bounds.left * qualityScale), (stroke2Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -785,7 +791,7 @@ class ShapeLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] - (w / 2f + pad) * qualityScale), (stroke1Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] + bounds.left * qualityScale), (stroke1Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -797,7 +803,7 @@ class ShapeLayer(
 
             canvas.save()
             canvas.scale(1f / qualityScale, 1f / qualityScale)
-            canvas.drawBitmap(morphedBmp, (-w / 2f - pad) * qualityScale, (-h / 2f - pad) * qualityScale, paint)
+            canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, paint)
             canvas.restore()
             bitmap.recycle()
         }

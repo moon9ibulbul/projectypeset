@@ -1487,7 +1487,7 @@ class TextLayer(
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
         if (hasTransform) {
-            isDrawingStrokePass = true
+            isDrawingStrokePass = !isRoughStroke
         }
         try {
             if (useHardwareTransformEffects) {
@@ -1495,12 +1495,12 @@ class TextLayer(
                     if (isWarpActive) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                         if (_warpMesh != null && selectedWarpIndex == -1) {
-                            drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true)
+                            drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true, bounds = bounds)
                         } else {
                             drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
                         }
                     } else if (isPerspective && perspectivePoints != null) {
-                        drawPerspective(targetCanvas, layout, w, h, ch, skipEffects = true)
+                        drawPerspective(targetCanvas, layout, w, h, ch, skipEffects = true, bounds = bounds)
                     }
                 }
 
@@ -1518,12 +1518,12 @@ class TextLayer(
                 if (isWarpActive) {
                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                     if (_warpMesh != null && selectedWarpIndex == -1) {
-                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false)
+                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false, bounds = bounds)
                     } else {
                         drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
                     }
                 } else if (isPerspective && perspectivePoints != null) {
-                     drawPerspective(canvas, layout, w, h, ch, skipEffects = false)
+                     drawPerspective(canvas, layout, w, h, ch, skipEffects = false, bounds = bounds)
                 } else {
                  val pad = calculatePadding()
                  val hasErase = eraseMask != null || activeErasePath != null
@@ -1685,7 +1685,7 @@ class TextLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false) {
+    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false, bounds: RectF) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
@@ -1697,13 +1697,16 @@ class TextLayer(
         if (bmpW > 0 && bmpH > 0) {
             val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
 
+            val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
+            val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
+
             val shapeHash = listOf(erasedContentHash, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
-            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != bmpW || morphedBmpCache!!.height != bmpH || morphedBmpHash != shapeHash) {
+            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
-                val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
                 val tempCanvas = Canvas(morphedBmp)
                 tempCanvas.scale(qualityScale, qualityScale)
-                tempCanvas.translate(w / 2f + pad, h / 2f + pad)
+                tempCanvas.translate(-bounds.left, -bounds.top)
 
                 tempCanvas.save()
                 tempCanvas.concat(matrix)
@@ -1723,7 +1726,7 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
@@ -1755,7 +1758,7 @@ class TextLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] - (w / 2f + pad) * qualityScale), (stroke3Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] + bounds.left * qualityScale), (stroke3Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -1790,7 +1793,7 @@ class TextLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] - (w / 2f + pad) * qualityScale), (stroke2Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] + bounds.left * qualityScale), (stroke2Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -1825,7 +1828,7 @@ class TextLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] - (w / 2f + pad) * qualityScale), (stroke1Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] + bounds.left * qualityScale), (stroke1Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -1837,7 +1840,7 @@ class TextLayer(
 
             canvas.save()
             canvas.scale(1f / qualityScale, 1f / qualityScale)
-            canvas.drawBitmap(morphedBmp, (-w / 2f - pad) * qualityScale, (-h / 2f - pad) * qualityScale, paint)
+            canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, paint)
             canvas.restore()
         }
     }
@@ -2163,10 +2166,25 @@ class TextLayer(
 
             val mesh = letterWarpMeshes[i]
             if (mesh != null) {
+                val charWarpedBounds = RectF()
+                for (idx in 0 until (mesh.size / 2)) {
+                    val mx = mesh[idx * 2]
+                    val my = mesh[idx * 2 + 1]
+                    if (idx == 0) {
+                        charWarpedBounds.set(mx, my, mx, my)
+                    } else {
+                        charWarpedBounds.union(mx, my)
+                    }
+                }
+                charWarpedBounds.inset(-pad, -pad)
+
+                val targetBmpW = ceil(charWarpedBounds.width() * qualityScale).toInt()
+                val targetBmpH = ceil(charWarpedBounds.height() * qualityScale).toInt()
+
                 val bmpW = ceil((charW + pad * 2) * qualityScale).toInt()
                 val bmpH = ceil((charH + pad * 2) * qualityScale).toInt()
 
-                if (bmpW > 0 && bmpH > 0) {
+                if (bmpW > 0 && bmpH > 0 && targetBmpW > 0 && targetBmpH > 0) {
                     val tempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
                     val tempCanvas = Canvas(tempBmp)
                     tempCanvas.scale(qualityScale, qualityScale)
@@ -2193,12 +2211,12 @@ class TextLayer(
                     }
 
                     val charHash = listOf(i, charW, charH, mesh.contentHashCode(), qualityScale).hashCode()
-                    if (morphedCharBmpCache[i] == null || morphedCharBmpCache[i]!!.isRecycled || morphedCharBmpCache[i]!!.width != bmpW || morphedCharBmpCache[i]!!.height != bmpH || morphedCharBmpHash[i] != charHash) {
+                    if (morphedCharBmpCache[i] == null || morphedCharBmpCache[i]!!.isRecycled || morphedCharBmpCache[i]!!.width != targetBmpW || morphedCharBmpCache[i]!!.height != targetBmpH || morphedCharBmpHash[i] != charHash) {
                         morphedCharBmpCache[i]?.recycle()
-                        val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
                         val morphedCanvas = Canvas(morphedBmp)
                         morphedCanvas.scale(qualityScale, qualityScale)
-                        morphedCanvas.translate(charW / 2f + pad, charH / 2f + pad)
+                        morphedCanvas.translate(-charWarpedBounds.left, -charWarpedBounds.top)
                         val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                             morphedCanvas.drawBitmapMesh(tempBmp, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
@@ -2212,7 +2230,7 @@ class TextLayer(
                     val morphedBmp = morphedCharBmpCache[i]!!
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-                    val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+                    val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
                     if (hasStrokes) {
                         // 3rd stroke
                         if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
@@ -2247,7 +2265,7 @@ class TextLayer(
                                 }
                                 canvas.save()
                                 canvas.scale(1f / qualityScale, 1f / qualityScale)
-                                canvas.drawBitmap(blurredAlphaBmp, (offset[0] - (charW / 2f + pad) * qualityScale), (offset[1] - (charH / 2f + pad) * qualityScale), strokePaint)
+                                canvas.drawBitmap(blurredAlphaBmp, (offset[0] + charWarpedBounds.left * qualityScale), (offset[1] + charWarpedBounds.top * qualityScale), strokePaint)
                                 canvas.restore()
                             }
                         }
@@ -2285,7 +2303,7 @@ class TextLayer(
                                 }
                                 canvas.save()
                                 canvas.scale(1f / qualityScale, 1f / qualityScale)
-                                canvas.drawBitmap(blurredAlphaBmp, (offset[0] - (charW / 2f + pad) * qualityScale), (offset[1] - (charH / 2f + pad) * qualityScale), strokePaint)
+                                canvas.drawBitmap(blurredAlphaBmp, (offset[0] + charWarpedBounds.left * qualityScale), (offset[1] + charWarpedBounds.top * qualityScale), strokePaint)
                                 canvas.restore()
                             }
                         }
@@ -2323,7 +2341,7 @@ class TextLayer(
                                 }
                                 canvas.save()
                                 canvas.scale(1f / qualityScale, 1f / qualityScale)
-                                canvas.drawBitmap(blurredAlphaBmp, (offset[0] - (charW / 2f + pad) * qualityScale), (offset[1] - (charH / 2f + pad) * qualityScale), strokePaint)
+                                canvas.drawBitmap(blurredAlphaBmp, (offset[0] + charWarpedBounds.left * qualityScale), (offset[1] + charWarpedBounds.top * qualityScale), strokePaint)
                                 canvas.restore()
                             }
                         }
@@ -2335,7 +2353,7 @@ class TextLayer(
 
                     canvas.save()
                     canvas.scale(1f / qualityScale, 1f / qualityScale)
-                    canvas.drawBitmap(morphedBmp, (-charW / 2f - pad) * qualityScale, (-charH / 2f - pad) * qualityScale, paint)
+                    canvas.drawBitmap(morphedBmp, charWarpedBounds.left * qualityScale, charWarpedBounds.top * qualityScale, paint)
                     canvas.restore()
 
                     tempBmp.recycle()
@@ -2364,32 +2382,24 @@ class TextLayer(
         return bmp
     }
 
-    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
+    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF) {
         val pad = calculatePadding()
-        val isFreshBmp = letterWarpMeshes.isNotEmpty()
+        val isFreshBmp = false // Regresi 3: force to false to isolate standard Warp from Puppet Warp!
 
-        val bounds = if (isFreshBmp) {
-            getExpandedRenderBounds(layout, w, h, ch, pad)
-        } else {
-            RenderBounds(
-                renderLeft = -w / 2f - pad,
-                renderRight = w / 2f + pad,
-                renderTop = -h / 2f - pad,
-                renderBottom = -h / 2f + ch + pad
-            )
-        }
+        val srcBounds = RenderBounds(
+            renderLeft = -w / 2f - pad,
+            renderRight = w / 2f + pad,
+            renderTop = -h / 2f - pad,
+            renderBottom = -h / 2f + ch + pad
+        )
 
-        val renderW = bounds.renderRight - bounds.renderLeft
-        val renderH = bounds.renderBottom - bounds.renderTop
+        val renderW = srcBounds.renderRight - srcBounds.renderLeft
+        val renderH = srcBounds.renderBottom - srcBounds.renderTop
         val bmpW = ceil(renderW * qualityScale).toInt()
         val bmpH = ceil(renderH * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val finalBmp = if (isFreshBmp) {
-                getAssembledLetterWarpBitmap(bounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
-            } else {
-                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
-            }
+            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
 
             val meshW = 20
             val meshH = 20
@@ -2397,10 +2407,10 @@ class TextLayer(
             val outPoint = FloatArray(2)
             var idx = 0
             for (i in 0..meshH) {
-                val ly = bounds.renderTop + (i.toFloat() / meshH) * renderH
+                val ly = srcBounds.renderTop + (i.toFloat() / meshH) * renderH
                 val v = (ly + h / 2f) / h
                 for (j in 0..meshW) {
-                    val lx = bounds.renderLeft + (j.toFloat() / meshW) * renderW
+                    val lx = srcBounds.renderLeft + (j.toFloat() / meshW) * renderW
                     val u = (lx + w / 2f) / w
                     evaluateFullLayerBezierSurface(u, v, outPoint)
                     paddedVerts[idx++] = outPoint[0]
@@ -2408,13 +2418,16 @@ class TextLayer(
                 }
             }
 
-            val shapeHash = listOf(erasedContentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.renderLeft, bounds.renderTop, qualityScale).hashCode()
-            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != bmpW || morphedBmpCache!!.height != bmpH || morphedBmpHash != shapeHash) {
+            val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
+            val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
+
+            val shapeHash = listOf(erasedContentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
+            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
-                val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
                 val tempCanvas = Canvas(morphedBmp)
                 tempCanvas.scale(qualityScale, qualityScale)
-                tempCanvas.translate(-bounds.renderLeft, -bounds.renderTop)
+                tempCanvas.translate(-bounds.left, -bounds.top)
                 val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     tempCanvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
@@ -2428,7 +2441,7 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
@@ -2460,7 +2473,7 @@ class TextLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] + bounds.renderLeft * qualityScale), (stroke3Offset[1] + bounds.renderTop * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] + bounds.left * qualityScale), (stroke3Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -2495,7 +2508,7 @@ class TextLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] + bounds.renderLeft * qualityScale), (stroke2Offset[1] + bounds.renderTop * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] + bounds.left * qualityScale), (stroke2Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -2530,7 +2543,7 @@ class TextLayer(
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] + bounds.renderLeft * qualityScale), (stroke1Offset[1] + bounds.renderTop * qualityScale), strokePaint)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] + bounds.left * qualityScale), (stroke1Offset[1] + bounds.top * qualityScale), strokePaint)
                         canvas.restore()
                     }
                 }
@@ -2542,12 +2555,8 @@ class TextLayer(
 
             canvas.save()
             canvas.scale(1f / qualityScale, 1f / qualityScale)
-            canvas.drawBitmap(morphedBmp, bounds.renderLeft * qualityScale, bounds.renderTop * qualityScale, paint)
+            canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, paint)
             canvas.restore()
-
-            if (isFreshBmp) {
-                finalBmp.recycle()
-            }
         }
     }
 
