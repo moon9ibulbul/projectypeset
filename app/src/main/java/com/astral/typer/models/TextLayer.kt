@@ -399,6 +399,11 @@ class TextLayer(
     @Transient
     var erasedContentHash: Int = -1
 
+    @Transient
+    var assembledWarpBmpCache: Bitmap? = null
+    @Transient
+    var assembledWarpBmpHash: Int = 0
+
     @Transient var morphedBmpCache: Bitmap? = null
     @Transient var morphedBmpHash: Int = 0
 
@@ -727,6 +732,9 @@ class TextLayer(
         cleanContentCache = null
         erasedContentCache?.recycle()
         erasedContentCache = null
+        assembledWarpBmpCache?.recycle()
+        assembledWarpBmpCache = null
+        assembledWarpBmpHash = 0
         cachedPixelBitmap?.recycle()
         cachedPixelBitmap = null
         cachedWavyBitmap?.recycle()
@@ -2377,25 +2385,44 @@ class TextLayer(
         }
     }
 
-    private fun getAssembledLetterWarpBitmap(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false): Bitmap {
-        val bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        canvas.scale(qualityScale, qualityScale)
-        canvas.translate(-bounds.renderLeft, -bounds.renderTop)
-        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects)
-        return bmp
+    private fun getAssembledLetterWarpBitmapCached(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false): Bitmap {
+        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
+        var meshHash = 0
+        for ((key, value) in letterWarpMeshes) {
+            meshHash = 31 * meshHash + key
+            meshHash = 31 * meshHash + value.contentHashCode()
+        }
+        val combinedHash = listOf(cleanHash, meshHash, qualityScale, bmpW, bmpH).hashCode()
+
+        if (assembledWarpBmpCache == null || assembledWarpBmpCache!!.isRecycled ||
+            assembledWarpBmpCache!!.width != bmpW || assembledWarpBmpCache!!.height != bmpH ||
+            assembledWarpBmpHash != combinedHash) {
+            assembledWarpBmpCache?.recycle()
+            val bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            canvas.scale(qualityScale, qualityScale)
+            canvas.translate(-bounds.renderLeft, -bounds.renderTop)
+            drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects)
+            assembledWarpBmpCache = bmp
+            assembledWarpBmpHash = combinedHash
+        }
+        return assembledWarpBmpCache!!
     }
 
     private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF) {
         val pad = calculatePadding()
-        val isFreshBmp = false // Regresi 3: force to false to isolate standard Warp from Puppet Warp!
+        val isFreshBmp = letterWarpMeshes.isNotEmpty()
 
-        val srcBounds = RenderBounds(
-            renderLeft = -w / 2f - pad,
-            renderRight = w / 2f + pad,
-            renderTop = -h / 2f - pad,
-            renderBottom = -h / 2f + ch + pad
-        )
+        val srcBounds = if (isFreshBmp) {
+            getExpandedRenderBounds(layout, w, h, ch, pad)
+        } else {
+            RenderBounds(
+                renderLeft = -w / 2f - pad,
+                renderRight = w / 2f + pad,
+                renderTop = -h / 2f - pad,
+                renderBottom = -h / 2f + ch + pad
+            )
+        }
 
         val renderW = srcBounds.renderRight - srcBounds.renderLeft
         val renderH = srcBounds.renderBottom - srcBounds.renderTop
@@ -2403,7 +2430,11 @@ class TextLayer(
         val bmpH = ceil(renderH * qualityScale).toInt()
 
         if (bmpW > 0 && bmpH > 0) {
-            val finalBmp = getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
+            val finalBmp = if (isFreshBmp) {
+                getAssembledLetterWarpBitmapCached(srcBounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
+            } else {
+                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
+            }
 
             val meshW = 20
             val meshH = 20
@@ -2425,7 +2456,8 @@ class TextLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(erasedContentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
+            val contentHash = if (isFreshBmp) assembledWarpBmpHash else erasedContentHash
+            val shapeHash = listOf(contentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
