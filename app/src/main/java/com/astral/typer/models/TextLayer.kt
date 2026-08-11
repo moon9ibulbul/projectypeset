@@ -1118,7 +1118,11 @@ class TextLayer(
                     effectExpansion = Math.max(effectExpansion, expansion)
                 }
                 TextEffectType.TEXT_TAIL -> {
-                    effectExpansion = Math.max(effectExpansion, tailLength + tailWavyIntensity * 5f + 20f)
+                    val rad = Math.toRadians(tailAngle.toDouble())
+                    val extX = tailLength * Math.abs(Math.cos(rad)).toFloat()
+                    val extY = tailLength * Math.abs(Math.sin(rad)).toFloat()
+                    val expansion = Math.max(extX, extY) + tailWavyIntensity * 5f + 30f
+                    effectExpansion = Math.max(effectExpansion, expansion)
                 }
                 else -> {}
             }
@@ -1497,9 +1501,9 @@ class TextLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
@@ -1515,8 +1519,7 @@ class TextLayer(
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON ||
-            it == TextEffectType.TEXT_TAIL
+            it == TextEffectType.NEON
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -2638,6 +2641,73 @@ class TextLayer(
         silhouetteColor = null
         var isDrawingShadowPass = false
 
+        val tailPath = if (currentEffect == TextEffectType.TEXT_TAIL || secondaryEffect == TextEffectType.TEXT_TAIL || tertiaryEffect == TextEffectType.TEXT_TAIL) {
+            if (layout.lineCount > 0 && tailLength > 0f) {
+                val path = android.graphics.Path()
+                val lastLine = layout.lineCount - 1
+                val startX = layout.getLineRight(lastLine)
+                val startY = layout.getLineBottom(lastLine).toFloat()
+                path.moveTo(startX, startY)
+
+                val rad = Math.toRadians(tailAngle.toDouble())
+                val dirX = Math.cos(rad).toFloat()
+                val dirY = Math.sin(rad).toFloat()
+                val perpX = -Math.sin(rad).toFloat()
+                val perpY = Math.cos(rad).toFloat()
+
+                val steps = Math.ceil(tailLength.toDouble() / 2.0).toInt().coerceAtLeast(20)
+                var lastX = startX
+                var lastY = startY
+
+                for (i in 1..steps) {
+                    val t = i.toFloat() / steps
+                    val d = t * tailLength
+                    val waveOffset = Math.sin(d * 0.1).toFloat() * tailWavyIntensity
+                    val px = startX + d * dirX + waveOffset * perpX
+                    val py = startY + d * dirY + waveOffset * perpY
+                    path.lineTo(px, py)
+                    if (i == steps) {
+                        lastX = px
+                        lastY = py
+                    }
+                }
+
+                if (tailArrowPoint) {
+                    val arrowLen = 15f
+                    val angleLeft = Math.toRadians(tailAngle.toDouble() + 135.0)
+                    val angleRight = Math.toRadians(tailAngle.toDouble() - 135.0)
+
+                    val leftX = lastX + arrowLen * Math.cos(angleLeft).toFloat()
+                    val leftY = lastY + arrowLen * Math.sin(angleLeft).toFloat()
+
+                    val rightX = lastX + arrowLen * Math.cos(angleRight).toFloat()
+                    val rightY = lastY + arrowLen * Math.sin(angleRight).toFloat()
+
+                    path.lineTo(leftX, leftY)
+                    path.moveTo(lastX, lastY)
+                    path.lineTo(rightX, rightY)
+                }
+                path
+            } else null
+        } else null
+
+        val drawTailPath = { targetCanvas: Canvas, drawPaint: Paint ->
+            if (tailPath != null) {
+                val oldStyle = drawPaint.style
+                val oldWidth = drawPaint.strokeWidth
+                if (oldStyle == Paint.Style.FILL) {
+                    drawPaint.style = Paint.Style.STROKE
+                    drawPaint.strokeWidth = (fontSize * 0.1f).coerceAtLeast(4f)
+                } else {
+                    val baseTailWidth = (fontSize * 0.1f).coerceAtLeast(4f)
+                    drawPaint.strokeWidth = oldWidth + baseTailWidth
+                }
+                targetCanvas.drawPath(tailPath, drawPaint)
+                drawPaint.style = oldStyle
+                drawPaint.strokeWidth = oldWidth
+            }
+        }
+
         val drawMain = { targetCanvas: Canvas ->
             val originalShader = paint.shader
             val originalColor = paint.color
@@ -2670,6 +2740,7 @@ class TextLayer(
                 paint.clearShadowLayer()
                 paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                 layout.draw(targetCanvas)
+                drawTailPath(targetCanvas, paint)
             }
 
             // 1. Double Stroke
@@ -2681,6 +2752,7 @@ class TextLayer(
                 paint.clearShadowLayer()
                 paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                 layout.draw(targetCanvas)
+                drawTailPath(targetCanvas, paint)
             }
 
             // 2. Stroke
@@ -2700,6 +2772,7 @@ class TextLayer(
                 paint.clearShadowLayer()
                 paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                 layout.draw(targetCanvas)
+                drawTailPath(targetCanvas, paint)
             }
 
             // 3. Fill
@@ -2711,11 +2784,13 @@ class TextLayer(
                 paint.color = modulateColor(silhouetteColor!!)
                 paint.clearShadowLayer()
                 layout.draw(targetCanvas)
+                drawTailPath(targetCanvas, paint)
             } else if (isDrawingShadowPass) {
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
                 paint.color = modulateColor(shadowColor)
                 paint.clearShadowLayer()
                 layout.draw(targetCanvas)
+                drawTailPath(targetCanvas, paint)
             } else {
                 val drawFillContent = { fillCanvas: Canvas ->
                     val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
@@ -2753,6 +2828,7 @@ class TextLayer(
 
                         paint.clearShadowLayer()
                         layout.draw(fillCanvas)
+                        drawTailPath(fillCanvas, paint)
 
                         val centerX = w / 2f
                         val centerY = h / 2f
@@ -2917,6 +2993,7 @@ class TextLayer(
                         }
                         paint.clearShadowLayer()
                         layout.draw(fillCanvas)
+                    drawTailPath(fillCanvas, paint)
                     }
 
                     // 4. Built-in Pattern Overlay
@@ -2953,6 +3030,7 @@ class TextLayer(
                                 paint.alpha = patternAlpha
                                 paint.xfermode = cachedPatternXfermode
                                 layout.draw(fillCanvas)
+                                drawTailPath(fillCanvas, paint)
 
                                 // Restore
                                 paint.shader = prevShader
@@ -3069,6 +3147,7 @@ class TextLayer(
                             isDrawingShadowPass = false
                         } else {
                             layout.draw(canvas)
+                            drawTailPath(canvas, paint)
                         }
                     }
 
@@ -3103,17 +3182,20 @@ class TextLayer(
                         paint.strokeWidth = shadowThickness
                         paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                         layout.draw(targetCanvas)
+                        drawTailPath(targetCanvas, paint)
 
                         // Draw fill
                         paint.style = Paint.Style.FILL
                         paint.pathEffect = null
                         layout.draw(targetCanvas)
+                        drawTailPath(targetCanvas, paint)
 
                         paint.style = shadowStyle
                         paint.strokeWidth = shadowStrokeWidth
                         paint.pathEffect = null
                     } else {
                         layout.draw(targetCanvas)
+                        drawTailPath(targetCanvas, paint)
                     }
                     targetCanvas.restore()
                 } else {
@@ -3136,11 +3218,13 @@ class TextLayer(
                         paint.strokeWidth = shadowThickness
                         paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                         layout.draw(targetCanvas)
+                        drawTailPath(targetCanvas, paint)
 
                         // Draw fill
                         paint.style = Paint.Style.FILL
                         paint.pathEffect = null
                         layout.draw(targetCanvas)
+                        drawTailPath(targetCanvas, paint)
 
                         targetCanvas.restore()
 
@@ -3153,6 +3237,7 @@ class TextLayer(
                     } else {
                         paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
                         layout.draw(targetCanvas)
+                        drawTailPath(targetCanvas, paint)
                         paint.clearShadowLayer()
                     }
                 }
@@ -3177,9 +3262,9 @@ class TextLayer(
 
         // Setup effects chain
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         val hasEffects = activeEffects.isNotEmpty() && !skipEffects
         if (hasEffects) {
@@ -4229,34 +4314,7 @@ class TextLayer(
                     }
                 }
                 TextEffectType.TEXT_TAIL -> {
-                    var useRenderEffect = false
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
-                        try {
-                            val node = android.graphics.RenderNode("TextTailNode")
-                            node.setPosition(0, 0, nodeW, nodeH)
-
-                            val recordingCanvas = node.beginRecording()
-                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
-                            drawInner(recordingCanvas)
-                            node.endRecording()
-
-                            val shader = android.graphics.RuntimeShader(TEXT_TAIL_SHADER)
-                            shader.setFloatUniform("len", tailLength)
-                            shader.setFloatUniform("wave", tailWavyIntensity)
-                            shader.setFloatUniform("angle", tailAngle)
-                            shader.setFloatUniform("arrow", if (tailArrowPoint) 1.0f else 0.0f)
-
-                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save()
-                            targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            targetCanvas.drawRenderNode(node)
-                            targetCanvas.restore()
-                            useRenderEffect = true
-                        } catch (e: Exception) {}
-                    }
-                    if (!useRenderEffect) {
-                        drawTextTailSoftware(targetCanvas, w, h, drawInner)
-                    }
+                    drawInner(targetCanvas)
                 }
                 TextEffectType.SPEED_LINE -> {
                     drawInner(targetCanvas)
@@ -4400,66 +4458,6 @@ class TextLayer(
         drawWoodScratchSoftware(targetCanvas, w, h, calculatePadding(), woodScratchIntensity, woodScratchSeed, woodScratchColor, drawInner)
     }
 
-    private fun drawTextTailSoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
-        val pad = calculatePadding()
-        if (tailLength <= 0f) {
-            drawInner(targetCanvas)
-            return
-        }
-        val bmpW = Math.ceil((w + pad * 2).toDouble()).toInt().coerceAtLeast(1)
-        val bmpH = Math.ceil((h + pad * 2).toDouble()).toInt().coerceAtLeast(1)
-        val tempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-        val tempCanvas = Canvas(tempBmp)
-        tempCanvas.translate(pad, pad)
-        drawInner(tempCanvas)
-
-        val rad = Math.toRadians(tailAngle.toDouble())
-        val dirX = Math.cos(rad).toFloat()
-        val dirY = Math.sin(rad).toFloat()
-        val perpX = -Math.sin(rad).toFloat()
-        val perpY = Math.cos(rad).toFloat()
-
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        val steps = 16
-
-        for (i in steps downTo 1) {
-            val t = i.toFloat() / steps
-            val d = t * tailLength
-
-            val waveOffset = Math.sin(d * 0.05).toFloat() * tailWavyIntensity * 5.0f
-
-            val tx = -d * dirX + waveOffset * perpX
-            val ty = -d * dirY + waveOffset * perpY
-
-            var taper = 1.0f
-            if (tailArrowPoint) {
-                if (t > 0.8f) {
-                    taper = (1.0f - t) * 5.0f
-                } else {
-                    taper = 1.0f - t * 0.8f
-                }
-            } else {
-                taper = 1.0f - t * 0.9f
-            }
-            taper = taper.coerceAtLeast(0.05f)
-
-            paint.alpha = (255 * (1.0f - t) * taper).toInt().coerceIn(0, 255)
-
-            targetCanvas.save()
-            targetCanvas.translate(-pad + tx, -pad + ty)
-            targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
-            targetCanvas.restore()
-        }
-
-        paint.alpha = 255
-        targetCanvas.save()
-        targetCanvas.translate(-pad, -pad)
-        targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
-        targetCanvas.restore()
-
-        tempBmp.recycle()
-    }
-
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
         val matrix = Matrix()
         val srcPts = floatArrayOf(
@@ -4473,62 +4471,6 @@ class TextLayer(
     }
 
     companion object {
-
-        const val TEXT_TAIL_SHADER = """
-            uniform shader content;
-            uniform float len;
-            uniform float wave;
-            uniform float angle;
-            uniform float arrow;
-
-            half4 main(float2 coord) {
-                half4 original = content.eval(coord);
-                if (len <= 0.0) {
-                    return original;
-                }
-
-                float rad = radians(angle);
-                float2 dir = float2(cos(rad), sin(rad));
-                float2 perp = float2(-sin(rad), cos(rad));
-
-                half4 col = original;
-
-                const int STEPS = 16;
-                for (int i = 1; i <= STEPS; i++) {
-                    float t = float(i) / float(STEPS);
-                    float d = t * len;
-
-                    float wave_offset = sin(d * 0.05) * wave * 5.0;
-                    float2 test_coord = coord - d * dir;
-
-                    float taper = 1.0;
-                    if (arrow > 0.5) {
-                        if (t > 0.8) {
-                            taper = (1.0 - t) * 5.0;
-                        } else {
-                            taper = 1.0 - t * 0.8;
-                        }
-                    } else {
-                        taper = 1.0 - t * 0.9;
-                    }
-                    taper = max(0.05, taper);
-
-                    float perp_dist = dot(coord - test_coord, perp);
-                    test_coord = test_coord + perp * (perp_dist * (1.0 / taper - 1.0) + wave_offset);
-
-                    half4 sampled = content.eval(test_coord);
-                    if (sampled.a > 0.0) {
-                        float alpha_fade = 1.0 - t;
-                        sampled.a *= alpha_fade;
-                        sampled.rgb *= alpha_fade;
-
-                        col = sampled + col * (1.0 - sampled.a);
-                        break;
-                    }
-                }
-                return col;
-            }
-        """
 
         const val CHROMATIC_ABERRATION_SHADER = """
             uniform shader content;
