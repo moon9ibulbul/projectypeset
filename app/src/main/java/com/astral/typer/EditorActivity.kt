@@ -7603,6 +7603,23 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // ==================== Checkbox for Rough Stroke ====================
+        val roughnessSliderLayout = createSlider("Roughness: ${stylableLayer.roughStrokeRoughness.toInt()}", stylableLayer.roughStrokeRoughness.toInt().coerceIn(1, 50), 50) { progress ->
+            val actualProgress = if (progress < 1) 1 else progress
+            stylableLayer.roughStrokeRoughness = actualProgress.toFloat()
+            canvasView.invalidate()
+        }
+        val roughnessTv = roughnessSliderLayout.findViewWithTag<android.widget.TextView>("SLIDER_LABEL")
+        roughnessSliderLayout.findViewWithTag<android.widget.SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, b: Boolean) {
+                val actualProgress = if (p < 1) 1 else p
+                stylableLayer.roughStrokeRoughness = actualProgress.toFloat()
+                roughnessTv?.text = "Roughness: $actualProgress"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
+        })
+
         val cbRoughStroke = android.widget.CheckBox(this).apply {
             text = "Rough Stroke"
             setTextColor(Color.WHITE)
@@ -7610,10 +7627,14 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
             setOnCheckedChangeListener { _, isChecked ->
                 stylableLayer.isRoughStroke = isChecked
+                roughnessSliderLayout.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
                 canvasView.invalidate()
             }
         }
         mainLayout.addView(cbRoughStroke)
+
+        roughnessSliderLayout.visibility = if (stylableLayer.isRoughStroke) android.view.View.VISIBLE else android.view.View.GONE
+        mainLayout.addView(roughnessSliderLayout)
 
         scroll.addView(mainLayout)
         container.addView(scroll)
