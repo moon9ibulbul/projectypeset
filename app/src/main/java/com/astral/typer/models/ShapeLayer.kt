@@ -254,6 +254,28 @@ class ShapeLayer(
     @Transient
     private var cachedPatternXfermode: PorterDuffXfermode? = null
 
+    @Transient var morphedBmpCache: Bitmap? = null
+    @Transient var morphedBmpHash: Int = 0
+
+    @Transient var stroke1BmpCache: Bitmap? = null
+    @Transient var stroke1BmpHash: Int = 0
+    @Transient val stroke1Offset = IntArray(2)
+
+    @Transient var stroke2BmpCache: Bitmap? = null
+    @Transient var stroke2BmpHash: Int = 0
+    @Transient val stroke2Offset = IntArray(2)
+
+    @Transient var stroke3BmpCache: Bitmap? = null
+    @Transient var stroke3BmpHash: Int = 0
+    @Transient val stroke3Offset = IntArray(2)
+
+    fun recycleMorphedCaches() {
+        morphedBmpCache?.recycle(); morphedBmpCache = null; morphedBmpHash = 0
+        stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
+        stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
+        stroke3BmpCache?.recycle(); stroke3BmpCache = null; stroke3BmpHash = 0
+    }
+
     @Transient
     private var svg: SVG? = null
     @Transient
@@ -393,35 +415,44 @@ class ShapeLayer(
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
-        if (useHardwareTransformEffects) {
-            val drawTransformed = { targetCanvas: Canvas ->
-                if (isWarp && warpMesh != null) {
-                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                    drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true)
-                } else if (isPerspective && perspectivePoints != null) {
-                    drawPerspective(targetCanvas, w, h, skipEffects = true)
-                }
-            }
-
-            fun renderChain(index: Int, targetCanvas: Canvas) {
-                if (index < 0) {
-                    drawTransformed(targetCanvas)
-                } else {
-                    applyEffect(activeEffects[index], targetCanvas, w, h, bounds) { innerCanvas ->
-                        renderChain(index - 1, innerCanvas)
+        if (hasTransform) {
+            isDrawingStrokePass = true
+        }
+        try {
+            if (useHardwareTransformEffects) {
+                val drawTransformed = { targetCanvas: Canvas ->
+                    if (isWarp && warpMesh != null) {
+                        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                        drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true)
+                    } else if (isPerspective && perspectivePoints != null) {
+                        drawPerspective(targetCanvas, w, h, skipEffects = true)
                     }
                 }
-            }
-            renderChain(activeEffects.size - 1, canvas)
-        } else {
-            if (isWarp && warpMesh != null) {
-                val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false)
-            } else if (isPerspective && perspectivePoints != null) {
-                 drawPerspective(canvas, w, h, skipEffects = false)
+
+                fun renderChain(index: Int, targetCanvas: Canvas) {
+                    if (index < 0) {
+                        drawTransformed(targetCanvas)
+                    } else {
+                        applyEffect(activeEffects[index], targetCanvas, w, h, bounds) { innerCanvas ->
+                            renderChain(index - 1, innerCanvas)
+                        }
+                    }
+                }
+                renderChain(activeEffects.size - 1, canvas)
             } else {
-                 canvas.translate(dx, dy)
-                 drawContent(canvas, w, h, skipEffects = false)
+                if (isWarp && warpMesh != null) {
+                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false)
+                } else if (isPerspective && perspectivePoints != null) {
+                     drawPerspective(canvas, w, h, skipEffects = false)
+                } else {
+                     canvas.translate(dx, dy)
+                     drawContent(canvas, w, h, skipEffects = false)
+                }
+            }
+        } finally {
+            if (hasTransform) {
+                isDrawingStrokePass = false
             }
         }
 
@@ -463,11 +494,150 @@ class ShapeLayer(
     private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
-        canvas.save()
-        canvas.concat(matrix)
-        canvas.translate(-w / 2f, -h / 2f)
-        drawContent(canvas, w, h, skipEffects = skipEffects)
-        canvas.restore()
+        val pad = calculatePadding()
+
+        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+        val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
+
+        if (bmpW > 0 && bmpH > 0) {
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
+            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != bmpW || morphedBmpCache!!.height != bmpH || morphedBmpHash != shapeHash) {
+                recycleMorphedCaches()
+                val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val tempCanvas = Canvas(morphedBmp)
+                tempCanvas.scale(qualityScale, qualityScale)
+                tempCanvas.translate(pad, pad)
+
+                tempCanvas.save()
+                tempCanvas.concat(matrix)
+                tempCanvas.translate(-w / 2f, -h / 2f)
+                drawContent(tempCanvas, w, h, skipEffects = skipEffects)
+                tempCanvas.restore()
+                morphedBmpCache = morphedBmp
+                morphedBmpHash = shapeHash
+            }
+
+            val morphedBmp = morphedBmpCache!!
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            if (hasStrokes) {
+                // 3rd stroke
+                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                    val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2) * qualityScale
+                    val stroke3Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, tripleStrokeWidth, tripleStrokeColor).hashCode()
+                    if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
+                        stroke3BmpCache?.recycle()
+                        val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        stroke3BmpCache = morphedBmp.extractAlpha(blurPaint, stroke3Offset)
+                        stroke3BmpHash = stroke3Hash
+                    }
+                    val blurredAlphaBmp = stroke3BmpCache
+                    if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            val r = android.graphics.Color.red(tripleStrokeColor).toFloat()
+                            val g = android.graphics.Color.green(tripleStrokeColor).toFloat()
+                            val b = android.graphics.Color.blue(tripleStrokeColor).toFloat()
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                0f, 0f, 0f, 0f, r,
+                                0f, 0f, 0f, 0f, g,
+                                0f, 0f, 0f, 0f, b,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                            alpha = android.graphics.Color.alpha(tripleStrokeColor)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] - pad * qualityScale), (stroke3Offset[1] - pad * qualityScale), strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 2nd stroke
+                if (doubleStrokeWidth > 0f) {
+                    val radius = (strokeWidth + doubleStrokeWidth * 2) * qualityScale
+                    val stroke2Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, doubleStrokeColor).hashCode()
+                    if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
+                        stroke2BmpCache?.recycle()
+                        val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        stroke2BmpCache = morphedBmp.extractAlpha(blurPaint, stroke2Offset)
+                        stroke2BmpHash = stroke2Hash
+                    }
+                    val blurredAlphaBmp = stroke2BmpCache
+                    if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            val r = android.graphics.Color.red(doubleStrokeColor).toFloat()
+                            val g = android.graphics.Color.green(doubleStrokeColor).toFloat()
+                            val b = android.graphics.Color.blue(doubleStrokeColor).toFloat()
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                0f, 0f, 0f, 0f, r,
+                                0f, 0f, 0f, 0f, g,
+                                0f, 0f, 0f, 0f, b,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                            alpha = android.graphics.Color.alpha(doubleStrokeColor)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] - pad * qualityScale), (stroke2Offset[1] - pad * qualityScale), strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 1st stroke
+                if (strokeWidth > 0f) {
+                    val radius = strokeWidth * qualityScale
+                    val stroke1Hash = listOf(shapeHash, strokeWidth, strokeColor).hashCode()
+                    if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
+                        stroke1BmpCache?.recycle()
+                        val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        stroke1BmpCache = morphedBmp.extractAlpha(blurPaint, stroke1Offset)
+                        stroke1BmpHash = stroke1Hash
+                    }
+                    val blurredAlphaBmp = stroke1BmpCache
+                    if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            val r = android.graphics.Color.red(strokeColor).toFloat()
+                            val g = android.graphics.Color.green(strokeColor).toFloat()
+                            val b = android.graphics.Color.blue(strokeColor).toFloat()
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                0f, 0f, 0f, 0f, r,
+                                0f, 0f, 0f, 0f, g,
+                                0f, 0f, 0f, 0f, b,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                            alpha = android.graphics.Color.alpha(strokeColor)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] - pad * qualityScale), (stroke1Offset[1] - pad * qualityScale), strokePaint)
+                        canvas.restore()
+                    }
+                }
+            } else {
+                stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
+                stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
+                stroke3BmpCache?.recycle(); stroke3BmpCache = null; stroke3BmpHash = 0
+            }
+
+            canvas.save()
+            canvas.scale(1f / qualityScale, 1f / qualityScale)
+            canvas.drawBitmap(morphedBmp, -pad * qualityScale, -pad * qualityScale, paint)
+            canvas.restore()
+        }
     }
 
     private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false) {
@@ -497,8 +667,138 @@ class ShapeLayer(
                 }
             }
 
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
+            if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != bmpW || morphedBmpCache!!.height != bmpH || morphedBmpHash != shapeHash) {
+                recycleMorphedCaches()
+                val morphedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val tempCanvas = Canvas(morphedBmp)
+                tempCanvas.scale(qualityScale, qualityScale)
+                tempCanvas.translate(w / 2f + pad, h / 2f + pad)
+                val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+                tempCanvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
+                morphedBmpCache = morphedBmp
+                morphedBmpHash = shapeHash
+            }
+
+            val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
-            canvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, paint)
+
+            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f
+            if (hasStrokes) {
+                // 3rd stroke
+                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                    val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2) * qualityScale
+                    val stroke3Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, tripleStrokeWidth, tripleStrokeColor).hashCode()
+                    if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
+                        stroke3BmpCache?.recycle()
+                        val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        stroke3BmpCache = morphedBmp.extractAlpha(blurPaint, stroke3Offset)
+                        stroke3BmpHash = stroke3Hash
+                    }
+                    val blurredAlphaBmp = stroke3BmpCache
+                    if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            val r = android.graphics.Color.red(tripleStrokeColor).toFloat()
+                            val g = android.graphics.Color.green(tripleStrokeColor).toFloat()
+                            val b = android.graphics.Color.blue(tripleStrokeColor).toFloat()
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                0f, 0f, 0f, 0f, r,
+                                0f, 0f, 0f, 0f, g,
+                                0f, 0f, 0f, 0f, b,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                            alpha = android.graphics.Color.alpha(tripleStrokeColor)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke3Offset[0] - (w / 2f + pad) * qualityScale), (stroke3Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 2nd stroke
+                if (doubleStrokeWidth > 0f) {
+                    val radius = (strokeWidth + doubleStrokeWidth * 2) * qualityScale
+                    val stroke2Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, doubleStrokeColor).hashCode()
+                    if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
+                        stroke2BmpCache?.recycle()
+                        val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        stroke2BmpCache = morphedBmp.extractAlpha(blurPaint, stroke2Offset)
+                        stroke2BmpHash = stroke2Hash
+                    }
+                    val blurredAlphaBmp = stroke2BmpCache
+                    if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            val r = android.graphics.Color.red(doubleStrokeColor).toFloat()
+                            val g = android.graphics.Color.green(doubleStrokeColor).toFloat()
+                            val b = android.graphics.Color.blue(doubleStrokeColor).toFloat()
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                0f, 0f, 0f, 0f, r,
+                                0f, 0f, 0f, 0f, g,
+                                0f, 0f, 0f, 0f, b,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                            alpha = android.graphics.Color.alpha(doubleStrokeColor)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke2Offset[0] - (w / 2f + pad) * qualityScale), (stroke2Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.restore()
+                    }
+                }
+
+                // 1st stroke
+                if (strokeWidth > 0f) {
+                    val radius = strokeWidth * qualityScale
+                    val stroke1Hash = listOf(shapeHash, strokeWidth, strokeColor).hashCode()
+                    if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
+                        stroke1BmpCache?.recycle()
+                        val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        stroke1BmpCache = morphedBmp.extractAlpha(blurPaint, stroke1Offset)
+                        stroke1BmpHash = stroke1Hash
+                    }
+                    val blurredAlphaBmp = stroke1BmpCache
+                    if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            val r = android.graphics.Color.red(strokeColor).toFloat()
+                            val g = android.graphics.Color.green(strokeColor).toFloat()
+                            val b = android.graphics.Color.blue(strokeColor).toFloat()
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                0f, 0f, 0f, 0f, r,
+                                0f, 0f, 0f, 0f, g,
+                                0f, 0f, 0f, 0f, b,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                            alpha = android.graphics.Color.alpha(strokeColor)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(blurredAlphaBmp, (stroke1Offset[0] - (w / 2f + pad) * qualityScale), (stroke1Offset[1] - (h / 2f + pad) * qualityScale), strokePaint)
+                        canvas.restore()
+                    }
+                }
+            } else {
+                stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
+                stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
+                stroke3BmpCache?.recycle(); stroke3BmpCache = null; stroke3BmpHash = 0
+            }
+
+            canvas.save()
+            canvas.scale(1f / qualityScale, 1f / qualityScale)
+            canvas.drawBitmap(morphedBmp, (-w / 2f - pad) * qualityScale, (-h / 2f - pad) * qualityScale, paint)
+            canvas.restore()
             bitmap.recycle()
         }
     }
@@ -513,19 +813,19 @@ class ShapeLayer(
             commonPaint.isAntiAlias = true
 
             // 0. Triple Stroke
-            if (!isDrawingClippingMask && tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
                 val colorToUse = (silhouetteColor ?: tripleStrokeColor)
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2)
             }
 
             // 1. Double Stroke
-            if (!isDrawingClippingMask && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidth > 0f && strokeWidth > 0f) {
                 val colorToUse = (silhouetteColor ?: doubleStrokeColor)
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidth + doubleStrokeWidth * 2)
             }
 
             // 2. Stroke
-            if (!isDrawingClippingMask && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidth > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke) Color.WHITE else strokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke) gradientShader else null
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidth, strokeShader = shaderToUse)
