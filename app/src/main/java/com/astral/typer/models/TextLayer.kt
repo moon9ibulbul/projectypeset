@@ -2645,8 +2645,8 @@ class TextLayer(
             if (layout.lineCount > 0 && tailLength > 0f) {
                 val path = android.graphics.Path()
                 val lastLine = layout.lineCount - 1
-                val startX = layout.getLineRight(lastLine)
-                val startY = layout.getLineBottom(lastLine).toFloat()
+                val startX = layout.getLineRight(lastLine) - (fontSize * 0.15f)
+                val startY = (layout.getLineBaseline(lastLine) + layout.getLineTop(lastLine)) / 2f + (fontSize * 0.1f)
                 path.moveTo(startX, startY)
 
                 val rad = Math.toRadians(tailAngle.toDouble())
@@ -2658,14 +2658,24 @@ class TextLayer(
                 val steps = Math.ceil(tailLength.toDouble() / 2.0).toInt().coerceAtLeast(20)
                 var lastX = startX
                 var lastY = startY
+                var prevX = startX
+                var prevY = startY
 
                 for (i in 1..steps) {
                     val t = i.toFloat() / steps
                     val d = t * tailLength
-                    val waveOffset = Math.sin(d * 0.1).toFloat() * tailWavyIntensity
+                    val wave1 = Math.sin(d * 0.15)
+                    val wave2 = Math.sin(d * 0.4) * 0.5
+                    val wave3 = Math.sin(d * 0.05) * 1.5
+                    val waveOffset = (wave1 + wave2 + wave3).toFloat() * tailWavyIntensity * 4f
+
                     val px = startX + d * dirX + waveOffset * perpX
                     val py = startY + d * dirY + waveOffset * perpY
                     path.lineTo(px, py)
+                    if (i == steps - 1) {
+                        prevX = px
+                        prevY = py
+                    }
                     if (i == steps) {
                         lastX = px
                         lastY = py
@@ -2673,18 +2683,22 @@ class TextLayer(
                 }
 
                 if (tailArrowPoint) {
-                    val arrowLen = 15f
-                    val angleLeft = Math.toRadians(tailAngle.toDouble() + 135.0)
-                    val angleRight = Math.toRadians(tailAngle.toDouble() - 135.0)
+                    val tipAngle = Math.atan2((lastY - prevY).toDouble(), (lastX - prevX).toDouble())
+                    val arrowLen = (fontSize * 0.25f).coerceAtLeast(20f)
+                    val tipX = lastX + Math.cos(tipAngle).toFloat() * (arrowLen * 0.3f)
+                    val tipY = lastY + Math.sin(tipAngle).toFloat() * (arrowLen * 0.3f)
 
-                    val leftX = lastX + arrowLen * Math.cos(angleLeft).toFloat()
-                    val leftY = lastY + arrowLen * Math.sin(angleLeft).toFloat()
+                    val leftAngle = tipAngle + Math.toRadians(145.0)
+                    val rightAngle = tipAngle - Math.toRadians(145.0)
 
-                    val rightX = lastX + arrowLen * Math.cos(angleRight).toFloat()
-                    val rightY = lastY + arrowLen * Math.sin(angleRight).toFloat()
+                    val leftX = tipX + arrowLen * Math.cos(leftAngle).toFloat()
+                    val leftY = tipY + arrowLen * Math.sin(leftAngle).toFloat()
 
-                    path.lineTo(leftX, leftY)
-                    path.moveTo(lastX, lastY)
+                    val rightX = tipX + arrowLen * Math.cos(rightAngle).toFloat()
+                    val rightY = tipY + arrowLen * Math.sin(rightAngle).toFloat()
+
+                    path.moveTo(leftX, leftY)
+                    path.lineTo(tipX, tipY)
                     path.lineTo(rightX, rightY)
                 }
                 path
