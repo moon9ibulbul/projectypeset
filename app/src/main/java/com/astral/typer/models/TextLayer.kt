@@ -2774,7 +2774,14 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
+                paint.pathEffect = if (isRoughStroke) {
+                    android.graphics.ComposePathEffect(
+                        // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
+                        android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
+                        // Mengecilkan segmen dari 6f ke 2f agar teksturnya jauh lebih rapat (gritty)
+                        android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
+                    )
+                } else null
                 layout.draw(targetCanvas)
                 drawTailPath(targetCanvas, paint)
             }
@@ -2786,7 +2793,14 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
+                paint.pathEffect = if (isRoughStroke) {
+                    android.graphics.ComposePathEffect(
+                        // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
+                        android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
+                        // Mengecilkan segmen dari 6f ke 2f agar teksturnya jauh lebih rapat (gritty)
+                        android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
+                    )
+                } else null
                 layout.draw(targetCanvas)
                 drawTailPath(targetCanvas, paint)
             }
@@ -2806,7 +2820,14 @@ class TextLayer(
                     paint.color = modulateColor(strokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
+                paint.pathEffect = if (isRoughStroke) {
+                    android.graphics.ComposePathEffect(
+                        // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
+                        android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
+                        // Mengecilkan segmen dari 6f ke 2f agar teksturnya jauh lebih rapat (gritty)
+                        android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
+                    )
+                } else null
                 layout.draw(targetCanvas)
                 drawTailPath(targetCanvas, paint)
             }
