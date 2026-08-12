@@ -1749,7 +1749,7 @@ class TextLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(erasedContentHash, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
+            val shapeHash = listOf(cleanContentHash, erasedContentHash, perspectivePoints?.contentHashCode() ?: 0, qualityScale).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -2259,7 +2259,8 @@ class TextLayer(
                         }
                     }
 
-                    val charHash = listOf(i, charW, charH, mesh.contentHashCode(), qualityScale).hashCode()
+                    val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
+                    val charHash = listOf(cleanHash, i, charW, charH, mesh.contentHashCode(), qualityScale).hashCode()
                     if (morphedCharBmpCache[i] == null || morphedCharBmpCache[i]!!.isRecycled || morphedCharBmpCache[i]!!.width != targetBmpW || morphedCharBmpCache[i]!!.height != targetBmpH || morphedCharBmpHash[i] != charHash) {
                         morphedCharBmpCache[i]?.recycle()
                         val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -2494,7 +2495,7 @@ class TextLayer(
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
             val contentHash = if (isFreshBmp) assembledWarpBmpHash else erasedContentHash
-            val shapeHash = listOf(contentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
+            val shapeHash = listOf(cleanContentHash, contentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
