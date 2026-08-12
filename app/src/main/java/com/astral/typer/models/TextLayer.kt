@@ -5201,8 +5201,14 @@ class TextLayer(
             woodScratchColor: Int,
             drawInner: (Canvas) -> Unit
         ) {
-            val bmpW = Math.ceil((w + pad * 2).toDouble()).toInt()
-            val bmpH = Math.ceil((h + pad * 2).toDouble()).toInt()
+            val values = FloatArray(9)
+            targetCanvas.matrix.getValues(values)
+            val scaleX = Math.sqrt((values[android.graphics.Matrix.MSCALE_X] * values[android.graphics.Matrix.MSCALE_X] + values[android.graphics.Matrix.MSKEW_Y] * values[android.graphics.Matrix.MSKEW_Y]).toDouble()).toFloat()
+            val scaleY = Math.sqrt((values[android.graphics.Matrix.MSCALE_Y] * values[android.graphics.Matrix.MSCALE_Y] + values[android.graphics.Matrix.MSKEW_X] * values[android.graphics.Matrix.MSKEW_X]).toDouble()).toFloat()
+            val scale = Math.max(scaleX, scaleY).coerceAtMost(10f).coerceAtLeast(1f)
+
+            val bmpW = Math.ceil(((w + pad * 2) * scale).toDouble()).toInt()
+            val bmpH = Math.ceil(((h + pad * 2) * scale).toDouble()).toInt()
 
             if (bmpW <= 0 || bmpH <= 0) {
                 drawInner(targetCanvas)
@@ -5212,6 +5218,7 @@ class TextLayer(
             // Render source to bitmap
             val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
             val srcCanvas = Canvas(srcBmp)
+            srcCanvas.scale(scale, scale)
             srcCanvas.translate(pad, pad)
             drawInner(srcCanvas)
 
@@ -5243,8 +5250,8 @@ class TextLayer(
             for (i in 0 until scratchCount) {
                 val startX = random.nextFloat() * bmpW
                 val startY = random.nextFloat() * bmpH
-                val length = (20f + random.nextFloat() * 80f)
-                val thickness = (0.5f + random.nextFloat() * 1.5f)
+                val length = (20f + random.nextFloat() * 80f) * scale
+                val thickness = (0.5f + random.nextFloat() * 1.5f) * scale
 
                 paint.strokeWidth = thickness
                 if (isCarveOut) {
@@ -5265,8 +5272,8 @@ class TextLayer(
             for (i in 0 until scratchCount2) {
                 val startX = random.nextFloat() * bmpW
                 val startY = random.nextFloat() * bmpH
-                val length = (15f + random.nextFloat() * 50f)
-                val thickness = (0.3f + random.nextFloat() * 1.0f)
+                val length = (15f + random.nextFloat() * 50f) * scale
+                val thickness = (0.3f + random.nextFloat() * 1.0f) * scale
 
                 paint.strokeWidth = thickness
                 if (isCarveOut) {
@@ -5281,7 +5288,8 @@ class TextLayer(
             }
 
             targetCanvas.save()
-            targetCanvas.translate(-pad, -pad)
+            targetCanvas.scale(1f / scale, 1f / scale)
+            targetCanvas.translate(-pad * scale, -pad * scale)
             targetCanvas.drawBitmap(srcBmp, 0f, 0f, null)
             targetCanvas.restore()
 
@@ -5325,6 +5333,29 @@ class TextLayer(
         reflectionWavelengthStart *= 2f
         reflectionWavelengthEnd *= 2f
         zoomBlurRadius *= 2f
+
+        // Super Resolution Effect Scaling
+        woodScratchIntensity *= 2f
+        tailLength *= 2f
+        tailThickness *= 2f
+        tailOffsetX *= 2f
+        tailOffsetY *= 2f
+        tailWavyIntensity *= 2f
+        halftoneDotSize *= 2f
+        halftoneRange *= 2f
+        halftoneDensity /= 2f
+        wavyIntensity *= 2f
+        fieryIntensity *= 2f
+        glitchIntensity *= 2f
+        particleSize *= 2f
+        particleSpread *= 2f
+        radialBlurInnerRadius *= 2f
+        radialBlurMotionStrength *= 2f
+        zoomBlurInnerRadius *= 2f
+        speedLineWidth *= 2f
+        speedLineHeight *= 2f
+        speedLineThickness *= 2f
+        speedLineLength *= 2f
 
         perspectivePoints?.let { pts ->
             for (i in pts.indices) {

@@ -704,6 +704,29 @@ class ImageLayer(
         reflectionWavelengthEnd *= 2f
         zoomBlurRadius *= 2f
 
+        // Super Resolution Effect Scaling
+        woodScratchIntensity *= 2f
+        tailLength *= 2f
+        tailThickness *= 2f
+        tailOffsetX *= 2f
+        tailOffsetY *= 2f
+        tailWavyIntensity *= 2f
+        halftoneDotSize *= 2f
+        halftoneRange *= 2f
+        halftoneDensity /= 2f
+        wavyIntensity *= 2f
+        fieryIntensity *= 2f
+        glitchIntensity *= 2f
+        particleSize *= 2f
+        particleSpread *= 2f
+        radialBlurInnerRadius *= 2f
+        radialBlurMotionStrength *= 2f
+        zoomBlurInnerRadius *= 2f
+        speedLineWidth *= 2f
+        speedLineHeight *= 2f
+        speedLineThickness *= 2f
+        speedLineLength *= 2f
+
         perspectivePoints?.let { pts ->
             for (i in pts.indices) {
                 pts[i] *= 2f
