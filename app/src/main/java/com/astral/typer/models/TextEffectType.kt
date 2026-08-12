@@ -4,6 +4,7 @@ enum class TextEffectType {
     NONE,
     CHROMATIC_ABERRATION,
     GLITCH,
+    GLITCH2,
     PIXELATION,
     NEON,
     LONG_SHADOW,

@@ -102,6 +102,9 @@ interface StylableLayer {
     var neonKnockout: Boolean
     var neonQuality: Float
     var glitchIntensity: Float
+    var glitchAmount: Float
+    var glitchDistance: Float
+    var glitchDirection: Float
     var pixelBlockSize: Float
     var chromaticShift: Float
     var chromaticColors: IntArray

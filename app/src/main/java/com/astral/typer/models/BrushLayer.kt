@@ -229,6 +229,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var neonKnockout: Boolean = false
     override var neonQuality: Float = 0.1f
     override var glitchIntensity: Float = 0f
+    override var glitchAmount: Float = 20f
+    override var glitchDistance: Float = 15f
+    override var glitchDirection: Float = 0f
     override var pixelBlockSize: Float = 0f
     override var chromaticShift: Float = 0f
     override var chromaticColors: IntArray = intArrayOf()
@@ -1629,6 +1632,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         wavyIntensity *= 2f
         fieryIntensity *= 2f
         glitchIntensity *= 2f
+        glitchDistance *= 2f
         particleSize *= 2f
         particleSpread *= 2f
         radialBlurInnerRadius *= 2f
