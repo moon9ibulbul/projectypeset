@@ -191,6 +191,7 @@ class ImageLayer(
     override var tailOffsetX: Float = 0f
     override var tailOffsetY: Float = 0f
     override var tailSeed: Long = System.currentTimeMillis()
+    override var tailThickness: Float = 10f
 
     // Erase
     override var eraseMask: Bitmap? = null
@@ -656,6 +657,7 @@ class ImageLayer(
         newLayer.tailOffsetX = this.tailOffsetX
         newLayer.tailOffsetY = this.tailOffsetY
         newLayer.tailSeed = this.tailSeed
+        newLayer.tailThickness = this.tailThickness
 
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)

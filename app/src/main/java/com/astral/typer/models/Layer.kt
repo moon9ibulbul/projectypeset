@@ -174,6 +174,7 @@ interface StylableLayer {
     var tailOffsetX: Float
     var tailOffsetY: Float
     var tailSeed: Long
+    var tailThickness: Float
 
     // Erase
     var eraseMask: Bitmap?

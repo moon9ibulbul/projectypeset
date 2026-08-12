@@ -2594,6 +2594,39 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(s3)
 
+                // Slider: Offset X (-200 to 200)
+                val currentOffsetX = stylableLayer.tailOffsetX
+                var sOffsetX: View? = null
+                sOffsetX = createSlider("Offset X: ${currentOffsetX.toInt()}", (currentOffsetX + 200).toInt(), 400) { p ->
+                    val offsetVal = p - 200
+                    stylableLayer.tailOffsetX = offsetVal.toFloat()
+                    sOffsetX?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Offset X: $offsetVal"
+                    canvasView.invalidate()
+                }
+                settingsLayout.addView(sOffsetX)
+
+                // Slider: Offset Y (-200 to 200)
+                val currentOffsetY = stylableLayer.tailOffsetY
+                var sOffsetY: View? = null
+                sOffsetY = createSlider("Offset Y: ${currentOffsetY.toInt()}", (currentOffsetY + 200).toInt(), 400) { p ->
+                    val offsetVal = p - 200
+                    stylableLayer.tailOffsetY = offsetVal.toFloat()
+                    sOffsetY?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Offset Y: $offsetVal"
+                    canvasView.invalidate()
+                }
+                settingsLayout.addView(sOffsetY)
+
+                // Slider: Thickness (1 to 100)
+                val currentThickness = stylableLayer.tailThickness
+                var sThickness: View? = null
+                sThickness = createSlider("Thickness: ${currentThickness.toInt()}", currentThickness.toInt(), 100) { p ->
+                    val thickVal = p.coerceAtLeast(1)
+                    stylableLayer.tailThickness = thickVal.toFloat()
+                    sThickness?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Thickness: $thickVal"
+                    canvasView.invalidate()
+                }
+                settingsLayout.addView(sThickness)
+
                 // Checkbox: Arrow Point
                 val cbArrow = android.widget.CheckBox(this).apply {
                     text = "Arrow Point"
@@ -2611,6 +2644,24 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
                 settingsLayout.addView(cbArrow)
+
+                // Button: Randomize Seed
+                val btnRandomSeed = android.widget.Button(this).apply {
+                    text = "Randomize Seed"
+                    setBackgroundColor(Color.parseColor("#444444"))
+                    setTextColor(Color.WHITE)
+                    setOnClickListener {
+                        stylableLayer.tailSeed = System.currentTimeMillis()
+                        canvasView.invalidate()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, dpToPx(16), 0, 0)
+                    }
+                }
+                settingsLayout.addView(btnRandomSeed)
         }
 
         mainLayout.addView(settingsLayout)

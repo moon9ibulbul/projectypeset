@@ -367,6 +367,7 @@ class TextLayer(
     override var tailOffsetX: Float = 0f
     override var tailOffsetY: Float = 0f
     override var tailSeed: Long = System.currentTimeMillis()
+    override var tailThickness: Float = 10f
 
     // Shape
     var isOval: Boolean = false
@@ -624,6 +625,7 @@ class TextLayer(
         result = 31 * result + tailOffsetX.hashCode()
         result = 31 * result + tailOffsetY.hashCode()
         result = 31 * result + tailSeed.hashCode()
+        result = 31 * result + tailThickness.hashCode()
 
         // Twist
         result = 31 * result + twistAngle.hashCode()
@@ -972,6 +974,7 @@ class TextLayer(
         newLayer.tailOffsetX = this.tailOffsetX
         newLayer.tailOffsetY = this.tailOffsetY
         newLayer.tailSeed = this.tailSeed
+        newLayer.tailThickness = this.tailThickness
 
         newLayer.x = this.x
         newLayer.y = this.y
@@ -2730,10 +2733,9 @@ class TextLayer(
                 val oldWidth = drawPaint.strokeWidth
                 if (oldStyle == Paint.Style.FILL) {
                     drawPaint.style = Paint.Style.STROKE
-                    drawPaint.strokeWidth = (fontSize * 0.1f).coerceAtLeast(4f)
+                    drawPaint.strokeWidth = tailThickness
                 } else {
-                    val baseTailWidth = (fontSize * 0.1f).coerceAtLeast(4f)
-                    drawPaint.strokeWidth = oldWidth + baseTailWidth
+                    drawPaint.strokeWidth = oldWidth + tailThickness
                 }
                 targetCanvas.drawPath(tailPath, drawPaint)
                 drawPaint.style = oldStyle

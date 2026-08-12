@@ -300,6 +300,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var tailOffsetX: Float = 0f
     override var tailOffsetY: Float = 0f
     override var tailSeed: Long = System.currentTimeMillis()
+    override var tailThickness: Float = 10f
 
     // Erase support
     override var eraseMask: Bitmap? = null
@@ -428,6 +429,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             tailOffsetX = this@BrushLayer.tailOffsetX
             tailOffsetY = this@BrushLayer.tailOffsetY
             tailSeed = this@BrushLayer.tailSeed
+            tailThickness = this@BrushLayer.tailThickness
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)

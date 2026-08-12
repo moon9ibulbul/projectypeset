@@ -243,6 +243,7 @@ class ShapeLayer(
     override var tailOffsetX: Float = 0f
     override var tailOffsetY: Float = 0f
     override var tailSeed: Long = System.currentTimeMillis()
+    override var tailThickness: Float = 10f
 
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
@@ -2441,6 +2442,7 @@ class ShapeLayer(
         newLayer.tailOffsetX = tailOffsetX
         newLayer.tailOffsetY = tailOffsetY
         newLayer.tailSeed = tailSeed
+        newLayer.tailThickness = tailThickness
 
         return newLayer
     }
