@@ -2259,7 +2259,8 @@ class TextLayer(
                         }
                     }
 
-                    val charHash = listOf(i, charW, charH, mesh.contentHashCode(), qualityScale).hashCode()
+                    val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
+                    val charHash = listOf(cleanHash, i, charW, charH, mesh.contentHashCode(), qualityScale).hashCode()
                     if (morphedCharBmpCache[i] == null || morphedCharBmpCache[i]!!.isRecycled || morphedCharBmpCache[i]!!.width != targetBmpW || morphedCharBmpCache[i]!!.height != targetBmpH || morphedCharBmpHash[i] != charHash) {
                         morphedCharBmpCache[i]?.recycle()
                         val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
