@@ -317,23 +317,9 @@ class LaMaProcessor(private val context: Context) {
             cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
             cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
 
-            // 2. Snap-to-8 Padding Logic
-            val th = cropRect.height()
-            val tw = cropRect.width()
-            val ph = ((th + 7) / 8) * 8
-            val pw = ((tw + 7) / 8) * 8
-            val padH = ph - th
-            val padW = pw - tw
-
-            // Create padded inputs (BORDER_REFLECT equivalent by drawing with offset, or just transparent/black border)
-            // We'll just draw the original crop centered or at top-left. Let's do top-left padding.
-            inputImage = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
-            val imgCanvas = Canvas(inputImage)
-            imgCanvas.drawBitmap(cropImage, 0f, 0f, null)
-
-            inputMask = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
-            val maskCanvas = Canvas(inputMask)
-            maskCanvas.drawBitmap(cropMask, 0f, 0f, null)
+            // 2. Resize Input for Model
+            inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+            inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
 
             // 3. Prepare Tensors
             tensorImg = bitmapToOnnxTensor(env, inputImage)
@@ -346,10 +332,10 @@ class LaMaProcessor(private val context: Context) {
             val outputTensor = resultOrt[0] as OnnxTensor
 
             // 5. Post Process
-            outputBitmap = outputTensorToBitmap(outputTensor, pw, ph)
+            outputBitmap = outputTensorToBitmap(outputTensor, TRAINED_SIZE, TRAINED_SIZE)
 
-            // 6. Crop Output back to Original Size (remove padding)
-            outputCrop = Bitmap.createBitmap(outputBitmap, 0, 0, tw, th)
+            // 6. Resize Output back to Crop Size
+            outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
 
             // 7. Composite Logic (Paste back onto the accumulating canvas)
             val sc = canvas.saveLayer(
