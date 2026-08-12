@@ -387,6 +387,8 @@ class AstralCanvasView @JvmOverloads constructor(
         color = Color.RED
         style = Paint.Style.STROKE
         strokeWidth = 5f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
     }
 
     /**
@@ -1767,15 +1769,13 @@ class AstralCanvasView @JvmOverloads constructor(
 
             // Draw Paths directly
             val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
+                color = Color.RED
                 style = Paint.Style.STROKE
                 strokeWidth = brushSize
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
+                alpha = 128
             }
-            // Inpaint Overlay Tint
-            brushP.colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
-            brushP.alpha = 128
 
             val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
@@ -1785,9 +1785,8 @@ class AstralCanvasView @JvmOverloads constructor(
                 strokeJoin = Paint.Join.ROUND
             }
             val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
+                color = Color.RED
                 style = Paint.Style.FILL
-                colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
                 alpha = 128
             }
             val lassoEraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
