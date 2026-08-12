@@ -244,8 +244,9 @@ class LaMaProcessor(private val context: Context) {
         paint: Paint
     ) {
         // Calculate padded square crop (smart crop) based on this specific maskRect
-        // 3x padding logic from original code
-        val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
+        // Minimum size of 512 to ensure LaMa has enough context to inpaint naturally,
+        // unless the mask is larger, then use 3x padding.
+        val size = kotlin.math.max(TRAINED_SIZE, kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
         val cx = maskRect.centerX()
         val cy = maskRect.centerY()
         val halfSize = size / 2
@@ -556,9 +557,9 @@ class LaMaProcessor(private val context: Context) {
         val pixels = IntArray(size)
 
         for (i in 0 until size) {
-            val r = (buffer.get(i)).toInt().coerceIn(0, 255)
-            val g = (buffer.get(size + i)).toInt().coerceIn(0, 255)
-            val b = (buffer.get(2 * size + i)).toInt().coerceIn(0, 255)
+            val r = (buffer.get(i) * 255f).toInt().coerceIn(0, 255)
+            val g = (buffer.get(size + i) * 255f).toInt().coerceIn(0, 255)
+            val b = (buffer.get(2 * size + i) * 255f).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
