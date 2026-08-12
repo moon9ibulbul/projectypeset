@@ -815,6 +815,13 @@ object ProjectManager {
         } catch (e: Exception) {
             e.printStackTrace()
             success = false
+            try {
+                if (targetFolder.exists()) {
+                    targetFolder.deleteRecursively()
+                }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
         }
 
         if (!success) {
@@ -831,6 +838,13 @@ object ProjectManager {
             } catch (e: Exception) {
                 e.printStackTrace()
                 success = false
+                try {
+                    if (targetFolder.exists()) {
+                        targetFolder.deleteRecursively()
+                    }
+                } catch (ex: Exception) {
+                    ex.printStackTrace()
+                }
             }
         }
 
@@ -1699,6 +1713,44 @@ object ProjectManager {
         return false
     }
 
+    private fun isValidProjectOrSubFolder(context: Context?, file: File): Boolean {
+        if (!file.isDirectory) return false
+        if (context == null) return true // Fallback if no context to check
+
+        // If it is a valid project directory (has project.json in some root), it's valid!
+        if (isProjectDirectory(context, file)) return true
+
+        // If it's a directory, let's see if it's in public root
+        val isPublic = isPublicPath(file)
+
+        if (isPublic) {
+            // Under public root, a sub-folder is only valid if it contains at least one valid project or valid sub-folder.
+            return hasAnyValidProjectInside(context, file)
+        }
+
+        // In private root, empty sub-folders are allowed and valid
+        return true
+    }
+
+    private fun isPublicPath(file: File): Boolean {
+        val path = file.absolutePath
+        val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project").absolutePath
+        val legacyRoot = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project").absolutePath
+        return path.startsWith(publicRoot) || path.startsWith(legacyRoot)
+    }
+
+    private fun hasAnyValidProjectInside(context: Context, folder: File): Boolean {
+        val files = folder.listFiles() ?: return false
+        for (f in files) {
+            if (f.isDirectory) {
+                if (isProjectDirectory(context, f) || hasAnyValidProjectInside(context, f)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     fun getRecentProjects(context: Context? = null, parentFolder: File? = null): List<File> {
         if (parentFolder != null) {
             val roots = mutableListOf<File>()
@@ -1735,7 +1787,9 @@ object ProjectManager {
                 parentFolder.listFiles()?.let { mergedProjects.addAll(it) }
             }
 
-            return mergedProjects.sortedWith { f1, f2 ->
+            val filteredProjects = mergedProjects.filter { isValidProjectOrSubFolder(context, it) }
+
+            return filteredProjects.sortedWith { f1, f2 ->
                 val f1HasJson = File(f1, "project.json").exists()
                 val f2HasJson = File(f2, "project.json").exists()
                 if (f1HasJson && !f2HasJson) {
@@ -1770,7 +1824,10 @@ object ProjectManager {
                   internalPrivateRoot.listFiles()?.let { projects.addAll(it) }
              }
         }
-        return projects.sortedWith { f1, f2 ->
+
+        val filteredProjects = projects.filter { isValidProjectOrSubFolder(context, it) }
+
+        return filteredProjects.sortedWith { f1, f2 ->
             val f1HasJson = File(f1, "project.json").exists()
             val f2HasJson = File(f2, "project.json").exists()
             if (f1HasJson && !f2HasJson) {
