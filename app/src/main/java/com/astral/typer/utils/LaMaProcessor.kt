@@ -331,14 +331,14 @@ class LaMaProcessor(private val context: Context) {
                 // to exactly 512x512 to preserve native resolution without downsampling blur
                 inputImage = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
                 val imgCanvas = Canvas(inputImage)
-                // Center the crop inside the 512x512 input
-                val dx = (TRAINED_SIZE - cropRect.width()) / 2f
-                val dy = (TRAINED_SIZE - cropRect.height()) / 2f
-                imgCanvas.drawBitmap(cropImage, dx, dy, null)
+                // Center the crop inside the 512x512 input. Use integer division to prevent sub-pixel bilinear interpolation blur.
+                val dx = (TRAINED_SIZE - cropRect.width()) / 2
+                val dy = (TRAINED_SIZE - cropRect.height()) / 2
+                imgCanvas.drawBitmap(cropImage, dx.toFloat(), dy.toFloat(), null)
 
                 inputMask = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
                 val maskCanvas = Canvas(inputMask)
-                maskCanvas.drawBitmap(cropMask, dx, dy, null)
+                maskCanvas.drawBitmap(cropMask, dx.toFloat(), dy.toFloat(), null)
             } else {
                 // Fallback for huge masks: scale down to 512x512
                 inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
@@ -601,10 +601,22 @@ class LaMaProcessor(private val context: Context) {
         buffer.rewind()
         buffer.get(data)
 
+        // Dynamically detect range. LaMa models from different exports can output [0, 1] or [0, 255]
+        var needsMultiplier = true
+        val step = kotlin.math.max(1, data.size / 1000)
+        for (i in data.indices step step) {
+            if (data[i] > 1.0f) {
+                needsMultiplier = false
+                break
+            }
+        }
+
+        val multiplier = if (needsMultiplier) 255f else 1f
+
         for (i in 0 until size) {
-            val r = (data[i] * 255f).toInt().coerceIn(0, 255)
-            val g = (data[size + i] * 255f).toInt().coerceIn(0, 255)
-            val b = (data[2 * size + i] * 255f).toInt().coerceIn(0, 255)
+            val r = (data[i] * multiplier).toInt().coerceIn(0, 255)
+            val g = (data[size + i] * multiplier).toInt().coerceIn(0, 255)
+            val b = (data[2 * size + i] * multiplier).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
