@@ -140,8 +140,10 @@ class MiganProcessor(private val context: Context) {
             val sessionOptions = OrtSession.SessionOptions()
             try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
-                 sessionOptions.setInterOpNumThreads(4)
-                 sessionOptions.setIntraOpNumThreads(4)
+                 val numCores = Runtime.getRuntime().availableProcessors()
+                 val optimalThreads = (numCores / 2).coerceIn(1, 4)
+                 sessionOptions.setInterOpNumThreads(optimalThreads)
+                 sessionOptions.setIntraOpNumThreads(optimalThreads)
             } catch (e: Exception) {
                 Log.w("MiganProcessor", "Failed to set optimization options", e)
             }
@@ -358,9 +360,11 @@ class MiganProcessor(private val context: Context) {
         }
     }
 
-    private fun buildMiganInput(img: Bitmap, mask: Bitmap): FloatBuffer {
+    private fun buildMiganInput(img: Bitmap, mask: Bitmap): java.nio.FloatBuffer {
         val n = TRAINED_SIZE * TRAINED_SIZE
-        val data = FloatArray(4 * n)
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(4 * n * 4).order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+
         val ip = IntArray(n)
         img.getPixels(ip, 0, TRAINED_SIZE, 0, 0, TRAINED_SIZE, TRAINED_SIZE)
         val mp = IntArray(n)
@@ -370,7 +374,7 @@ class MiganProcessor(private val context: Context) {
             val alpha = (mp[i] ushr 24) and 0xFF
             val red = (mp[i] ushr 16) and 0xFF
             val hole = if (alpha > 0 || red > 120) 1f else 0f
-            data[i] = 0.5f - hole
+            floatBuffer.put(i, 0.5f - hole)
         }
 
         for (c in 0 until 3) {
@@ -381,17 +385,14 @@ class MiganProcessor(private val context: Context) {
                 val red = (mp[i] ushr 16) and 0xFF
                 val hole = if (alpha > 0 || red > 120) 1f else 0f
                 val v = ((ip[i] ushr shift) and 0xFF) / 255f * 2f - 1f
-                data[base + i] = v * (1f - hole)
+                floatBuffer.put(base + i, v * (1f - hole))
             }
         }
-        return FloatBuffer.wrap(data)
+        return floatBuffer
     }
 
     private fun outputTensorToBitmap(tensor: OnnxTensor): Bitmap {
         val buffer = tensor.floatBuffer
-        val data = FloatArray(buffer.capacity())
-        buffer.get(data)
-
         val width = TRAINED_SIZE
         val height = TRAINED_SIZE
         val size = width * height
@@ -401,9 +402,9 @@ class MiganProcessor(private val context: Context) {
         val bias = 127.5f
 
         for (i in 0 until size) {
-            val r = ((data[i] * scale + bias) + 0.5f).toInt().coerceIn(0, 255)
-            val g = ((data[size + i] * scale + bias) + 0.5f).toInt().coerceIn(0, 255)
-            val b = ((data[2 * size + i] * scale + bias) + 0.5f).toInt().coerceIn(0, 255)
+            val r = ((buffer.get(i) * scale + bias) + 0.5f).toInt().coerceIn(0, 255)
+            val g = ((buffer.get(size + i) * scale + bias) + 0.5f).toInt().coerceIn(0, 255)
+            val b = ((buffer.get(2 * size + i) * scale + bias) + 0.5f).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }

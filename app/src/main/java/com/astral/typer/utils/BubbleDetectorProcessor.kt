@@ -142,8 +142,10 @@ class BubbleDetectorProcessor(private val context: Context) {
              val sessionOptions = OrtSession.SessionOptions()
              try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
-                 sessionOptions.setInterOpNumThreads(4)
-                 sessionOptions.setIntraOpNumThreads(4)
+                 val numCores = Runtime.getRuntime().availableProcessors()
+                 val optimalThreads = (numCores / 2).coerceIn(1, 4)
+                 sessionOptions.setInterOpNumThreads(optimalThreads)
+                 sessionOptions.setIntraOpNumThreads(optimalThreads)
                  sessionOptions.addNnapi()
              } catch (e: Exception) {
                  Log.w("BubbleDetector", "Failed to set opts", e)
@@ -372,25 +374,23 @@ class BubbleDetectorProcessor(private val context: Context) {
         }
     }
 
-    private fun preProcess(bitmap: Bitmap): FloatBuffer {
+    private fun preProcess(bitmap: Bitmap): java.nio.FloatBuffer {
         val count = 1 * 3 * INPUT_SIZE * INPUT_SIZE
-        val floatBuffer = FloatBuffer.allocate(count)
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(count * 4).order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
 
         val pixels = IntArray(INPUT_SIZE * INPUT_SIZE)
         bitmap.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
 
         val stride = INPUT_SIZE * INPUT_SIZE
-        val floatArray = FloatArray(count)
 
         for (i in 0 until stride) {
             val pixel = pixels[i]
-            floatArray[i] = ((pixel shr 16) and 0xFF) / 255.0f
-            floatArray[stride + i] = ((pixel shr 8) and 0xFF) / 255.0f
-            floatArray[2 * stride + i] = (pixel and 0xFF) / 255.0f
+            floatBuffer.put(i, ((pixel shr 16) and 0xFF) / 255.0f)
+            floatBuffer.put(stride + i, ((pixel shr 8) and 0xFF) / 255.0f)
+            floatBuffer.put(2 * stride + i, (pixel and 0xFF) / 255.0f)
         }
 
-        floatBuffer.put(floatArray)
-        floatBuffer.flip()
         return floatBuffer
     }
 
