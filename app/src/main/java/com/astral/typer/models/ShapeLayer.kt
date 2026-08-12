@@ -240,6 +240,10 @@ class ShapeLayer(
     override var tailWavyIntensity: Float = 0f
     override var tailAngle: Float = 0f
     override var tailArrowPoint: Boolean = false
+    override var tailOffsetX: Float = 0f
+    override var tailOffsetY: Float = 0f
+    override var tailSeed: Long = System.currentTimeMillis()
+    override var tailThickness: Float = 10f
 
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
@@ -400,9 +404,9 @@ class ShapeLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
@@ -418,8 +422,7 @@ class ShapeLayer(
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON ||
-            it == TextEffectType.TEXT_TAIL
+            it == TextEffectType.NEON
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -1202,9 +1205,9 @@ class ShapeLayer(
         val drawBase = { innerCanvas: Canvas -> drawMain(innerCanvas) }
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         val hasEffects = activeEffects.isNotEmpty() && !skipEffects
         if (hasEffects) {
@@ -1998,100 +2001,13 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.TEXT_TAIL -> {
-                    var useRenderEffect = false
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
-                        try {
-                            val node = android.graphics.RenderNode("TextTailNode")
-                            node.setPosition(0, 0, nodeW, nodeH)
-
-                            val recordingCanvas = node.beginRecording()
-                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
-                            drawInner(recordingCanvas)
-                            node.endRecording()
-
-                            val shader = android.graphics.RuntimeShader(TextLayer.TEXT_TAIL_SHADER)
-                            shader.setFloatUniform("len", tailLength)
-                            shader.setFloatUniform("wave", tailWavyIntensity)
-                            shader.setFloatUniform("angle", tailAngle)
-                            shader.setFloatUniform("arrow", if (tailArrowPoint) 1.0f else 0.0f)
-
-                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
-                            targetCanvas.save()
-                            targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            targetCanvas.drawRenderNode(node)
-                            targetCanvas.restore()
-                            useRenderEffect = true
-                        } catch (e: Exception) {}
-                    }
-                    if (!useRenderEffect) {
-                        drawTextTailSoftware(targetCanvas, w, h, drawInner)
-                    }
+                    drawInner(targetCanvas)
                 }
                 TextEffectType.SPEED_LINE -> {
                     drawInner(targetCanvas)
                 }
                 else -> drawInner(targetCanvas)
              }
-    }
-
-    private fun drawTextTailSoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
-        val pad = calculatePadding()
-        if (tailLength <= 0f) {
-            drawInner(targetCanvas)
-            return
-        }
-        val bmpW = Math.ceil((w + pad * 2).toDouble()).toInt().coerceAtLeast(1)
-        val bmpH = Math.ceil((h + pad * 2).toDouble()).toInt().coerceAtLeast(1)
-        val tempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-        val tempCanvas = Canvas(tempBmp)
-        tempCanvas.translate(pad, pad)
-        drawInner(tempCanvas)
-
-        val rad = Math.toRadians(tailAngle.toDouble())
-        val dirX = Math.cos(rad).toFloat()
-        val dirY = Math.sin(rad).toFloat()
-        val perpX = -Math.sin(rad).toFloat()
-        val perpY = Math.cos(rad).toFloat()
-
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        val steps = 16
-
-        for (i in steps downTo 1) {
-            val t = i.toFloat() / steps
-            val d = t * tailLength
-
-            val waveOffset = Math.sin(d * 0.05).toFloat() * tailWavyIntensity * 5.0f
-
-            val tx = -d * dirX + waveOffset * perpX
-            val ty = -d * dirY + waveOffset * perpY
-
-            var taper = 1.0f
-            if (tailArrowPoint) {
-                if (t > 0.8f) {
-                    taper = (1.0f - t) * 5.0f
-                } else {
-                    taper = 1.0f - t * 0.8f
-                }
-            } else {
-                taper = 1.0f - t * 0.9f
-            }
-            taper = taper.coerceAtLeast(0.05f)
-
-            paint.alpha = (255 * (1.0f - t) * taper).toInt().coerceIn(0, 255)
-
-            targetCanvas.save()
-            targetCanvas.translate(-pad + tx, -pad + ty)
-            targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
-            targetCanvas.restore()
-        }
-
-        paint.alpha = 255
-        targetCanvas.save()
-        targetCanvas.translate(-pad, -pad)
-        targetCanvas.drawBitmap(tempBmp, 0f, 0f, paint)
-        targetCanvas.restore()
-
-        tempBmp.recycle()
     }
 
     private fun drawDecaySoftware(targetCanvas: Canvas, w: Float, h: Float, drawInner: (Canvas) -> Unit) {
@@ -2523,6 +2439,10 @@ class ShapeLayer(
         newLayer.tailWavyIntensity = tailWavyIntensity
         newLayer.tailAngle = tailAngle
         newLayer.tailArrowPoint = tailArrowPoint
+        newLayer.tailOffsetX = tailOffsetX
+        newLayer.tailOffsetY = tailOffsetY
+        newLayer.tailSeed = tailSeed
+        newLayer.tailThickness = tailThickness
 
         return newLayer
     }

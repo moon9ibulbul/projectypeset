@@ -297,6 +297,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var tailWavyIntensity: Float = 0f
     override var tailAngle: Float = 0f
     override var tailArrowPoint: Boolean = false
+    override var tailOffsetX: Float = 0f
+    override var tailOffsetY: Float = 0f
+    override var tailSeed: Long = System.currentTimeMillis()
+    override var tailThickness: Float = 10f
 
     // Erase support
     override var eraseMask: Bitmap? = null
@@ -422,6 +426,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             tailWavyIntensity = this@BrushLayer.tailWavyIntensity
             tailAngle = this@BrushLayer.tailAngle
             tailArrowPoint = this@BrushLayer.tailArrowPoint
+            tailOffsetX = this@BrushLayer.tailOffsetX
+            tailOffsetY = this@BrushLayer.tailOffsetY
+            tailSeed = this@BrushLayer.tailSeed
+            tailThickness = this@BrushLayer.tailThickness
         }
         // Deep copy drawing bitmap
         copy.bitmap = this.bitmap.copy(this.bitmap.config, true)
