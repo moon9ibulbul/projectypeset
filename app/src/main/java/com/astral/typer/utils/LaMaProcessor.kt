@@ -243,12 +243,20 @@ class LaMaProcessor(private val context: Context) {
         canvas: Canvas,
         paint: Paint
     ) {
-        // Calculate padded square crop (smart crop) based on this specific maskRect
-        // Minimum size of 512 to ensure LaMa has enough context to inpaint naturally,
-        // unless the mask is larger, then use 3x padding.
-        val size = kotlin.math.max(TRAINED_SIZE, kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
         val cx = maskRect.centerX()
         val cy = maskRect.centerY()
+
+        val maxMaskDim = kotlin.math.max(maskRect.width(), maskRect.height())
+        // Determine whether we can do native 1:1 resolution (if the mask and its context fit within 512x512)
+        // or if we must fallback to scaling (if the mask itself is huge)
+        val isNativeResolution = maxMaskDim <= TRAINED_SIZE / 2 // Using half size ensures at least 2x context around the mask
+
+        val size = if (isNativeResolution) {
+            TRAINED_SIZE
+        } else {
+            maxMaskDim * 3
+        }
+
         val halfSize = size / 2
 
         var left = cx - halfSize
@@ -317,9 +325,25 @@ class LaMaProcessor(private val context: Context) {
             cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
             cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
 
-            // 2. Resize Input for Model
-            inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
-            inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+            // 2. Prepare Input for Model (Scale vs Native Padding)
+            if (isNativeResolution && cropRect.width() <= TRAINED_SIZE && cropRect.height() <= TRAINED_SIZE) {
+                // If crop is smaller than 512x512 (e.g. hit the edge of a small image), pad it with transparent pixels
+                // to exactly 512x512 to preserve native resolution without downsampling blur
+                inputImage = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
+                val imgCanvas = Canvas(inputImage)
+                // Center the crop inside the 512x512 input
+                val dx = (TRAINED_SIZE - cropRect.width()) / 2f
+                val dy = (TRAINED_SIZE - cropRect.height()) / 2f
+                imgCanvas.drawBitmap(cropImage, dx, dy, null)
+
+                inputMask = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
+                val maskCanvas = Canvas(inputMask)
+                maskCanvas.drawBitmap(cropMask, dx, dy, null)
+            } else {
+                // Fallback for huge masks: scale down to 512x512
+                inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+                inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+            }
 
             // 3. Prepare Tensors
             tensorImg = bitmapToOnnxTensor(env, inputImage)
@@ -334,8 +358,16 @@ class LaMaProcessor(private val context: Context) {
             // 5. Post Process
             outputBitmap = outputTensorToBitmap(outputTensor, TRAINED_SIZE, TRAINED_SIZE)
 
-            // 6. Resize Output back to Crop Size
-            outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
+            // 6. Resize/Crop Output back to Original Crop Size
+            if (isNativeResolution && cropRect.width() <= TRAINED_SIZE && cropRect.height() <= TRAINED_SIZE) {
+                // Extract the exact region back from the center of the 512x512 output
+                val dx = (TRAINED_SIZE - cropRect.width()) / 2
+                val dy = (TRAINED_SIZE - cropRect.height()) / 2
+                outputCrop = Bitmap.createBitmap(outputBitmap, dx, dy, cropRect.width(), cropRect.height())
+            } else {
+                // Scale back up
+                outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
+            }
 
             // 7. Composite Logic (Paste back onto the accumulating canvas)
             val sc = canvas.saveLayer(
