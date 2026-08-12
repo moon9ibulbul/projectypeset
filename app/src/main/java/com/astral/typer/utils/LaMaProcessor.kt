@@ -244,8 +244,9 @@ class LaMaProcessor(private val context: Context) {
         paint: Paint
     ) {
         // Calculate padded square crop (smart crop) based on this specific maskRect
-        // 3x padding logic from original code
-        val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
+        // Minimum size of 512 to ensure LaMa has enough context to inpaint naturally,
+        // unless the mask is larger, then use 3x padding.
+        val size = kotlin.math.max(TRAINED_SIZE, kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
         val cx = maskRect.centerX()
         val cy = maskRect.centerY()
         val halfSize = size / 2
@@ -305,9 +306,23 @@ class LaMaProcessor(private val context: Context) {
         val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
         val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
 
-        // 2. Resize Input for Model
-        val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
-        val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+        // 2. Snap-to-8 Padding Logic
+        val th = cropRect.height()
+        val tw = cropRect.width()
+        val ph = ((th + 7) / 8) * 8
+        val pw = ((tw + 7) / 8) * 8
+        val padH = ph - th
+        val padW = pw - tw
+
+        // Create padded inputs (BORDER_REFLECT equivalent by drawing with offset, or just transparent/black border)
+        // We'll just draw the original crop centered or at top-left. Let's do top-left padding.
+        val inputImage = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
+        val imgCanvas = Canvas(inputImage)
+        imgCanvas.drawBitmap(cropImage, 0f, 0f, null)
+
+        val inputMask = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888)
+        val maskCanvas = Canvas(inputMask)
+        maskCanvas.drawBitmap(cropMask, 0f, 0f, null)
 
         var tensorImg: OnnxTensor? = null
         var tensorMask: OnnxTensor? = null
@@ -325,10 +340,10 @@ class LaMaProcessor(private val context: Context) {
             val outputTensor = resultOrt[0] as OnnxTensor
 
             // 5. Post Process
-            val outputBitmap = outputTensorToBitmap(outputTensor)
+            val outputBitmap = outputTensorToBitmap(outputTensor, pw, ph)
 
-            // 6. Resize Output back to Crop Size
-            val outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
+            // 6. Crop Output back to Original Size (remove padding)
+            val outputCrop = Bitmap.createBitmap(outputBitmap, 0, 0, tw, th)
 
             // 7. Composite Logic (Paste back onto the accumulating canvas)
             val sc = canvas.saveLayer(
@@ -485,17 +500,19 @@ class LaMaProcessor(private val context: Context) {
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val data = FloatArray(w * h)
-        for (i in pixels.indices) {
+        val size = w * h
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(size * 4).order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+
+        for (i in 0 until size) {
             val p = pixels[i]
             val alpha = (p shr 24) and 0xFF
-            // If alpha > 0, it is a mask.
-            data[i] = if (alpha > 0) 1f else 0f
+            floatBuffer.put(i, if (alpha > 0) 1f else 0f)
         }
 
         return OnnxTensor.createTensor(
             env,
-            FloatBuffer.wrap(data),
+            floatBuffer,
             longArrayOf(1, 1, h.toLong(), w.toLong())
         )
     }
@@ -506,44 +523,43 @@ class LaMaProcessor(private val context: Context) {
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val size = 3 * w * h
-        val data = FloatArray(size)
         val channelSize = w * h
+        val size = 3 * channelSize
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(size * 4).order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
 
+        // Write R
         for (i in 0 until channelSize) {
             val p = pixels[i]
-            val r = ((p shr 16) and 0xFF) / 255f
-            val g = ((p shr 8) and 0xFF) / 255f
-            val b = (p and 0xFF) / 255f
-
-            data[i] = r
-            data[channelSize + i] = g
-            data[2 * channelSize + i] = b
+            floatBuffer.put(i, ((p shr 16) and 0xFF) / 255f)
+        }
+        // Write G
+        for (i in 0 until channelSize) {
+            val p = pixels[i]
+            floatBuffer.put(channelSize + i, ((p shr 8) and 0xFF) / 255f)
+        }
+        // Write B
+        for (i in 0 until channelSize) {
+            val p = pixels[i]
+            floatBuffer.put(2 * channelSize + i, (p and 0xFF) / 255f)
         }
 
         return OnnxTensor.createTensor(
             env,
-            FloatBuffer.wrap(data),
+            floatBuffer,
             longArrayOf(1, 3, h.toLong(), w.toLong())
         )
     }
 
-    private fun outputTensorToBitmap(tensor: OnnxTensor): Bitmap {
+    private fun outputTensorToBitmap(tensor: OnnxTensor, width: Int, height: Int): Bitmap {
         val buffer = tensor.floatBuffer
-        val data = FloatArray(buffer.capacity())
-        buffer.get(data)
-
-        val width = TRAINED_SIZE
-        val height = TRAINED_SIZE
         val size = width * height
         val pixels = IntArray(size)
 
-        val amp = 1
-
         for (i in 0 until size) {
-            val r = (data[i] * amp).toInt().coerceIn(0, 255)
-            val g = (data[size + i] * amp).toInt().coerceIn(0, 255)
-            val b = (data[2 * size + i] * amp).toInt().coerceIn(0, 255)
+            val r = (buffer.get(i) * 255f).toInt().coerceIn(0, 255)
+            val g = (buffer.get(size + i) * 255f).toInt().coerceIn(0, 255)
+            val b = (buffer.get(2 * size + i) * 255f).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
