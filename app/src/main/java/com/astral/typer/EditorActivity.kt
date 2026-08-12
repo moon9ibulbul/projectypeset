@@ -1056,6 +1056,8 @@ class EditorActivity : AppCompatActivity() {
             if (effect == TextEffectType.CHROMATIC_ABERRATION && stylableLayer.chromaticShift == 0f) stylableLayer.chromaticShift = 5f
             if (effect == TextEffectType.GLITCH) {
                 if (stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
+            }
+            if (effect == TextEffectType.GLITCH2) {
                 if (stylableLayer.glitchAmount == 0f) stylableLayer.glitchAmount = 20f
                 if (stylableLayer.glitchDistance == 0f) stylableLayer.glitchDistance = 15f
             }
@@ -1122,7 +1124,8 @@ class EditorActivity : AppCompatActivity() {
         ))
 
         addEffectCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION)
-        addEffectCard("Glitch", TextEffectType.GLITCH)
+        addEffectCard("Glitch 1", TextEffectType.GLITCH)
+        addEffectCard("Glitch 2", TextEffectType.GLITCH2)
         addEffectCard("Pixelation", TextEffectType.PIXELATION)
         addEffectCard("Glow", TextEffectType.NEON)
         addEffectCard("Long Shadow", TextEffectType.LONG_SHADOW)
@@ -1739,6 +1742,34 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
+                val currentGlitchInt = stylableLayer.glitchIntensity
+                val s1 = createSlider("Intensity: ${(currentGlitchInt * 100).toInt()}%", (currentGlitchInt * 100).toInt(), 200) {
+                    stylableLayer.glitchIntensity = it / 100f
+                    canvasView.invalidate()
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitchIntensity = p / 100f
+                        tv1?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Glitch Seed"
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        stylableLayer.glitchSeed = java.util.Random().nextInt(10000).toLong()
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
+        }
+        if (isEffectActive(TextEffectType.GLITCH2)) {
                 val currentAmount = stylableLayer.glitchAmount
                 val s1 = createSlider("Amount: ${currentAmount.toInt()}%", currentAmount.toInt().coerceIn(0, 100), 100) {
                     stylableLayer.glitchAmount = it.toFloat()

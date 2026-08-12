@@ -1435,6 +1435,31 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.GLITCH -> {
+                    val random = Random(glitchSeed)
+                    val currentYStart = if (hasBounds) bounds!!.top else -pad
+                    val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
+                    val currentXStart = if (hasBounds) bounds!!.left else -pad
+                    val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+
+                    var currentY = currentYStart
+                    val maxStripHeight = (currentYEnd - currentYStart) * 0.15f
+                    val minStripHeight = (currentYEnd - currentYStart) * 0.02f
+
+                    while (currentY < currentYEnd) {
+                        var stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
+                        if (stripHeight < 1f) stripHeight = 1f
+                        val bottom = kotlin.math.min(currentY + stripHeight, currentYEnd)
+                        val xOffset = if (random.nextFloat() < 0.5f) (random.nextFloat() - 0.5f) * 100f * glitchIntensity else 0f
+                        targetCanvas.save()
+                        targetCanvas.clipRect(currentXStart, currentY, currentXEnd, bottom)
+                        targetCanvas.translate(xOffset, 0f)
+                        drawInner(targetCanvas)
+                        targetCanvas.restore()
+                        if (bottom <= currentY) break
+                        currentY = bottom
+                    }
+                }
+                TextEffectType.GLITCH2 -> {
                     val bmpW = nodeW
                     val bmpH = nodeH
                     if (bmpW > 0 && bmpH > 0) {
@@ -2179,7 +2204,8 @@ class ShapeLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
-                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, glitchDistance)
+                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH2 -> effectExpansion = Math.max(effectExpansion, glitchDistance)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
