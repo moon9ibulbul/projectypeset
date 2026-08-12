@@ -166,6 +166,9 @@ object ProjectManager {
         val neonKnockout: Boolean? = null,
         val neonQuality: Float? = null,
         val glitchIntensity: Float? = null,
+        val glitchAmount: Float? = null,
+        val glitchDistance: Float? = null,
+        val glitchDirection: Float? = null,
         val pixelBlockSize: Float? = null,
         val chromaticShift: Float? = null,
         val chromaticAngle: Float? = null,
@@ -485,6 +488,9 @@ object ProjectManager {
                         neonKnockout = layer.neonKnockout,
                         neonQuality = layer.neonQuality,
                         glitchIntensity = layer.glitchIntensity,
+                        glitchAmount = layer.glitchAmount,
+                        glitchDistance = layer.glitchDistance,
+                        glitchDirection = layer.glitchDirection,
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
@@ -616,7 +622,11 @@ object ProjectManager {
                         neonOuterStrength = layer.neonOuterStrength,
                         neonKnockout = layer.neonKnockout,
                         neonQuality = layer.neonQuality,
-                        glitchIntensity = layer.glitchIntensity, pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
+                        glitchIntensity = layer.glitchIntensity,
+                        glitchAmount = layer.glitchAmount,
+                        glitchDistance = layer.glitchDistance,
+                        glitchDirection = layer.glitchDirection,
+                        pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
@@ -1307,6 +1317,9 @@ object ProjectManager {
             model.neonKnockout?.let { layer.neonKnockout = it }
             model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
+            model.glitchAmount?.let { layer.glitchAmount = it }
+            model.glitchDistance?.let { layer.glitchDistance = it }
+            model.glitchDirection?.let { layer.glitchDirection = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
             model.chromaticAngle?.let { layer.chromaticAngle = it }
@@ -1485,6 +1498,9 @@ object ProjectManager {
             model.neonKnockout?.let { layer.neonKnockout = it }
             model.neonQuality?.let { layer.neonQuality = it }
             model.glitchIntensity?.let { layer.glitchIntensity = it }
+            model.glitchAmount?.let { layer.glitchAmount = it }
+            model.glitchDistance?.let { layer.glitchDistance = it }
+            model.glitchDirection?.let { layer.glitchDirection = it }
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
             model.chromaticAngle?.let { layer.chromaticAngle = it }

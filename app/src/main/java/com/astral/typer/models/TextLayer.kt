@@ -280,6 +280,9 @@ class TextLayer(
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
+    override var glitchAmount: Float = 20f
+    override var glitchDistance: Float = 15f
+    override var glitchDirection: Float = 0f
 
     // Pixelation
     override var pixelBlockSize: Float = 10f
@@ -896,6 +899,9 @@ class TextLayer(
         newLayer.neonKnockout = this.neonKnockout
         newLayer.neonQuality = this.neonQuality
         newLayer.glitchIntensity = this.glitchIntensity
+        newLayer.glitchAmount = this.glitchAmount
+        newLayer.glitchDistance = this.glitchDistance
+        newLayer.glitchDirection = this.glitchDirection
         newLayer.pixelBlockSize = this.pixelBlockSize
         newLayer.chromaticShift = this.chromaticShift
         newLayer.chromaticColors = this.chromaticColors.clone()
@@ -1111,7 +1117,7 @@ class TextLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
-                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, glitchDistance)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
@@ -3537,49 +3543,51 @@ class TextLayer(
                     }
                 }
                 TextEffectType.GLITCH -> {
-                    val random = Random(glitchSeed)
-                    val slices = mutableListOf<Pair<RectF, Float>>()
+                    val bmpW = nodeW
+                    val bmpH = nodeH
+                    if (bmpW > 0 && bmpH > 0) {
+                        val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val srcCanvas = Canvas(srcBmp)
+                        srcCanvas.translate(recordTranslateX, recordTranslateY)
+                        drawInner(srcCanvas)
 
-                    val currentYStart = if (hasBounds) bounds!!.top else -pad
-                    val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
-                    val currentXStart = if (hasBounds) bounds!!.left else -pad
-                    val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+                        val dstBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val srcPixels = IntArray(bmpW * bmpH)
+                        srcBmp.getPixels(srcPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                        val dstPixels = srcPixels.clone()
 
-                    var currentY = currentYStart
-                    val maxStripHeight = (currentYEnd - currentYStart) * 0.15f
-                    val minStripHeight = (currentYEnd - currentYStart) * 0.02f
+                        val dirRad = Math.toRadians(glitchDirection.toDouble())
+                        val dxDir = Math.cos(dirRad).toFloat()
+                        val dyDir = Math.sin(dirRad).toFloat()
+                        val dist = Math.max(1f, glitchDistance)
 
-                    while (currentY < currentYEnd) {
-                        var stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
-                        if (stripHeight < 1f) stripHeight = 1f
+                        for (y in 0 until bmpH) {
+                            val rowHash = hashF32(y, 0, glitchSeed)
+                            if (rowHash > glitchAmount / 100f) {
+                                continue
+                            }
+                            val dragDist = (hashF32(y, 1, glitchSeed) * dist).toInt()
 
-                        val bottom = kotlin.math.min(currentY + stripHeight, currentYEnd)
-
-                        val xOffset = if (random.nextFloat() < 0.5f) {
-                            (random.nextFloat() - 0.5f) * 100f * glitchIntensity
-                        } else {
-                            0f
+                            for (x in 0 until bmpW) {
+                                val sx = Math.round(x.toFloat() - dragDist.toFloat() * dxDir)
+                                val sy = Math.round(y.toFloat() - dragDist.toFloat() * dyDir)
+                                val clampedSx = sx.coerceIn(0, bmpW - 1)
+                                val clampedSy = sy.coerceIn(0, bmpH - 1)
+                                dstPixels[y * bmpW + x] = srcPixels[clampedSy * bmpW + clampedSx]
+                            }
                         }
 
-                        slices.add(Pair(RectF(currentXStart, currentY, currentXEnd, bottom), xOffset))
-
-                        if (bottom <= currentY) {
-                            break
-                        }
-                        currentY = bottom
-                    }
-
-                    for (slice in slices) {
-                        val rect = slice.first
-                        val xOffset = slice.second
+                        dstBmp.setPixels(dstPixels, 0, bmpW, 0, 0, bmpW, bmpH)
 
                         targetCanvas.save()
-                        targetCanvas.clipRect(rect)
-                        targetCanvas.translate(xOffset, 0f)
-
-                        drawInner(targetCanvas)
-
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+                        targetCanvas.drawBitmap(dstBmp, 0f, 0f, null)
                         targetCanvas.restore()
+
+                        srcBmp.recycle()
+                        dstBmp.recycle()
+                    } else {
+                        drawInner(targetCanvas)
                     }
                 }
                 TextEffectType.NEON -> {
@@ -4515,6 +4523,26 @@ class TextLayer(
         drawWoodScratchSoftware(targetCanvas, w, h, calculatePadding(), woodScratchIntensity, woodScratchSeed, woodScratchColor, drawInner)
     }
 
+    private fun hashU32(x: Int): Int {
+        var h = x
+        h = h * 0x9E3779B9.toLong().toInt()
+        h = h xor (h ushr 16)
+        h = h * 0x85EBCA6B.toLong().toInt()
+        h = h xor (h ushr 13)
+        h = h * 0xC2B2AE35.toLong().toInt()
+        h = h xor (h ushr 16)
+        return h
+    }
+
+    private fun hashF32(x: Int, y: Int, seed: Long): Float {
+        val seedInt = (seed and 0xFFFFFFFFL).toInt()
+        val valX = x * 374761393
+        val valY = y * 668265263
+        val sum = valX + valY + seedInt
+        val h = hashU32(sum)
+        return (h and 0x00FFFFFF) / 16777216f
+    }
+
     private fun calculatePerspectiveMatrix(src: RectF, dst: FloatArray): Matrix {
         val matrix = Matrix()
         val srcPts = floatArrayOf(
@@ -5368,6 +5396,7 @@ class TextLayer(
         wavyIntensity *= 2f
         fieryIntensity *= 2f
         glitchIntensity *= 2f
+        glitchDistance *= 2f
         particleSize *= 2f
         particleSpread *= 2f
         radialBlurInnerRadius *= 2f

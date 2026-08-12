@@ -242,7 +242,10 @@ object StyleManager {
         val tailLength: Float? = 0f,
         val tailWavyIntensity: Float? = 0f,
         val tailAngle: Float? = 0f,
-        val tailArrowPoint: Boolean? = false
+        val tailArrowPoint: Boolean? = false,
+        val glitchAmount: Float? = 20f,
+        val glitchDistance: Float? = 15f,
+        val glitchDirection: Float? = 0f
     )
 
     fun toModel(l: TextLayer): StyleModel {
@@ -292,7 +295,8 @@ object StyleManager {
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
             l.caseType, l.chromaticAngle, l.shadowThickness,
-            l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint
+            l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint,
+            l.glitchAmount, l.glitchDistance, l.glitchDirection
         )
     }
 
@@ -454,6 +458,11 @@ object StyleManager {
         m.tailWavyIntensity?.let { l.tailWavyIntensity = it }
         m.tailAngle?.let { l.tailAngle = it }
         m.tailArrowPoint?.let { l.tailArrowPoint = it }
+
+        // Glitch Restore
+        m.glitchAmount?.let { l.glitchAmount = it }
+        m.glitchDistance?.let { l.glitchDistance = it }
+        m.glitchDirection?.let { l.glitchDirection = it }
 
         // Formatting
         if (m.textAlign >= 0 && m.textAlign < Layout.Alignment.values().size) {

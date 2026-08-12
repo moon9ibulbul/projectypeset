@@ -120,6 +120,9 @@ class ImageLayer(
     override var neonKnockout: Boolean = false
     override var neonQuality: Float = 0.1f
     override var glitchIntensity: Float = 1.0f
+    override var glitchAmount: Float = 20f
+    override var glitchDistance: Float = 15f
+    override var glitchDirection: Float = 0f
     override var pixelBlockSize: Float = 10f
     override var chromaticShift: Float = 5f
     override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())
@@ -633,6 +636,9 @@ class ImageLayer(
         newLayer.chromaticAngle = this.chromaticAngle
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed
+        newLayer.glitchAmount = this.glitchAmount
+        newLayer.glitchDistance = this.glitchDistance
+        newLayer.glitchDirection = this.glitchDirection
         newLayer.decaySeed = this.decaySeed
         newLayer.woodScratchSeed = this.woodScratchSeed
         newLayer.woodScratchIntensity = this.woodScratchIntensity
@@ -717,6 +723,7 @@ class ImageLayer(
         wavyIntensity *= 2f
         fieryIntensity *= 2f
         glitchIntensity *= 2f
+        glitchDistance *= 2f
         particleSize *= 2f
         particleSpread *= 2f
         radialBlurInnerRadius *= 2f

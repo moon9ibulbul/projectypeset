@@ -156,6 +156,9 @@ class ShapeLayer(
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
+    override var glitchAmount: Float = 20f
+    override var glitchDistance: Float = 15f
+    override var glitchDirection: Float = 0f
 
     // Pixelation
     override var pixelBlockSize: Float = 10f
@@ -1432,28 +1435,51 @@ class ShapeLayer(
                     }
                 }
                 TextEffectType.GLITCH -> {
-                    val random = Random(glitchSeed)
-                    val currentYStart = if (hasBounds) bounds!!.top else -pad
-                    val currentYEnd = if (hasBounds) bounds!!.bottom else h + pad
-                    val currentXStart = if (hasBounds) bounds!!.left else -pad
-                    val currentXEnd = if (hasBounds) bounds!!.right else w + pad
+                    val bmpW = nodeW
+                    val bmpH = nodeH
+                    if (bmpW > 0 && bmpH > 0) {
+                        val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val srcCanvas = Canvas(srcBmp)
+                        srcCanvas.translate(recordTranslateX, recordTranslateY)
+                        drawInner(srcCanvas)
 
-                    var currentY = currentYStart
-                    val maxStripHeight = (currentYEnd - currentYStart) * 0.15f
-                    val minStripHeight = (currentYEnd - currentYStart) * 0.02f
+                        val dstBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val srcPixels = IntArray(bmpW * bmpH)
+                        srcBmp.getPixels(srcPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                        val dstPixels = srcPixels.clone()
 
-                    while (currentY < currentYEnd) {
-                        var stripHeight = minStripHeight + (random.nextFloat() * (maxStripHeight - minStripHeight))
-                        if (stripHeight < 1f) stripHeight = 1f
-                        val bottom = kotlin.math.min(currentY + stripHeight, currentYEnd)
-                        val xOffset = if (random.nextFloat() < 0.5f) (random.nextFloat() - 0.5f) * 100f * glitchIntensity else 0f
+                        val dirRad = Math.toRadians(glitchDirection.toDouble())
+                        val dxDir = Math.cos(dirRad).toFloat()
+                        val dyDir = Math.sin(dirRad).toFloat()
+                        val dist = Math.max(1f, glitchDistance)
+
+                        for (y in 0 until bmpH) {
+                            val rowHash = hashF32(y, 0, glitchSeed)
+                            if (rowHash > glitchAmount / 100f) {
+                                continue
+                            }
+                            val dragDist = (hashF32(y, 1, glitchSeed) * dist).toInt()
+
+                            for (x in 0 until bmpW) {
+                                val sx = Math.round(x.toFloat() - dragDist.toFloat() * dxDir)
+                                val sy = Math.round(y.toFloat() - dragDist.toFloat() * dyDir)
+                                val clampedSx = sx.coerceIn(0, bmpW - 1)
+                                val clampedSy = sy.coerceIn(0, bmpH - 1)
+                                dstPixels[y * bmpW + x] = srcPixels[clampedSy * bmpW + clampedSx]
+                            }
+                        }
+
+                        dstBmp.setPixels(dstPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
                         targetCanvas.save()
-                        targetCanvas.clipRect(currentXStart, currentY, currentXEnd, bottom)
-                        targetCanvas.translate(xOffset, 0f)
-                        drawInner(targetCanvas)
+                        targetCanvas.translate(drawTranslateX, drawTranslateY)
+                        targetCanvas.drawBitmap(dstBmp, 0f, 0f, null)
                         targetCanvas.restore()
-                        if (bottom <= currentY) break
-                        currentY = bottom
+
+                        srcBmp.recycle()
+                        dstBmp.recycle()
+                    } else {
+                        drawInner(targetCanvas)
                     }
                 }
                 TextEffectType.NEON -> {
@@ -2153,7 +2179,7 @@ class ShapeLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
-                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
+                TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, glitchDistance)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
                 TextEffectType.WAVY -> effectExpansion = Math.max(effectExpansion, wavyIntensity * 50f + 20f)
                 TextEffectType.ZOOM_BLUR -> effectExpansion = Math.max(effectExpansion, Math.max(getWidth(), getHeight()) * zoomBlurStrength * 1.5f + 100f)
@@ -2388,7 +2414,7 @@ class ShapeLayer(
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
-        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitchAmount = glitchAmount; newLayer.glitchDistance = glitchDistance; newLayer.glitchDirection = glitchDirection; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
         newLayer.decaySeed = decaySeed; newLayer.woodScratchSeed = woodScratchSeed
         newLayer.woodScratchIntensity = woodScratchIntensity; newLayer.woodScratchColor = woodScratchColor
@@ -2462,6 +2488,26 @@ class ShapeLayer(
         }
     }
 
+    private fun hashU32(x: Int): Int {
+        var h = x
+        h = h * 0x9E3779B9.toLong().toInt()
+        h = h xor (h ushr 16)
+        h = h * 0x85EBCA6B.toLong().toInt()
+        h = h xor (h ushr 13)
+        h = h * 0xC2B2AE35.toLong().toInt()
+        h = h xor (h ushr 16)
+        return h
+    }
+
+    private fun hashF32(x: Int, y: Int, seed: Long): Float {
+        val seedInt = (seed and 0xFFFFFFFFL).toInt()
+        val valX = x * 374761393
+        val valY = y * 668265263
+        val sum = valX + valY + seedInt
+        val h = hashU32(sum)
+        return (h and 0x00FFFFFF) / 16777216f
+    }
+
     override fun doubleResolution() {
         customWidth = getWidth() * 2f
         customHeight = getHeight() * 2f
@@ -2503,6 +2549,7 @@ class ShapeLayer(
         wavyIntensity *= 2f
         fieryIntensity *= 2f
         glitchIntensity *= 2f
+        glitchDistance *= 2f
         particleSize *= 2f
         particleSpread *= 2f
         radialBlurInnerRadius *= 2f

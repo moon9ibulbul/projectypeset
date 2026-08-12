@@ -1054,7 +1054,11 @@ class EditorActivity : AppCompatActivity() {
 
             // Defaults
             if (effect == TextEffectType.CHROMATIC_ABERRATION && stylableLayer.chromaticShift == 0f) stylableLayer.chromaticShift = 5f
-            if (effect == TextEffectType.GLITCH && stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
+            if (effect == TextEffectType.GLITCH) {
+                if (stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
+                if (stylableLayer.glitchAmount == 0f) stylableLayer.glitchAmount = 20f
+                if (stylableLayer.glitchDistance == 0f) stylableLayer.glitchDistance = 15f
+            }
             if (effect == TextEffectType.PIXELATION && stylableLayer.pixelBlockSize == 0f) stylableLayer.pixelBlockSize = 10f
             if (effect == TextEffectType.NEON && stylableLayer.neonRadius == 0f) stylableLayer.neonRadius = 30f
             if (effect == TextEffectType.LONG_SHADOW && stylableLayer.longShadowLength == 0f) stylableLayer.longShadowLength = 30f
@@ -1735,22 +1739,57 @@ class EditorActivity : AppCompatActivity() {
                 ))
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
-                val currentGlitchInt = stylableLayer.glitchIntensity
-                val s1 = createSlider("Intensity: ${(currentGlitchInt * 100).toInt()}%", (currentGlitchInt * 100).toInt(), 200) {
-                    stylableLayer.glitchIntensity = it / 100f
+                val currentAmount = stylableLayer.glitchAmount
+                val s1 = createSlider("Amount: ${currentAmount.toInt()}%", currentAmount.toInt().coerceIn(0, 100), 100) {
+                    stylableLayer.glitchAmount = it.toFloat()
                     canvasView.invalidate()
                 }
                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        stylableLayer.glitchIntensity = p / 100f
-                        tv1?.text = "Intensity: $p%"
+                        stylableLayer.glitchAmount = p.toFloat()
+                        tv1?.text = "Amount: $p%"
                         canvasView.invalidate()
                     }
                     override fun onStartTrackingTouch(s: SeekBar?) {}
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s1)
+
+                val currentDistance = stylableLayer.glitchDistance
+                val s2 = createSlider("Distance: ${currentDistance.toInt()} px", currentDistance.toInt().coerceIn(0, 100), 100) {
+                    stylableLayer.glitchDistance = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitchDistance = p.toFloat()
+                        tv2?.text = "Distance: $p px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                val currentDirection = stylableLayer.glitchDirection
+                val s3 = createSlider("Direction: ${currentDirection.toInt()}°", currentDirection.toInt().coerceIn(0, 360), 360) {
+                    stylableLayer.glitchDirection = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.glitchDirection = p.toFloat()
+                        tv3?.text = "Direction: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s3)
+
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Glitch Seed"
                     setTextColor(Color.WHITE)
