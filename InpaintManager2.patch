@@ -1,0 +1,31 @@
+--- app/src/main/java/com/astral/typer/utils/InpaintManager.kt
++++ app/src/main/java/com/astral/typer/utils/InpaintManager.kt
+@@ -10,6 +10,7 @@
+ import org.opencv.core.Mat
+ import org.opencv.imgproc.Imgproc
+ import org.opencv.photo.Photo
++import com.astral.typer.utils.cloudflare.CloudflareProcessor
+
+ /**
+  * High-level manager for coordinating Inpainting functionality.
+@@ -17,17 +18,22 @@
+ class InpaintManager(private val context: Context) {
+
+     enum class Engine {
+-        LAMA, OPENCV, FALLBACK, MIGAN
++        LAMA, OPENCV, FALLBACK, MIGAN, CLOUDFLARE
+     }
+
+     private var currentEngine: Engine = Engine.OPENCV
+     private var isOpenCvInitialized = false
+     private val lamaProcessor by lazy { LaMaProcessor(context) }
+     private val miganProcessor by lazy { MiganProcessor(context) }
++    private val cloudflareProcessor by lazy { CloudflareProcessor(context) }
++
++    var cloudflarePrompt: String = "Removing text or sfx in comic"
++    var cloudflareUrl: String = ""
++    var cloudflareApiKey: String = ""
++    var cloudflareProgressListener: CloudflareProcessor.ProgressListener? = null
+
+     init {
+         // Attempt to initialize OpenCV Native library

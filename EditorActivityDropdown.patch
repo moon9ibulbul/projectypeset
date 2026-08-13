@@ -1,0 +1,33 @@
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -3637,7 +3637,9 @@
+         val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
+         val isLamaAvailable = lamaProcessor.isModelAvailable()
+         val isMiganAvailable = miganProcessor.isModelAvailable()
++        val sharedPrefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
++        val isCloudflareAvailable = sharedPrefs.getBoolean("cloudflare_ai_enabled", false)
+
+-        if (isLamaAvailable || isMiganAvailable) {
++        if (isLamaAvailable || isMiganAvailable || isCloudflareAvailable) {
+             val engineLayout = LinearLayout(this).apply {
+                 orientation = LinearLayout.HORIZONTAL
+@@ -3654,6 +3656,9 @@
+             if (isMiganAvailable) {
+                 modes.add("MIGAN (AI)")
+             }
++            if (isCloudflareAvailable) {
++                modes.add("Cloudflare (AI)")
++            }
+
+             val spinner = android.widget.Spinner(this)
+             val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
+@@ -3677,6 +3682,9 @@
+                         selectedMode.contains("MIGAN") -> {
+                             inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
+                         }
++                        selectedMode.contains("Cloudflare") -> {
++                            inpaintManager.setEngine(InpaintManager.Engine.CLOUDFLARE)
++                        }
+                     }
+                 }
+                 override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}

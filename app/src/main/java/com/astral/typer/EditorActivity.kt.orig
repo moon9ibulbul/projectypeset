@@ -3634,10 +3634,8 @@ class EditorActivity : AppCompatActivity() {
         val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
         val isLamaAvailable = lamaProcessor.isModelAvailable()
         val isMiganAvailable = miganProcessor.isModelAvailable()
-        val sharedPrefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val isCloudflareAvailable = sharedPrefs.getBoolean("cloudflare_ai_enabled", false)
 
-        if (isLamaAvailable || isMiganAvailable || isCloudflareAvailable) {
+        if (isLamaAvailable || isMiganAvailable) {
             val engineLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -3653,9 +3651,6 @@ class EditorActivity : AppCompatActivity() {
             }
             if (isMiganAvailable) {
                 modes.add("MIGAN (AI)")
-            }
-            if (isCloudflareAvailable) {
-                modes.add("Cloudflare (AI)")
             }
 
             val spinner = android.widget.Spinner(this)
@@ -3679,9 +3674,6 @@ class EditorActivity : AppCompatActivity() {
                         }
                         selectedMode.contains("MIGAN") -> {
                             inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
-                        }
-                        selectedMode.contains("Cloudflare") -> {
-                            inpaintManager.setEngine(InpaintManager.Engine.CLOUDFLARE)
                         }
                     }
                 }

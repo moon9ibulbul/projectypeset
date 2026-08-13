@@ -1,0 +1,13 @@
+--- app/src/main/java/com/astral/typer/utils/InpaintManager.kt
++++ app/src/main/java/com/astral/typer/utils/InpaintManager.kt
+@@ -53,6 +53,10 @@
+         currentEngine = engine
+     }
+
++    fun getEngine(): Engine {
++        return currentEngine
++    }
++
+     /**
+      * Inpaints the original bitmap using the provided mask.
+      * @param originalBitmap The source image (ARGB_8888 recommended).
