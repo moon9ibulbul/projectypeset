@@ -218,10 +218,21 @@ class LaMaProcessor(private val context: Context) {
             // Draw base
             canvas.drawBitmap(image, 0f, 0f, paint)
 
+            // Create a mutable copy of the mask to allow progressive erasing.
+            // This allows subsequent tiles to use previously inpainted areas as valid context, preventing seams.
+            val currentMask = mask.copy(Bitmap.Config.ARGB_8888, true)
+            val maskCanvas = Canvas(currentMask)
+            val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            }
+
             // Loop through each distinct mask area
             for (rect in maskRects) {
-                // Process this specific region
-                processRegion(image, mask, rect, session, env, canvas, paint)
+                // Process this specific region using the progressively accumulated result and eroding mask
+                processRegion(resultBitmap, currentMask, rect, session, env, canvas, paint)
+
+                // Erase the processed tile from the mask so future crops treat this newly inpainted area as valid image context
+                maskCanvas.drawRect(rect, clearPaint)
             }
 
             return@withContext resultBitmap
@@ -246,17 +257,10 @@ class LaMaProcessor(private val context: Context) {
         val cx = maskRect.centerX()
         val cy = maskRect.centerY()
 
-        val maxMaskDim = kotlin.math.max(maskRect.width(), maskRect.height())
-        // Determine whether we can do native 1:1 resolution (if the mask and its context fit within 512x512)
-        // or if we must fallback to scaling (if the mask itself is huge)
-        val isNativeResolution = maxMaskDim <= TRAINED_SIZE / 2 // Using half size ensures at least 2x context around the mask
-
-        val size = if (isNativeResolution) {
-            TRAINED_SIZE
-        } else {
-            maxMaskDim * 3
-        }
-
+        // Since maskRects are guaranteed to be <= 256x256 from getSeparateMaskRects,
+        // we can always use the native trained size (512x512) for a 1:1 context window
+        // without ever needing to scale or lose quality.
+        val size = TRAINED_SIZE
         val halfSize = size / 2
 
         var left = cx - halfSize
@@ -325,25 +329,18 @@ class LaMaProcessor(private val context: Context) {
             cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
             cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
 
-            // 2. Prepare Input for Model (Scale vs Native Padding)
-            if (isNativeResolution && cropRect.width() <= TRAINED_SIZE && cropRect.height() <= TRAINED_SIZE) {
-                // If crop is smaller than 512x512 (e.g. hit the edge of a small image), pad it with transparent pixels
-                // to exactly 512x512 to preserve native resolution without downsampling blur
-                inputImage = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
-                val imgCanvas = Canvas(inputImage)
-                // Center the crop inside the 512x512 input. Use integer division to prevent sub-pixel bilinear interpolation blur.
-                val dx = (TRAINED_SIZE - cropRect.width()) / 2
-                val dy = (TRAINED_SIZE - cropRect.height()) / 2
-                imgCanvas.drawBitmap(cropImage, dx.toFloat(), dy.toFloat(), null)
+            // 2. Prepare Input for Model (Native Padding)
+            // Pad it with transparent pixels to exactly 512x512 to preserve native resolution without downsampling blur
+            inputImage = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
+            val imgCanvas = Canvas(inputImage)
+            // Center the crop inside the 512x512 input. Use integer division to prevent sub-pixel bilinear interpolation blur.
+            val dx = (TRAINED_SIZE - cropRect.width()) / 2
+            val dy = (TRAINED_SIZE - cropRect.height()) / 2
+            imgCanvas.drawBitmap(cropImage, dx.toFloat(), dy.toFloat(), null)
 
-                inputMask = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
-                val maskCanvas = Canvas(inputMask)
-                maskCanvas.drawBitmap(cropMask, dx.toFloat(), dy.toFloat(), null)
-            } else {
-                // Fallback for huge masks: scale down to 512x512
-                inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
-                inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
-            }
+            inputMask = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
+            val maskCanvas = Canvas(inputMask)
+            maskCanvas.drawBitmap(cropMask, dx.toFloat(), dy.toFloat(), null)
 
             // 3. Prepare Tensors
             tensorImg = bitmapToOnnxTensor(env, inputImage)
@@ -359,15 +356,8 @@ class LaMaProcessor(private val context: Context) {
             outputBitmap = outputTensorToBitmap(outputTensor, TRAINED_SIZE, TRAINED_SIZE)
 
             // 6. Resize/Crop Output back to Original Crop Size
-            if (isNativeResolution && cropRect.width() <= TRAINED_SIZE && cropRect.height() <= TRAINED_SIZE) {
-                // Extract the exact region back from the center of the 512x512 output
-                val dx = (TRAINED_SIZE - cropRect.width()) / 2
-                val dy = (TRAINED_SIZE - cropRect.height()) / 2
-                outputCrop = Bitmap.createBitmap(outputBitmap, dx, dy, cropRect.width(), cropRect.height())
-            } else {
-                // Scale back up
-                outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
-            }
+            // Extract the exact region back from the center of the 512x512 output
+            outputCrop = Bitmap.createBitmap(outputBitmap, dx, dy, cropRect.width(), cropRect.height())
 
             // 7. Composite Logic (Paste back onto the accumulating canvas)
             val sc = canvas.saveLayer(
@@ -420,87 +410,96 @@ class LaMaProcessor(private val context: Context) {
     }
 
     /**
-     * Finds connected components (blobs) in the mask using a simple BFS/FloodFill.
-     * Returns a list of bounding rectangles for each separate mask area.
-     * This avoids using heavy external dependencies like OpenCV.
+     * Scans the mask using a high-speed grid-based approach (max 256x256 tiles).
+     * This avoids full-image allocations (OOM errors) and ensures large masks are dynamically
+     * split into native-sized tiles, guaranteeing 1:1 inference without downscaling.
      */
     private fun getSeparateMaskRects(mask: Bitmap): List<android.graphics.Rect> {
         val w = mask.width
         val h = mask.height
-        val pixels = IntArray(w * h)
-        mask.getPixels(pixels, 0, w, 0, 0, w, h)
+        val maxTileSize = TRAINED_SIZE / 2 // 256x256
 
-        val visited = BooleanArray(w * h)
         val rects = ArrayList<android.graphics.Rect>()
+        // Reused buffer for extracting tile pixels (max 256x256)
+        val pixelBuffer = IntArray(maxTileSize * maxTileSize)
 
-        val queue: Queue<Int> = LinkedList()
+        // 1. Grid Scan
+        for (y in 0 until h step maxTileSize) {
+            for (x in 0 until w step maxTileSize) {
+                val tileW = kotlin.math.min(maxTileSize, w - x)
+                val tileH = kotlin.math.min(maxTileSize, h - y)
 
-        for (i in pixels.indices) {
-            // Check if pixel is part of mask (Alpha > 0) and not visited
-            if (!visited[i] && (pixels[i] ushr 24) > 0) {
-                // Found a new component
-                var minX = w
+                mask.getPixels(pixelBuffer, 0, tileW, x, y, tileW, tileH)
+
+                var minX = tileW
                 var maxX = -1
-                var minY = h
+                var minY = tileH
                 var maxY = -1
+                var found = false
 
-                visited[i] = true
-                queue.add(i)
-
-                while (!queue.isEmpty()) {
-                    val currIdx = queue.remove()
-                    val cx = currIdx % w
-                    val cy = currIdx / w
-
-                    // Update bounds
-                    if (cx < minX) minX = cx
-                    if (cx > maxX) maxX = cx
-                    if (cy < minY) minY = cy
-                    if (cy > maxY) maxY = cy
-
-                    // Check 4 neighbors
-                    // Left
-                    if (cx > 0) {
-                        val nIdx = currIdx - 1
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                    // Right
-                    if (cx < w - 1) {
-                        val nIdx = currIdx + 1
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                    // Top
-                    if (cy > 0) {
-                        val nIdx = currIdx - w
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
-                        }
-                    }
-                    // Bottom
-                    if (cy < h - 1) {
-                        val nIdx = currIdx + w
-                        if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
-                            visited[nIdx] = true
-                            queue.add(nIdx)
+                // Find tight bounding box within this tile
+                for (ty in 0 until tileH) {
+                    val rowOffset = ty * tileW
+                    for (tx in 0 until tileW) {
+                        if ((pixelBuffer[rowOffset + tx] ushr 24) > 0) {
+                            if (tx < minX) minX = tx
+                            if (tx > maxX) maxX = tx
+                            if (ty < minY) minY = ty
+                            if (ty > maxY) maxY = ty
+                            found = true
                         }
                     }
                 }
 
-                // Add component rect
-                if (maxX >= minX && maxY >= minY) {
-                    rects.add(android.graphics.Rect(minX, minY, maxX + 1, maxY + 1))
+                if (found) {
+                    // Absolute coordinates
+                    rects.add(
+                        android.graphics.Rect(
+                            x + minX,
+                            y + minY,
+                            x + maxX + 1,
+                            y + maxY + 1
+                        )
+                    )
                 }
             }
         }
 
-        // Fallback: if list is empty (e.g., all transparent), return nothing
+        // 2. Merge adjacent/overlapping rects IF their union remains <= 256x256
+        // This ensures small adjacent mask patches are grouped, but huge masks remain tiled.
+        var merged = true
+        while (merged) {
+            merged = false
+            for (i in 0 until rects.size) {
+                for (j in i + 1 until rects.size) {
+                    val r1 = rects[i]
+                    val r2 = rects[j]
+
+                    // Calculate potential union
+                    val unionLeft = kotlin.math.min(r1.left, r2.left)
+                    val unionTop = kotlin.math.min(r1.top, r2.top)
+                    val unionRight = kotlin.math.max(r1.right, r2.right)
+                    val unionBottom = kotlin.math.max(r1.bottom, r2.bottom)
+
+                    val unionWidth = unionRight - unionLeft
+                    val unionHeight = unionBottom - unionTop
+
+                    // If union fits inside our max tile size (and they are close/intersecting), merge them
+                    if (unionWidth <= maxTileSize && unionHeight <= maxTileSize) {
+                        // Check if they overlap or are very close (e.g., within 16px of each other)
+                        val expandedR1 = android.graphics.Rect(r1.left - 16, r1.top - 16, r1.right + 16, r1.bottom + 16)
+                        if (android.graphics.Rect.intersects(expandedR1, r2)) {
+                            rects[i] = android.graphics.Rect(unionLeft, unionTop, unionRight, unionBottom)
+                            rects.removeAt(j)
+                            merged = true
+                            break
+                        }
+                    }
+                }
+                if (merged) break
+            }
+        }
+
         return rects
     }
 
