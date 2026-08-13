@@ -243,20 +243,11 @@ class LaMaProcessor(private val context: Context) {
         canvas: Canvas,
         paint: Paint
     ) {
+        // Calculate padded square crop (smart crop) based on this specific maskRect
+        // 3x padding logic from original code
+        val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
         val cx = maskRect.centerX()
         val cy = maskRect.centerY()
-
-        val maxMaskDim = kotlin.math.max(maskRect.width(), maskRect.height())
-        // Determine whether we can do native 1:1 resolution (if the mask and its context fit within 512x512)
-        // or if we must fallback to scaling (if the mask itself is huge)
-        val isNativeResolution = maxMaskDim <= TRAINED_SIZE / 2 // Using half size ensures at least 2x context around the mask
-
-        val size = if (isNativeResolution) {
-            TRAINED_SIZE
-        } else {
-            maxMaskDim * 3
-        }
-
         val halfSize = size / 2
 
         var left = cx - halfSize
@@ -310,41 +301,19 @@ class LaMaProcessor(private val context: Context) {
 
         val cropRect = android.graphics.Rect(left, top, right, bottom)
 
-        var cropImage: Bitmap? = null
-        var cropMask: Bitmap? = null
-        var inputImage: Bitmap? = null
-        var inputMask: Bitmap? = null
-        var outputBitmap: Bitmap? = null
-        var outputCrop: Bitmap? = null
+        // 1. Create Crops
+        val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+        val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+
+        // 2. Resize Input for Model
+        val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
+        val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+
         var tensorImg: OnnxTensor? = null
         var tensorMask: OnnxTensor? = null
         var resultOrt: OrtSession.Result? = null
 
         try {
-            // 1. Create Crops
-            cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
-            cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
-
-            // 2. Prepare Input for Model (Scale vs Native Padding)
-            if (isNativeResolution && cropRect.width() <= TRAINED_SIZE && cropRect.height() <= TRAINED_SIZE) {
-                // If crop is smaller than 512x512 (e.g. hit the edge of a small image), pad it with transparent pixels
-                // to exactly 512x512 to preserve native resolution without downsampling blur
-                inputImage = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
-                val imgCanvas = Canvas(inputImage)
-                // Center the crop inside the 512x512 input. Use integer division to prevent sub-pixel bilinear interpolation blur.
-                val dx = (TRAINED_SIZE - cropRect.width()) / 2
-                val dy = (TRAINED_SIZE - cropRect.height()) / 2
-                imgCanvas.drawBitmap(cropImage, dx.toFloat(), dy.toFloat(), null)
-
-                inputMask = Bitmap.createBitmap(TRAINED_SIZE, TRAINED_SIZE, Bitmap.Config.ARGB_8888)
-                val maskCanvas = Canvas(inputMask)
-                maskCanvas.drawBitmap(cropMask, dx.toFloat(), dy.toFloat(), null)
-            } else {
-                // Fallback for huge masks: scale down to 512x512
-                inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
-                inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
-            }
-
             // 3. Prepare Tensors
             tensorImg = bitmapToOnnxTensor(env, inputImage)
             tensorMask = bitmapToMaskTensor(env, inputMask)
@@ -356,18 +325,10 @@ class LaMaProcessor(private val context: Context) {
             val outputTensor = resultOrt[0] as OnnxTensor
 
             // 5. Post Process
-            outputBitmap = outputTensorToBitmap(outputTensor, TRAINED_SIZE, TRAINED_SIZE)
+            val outputBitmap = outputTensorToBitmap(outputTensor)
 
-            // 6. Resize/Crop Output back to Original Crop Size
-            if (isNativeResolution && cropRect.width() <= TRAINED_SIZE && cropRect.height() <= TRAINED_SIZE) {
-                // Extract the exact region back from the center of the 512x512 output
-                val dx = (TRAINED_SIZE - cropRect.width()) / 2
-                val dy = (TRAINED_SIZE - cropRect.height()) / 2
-                outputCrop = Bitmap.createBitmap(outputBitmap, dx, dy, cropRect.width(), cropRect.height())
-            } else {
-                // Scale back up
-                outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
-            }
+            // 6. Resize Output back to Crop Size
+            val outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
 
             // 7. Composite Logic (Paste back onto the accumulating canvas)
             val sc = canvas.saveLayer(
@@ -394,22 +355,6 @@ class LaMaProcessor(private val context: Context) {
         } catch (e: Exception) {
             Log.e("LaMaProcessor", "Error processing region $maskRect", e)
         } finally {
-            // Memory Optimization: Explicitly recycle all temporary bitmaps
-            if (cropImage != originalImage) {
-                try { cropImage?.recycle() } catch (e: Exception) {}
-            }
-            if (cropMask != originalMask) {
-                try { cropMask?.recycle() } catch (e: Exception) {}
-            }
-            if (inputImage != cropImage) {
-                try { inputImage?.recycle() } catch (e: Exception) {}
-            }
-            if (inputMask != cropMask) {
-                try { inputMask?.recycle() } catch (e: Exception) {}
-            }
-            try { outputBitmap?.recycle() } catch (e: Exception) {}
-            try { outputCrop?.recycle() } catch (e: Exception) {}
-
             // Explicit cleanup of tensors for this loop iteration
             try {
                 resultOrt?.close()
@@ -540,23 +485,17 @@ class LaMaProcessor(private val context: Context) {
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val size = w * h
-        val byteBuffer = java.nio.ByteBuffer.allocateDirect(size * 4).order(java.nio.ByteOrder.nativeOrder())
-        val floatBuffer = byteBuffer.asFloatBuffer()
-
-        val data = FloatArray(size)
-        for (i in 0 until size) {
+        val data = FloatArray(w * h)
+        for (i in pixels.indices) {
             val p = pixels[i]
             val alpha = (p shr 24) and 0xFF
+            // If alpha > 0, it is a mask.
             data[i] = if (alpha > 0) 1f else 0f
         }
 
-        floatBuffer.put(data)
-        floatBuffer.rewind()
-
         return OnnxTensor.createTensor(
             env,
-            floatBuffer,
+            FloatBuffer.wrap(data),
             longArrayOf(1, 1, h.toLong(), w.toLong())
         )
     }
@@ -567,56 +506,44 @@ class LaMaProcessor(private val context: Context) {
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val channelSize = w * h
-        val size = 3 * channelSize
-        val byteBuffer = java.nio.ByteBuffer.allocateDirect(size * 4).order(java.nio.ByteOrder.nativeOrder())
-        val floatBuffer = byteBuffer.asFloatBuffer()
-
+        val size = 3 * w * h
         val data = FloatArray(size)
+        val channelSize = w * h
 
-        // Write R, G, B
         for (i in 0 until channelSize) {
             val p = pixels[i]
-            data[i] = ((p shr 16) and 0xFF) / 255f
-            data[channelSize + i] = ((p shr 8) and 0xFF) / 255f
-            data[2 * channelSize + i] = (p and 0xFF) / 255f
-        }
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
 
-        floatBuffer.put(data)
-        floatBuffer.rewind()
+            data[i] = r
+            data[channelSize + i] = g
+            data[2 * channelSize + i] = b
+        }
 
         return OnnxTensor.createTensor(
             env,
-            floatBuffer,
+            FloatBuffer.wrap(data),
             longArrayOf(1, 3, h.toLong(), w.toLong())
         )
     }
 
-    private fun outputTensorToBitmap(tensor: OnnxTensor, width: Int, height: Int): Bitmap {
+    private fun outputTensorToBitmap(tensor: OnnxTensor): Bitmap {
         val buffer = tensor.floatBuffer
+        val data = FloatArray(buffer.capacity())
+        buffer.get(data)
+
+        val width = TRAINED_SIZE
+        val height = TRAINED_SIZE
         val size = width * height
         val pixels = IntArray(size)
 
-        val data = FloatArray(buffer.capacity())
-        buffer.rewind()
-        buffer.get(data)
-
-        // Dynamically detect range. LaMa models from different exports can output [0, 1] or [0, 255]
-        var needsMultiplier = true
-        val step = kotlin.math.max(1, data.size / 1000)
-        for (i in data.indices step step) {
-            if (data[i] > 1.0f) {
-                needsMultiplier = false
-                break
-            }
-        }
-
-        val multiplier = if (needsMultiplier) 255f else 1f
+        val amp = 1
 
         for (i in 0 until size) {
-            val r = (data[i] * multiplier).toInt().coerceIn(0, 255)
-            val g = (data[size + i] * multiplier).toInt().coerceIn(0, 255)
-            val b = (data[2 * size + i] * multiplier).toInt().coerceIn(0, 255)
+            val r = (data[i] * amp).toInt().coerceIn(0, 255)
+            val g = (data[size + i] * amp).toInt().coerceIn(0, 255)
+            val b = (data[2 * size + i] * amp).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
