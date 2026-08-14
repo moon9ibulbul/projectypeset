@@ -243,6 +243,10 @@ object StyleManager {
         val tailWavyIntensity: Float? = 0f,
         val tailAngle: Float? = 0f,
         val tailArrowPoint: Boolean? = false,
+        val tailOffsetX: Float? = 0f,
+        val tailOffsetY: Float? = 0f,
+        val tailThickness: Float? = 10f,
+        val tailSeed: Long? = 0L,
         val glitchAmount: Float? = 20f,
         val glitchDistance: Float? = 15f,
         val glitchDirection: Float? = 0f
@@ -296,6 +300,7 @@ object StyleManager {
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
             l.caseType, l.chromaticAngle, l.shadowThickness,
             l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint,
+            l.tailOffsetX, l.tailOffsetY, l.tailThickness, l.tailSeed,
             l.glitchAmount, l.glitchDistance, l.glitchDirection
         )
     }
@@ -458,6 +463,10 @@ object StyleManager {
         m.tailWavyIntensity?.let { l.tailWavyIntensity = it }
         m.tailAngle?.let { l.tailAngle = it }
         m.tailArrowPoint?.let { l.tailArrowPoint = it }
+        m.tailOffsetX?.let { l.tailOffsetX = it }
+        m.tailOffsetY?.let { l.tailOffsetY = it }
+        m.tailThickness?.let { l.tailThickness = it }
+        m.tailSeed?.let { l.tailSeed = it }
 
         // Glitch Restore
         m.glitchAmount?.let { l.glitchAmount = it }

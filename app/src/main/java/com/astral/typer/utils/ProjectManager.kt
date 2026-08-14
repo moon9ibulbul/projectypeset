@@ -228,6 +228,10 @@ object ProjectManager {
         val tailWavyIntensity: Float? = null,
         val tailAngle: Float? = null,
         val tailArrowPoint: Boolean? = null,
+        val tailOffsetX: Float? = null,
+        val tailOffsetY: Float? = null,
+        val tailThickness: Float? = null,
+        val tailSeed: Long? = null,
 
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
@@ -550,6 +554,10 @@ object ProjectManager {
                         tailWavyIntensity = layer.tailWavyIntensity,
                         tailAngle = layer.tailAngle,
                         tailArrowPoint = layer.tailArrowPoint,
+                        tailOffsetX = layer.tailOffsetX,
+                        tailOffsetY = layer.tailOffsetY,
+                        tailThickness = layer.tailThickness,
+                        tailSeed = layer.tailSeed,
 
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
@@ -683,6 +691,10 @@ object ProjectManager {
                         tailWavyIntensity = layer.tailWavyIntensity,
                         tailAngle = layer.tailAngle,
                         tailArrowPoint = layer.tailArrowPoint,
+                        tailOffsetX = layer.tailOffsetX,
+                        tailOffsetY = layer.tailOffsetY,
+                        tailThickness = layer.tailThickness,
+                        tailSeed = layer.tailSeed,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,
                         motionBlurOffset = layer.motionBlurOffset,
@@ -1401,6 +1413,10 @@ object ProjectManager {
             model.tailWavyIntensity?.let { layer.tailWavyIntensity = it }
             model.tailAngle?.let { layer.tailAngle = it }
             model.tailArrowPoint?.let { layer.tailArrowPoint = it }
+            model.tailOffsetX?.let { layer.tailOffsetX = it }
+            model.tailOffsetY?.let { layer.tailOffsetY = it }
+            model.tailThickness?.let { layer.tailThickness = it }
+            model.tailSeed?.let { layer.tailSeed = it }
 
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
@@ -1582,6 +1598,10 @@ object ProjectManager {
             model.tailWavyIntensity?.let { layer.tailWavyIntensity = it }
             model.tailAngle?.let { layer.tailAngle = it }
             model.tailArrowPoint?.let { layer.tailArrowPoint = it }
+            model.tailOffsetX?.let { layer.tailOffsetX = it }
+            model.tailOffsetY?.let { layer.tailOffsetY = it }
+            model.tailThickness?.let { layer.tailThickness = it }
+            model.tailSeed?.let { layer.tailSeed = it }
 
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {
