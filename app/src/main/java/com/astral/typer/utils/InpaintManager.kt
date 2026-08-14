@@ -107,9 +107,16 @@ class InpaintManager(private val context: Context) {
                     canvas.drawBitmap(croppedResult, rect.left.toFloat(), rect.top.toFloat(), null)
                     croppedResult.recycle()
                     return@withContext resultBitmap
+                } else {
+                    if (currentEngine == Engine.CLOUDFLARE) {
+                        return@withContext null
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("InpaintManager", "Cropped inpaint failed, falling back to full inpaint", e)
+                if (currentEngine == Engine.CLOUDFLARE) {
+                    return@withContext null
+                }
             }
 
             // Fallback to full inpaint if cropped fails
