@@ -11,6 +11,7 @@ import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.imgproc.Imgproc
 import org.opencv.photo.Photo
+import com.astral.typer.utils.cloudflare.CloudflareProcessor
 
 /**
  * Manages inpainting operations, providing a robust fallback if OpenCV fails.
@@ -20,13 +21,20 @@ class InpaintManager(private val context: Context) {
     enum class Engine {
         OPENCV,
         LAMA,
-        MIGAN
+        MIGAN,
+        CLOUDFLARE
     }
 
     private var currentEngine: Engine = Engine.OPENCV
     private var isOpenCvInitialized = false
     private val lamaProcessor by lazy { LaMaProcessor(context) }
     private val miganProcessor by lazy { MiganProcessor(context) }
+    private val cloudflareProcessor by lazy { CloudflareProcessor(context) }
+
+    var cloudflarePrompt: String = "Removing text or sfx in comic"
+    var cloudflareUrl: String = ""
+    var cloudflareApiKey: String = ""
+    var cloudflareProgressListener: CloudflareProcessor.ProgressListener? = null
 
     init {
         try {
@@ -43,6 +51,10 @@ class InpaintManager(private val context: Context) {
 
     fun setEngine(engine: Engine) {
         currentEngine = engine
+    }
+
+    fun getEngine(): Engine {
+        return currentEngine
     }
 
     /**
@@ -95,9 +107,16 @@ class InpaintManager(private val context: Context) {
                     canvas.drawBitmap(croppedResult, rect.left.toFloat(), rect.top.toFloat(), null)
                     croppedResult.recycle()
                     return@withContext resultBitmap
+                } else {
+                    if (currentEngine == Engine.CLOUDFLARE) {
+                        return@withContext null
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("InpaintManager", "Cropped inpaint failed, falling back to full inpaint", e)
+                if (currentEngine == Engine.CLOUDFLARE) {
+                    return@withContext null
+                }
             }
 
             // Fallback to full inpaint if cropped fails
@@ -106,7 +125,11 @@ class InpaintManager(private val context: Context) {
     }
 
     private suspend fun performInpaintOnRegion(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
-        if (currentEngine == Engine.LAMA && lamaProcessor.isModelAvailable()) {
+        if (currentEngine == Engine.CLOUDFLARE) {
+            val result = cloudflareProcessor.inpaint(originalBitmap, maskBitmap, cloudflarePrompt, cloudflareUrl, cloudflareApiKey, cloudflareProgressListener)
+            if (result != null) return result
+            Log.w("InpaintManager", "Cloudflare inpaint failed, falling back to OpenCV")
+        } else if (currentEngine == Engine.LAMA && lamaProcessor.isModelAvailable()) {
             val result = lamaProcessor.inpaint(originalBitmap, maskBitmap)
             if (result != null) return result
             Log.w("InpaintManager", "LaMa inpaint failed, falling back to OpenCV")

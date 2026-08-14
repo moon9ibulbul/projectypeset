@@ -719,17 +719,67 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
+        val engine = inpaintManager.getEngine()
+        if (engine == InpaintManager.Engine.CLOUDFLARE) {
+            showCloudflarePromptDialog {
+                executeInpaint(originalBitmap, maskBitmap, bounds, onSuccess)
+            }
+        } else {
+            executeInpaint(originalBitmap, maskBitmap, bounds, onSuccess)
+        }
+    }
+
+    private fun showCloudflarePromptDialog(onContinue: () -> Unit) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_cloudflare_prompt, null)
+        val etPrompt = dialogView.findViewById<android.widget.EditText>(R.id.etCloudflarePrompt)
+        val btnCancel = dialogView.findViewById<android.widget.Button>(R.id.btnCancelCloudflare)
+        val btnGenerate = dialogView.findViewById<android.widget.Button>(R.id.btnGenerateCloudflare)
+
+        etPrompt.setText(inpaintManager.cloudflarePrompt)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+        btnGenerate.setOnClickListener {
+            inpaintManager.cloudflarePrompt = etPrompt.text.toString()
+            getSharedPreferences("settings_prefs", Context.MODE_PRIVATE).edit().putString("cloudflare_prompt", inpaintManager.cloudflarePrompt).apply()
+            dialog.dismiss()
+            onContinue()
+        }
+        dialog.show()
+    }
+
+    private fun executeInpaint(originalBitmap: android.graphics.Bitmap, maskBitmap: android.graphics.Bitmap, bounds: android.graphics.Rect, onSuccess: () -> Unit) {
         // Save current state for Undo (Bitmap History)
         com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
 
-        // Show Loading Overlay
-        binding.loadingOverlay.visibility = View.VISIBLE
+        val dialogView = layoutInflater.inflate(R.layout.dialog_inpaint_loading, null)
+        val tvProgress = dialogView.findViewById<android.widget.TextView>(R.id.tvInpaintProgress)
+        val pbProgress = dialogView.findViewById<android.widget.ProgressBar>(R.id.pbInpaintProgress)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        dialog.show()
+
+        inpaintManager.cloudflareProgressListener = object : com.astral.typer.utils.cloudflare.CloudflareProcessor.ProgressListener {
+            override fun onProgress(percent: Int) {
+                runOnUiThread {
+                    tvProgress.text = "$percent%"
+                    pbProgress.progress = percent
+                }
+            }
+        }
 
         lifecycleScope.launch {
             // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
             val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds)
             withContext(Dispatchers.Main) {
-                binding.loadingOverlay.visibility = View.GONE
+                dialog.dismiss()
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
@@ -3584,8 +3634,10 @@ class EditorActivity : AppCompatActivity() {
         val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
         val isLamaAvailable = lamaProcessor.isModelAvailable()
         val isMiganAvailable = miganProcessor.isModelAvailable()
+        val sharedPrefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val isCloudflareAvailable = sharedPrefs.getBoolean("cloudflare_ai_enabled", false)
 
-        if (isLamaAvailable || isMiganAvailable) {
+        if (isLamaAvailable || isMiganAvailable || isCloudflareAvailable) {
             val engineLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -3601,6 +3653,9 @@ class EditorActivity : AppCompatActivity() {
             }
             if (isMiganAvailable) {
                 modes.add("MIGAN (AI)")
+            }
+            if (isCloudflareAvailable) {
+                modes.add("Cloudflare (AI)")
             }
 
             val spinner = android.widget.Spinner(this)
@@ -3624,6 +3679,9 @@ class EditorActivity : AppCompatActivity() {
                         }
                         selectedMode.contains("MIGAN") -> {
                             inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
+                        }
+                        selectedMode.contains("Cloudflare") -> {
+                            inpaintManager.setEngine(InpaintManager.Engine.CLOUDFLARE)
                         }
                     }
                 }
