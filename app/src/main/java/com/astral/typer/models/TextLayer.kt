@@ -156,6 +156,18 @@ class TextLayer(
     // Warp
     override var isWarp: Boolean = false
 
+    val isWarpActive: Boolean
+        get() = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())
+
+    val strokeWidthToUse: Float
+        get() = if (isWarpActive) strokeWidth * 0.5f else strokeWidth
+
+    val doubleStrokeWidthToUse: Float
+        get() = if (isWarpActive) doubleStrokeWidth * 0.5f else doubleStrokeWidth
+
+    val tripleStrokeWidthToUse: Float
+        get() = if (isWarpActive) tripleStrokeWidth * 0.5f else tripleStrokeWidth
+
     private var _warpRows: Int = 2
     override var warpRows: Int
         get() = if (selectedWarpIndex == -1) _warpRows else (letterWarpRows[selectedWarpIndex] ?: 2)
@@ -1099,7 +1111,7 @@ class TextLayer(
     }
 
     override fun calculatePadding(): Float {
-        var p = strokeWidth + doubleStrokeWidth + tripleStrokeWidth
+        var p = strokeWidthToUse + doubleStrokeWidthToUse + tripleStrokeWidthToUse
         val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
         p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
@@ -1782,12 +1794,12 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
             if (hasStrokes) {
                 // 3rd stroke
-                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
-                    val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2) * qualityScale
-                    val stroke3Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, tripleStrokeWidth, tripleStrokeColor).hashCode()
+                if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
+                    val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
+                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
                     if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
                         stroke3BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1820,9 +1832,9 @@ class TextLayer(
                 }
 
                 // 2nd stroke
-                if (doubleStrokeWidth > 0f) {
-                    val radius = (strokeWidth + doubleStrokeWidth * 2) * qualityScale
-                    val stroke2Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, doubleStrokeColor).hashCode()
+                if (doubleStrokeWidthToUse > 0f) {
+                    val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
+                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
                     if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
                         stroke2BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1855,9 +1867,9 @@ class TextLayer(
                 }
 
                 // 1st stroke
-                if (strokeWidth > 0f) {
-                    val radius = strokeWidth * qualityScale
-                    val stroke1Hash = listOf(shapeHash, strokeWidth, strokeColor).hashCode()
+                if (strokeWidthToUse > 0f) {
+                    val radius = strokeWidthToUse * qualityScale
+                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor).hashCode()
                     if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
                         stroke1BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2287,12 +2299,12 @@ class TextLayer(
                     val morphedBmp = morphedCharBmpCache[i]!!
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-                    val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
+                    val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
                     if (hasStrokes) {
                         // 3rd stroke
-                        if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
-                            val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2) * qualityScale
-                            val stroke3Hash = listOf(charHash, strokeWidth, doubleStrokeWidth, tripleStrokeWidth, tripleStrokeColor).hashCode()
+                        if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
+                            val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
+                            val stroke3Hash = listOf(charHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
                             if (stroke3CharBmpCache[i] == null || stroke3CharBmpCache[i]!!.isRecycled || stroke3CharBmpHash[i] != stroke3Hash) {
                                 stroke3CharBmpCache[i]?.recycle()
                                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2328,9 +2340,9 @@ class TextLayer(
                         }
 
                         // 2nd stroke
-                        if (doubleStrokeWidth > 0f) {
-                            val radius = (strokeWidth + doubleStrokeWidth * 2) * qualityScale
-                            val stroke2Hash = listOf(charHash, strokeWidth, doubleStrokeWidth, doubleStrokeColor).hashCode()
+                        if (doubleStrokeWidthToUse > 0f) {
+                            val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
+                            val stroke2Hash = listOf(charHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
                             if (stroke2CharBmpCache[i] == null || stroke2CharBmpCache[i]!!.isRecycled || stroke2CharBmpHash[i] != stroke2Hash) {
                                 stroke2CharBmpCache[i]?.recycle()
                                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2366,9 +2378,9 @@ class TextLayer(
                         }
 
                         // 1st stroke
-                        if (strokeWidth > 0f) {
-                            val radius = strokeWidth * qualityScale
-                            val stroke1Hash = listOf(charHash, strokeWidth, strokeColor).hashCode()
+                        if (strokeWidthToUse > 0f) {
+                            val radius = strokeWidthToUse * qualityScale
+                            val stroke1Hash = listOf(charHash, strokeWidthToUse, strokeColor).hashCode()
                             if (stroke1CharBmpCache[i] == null || stroke1CharBmpCache[i]!!.isRecycled || stroke1CharBmpHash[i] != stroke1Hash) {
                                 stroke1CharBmpCache[i]?.recycle()
                                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2522,12 +2534,12 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidth > 0f && !isRoughStroke
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
             if (hasStrokes) {
                 // 3rd stroke
-                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
-                    val radius = (strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2) * qualityScale
-                    val stroke3Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, tripleStrokeWidth, tripleStrokeColor).hashCode()
+                if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
+                    val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
+                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
                     if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
                         stroke3BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2560,9 +2572,9 @@ class TextLayer(
                 }
 
                 // 2nd stroke
-                if (doubleStrokeWidth > 0f) {
-                    val radius = (strokeWidth + doubleStrokeWidth * 2) * qualityScale
-                    val stroke2Hash = listOf(shapeHash, strokeWidth, doubleStrokeWidth, doubleStrokeColor).hashCode()
+                if (doubleStrokeWidthToUse > 0f) {
+                    val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
+                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
                     if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
                         stroke2BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2595,9 +2607,9 @@ class TextLayer(
                 }
 
                 // 1st stroke
-                if (strokeWidth > 0f) {
-                    val radius = strokeWidth * qualityScale
-                    val stroke1Hash = listOf(shapeHash, strokeWidth, strokeColor).hashCode()
+                if (strokeWidthToUse > 0f) {
+                    val radius = strokeWidthToUse * qualityScale
+                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor).hashCode()
                     if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
                         stroke1BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2775,9 +2787,9 @@ class TextLayer(
             }
 
             // 0. Triple Stroke
-            if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidth > 0f && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2 + tripleStrokeWidth * 2
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
@@ -2794,9 +2806,9 @@ class TextLayer(
             }
 
             // 1. Double Stroke
-            if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidth > 0f && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidth + doubleStrokeWidth * 2
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
@@ -2813,9 +2825,9 @@ class TextLayer(
             }
 
             // 2. Stroke
-            if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidth > 0f) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidth
+                paint.strokeWidth = strokeWidthToUse
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
