@@ -4683,7 +4683,7 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
         lifecycleScope.launch {
             // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
-            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f)
+            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f, mergeBoxes = false)
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
                 if (rects.isNotEmpty()) {

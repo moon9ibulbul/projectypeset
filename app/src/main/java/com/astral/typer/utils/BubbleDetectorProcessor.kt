@@ -200,9 +200,9 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     // --- Core Inference Logic ---
 
-    suspend fun detect(image: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = process(image, allowedLabels, boxScale)
+    suspend fun detect(image: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f, mergeBoxes: Boolean = true): List<RectF> = process(image, allowedLabels, boxScale, mergeBoxes)
 
-    suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = withContext(Dispatchers.Default) {
+    suspend fun process(bitmap: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f, mergeBoxes: Boolean = true): List<RectF> = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext emptyList()
 
         val originalWidth = bitmap.width
@@ -291,7 +291,7 @@ class BubbleDetectorProcessor(private val context: Context) {
             val nmsResults = nonMaximumSuppression(filteredDetections)
 
             // 4. Merge Adjacent Boxes (Split by tiling)
-            val mergedBoxes = mergeTouchingBoxes(nmsResults)
+            val mergedBoxes = if (mergeBoxes) mergeTouchingBoxes(nmsResults) else nmsResults
 
             // 5. Shrink boxes to fit inside the bubble (Inner Box)
             // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
