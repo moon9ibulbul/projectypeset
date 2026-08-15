@@ -4692,17 +4692,23 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
         lifecycleScope.launch {
             // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
-            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f, !useMLKitDoubleProcess)
+            // Always merge boxes for RT-DETR (mergeBoxes = true) so we get full paragraph crops.
+            // ML Kit needs this spatial context (whitespace, surrounding lines) to detect text properly.
+            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f, true)
 
             if (useMLKitDoubleProcess && rects.isNotEmpty()) {
                 val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                 val mlKitBoxes = mutableListOf<RectF>()
 
                 for (rect in rects) {
-                    val left = maxOf(0f, rect.left).toInt()
-                    val top = maxOf(0f, rect.top).toInt()
-                    val right = minOf(bg.width.toFloat(), rect.right).toInt()
-                    val bottom = minOf(bg.height.toFloat(), rect.bottom).toInt()
+                    // Add 10% padding to the RT-DETR crop to provide context to ML Kit.
+                    val paddingX = (rect.width() * 0.10f).toInt()
+                    val paddingY = (rect.height() * 0.10f).toInt()
+
+                    val left = maxOf(0f, rect.left - paddingX).toInt()
+                    val top = maxOf(0f, rect.top - paddingY).toInt()
+                    val right = minOf(bg.width.toFloat(), rect.right + paddingX).toInt()
+                    val bottom = minOf(bg.height.toFloat(), rect.bottom + paddingY).toInt()
 
                     val width = right - left
                     val height = bottom - top
