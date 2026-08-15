@@ -41,6 +41,7 @@ class TextLayer(
     var isUnderline: Boolean = false
     var isStrikethrough: Boolean = false
     var caseType: String = "NORMAL"
+    var transformTypes: MutableSet<String> = mutableSetOf()
 
     var text: SpannableStringBuilder
         get() = _text
@@ -503,6 +504,9 @@ class TextLayer(
                 is CustomTypefaceSpan -> span.fontPath?.hashCode() ?: 0
                 is android.text.style.AbsoluteSizeSpan -> span.size
                 is LetterSpacingSpan -> span.spacing.hashCode()
+                is com.astral.typer.utils.PositionShiftSpan -> span.shiftX.hashCode() + span.shiftY.hashCode()
+                is com.astral.typer.utils.BaselineShiftSpan -> span.shiftY.hashCode()
+                is com.astral.typer.utils.CircleTextSpan -> span.radius.hashCode()
                 else -> span.hashCode()
             }
             list.add(SpanInfo(start, end, pVal, span.javaClass.name.hashCode()))
@@ -520,6 +524,7 @@ class TextLayer(
     fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float, skipEffects: Boolean): Int {
         var result = text.toString().hashCode()
         result = 31 * result + getSpansHash()
+        result = 31 * result + transformTypes.hashCode()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
         result = 31 * result + pad.hashCode()
@@ -796,6 +801,7 @@ class TextLayer(
         newLayer.isUnderline = this.isUnderline
         newLayer.isStrikethrough = this.isStrikethrough
         newLayer.caseType = this.caseType
+        newLayer.transformTypes = this.transformTypes.toMutableSet()
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
         newLayer.typeface = this.typeface
@@ -1190,7 +1196,84 @@ class TextLayer(
             textPaint.shader = null
         }
 
-        val desiredWidth = StaticLayout.getDesiredWidth(text, textPaint)
+        // Apply Transforms to a temporary SpannableStringBuilder
+        val tempText = SpannableStringBuilder(text)
+        val len = tempText.length
+
+        if (len > 0) {
+            val hasB2S = transformTypes.contains("Bigger to Smaller")
+            val hasS2B = transformTypes.contains("Smaller to Bigger")
+            val hasZigZag = transformTypes.contains("Zig-Zag")
+            val hasConvex = transformTypes.contains("Convex Upward")
+            val hasConcave = transformTypes.contains("Concave Downward")
+            val hasCircle = transformTypes.contains("Circle")
+            val hasFlag = transformTypes.contains("Flag")
+            val hasDots = transformTypes.contains("Centered Double/Triple Dots")
+
+            if (hasCircle) {
+                // Circle transform applies to the whole text
+                val radius = fontSize * 2f // Example radius, can be adjusted
+                tempText.setSpan(com.astral.typer.utils.CircleTextSpan(radius), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            } else {
+                for (i in 0 until len) {
+                    val c = tempText[i]
+                    if (c.isWhitespace()) continue
+
+                    val progress = if (len > 1) i.toFloat() / (len - 1) else 0.5f
+
+                    // Size transforms
+                    if (hasB2S) {
+                        val newSize = (fontSize * (1.5f - progress)).toInt().coerceAtLeast(10)
+                        tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    } else if (hasS2B) {
+                        val newSize = (fontSize * (0.5f + progress)).toInt().coerceAtLeast(10)
+                        tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+
+                    // Position transforms
+                    var shiftY = 0f
+                    if (hasZigZag) {
+                        shiftY = if (i % 2 == 0) -fontSize * 0.3f else fontSize * 0.3f
+                    } else if (hasFlag) {
+                        shiftY = Math.sin(progress * Math.PI * 2.0).toFloat() * (fontSize * 0.2f)
+                    } else if (hasConvex) {
+                        // Parabola pointing down (middle is higher)
+                        val x = progress * 2f - 1f // -1 to 1
+                        shiftY = (x * x - 1f) * (fontSize * 0.5f)
+                    } else if (hasConcave) {
+                        // Parabola pointing up (middle is lower)
+                        val x = progress * 2f - 1f
+                        shiftY = (1f - x * x) * (fontSize * 0.5f)
+                    }
+
+                    // Check if there's already a PositionShiftSpan from manual D-pad
+                    val existingPosSpans = tempText.getSpans(i, i + 1, com.astral.typer.utils.PositionShiftSpan::class.java)
+                    if (existingPosSpans.isNotEmpty()) {
+                        val posSpan = existingPosSpans[0]
+                        // Combine shifts into a single PositionShiftSpan to avoid Android rendering only one ReplacementSpan
+                        val combinedShiftY = shiftY + posSpan.shiftY
+                        tempText.removeSpan(posSpan)
+                        tempText.setSpan(com.astral.typer.utils.PositionShiftSpan(posSpan.shiftX, combinedShiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    } else if (shiftY != 0f) {
+                        tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(shiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
+            }
+
+            // Centered Double/Triple Dots
+            if (hasDots) {
+                // Find all sequences of 2 or 3 dots.
+                // Regex matches 2 or 3 dots that are NOT part of a longer sequence of dots.
+                val regex = Regex("(?<!\\.)\\.{2,3}(?!\\.)")
+                val matches = regex.findAll(tempText.toString())
+                for (match in matches) {
+                    // Shift the dots up by half the font size to center them vertically
+                    tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(-fontSize * 0.4f), match.range.first, match.range.last + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
+
+        val desiredWidth = StaticLayout.getDesiredWidth(tempText, textPaint)
         val layoutWidth = if (boxWidth != null && boxWidth!! > 0) {
             boxWidth!!.toInt()
         } else {
@@ -1202,7 +1285,7 @@ class TextLayer(
             // Helper to create a fresh builder (Builders cannot be reused after build())
             fun createBuilder(): StaticLayout.Builder {
                 val b = StaticLayout.Builder.obtain(
-                    text, 0, text.length, textPaint, layoutWidth.coerceAtLeast(10)
+                    tempText, 0, tempText.length, textPaint, layoutWidth.coerceAtLeast(10)
                 ).setAlignment(textAlign)
                  .setLineSpacing(lineSpacing, 1.0f)
                  .setHyphenationFrequency(if (isJustified) Layout.HYPHENATION_FREQUENCY_NORMAL else Layout.HYPHENATION_FREQUENCY_NONE)

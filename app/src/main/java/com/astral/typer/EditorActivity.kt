@@ -5051,6 +5051,7 @@ class EditorActivity : AppCompatActivity() {
 
         val tabsScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            isFillViewport = true
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -5059,8 +5060,8 @@ class EditorActivity : AppCompatActivity() {
 
         val tabsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { setMargins(0, 8, 0, 8) }
         }
@@ -5403,14 +5404,16 @@ class EditorActivity : AppCompatActivity() {
         val tabNames = mutableListOf("Standard", "My Font", "Favorite")
         tabNames.addAll(categories)
 
+        tabsLayout.weightSum = tabNames.size.toFloat()
         for (name in tabNames) {
             val btn = TextView(this).apply {
                 text = name
                 gravity = Gravity.CENTER
                 setTextColor(Color.LTGRAY)
                 textSize = 14f
-                setPadding(24, 12, 24, 12)
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                setPadding(16, 12, 16, 12)
+                minWidth = dpToPx(80)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener {
                     loadTab(name)
                 }
@@ -6215,7 +6218,7 @@ class EditorActivity : AppCompatActivity() {
         // Tabs
         val tabsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            weightSum = 2f
+            weightSum = 3f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -6241,9 +6244,18 @@ class EditorActivity : AppCompatActivity() {
             addView(createSizeTab(layer))
         }
 
-        fun selectTab(isFormatting: Boolean) {
+        val transformView = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(createTransformTab(layer))
+        }
+
+        fun selectTab(index: Int) {
             contentContainer.removeAllViews()
-            contentContainer.addView(if (isFormatting) formattingView else sizeView)
+            when (index) {
+                0 -> contentContainer.addView(formattingView)
+                1 -> contentContainer.addView(sizeView)
+                2 -> contentContainer.addView(transformView)
+            }
         }
 
         val btnFormat = TextView(this).apply {
@@ -6253,7 +6265,7 @@ class EditorActivity : AppCompatActivity() {
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { selectTab(true) }
+            setOnClickListener { selectTab(0) }
         }
 
         val btnSize = TextView(this).apply {
@@ -6263,15 +6275,26 @@ class EditorActivity : AppCompatActivity() {
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { selectTab(false) }
+            setOnClickListener { selectTab(1) }
+        }
+
+        val btnTransform = TextView(this).apply {
+            text = "Transform"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            setPadding(16, 16, 16, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener { selectTab(2) }
         }
 
         tabsLayout.addView(btnFormat)
         tabsLayout.addView(btnSize)
+        tabsLayout.addView(btnTransform)
         container.addView(tabsLayout)
         container.addView(contentContainer)
 
-        selectTab(true) // Default
+        selectTab(0) // Default
     }
 
     // --- SPACING MENU ---
@@ -6569,6 +6592,170 @@ class EditorActivity : AppCompatActivity() {
 
         layout.addView(alignRow) // Ensure Align row is added first
         layout.addView(transformRow)
+
+        return layout
+    }
+
+
+
+    private fun shiftSelectionPosition(dx: Float, dy: Float, layer: TextLayer) {
+        val et = activeEditText
+        if (et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd) {
+            val start = et.selectionStart
+            val end = et.selectionEnd
+
+            // Get existing shift
+            val existingSpans = et.editableText.getSpans(start, end, com.astral.typer.utils.PositionShiftSpan::class.java)
+            var currentDx = 0f
+            var currentDy = 0f
+
+            if (existingSpans.isNotEmpty()) {
+                val span = existingSpans.first()
+                currentDx = span.shiftX
+                currentDy = span.shiftY
+                et.editableText.removeSpan(span)
+            }
+
+            val newDx = currentDx + dx
+            val newDy = currentDy + dy
+
+            if (newDx != 0f || newDy != 0f) {
+                et.editableText.setSpan(
+                    com.astral.typer.utils.PositionShiftSpan(newDx, newDy),
+                    start, end, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+
+            layer.text = android.text.SpannableStringBuilder(et.editableText)
+            canvasView.invalidate()
+        }
+    }
+
+    private fun createTransformTab(layer: TextLayer): View {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 8, 16, 8)
+        }
+
+        // Transform Checkboxes
+        val transformTypes = listOf(
+            "Bigger to Smaller",
+            "Smaller to Bigger",
+            "Zig-Zag",
+            "Convex Upward",
+            "Concave Downward",
+            "Circle",
+            "Flag",
+            "Centered Double/Triple Dots"
+        )
+
+        val checkBoxes = mutableMapOf<String, android.widget.CheckBox>()
+
+        for (type in transformTypes) {
+            val cb = android.widget.CheckBox(this).apply {
+                text = type
+                setTextColor(Color.WHITE)
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                isChecked = layer.transformTypes.contains(type)
+
+                setOnCheckedChangeListener { _, isChecked ->
+                    if (isChecked) {
+                        layer.transformTypes.add(type)
+                    } else {
+                        layer.transformTypes.remove(type)
+                    }
+
+                    // Mutual exclusion logic
+                    if (type == "Bigger to Smaller" && isChecked) {
+                        layer.transformTypes.remove("Smaller to Bigger")
+                        checkBoxes["Smaller to Bigger"]?.isChecked = false
+                    } else if (type == "Smaller to Bigger" && isChecked) {
+                        layer.transformTypes.remove("Bigger to Smaller")
+                        checkBoxes["Bigger to Smaller"]?.isChecked = false
+                    }
+
+                    // Grey out mutually exclusive options
+                    if (type == "Bigger to Smaller" || type == "Smaller to Bigger") {
+                        val hasB2S = layer.transformTypes.contains("Bigger to Smaller")
+                        val hasS2B = layer.transformTypes.contains("Smaller to Bigger")
+
+                        checkBoxes["Bigger to Smaller"]?.isEnabled = !hasS2B
+                        checkBoxes["Bigger to Smaller"]?.alpha = if (hasS2B) 0.5f else 1.0f
+
+                        checkBoxes["Smaller to Bigger"]?.isEnabled = !hasB2S
+                        checkBoxes["Smaller to Bigger"]?.alpha = if (hasB2S) 0.5f else 1.0f
+                    }
+
+                    canvasView.invalidate()
+                }
+            }
+            checkBoxes[type] = cb
+            layout.addView(cb)
+        }
+
+        // Initial state for grey out
+        val hasB2S = layer.transformTypes.contains("Bigger to Smaller")
+        val hasS2B = layer.transformTypes.contains("Smaller to Bigger")
+        checkBoxes["Bigger to Smaller"]?.isEnabled = !hasS2B
+        checkBoxes["Bigger to Smaller"]?.alpha = if (hasS2B) 0.5f else 1.0f
+        checkBoxes["Smaller to Bigger"]?.isEnabled = !hasB2S
+        checkBoxes["Smaller to Bigger"]?.alpha = if (hasB2S) 0.5f else 1.0f
+
+        // Add D-pad for shifting letters
+        val dpadLabel = TextView(this).apply {
+            text = "Shift Selected Text Position"
+            setTextColor(Color.LTGRAY)
+            textSize = 14f
+            setPadding(0, 16, 0, 8)
+        }
+        layout.addView(dpadLabel)
+
+        val dpadLayout = GridLayout(this).apply {
+            columnCount = 3
+            rowCount = 3
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { gravity = Gravity.CENTER_HORIZONTAL }
+        }
+
+        fun createArrowBtn(iconName: String, onClick: () -> Unit): View {
+            return TextView(this).apply {
+                text = iconName
+                textSize = 24f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                setPadding(16, 16, 16, 16)
+                background = GradientDrawable().apply {
+                    setColor(Color.DKGRAY)
+                    cornerRadius = 8f
+                }
+                setOnClickListener { onClick() }
+            }
+        }
+
+        val btnUp = createArrowBtn("▲") { shiftSelectionPosition(0f, -5f, layer) }
+        val btnDown = createArrowBtn("▼") { shiftSelectionPosition(0f, 5f, layer) }
+        val btnLeft = createArrowBtn("◀") { shiftSelectionPosition(-5f, 0f, layer) }
+        val btnRight = createArrowBtn("▶") { shiftSelectionPosition(5f, 0f, layer) }
+        val empty1 = View(this)
+        val empty2 = View(this)
+        val empty3 = View(this)
+        val empty4 = View(this)
+
+        // Row 0
+        dpadLayout.addView(empty1, GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0)).apply { width = dpToPx(50); height = dpToPx(50) })
+        dpadLayout.addView(btnUp, GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(1)).apply { width = dpToPx(50); height = dpToPx(50) })
+        dpadLayout.addView(empty2, GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(2)).apply { width = dpToPx(50); height = dpToPx(50) })
+        // Row 1
+        dpadLayout.addView(btnLeft, GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(0)).apply { width = dpToPx(50); height = dpToPx(50) })
+        dpadLayout.addView(empty3, GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(1)).apply { width = dpToPx(50); height = dpToPx(50) })
+        dpadLayout.addView(btnRight, GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(2)).apply { width = dpToPx(50); height = dpToPx(50) })
+        // Row 2
+        dpadLayout.addView(empty4, GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(0)).apply { width = dpToPx(50); height = dpToPx(50) })
+        dpadLayout.addView(btnDown, GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(1)).apply { width = dpToPx(50); height = dpToPx(50) })
+
+        layout.addView(dpadLayout)
 
         return layout
     }
