@@ -227,12 +227,38 @@ class SettingsActivity : AppCompatActivity() {
         val pbTyperModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperModelDownload)
         val btnDownloadTyperModel = findViewById<Button>(R.id.btnDownloadTyperModel)
 
+        // Model Views (Bubble Detector Int8)
+        val tvTyperInt8ModelStatus = findViewById<TextView>(R.id.tvTyperInt8ModelStatus)
+        val pbTyperInt8ModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperInt8ModelDownload)
+        val btnDownloadTyperInt8Model = findViewById<Button>(R.id.btnDownloadTyperInt8Model)
+
+        val layoutTyperModelSelect = findViewById<android.widget.LinearLayout>(R.id.layoutTyperModelSelect)
+        val spinnerTyperModelSelect = findViewById<android.widget.Spinner>(R.id.spinnerTyperModelSelect)
+
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
         // Init MIGAN Processor Logic
         val miganProcessor = MiganProcessor(this)
         // Init Bubble Processor
         val bubbleProcessor = BubbleDetectorProcessor(this)
+
+        // Setup Spinner Options
+        val modelVersions = arrayOf("Original", "Int8")
+        val spinnerAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modelVersions)
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerTyperModelSelect.adapter = spinnerAdapter
+
+        val savedModelVersion = settingsPrefs.getString("typer_model_version", "Original")
+        val modelIndex = modelVersions.indexOf(savedModelVersion).coerceAtLeast(0)
+        spinnerTyperModelSelect.setSelection(modelIndex)
+
+        spinnerTyperModelSelect.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                settingsPrefs.edit().putString("typer_model_version", modelVersions[position]).apply()
+                bubbleProcessor.closeSession()
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
 
         fun updateModelStatus() {
             if (lamaProcessor.isModelAvailable()) {
@@ -251,12 +277,26 @@ class SettingsActivity : AppCompatActivity() {
                 btnDownloadMiganModel.text = "Download Model (~27MB)"
             }
 
-            if (bubbleProcessor.isModelAvailable()) {
+            if (bubbleProcessor.isOriginalModelAvailable()) {
                 tvTyperModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadTyperModel.text = "Redownload"
             } else {
                 tvTyperModelStatus.text = "Status: Not Downloaded"
                 btnDownloadTyperModel.text = "Download Model (170 MB)"
+            }
+
+            if (bubbleProcessor.isInt8ModelAvailable()) {
+                tvTyperInt8ModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadTyperInt8Model.text = "Redownload"
+            } else {
+                tvTyperInt8ModelStatus.text = "Status: Not Downloaded"
+                btnDownloadTyperInt8Model.text = "Download Int8 Model (11 MB)"
+            }
+
+            if (bubbleProcessor.isOriginalModelAvailable() && bubbleProcessor.isInt8ModelAvailable()) {
+                layoutTyperModelSelect.visibility = android.view.View.VISIBLE
+            } else {
+                layoutTyperModelSelect.visibility = android.view.View.GONE
             }
         }
 
@@ -345,6 +385,34 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.bubbleInt8State.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbTyperInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadTyperInt8Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadTyperInt8Model.isEnabled = false
+                        pbTyperInt8ModelDownload.visibility = android.view.View.VISIBLE
+                        pbTyperInt8ModelDownload.progress = (state.progress * 100).toInt()
+                        tvTyperInt8ModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbTyperInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadTyperInt8Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvTyperInt8ModelStatus.text = "Status: Download Failed"
+                        pbTyperInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadTyperInt8Model.isEnabled = true
+                    }
+                }
+            }
+        }
+
         btnDownloadModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
         }
@@ -355,6 +423,10 @@ class SettingsActivity : AppCompatActivity() {
 
         btnDownloadTyperModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
+        }
+
+        btnDownloadTyperInt8Model.setOnClickListener {
+            com.astral.typer.utils.ModelDownloadManager.startBubbleInt8Download(this@SettingsActivity)
         }
 
         // Handle auto-download from intent extra
