@@ -261,6 +261,54 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Download Model"/>
+
+            <!-- Int8 Model UI -->
+            <TextView
+                android:id="@+id/tvTyperInt8ModelStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: Checking..."
+                android:textColor="@android:color/white"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"/>
+
+            <ProgressBar
+                android:id="@+id/pbTyperInt8ModelDownload"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp"/>
+
+            <Button
+                android:id="@+id/btnDownloadTyperInt8Model"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Download Int8 Model"/>
+
+            <LinearLayout
+                android:id="@+id/layoutTyperModelSelect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Select Model Version"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="4dp"/>
+
+                <Spinner
+                    android:id="@+id/spinnerTyperModelSelect"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@android:color/white"/>
+            </LinearLayout>
+
         </LinearLayout>
 
         <!-- Watermark -->

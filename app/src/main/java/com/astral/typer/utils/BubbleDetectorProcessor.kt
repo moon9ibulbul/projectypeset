@@ -39,6 +39,8 @@ class BubbleDetectorProcessor(private val context: Context) {
 
         private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/detector.onnx"
         private const val MODEL_FILENAME = "detector.onnx"
+        private const val MODEL_INT8_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/detector-v4-s_int8.onnx"
+        private const val MODEL_INT8_FILENAME = "detector-v4-s_int8.onnx"
         private const val CONNECT_TIMEOUT = 30000
         private const val READ_TIMEOUT = 30000
         private const val USER_AGENT = "AstralTyper/1.0"
@@ -50,20 +52,41 @@ class BubbleDetectorProcessor(private val context: Context) {
     private val modelFile: File
         get() = File(context.filesDir, "onnx/$MODEL_FILENAME")
 
+    private val modelInt8File: File
+        get() = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+
     fun isModelAvailable(): Boolean {
+        val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val useInt8 = prefs.getString("typer_model_version", "Original") == "Int8"
+        val activeFile = if (useInt8) modelInt8File else modelFile
+        return activeFile.exists() && activeFile.length() > 0
+    }
+
+    fun isOriginalModelAvailable(): Boolean {
         return modelFile.exists() && modelFile.length() > 0
+    }
+
+    fun isInt8ModelAvailable(): Boolean {
+        return modelInt8File.exists() && modelInt8File.length() > 0
     }
 
     // --- Model Management ---
 
-    suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean {
+        return downloadInternal(MODEL_URL, modelFile, "$MODEL_FILENAME.tmp", onProgress)
+    }
+
+    suspend fun downloadInt8Model(onProgress: (Float) -> Unit): Boolean {
+        return downloadInternal(MODEL_INT8_URL, modelInt8File, "$MODEL_INT8_FILENAME.tmp", onProgress)
+    }
+
+    private suspend fun downloadInternal(urlStrInput: String, file: File, tmpFileName: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
-            val file = modelFile
             file.parentFile?.mkdirs()
-            val tmpFile = File(file.parentFile, "$MODEL_FILENAME.tmp")
+            val tmpFile = File(file.parentFile, tmpFileName)
 
-            var urlStr = MODEL_URL
+            var urlStr = urlStrInput
             var redirects = 0
             val maxRedirects = 5
 
@@ -150,12 +173,15 @@ class BubbleDetectorProcessor(private val context: Context) {
              } catch (e: Exception) {
                  Log.w("BubbleDetector", "Failed to set opts", e)
              }
-             ortSession = ortEnvironment!!.createSession(modelFile.absolutePath, sessionOptions)
+             val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+             val useInt8 = prefs.getString("typer_model_version", "Original") == "Int8"
+             val activeFile = if (useInt8) modelInt8File else modelFile
+             ortSession = ortEnvironment!!.createSession(activeFile.absolutePath, sessionOptions)
         }
         return ortSession!!
     }
 
-    private fun closeSession() {
+    fun closeSession() {
         try {
             ortSession?.close()
             ortSession = null
