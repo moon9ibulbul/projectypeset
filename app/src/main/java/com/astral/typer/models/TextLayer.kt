@@ -131,6 +131,7 @@ class TextLayer(
     override var gradientStartPos: Float = 0.0f
     override var gradientMiddlePos: Float = 0.5f
     override var gradientEndPos: Float = 1.0f
+    override var gradientStrength: Float = 1.0f
     override var isGradientText: Boolean = true
     override var isGradientStroke: Boolean = false
     override var isGradientShadow: Boolean = false
@@ -1294,6 +1295,11 @@ class TextLayer(
 
     private fun getGradientShader(w: Float, h: Float, layout: StaticLayout): Shader? {
         if (!isGradient) return null
+        val avgColor = com.astral.typer.utils.GradationHelper.getAverageColor(hasMiddleColor, gradientStartColor, gradientMiddleColor, gradientEndColor)
+        val adjustedStartColor = com.astral.typer.utils.GradationHelper.applyStrength(gradientStartColor, gradientStrength, avgColor)
+        val adjustedMidColor = if (hasMiddleColor) com.astral.typer.utils.GradationHelper.applyStrength(gradientMiddleColor, gradientStrength, avgColor) else gradientMiddleColor
+        val adjustedEndColor = com.astral.typer.utils.GradationHelper.applyStrength(gradientEndColor, gradientStrength, avgColor)
+
         if (isGlobalGradient) {
             val inverse = Matrix()
             val matrix = Matrix()
@@ -1314,21 +1320,21 @@ class TextLayer(
                 val sEnd = 1.0f - pEnd / 2f
                 return if (hasMiddleColor) {
                     val sorted = listOf(
-                        gradientStartColor to 0.0f,
-                        gradientStartColor to sStart,
-                        gradientMiddleColor to sMid,
-                        gradientEndColor to sEnd,
-                        gradientEndColor to 1.0f
+                        adjustedStartColor to 0.0f,
+                        adjustedStartColor to sStart,
+                        adjustedMidColor to sMid,
+                        adjustedEndColor to sEnd,
+                        adjustedEndColor to 1.0f
                     ).sortedBy { it.second }
                     val colors = sorted.map { it.first }.toIntArray()
                     val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
                     LinearGradient(x0, y0, x1, y1, colors, positions, Shader.TileMode.CLAMP)
                 } else {
                     val sorted = listOf(
-                        gradientStartColor to 0.0f,
-                        gradientStartColor to sStart,
-                        gradientEndColor to sEnd,
-                        gradientEndColor to 1.0f
+                        adjustedStartColor to 0.0f,
+                        adjustedStartColor to sStart,
+                        adjustedEndColor to sEnd,
+                        adjustedEndColor to 1.0f
                     ).sortedBy { it.second }
                     val colors = sorted.map { it.first }.toIntArray()
                     val positions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
@@ -1336,7 +1342,7 @@ class TextLayer(
                 }
             }
         }
-        return createGradient(w, h, layout, gradientAngle, gradientStartColor, gradientEndColor, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+        return createGradient(w, h, layout, gradientAngle, adjustedStartColor, adjustedEndColor, hasMiddleColor, adjustedMidColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
     }
 
     private fun getOpacityGradientShader(w: Float, h: Float, layout: StaticLayout): Shader {

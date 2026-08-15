@@ -44,6 +44,7 @@ class ImageLayer(
     override var gradientStartPos: Float = 0.0f
     override var gradientMiddlePos: Float = 0.5f
     override var gradientEndPos: Float = 1.0f
+    override var gradientStrength: Float = 1.0f
     override var isGradientText: Boolean = true
     override var isGradientStroke: Boolean = false
     override var isGradientShadow: Boolean = false

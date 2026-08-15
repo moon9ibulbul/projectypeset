@@ -31,6 +31,7 @@ interface StylableLayer {
     var gradientStartPos: Float
     var gradientMiddlePos: Float
     var gradientEndPos: Float
+    var gradientStrength: Float
     var isGradientText: Boolean // Fill
     var isGradientStroke: Boolean
     var isGradientShadow: Boolean
