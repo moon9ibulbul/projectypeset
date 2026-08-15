@@ -1562,7 +1562,7 @@ class TextLayer(
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarpActive) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                        if (_warpMesh != null && selectedWarpIndex == -1) {
+                        if (_warpMesh != null) {
                             drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true, bounds = bounds)
                         } else {
                             drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
@@ -1585,7 +1585,7 @@ class TextLayer(
             } else {
                 if (isWarpActive) {
                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                    if (_warpMesh != null && selectedWarpIndex == -1) {
+                    if (_warpMesh != null) {
                         drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false, bounds = bounds)
                     } else {
                         drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
@@ -2117,6 +2117,16 @@ class TextLayer(
     override fun evaluateBezierSurface(u: Float, v: Float, outPoint: FloatArray) {
         if (selectedWarpIndex != -1) {
             evaluateBezierSurfaceForCharacter(selectedWarpIndex, u, v, outPoint)
+            if (_warpMesh != null) {
+                // outPoint holds un-main-warped point (x, y) relative to bounds.
+                val x = outPoint[0]
+                val y = outPoint[1]
+                val w = getWidth()
+                val h = getHeight()
+                val nu = (x + w / 2f) / w
+                val nv = (y + h / 2f) / h
+                evaluateFullLayerBezierSurface(nu, nv, outPoint)
+            }
             return
         }
         val mesh = warpMesh ?: return
@@ -2534,7 +2544,7 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && !isFreshBmp
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
@@ -2659,7 +2669,7 @@ class TextLayer(
         val fullH = getContentHeight()
 
         val gradientShader = if (isCharByChar) {
-            val shader = getGradientShader(fullW, fullH, layout)
+            val shader = getGradientShader(fullW, fullH, cachedLayout ?: layout)
             if (shader != null) {
                 val mat = Matrix()
                 mat.postTranslate(-charLeft, -charTop)
@@ -2879,7 +2889,7 @@ class TextLayer(
                         val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                         if (hasMultiGradient) {
                             val mShader = if (isCharByChar) {
-                                val shader = getMultiGradientShader(fullW, fullH, layout)
+                                val shader = getMultiGradientShader(fullW, fullH, cachedLayout ?: layout)
                                 val mat = Matrix()
                                 mat.postTranslate(-charLeft, -charTop)
                                 shader.setLocalMatrix(mat)
@@ -3043,7 +3053,7 @@ class TextLayer(
                         val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                         if (hasMultiGradient) {
                             val mShader = if (isCharByChar) {
-                                val shader = getMultiGradientShader(fullW, fullH, layout)
+                                val shader = getMultiGradientShader(fullW, fullH, cachedLayout ?: layout)
                                 val mat = Matrix()
                                 mat.postTranslate(-charLeft, -charTop)
                                 shader.setLocalMatrix(mat)
