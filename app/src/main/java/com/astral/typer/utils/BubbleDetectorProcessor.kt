@@ -174,7 +174,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                  val optimalThreads = (numCores / 2).coerceIn(1, 4)
                  sessionOptions.setInterOpNumThreads(optimalThreads)
                  sessionOptions.setIntraOpNumThreads(optimalThreads)
-                 sessionOptions.addNnapi()
+                 // NNAPI is disabled to prevent crashes on unsupported devices, especially with INT8 models
              } catch (e: Exception) {
                  Log.w("BubbleDetector", "Failed to set opts", e)
              }
