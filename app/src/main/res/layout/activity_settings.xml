@@ -164,6 +164,7 @@
                 android:checked="true"
                 android:layout_marginBottom="8dp"/>
 
+            <!-- FP32 Model UI -->
             <TextView
                 android:id="@+id/tvModelStatus"
                 android:layout_width="wrap_content"
@@ -184,7 +185,80 @@
                 android:id="@+id/btnDownloadModel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Download Model"/>
+                android:text="Download FP32 Model"/>
+
+            <!-- FP16 Model UI -->
+            <TextView
+                android:id="@+id/tvLamaFp16ModelStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: Checking..."
+                android:textColor="@android:color/white"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"/>
+
+            <ProgressBar
+                android:id="@+id/pbLamaFp16ModelDownload"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp"/>
+
+            <Button
+                android:id="@+id/btnDownloadLamaFp16Model"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Download FP16 Model"/>
+
+            <!-- Int8 Model UI -->
+            <TextView
+                android:id="@+id/tvLamaInt8ModelStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: Checking..."
+                android:textColor="@android:color/white"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"/>
+
+            <ProgressBar
+                android:id="@+id/pbLamaInt8ModelDownload"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp"/>
+
+            <Button
+                android:id="@+id/btnDownloadLamaInt8Model"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Download Int8 Model"/>
+
+            <!-- Model Selection Dropdown -->
+            <LinearLayout
+                android:id="@+id/layoutLamaModelSelect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Select Model Version"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="4dp"/>
+
+                <Spinner
+                    android:id="@+id/spinnerLamaModelSelect"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@android:color/white"/>
+            </LinearLayout>
+
         </LinearLayout>
 
         <!-- Inpaint Model MIGAN -->

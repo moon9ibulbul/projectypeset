@@ -27,8 +27,19 @@ class LaMaProcessor(private val context: Context) {
 
     companion object {
         private const val TRAINED_SIZE = 512
-        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
-        private const val MODEL_FILENAME = "LaMa_512.onnx"
+
+        // FP32 (Original) Model
+        private const val MODEL_FP32_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
+        private const val MODEL_FP32_FILENAME = "LaMa_512.onnx"
+
+        // FP16 Model
+        private const val MODEL_FP16_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/lama_fp16.onnx"
+        private const val MODEL_FP16_FILENAME = "lama_fp16.onnx"
+
+        // Int8 Model
+        private const val MODEL_INT8_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/lama_int8.onnx"
+        private const val MODEL_INT8_FILENAME = "lama_int8.onnx"
+
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
@@ -38,21 +49,69 @@ class LaMaProcessor(private val context: Context) {
         private var ortSession: OrtSession? = null
     }
 
-    private val modelFile: File
-        get() = File(context.filesDir, "onnx/$MODEL_FILENAME")
-
-    fun isModelAvailable(): Boolean {
-        return modelFile.exists() && modelFile.length() > 0
+    private val prefs by lazy {
+        context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
     }
 
-    suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    private val modelFile: File
+        get() {
+            val version = prefs.getString("lama_model_version", "Int8")
+            val filename = when (version) {
+                "FP32" -> MODEL_FP32_FILENAME
+                "FP16" -> MODEL_FP16_FILENAME
+                "Int8" -> MODEL_INT8_FILENAME
+                else -> MODEL_INT8_FILENAME
+            }
+            return File(context.filesDir, "onnx/$filename")
+        }
+
+    fun isModelAvailable(): Boolean {
+        // First check the selected model version
+        if (modelFile.exists() && modelFile.length() > 0) return true
+
+        // Fallbacks so it doesn't crash if they select a version they haven't downloaded
+        if (File(context.filesDir, "onnx/$MODEL_INT8_FILENAME").exists()) return true
+        if (File(context.filesDir, "onnx/$MODEL_FP16_FILENAME").exists()) return true
+        if (File(context.filesDir, "onnx/$MODEL_FP32_FILENAME").exists()) return true
+
+        return false
+    }
+
+    fun isFp32ModelAvailable(): Boolean {
+        val f = File(context.filesDir, "onnx/$MODEL_FP32_FILENAME")
+        return f.exists() && f.length() > 0
+    }
+
+    fun isFp16ModelAvailable(): Boolean {
+        val f = File(context.filesDir, "onnx/$MODEL_FP16_FILENAME")
+        return f.exists() && f.length() > 0
+    }
+
+    fun isInt8ModelAvailable(): Boolean {
+        val f = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+        return f.exists() && f.length() > 0
+    }
+
+    suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean {
+        return downloadModelInternal(MODEL_FP32_URL, MODEL_FP32_FILENAME, onProgress)
+    }
+
+    suspend fun downloadFp16Model(onProgress: (Float) -> Unit): Boolean {
+        return downloadModelInternal(MODEL_FP16_URL, MODEL_FP16_FILENAME, onProgress)
+    }
+
+    suspend fun downloadInt8Model(onProgress: (Float) -> Unit): Boolean {
+        return downloadModelInternal(MODEL_INT8_URL, MODEL_INT8_FILENAME, onProgress)
+    }
+
+    private suspend fun downloadModelInternal(targetUrl: String, targetFilename: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
-            val file = modelFile
+            val file = File(context.filesDir, "onnx/$targetFilename")
             file.parentFile?.mkdirs()
-            val tmpFile = File(file.parentFile, "$MODEL_FILENAME.tmp")
+            val tmpFile = File(file.parentFile, "$targetFilename.tmp")
 
-            var urlStr = MODEL_URL
+            var urlStr = targetUrl
             var redirects = 0
             val maxRedirects = 5
 
@@ -184,7 +243,7 @@ class LaMaProcessor(private val context: Context) {
         }
     }
 
-    private fun closeSession() {
+    fun closeSession() {
         try {
             ortSession?.close()
             ortSession = null
