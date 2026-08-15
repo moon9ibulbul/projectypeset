@@ -7170,6 +7170,54 @@ class EditorActivity : AppCompatActivity() {
 
         mainLayout.addView(togglesLayout)
 
+        // Auto Gradation
+        val isLayerGradient = if (layerAsText != null) layerAsText.isGradient else layerAsShape!!.isGradient
+        if (!isGradationMode && !isLayerGradient) {
+            val autoGradationToggleLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, 16)
+            }
+            val chkAutoGradation = android.widget.CheckBox(this).apply {
+                setText("Auto Gradation")
+                isChecked = false
+                setTextColor(Color.WHITE)
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                setOnCheckedChangeListener { _, b ->
+                    if (b) {
+                        val baseColor = if (layerAsText != null) layerAsText.color else layerAsShape!!.color
+                        val hsv = FloatArray(3)
+                        android.graphics.Color.colorToHSV(baseColor, hsv)
+
+                        // Darker start color
+                        val hsvStart = hsv.clone()
+                        hsvStart[2] = (hsvStart[2] * 0.5f).coerceIn(0f, 1f)
+                        val startColor = android.graphics.Color.HSVToColor(hsvStart)
+
+                        // Lighter end color
+                        val hsvEnd = hsv.clone()
+                        hsvEnd[1] = (hsvEnd[1] * 0.5f).coerceIn(0f, 1f)
+                        hsvEnd[2] = (hsvEnd[2] + (1f - hsvEnd[2]) * 0.5f).coerceIn(0f, 1f)
+                        val endColor = android.graphics.Color.HSVToColor(hsvEnd)
+
+                        if (layerAsText != null) {
+                            layerAsText.gradientStartColor = startColor
+                            layerAsText.gradientEndColor = endColor
+                            layerAsText.isGradient = true
+                        } else if (layerAsShape != null) {
+                            layerAsShape.gradientStartColor = startColor
+                            layerAsShape.gradientEndColor = endColor
+                            layerAsShape.isGradient = true
+                        }
+                        canvasView.invalidate()
+                        showGradationControls()
+                    }
+                }
+            }
+            autoGradationToggleLayout.addView(chkAutoGradation)
+            mainLayout.addView(autoGradationToggleLayout)
+        }
+
         // Middle Color Toggle
         val hasMiddleColorCurrent = if (isGradationMode) canvasView.pendingHasMiddleColor else (if (layerAsText != null) layerAsText.hasMiddleColor else layerAsShape!!.hasMiddleColor)
         val middleColorToggleLayout = LinearLayout(this).apply {
@@ -7459,6 +7507,40 @@ class EditorActivity : AppCompatActivity() {
         })
         mainLayout.addView(endPosSlider)
 
+        // Strength
+        if (!isGradationMode) {
+            val currentStrength = if (layerAsText != null) layerAsText.gradientStrength else layerAsShape!!.gradientStrength
+            val initialStrengthProgress = (currentStrength * 100f).toInt().coerceIn(0, 200)
+
+            val strengthLabelText = when {
+                initialStrengthProgress < 100 -> "Gradation Strength: Low"
+                initialStrengthProgress == 100 -> "Gradation Strength: As Defined"
+                else -> "Gradation Strength: High"
+            }
+
+            val strengthSlider = createSlider(strengthLabelText, initialStrengthProgress, 200) {
+                val newStrength = it / 100f
+                if (layerAsText != null) layerAsText.gradientStrength = newStrength else layerAsShape!!.gradientStrength = newStrength
+                canvasView.invalidate()
+            }
+            val strengthLabel = strengthSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            strengthSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                    val newStrength = p / 100f
+                    if (layerAsText != null) layerAsText.gradientStrength = newStrength else layerAsShape!!.gradientStrength = newStrength
+                    strengthLabel?.text = when {
+                        p < 100 -> "Gradation Strength: Low"
+                        p == 100 -> "Gradation Strength: As Defined"
+                        else -> "Gradation Strength: High"
+                    }
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {}
+            })
+            mainLayout.addView(strengthSlider)
+        }
+
         // Angle
         if (!isGradationMode) {
             val currentGradAngle = if (layerAsText != null) layerAsText.gradientAngle else layerAsShape!!.gradientAngle
@@ -7467,7 +7549,8 @@ class EditorActivity : AppCompatActivity() {
                  canvasView.invalidate()
             }
             val angleLabel = angleSlider.findViewWithTag<TextView>("SLIDER_LABEL")
-            angleSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            val angleSeekBar = angleSlider.findViewWithTag<SeekBar>("SLIDER_BAR")
+            angleSeekBar?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                     if (layerAsText != null) layerAsText.gradientAngle = p else layerAsShape!!.gradientAngle = p
                     angleLabel?.text = "Gradient Angle: $p°"
@@ -7477,6 +7560,37 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
             mainLayout.addView(angleSlider)
+
+            // Arrow Shortcut Buttons
+            val arrowsLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(0, 16, 0, 16)
+            }
+            val createArrowButton = { text: String, targetAngle: Int ->
+                android.widget.Button(this).apply {
+                    this.text = text
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply {
+                        setColor(Color.DKGRAY)
+                        cornerRadius = dpToPx(8).toFloat()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                        setMargins(8, 0, 8, 0)
+                    }
+                    setOnClickListener {
+                        if (layerAsText != null) layerAsText.gradientAngle = targetAngle else layerAsShape!!.gradientAngle = targetAngle
+                        angleSeekBar?.progress = targetAngle
+                        angleLabel?.text = "Gradient Angle: $targetAngle°"
+                        canvasView.invalidate()
+                    }
+                }
+            }
+            arrowsLayout.addView(createArrowButton("←", 0))
+            arrowsLayout.addView(createArrowButton("↑", 90))
+            arrowsLayout.addView(createArrowButton("→", 180))
+            arrowsLayout.addView(createArrowButton("↓", 270))
+            mainLayout.addView(arrowsLayout)
         }
 
         scroll.addView(mainLayout)

@@ -117,6 +117,7 @@ object StyleManager {
         val gradientStartPos: Float? = null,
         val gradientMiddlePos: Float? = null,
         val gradientEndPos: Float? = null,
+        val gradientStrength: Float = 1.0f,
         val isGradientText: Boolean,
         val isGradientStroke: Boolean,
         val isGradientShadow: Boolean,
@@ -270,6 +271,7 @@ object StyleManager {
             l.isGradient, l.gradientStartColor, l.gradientEndColor, l.gradientAngle,
             l.hasMiddleColor, l.gradientMiddleColor,
             l.gradientStartPos, l.gradientMiddlePos, l.gradientEndPos,
+            l.gradientStrength,
             l.isGradientText, l.isGradientStroke, l.isGradientShadow,
             l.letterSpacing, l.lineSpacing,
             l.isMotionShadow, l.motionShadowAngle, l.motionShadowDistance,
@@ -349,6 +351,7 @@ object StyleManager {
         l.gradientStartPos = m.gradientStartPos ?: 0.0f
         l.gradientMiddlePos = m.gradientMiddlePos ?: 0.5f
         l.gradientEndPos = m.gradientEndPos ?: 1.0f
+        l.gradientStrength = m.gradientStrength
         l.isGradientText = m.isGradientText
         l.isGradientStroke = m.isGradientStroke
         l.isGradientShadow = m.isGradientShadow
