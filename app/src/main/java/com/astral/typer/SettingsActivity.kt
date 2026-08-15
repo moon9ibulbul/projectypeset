@@ -217,6 +217,17 @@ class SettingsActivity : AppCompatActivity() {
         val pbModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbModelDownload)
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
 
+        val tvLamaFp16ModelStatus = findViewById<TextView>(R.id.tvLamaFp16ModelStatus)
+        val pbLamaFp16ModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbLamaFp16ModelDownload)
+        val btnDownloadLamaFp16Model = findViewById<Button>(R.id.btnDownloadLamaFp16Model)
+
+        val tvLamaInt8ModelStatus = findViewById<TextView>(R.id.tvLamaInt8ModelStatus)
+        val pbLamaInt8ModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbLamaInt8ModelDownload)
+        val btnDownloadLamaInt8Model = findViewById<Button>(R.id.btnDownloadLamaInt8Model)
+
+        val layoutLamaModelSelect = findViewById<android.widget.LinearLayout>(R.id.layoutLamaModelSelect)
+        val spinnerLamaModelSelect = findViewById<android.widget.Spinner>(R.id.spinnerLamaModelSelect)
+
         // Model Views (MIGAN)
         val tvMiganModelStatus = findViewById<TextView>(R.id.tvMiganModelStatus)
         val pbMiganModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbMiganModelDownload)
@@ -288,6 +299,9 @@ class SettingsActivity : AppCompatActivity() {
 
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
+
+        // Spinner will be populated dynamically in updateModelStatus() based on available models
+
         // Init MIGAN Processor Logic
         val miganProcessor = MiganProcessor(this)
         // Init Bubble Processor
@@ -312,12 +326,64 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         fun updateModelStatus() {
-            if (lamaProcessor.isModelAvailable()) {
+            if (lamaProcessor.isFp32ModelAvailable()) {
                 tvModelStatus.text = "Status: Downloaded (Ready)"
-                btnDownloadModel.text = "Redownload"
+                btnDownloadModel.text = "Redownload FP32"
             } else {
                 tvModelStatus.text = "Status: Not Downloaded"
-                btnDownloadModel.text = "Download Model (~200MB)"
+                btnDownloadModel.text = "Download FP32 Model (~200MB)"
+            }
+
+            if (lamaProcessor.isFp16ModelAvailable()) {
+                tvLamaFp16ModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadLamaFp16Model.text = "Redownload FP16"
+            } else {
+                tvLamaFp16ModelStatus.text = "Status: Not Downloaded"
+                btnDownloadLamaFp16Model.text = "Download FP16 Model"
+            }
+
+            if (lamaProcessor.isInt8ModelAvailable()) {
+                tvLamaInt8ModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadLamaInt8Model.text = "Redownload Int8"
+            } else {
+                tvLamaInt8ModelStatus.text = "Status: Not Downloaded"
+                btnDownloadLamaInt8Model.text = "Download Int8 Model"
+            }
+
+            // Check how many models are downloaded and update spinner
+            val availableLamaModels = mutableListOf<String>()
+            if (lamaProcessor.isFp32ModelAvailable()) availableLamaModels.add("FP32")
+            if (lamaProcessor.isFp16ModelAvailable()) availableLamaModels.add("FP16")
+            if (lamaProcessor.isInt8ModelAvailable()) availableLamaModels.add("Int8")
+
+            if (availableLamaModels.size > 1) {
+                layoutLamaModelSelect.visibility = android.view.View.VISIBLE
+
+                // Update spinner adapter with only available models
+                val lamaSpinnerAdapter = android.widget.ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_item, availableLamaModels)
+                lamaSpinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+
+                // Temporarily unregister listener to prevent triggering on selection during update
+                spinnerLamaModelSelect.onItemSelectedListener = null
+                spinnerLamaModelSelect.adapter = lamaSpinnerAdapter
+
+                val savedLamaModelVersion = settingsPrefs.getString("lama_model_version", "Int8") ?: "Int8"
+                var lamaModelIndex = availableLamaModels.indexOf(savedLamaModelVersion)
+                if (lamaModelIndex == -1 && availableLamaModels.isNotEmpty()) {
+                    lamaModelIndex = 0
+                    settingsPrefs.edit().putString("lama_model_version", availableLamaModels[0]).apply()
+                }
+                spinnerLamaModelSelect.setSelection(lamaModelIndex.coerceAtLeast(0))
+
+                spinnerLamaModelSelect.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                        settingsPrefs.edit().putString("lama_model_version", availableLamaModels[position]).apply()
+                        lamaProcessor.closeSession()
+                    }
+                    override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+                }
+            } else {
+                layoutLamaModelSelect.visibility = android.view.View.GONE
             }
 
             if (miganProcessor.isModelAvailable()) {
@@ -375,6 +441,62 @@ class SettingsActivity : AppCompatActivity() {
                         tvModelStatus.text = "Status: Download Failed"
                         pbModelDownload.visibility = android.view.View.GONE
                         btnDownloadModel.isEnabled = true
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.lamaFp16State.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbLamaFp16ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaFp16Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadLamaFp16Model.isEnabled = false
+                        pbLamaFp16ModelDownload.visibility = android.view.View.VISIBLE
+                        pbLamaFp16ModelDownload.progress = (state.progress * 100).toInt()
+                        tvLamaFp16ModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbLamaFp16ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaFp16Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvLamaFp16ModelStatus.text = "Status: Download Failed"
+                        pbLamaFp16ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaFp16Model.isEnabled = true
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.lamaInt8State.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbLamaInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaInt8Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadLamaInt8Model.isEnabled = false
+                        pbLamaInt8ModelDownload.visibility = android.view.View.VISIBLE
+                        pbLamaInt8ModelDownload.progress = (state.progress * 100).toInt()
+                        tvLamaInt8ModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbLamaInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaInt8Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvLamaInt8ModelStatus.text = "Status: Download Failed"
+                        pbLamaInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaInt8Model.isEnabled = true
                     }
                 }
             }
@@ -468,6 +590,14 @@ class SettingsActivity : AppCompatActivity() {
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
         }
 
+        btnDownloadLamaFp16Model.setOnClickListener {
+            com.astral.typer.utils.ModelDownloadManager.startLamaFp16Download(this@SettingsActivity)
+        }
+
+        btnDownloadLamaInt8Model.setOnClickListener {
+            com.astral.typer.utils.ModelDownloadManager.startLamaInt8Download(this@SettingsActivity)
+        }
+
         btnDownloadMiganModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
         }
@@ -482,7 +612,7 @@ class SettingsActivity : AppCompatActivity() {
 
         // Handle auto-download from intent extra
         if (intent.getBooleanExtra("AUTO_DOWNLOAD", false)) {
-            com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
+            com.astral.typer.utils.ModelDownloadManager.startLamaInt8Download(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }

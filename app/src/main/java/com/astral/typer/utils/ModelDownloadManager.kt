@@ -24,6 +24,12 @@ object ModelDownloadManager {
     private val _lamaState = MutableStateFlow(DownloadState())
     val lamaState: StateFlow<DownloadState> = _lamaState.asStateFlow()
 
+    private val _lamaFp16State = MutableStateFlow(DownloadState())
+    val lamaFp16State: StateFlow<DownloadState> = _lamaFp16State.asStateFlow()
+
+    private val _lamaInt8State = MutableStateFlow(DownloadState())
+    val lamaInt8State: StateFlow<DownloadState> = _lamaInt8State.asStateFlow()
+
     private val _bubbleState = MutableStateFlow(DownloadState())
     val bubbleState: StateFlow<DownloadState> = _bubbleState.asStateFlow()
 
@@ -52,6 +58,52 @@ object ModelDownloadManager {
                 _lamaState.value = DownloadState(DownloadStatus.SUCCESS, 1f)
             } else {
                 _lamaState.value = DownloadState(DownloadStatus.FAILED, 0f)
+            }
+        }
+    }
+
+    @Synchronized
+    fun startLamaFp16Download(context: Context) {
+        if (_lamaFp16State.value.status == DownloadStatus.DOWNLOADING) return
+
+        _lamaFp16State.value = DownloadState(DownloadStatus.DOWNLOADING, 0f)
+        scope.launch {
+            val processor = LaMaProcessor(context.applicationContext)
+            var lastProgress = -1
+            val success = processor.downloadFp16Model { progress ->
+                val progressPercent = (progress * 100).toInt()
+                if (progressPercent != lastProgress) {
+                    lastProgress = progressPercent
+                    _lamaFp16State.value = DownloadState(DownloadStatus.DOWNLOADING, progress)
+                }
+            }
+            if (success) {
+                _lamaFp16State.value = DownloadState(DownloadStatus.SUCCESS, 1f)
+            } else {
+                _lamaFp16State.value = DownloadState(DownloadStatus.FAILED, 0f)
+            }
+        }
+    }
+
+    @Synchronized
+    fun startLamaInt8Download(context: Context) {
+        if (_lamaInt8State.value.status == DownloadStatus.DOWNLOADING) return
+
+        _lamaInt8State.value = DownloadState(DownloadStatus.DOWNLOADING, 0f)
+        scope.launch {
+            val processor = LaMaProcessor(context.applicationContext)
+            var lastProgress = -1
+            val success = processor.downloadInt8Model { progress ->
+                val progressPercent = (progress * 100).toInt()
+                if (progressPercent != lastProgress) {
+                    lastProgress = progressPercent
+                    _lamaInt8State.value = DownloadState(DownloadStatus.DOWNLOADING, progress)
+                }
+            }
+            if (success) {
+                _lamaInt8State.value = DownloadState(DownloadStatus.SUCCESS, 1f)
+            } else {
+                _lamaInt8State.value = DownloadState(DownloadStatus.FAILED, 0f)
             }
         }
     }
@@ -104,6 +156,14 @@ object ModelDownloadManager {
 
     fun isLamaDownloading(): Boolean {
         return _lamaState.value.status == DownloadStatus.DOWNLOADING
+    }
+
+    fun isLamaFp16Downloading(): Boolean {
+        return _lamaFp16State.value.status == DownloadStatus.DOWNLOADING
+    }
+
+    fun isLamaInt8Downloading(): Boolean {
+        return _lamaInt8State.value.status == DownloadStatus.DOWNLOADING
     }
 
     fun isBubbleDownloading(): Boolean {
