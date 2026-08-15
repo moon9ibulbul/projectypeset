@@ -333,6 +333,13 @@
                 android:text="Text Outside Bubble"
                 android:textColor="@android:color/white"/>
 
+            <CheckBox
+                android:id="@+id/cbMLKitDoubleProcess"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ML Kit Double Process"
+                android:textColor="@android:color/white"/>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

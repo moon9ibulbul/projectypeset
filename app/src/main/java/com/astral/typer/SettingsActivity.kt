@@ -237,6 +237,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val cbInpaintDetectTextInside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextInside)
         val cbInpaintDetectTextOutside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextOutside)
+        val cbMLKitDoubleProcess = findViewById<android.widget.CheckBox>(R.id.cbMLKitDoubleProcess)
         val rgInpaintMaskShape = findViewById<android.widget.RadioGroup>(R.id.rgInpaintMaskShape)
         val rbMaskRectangle = findViewById<android.widget.RadioButton>(R.id.rbMaskRectangle)
         val rbMaskRounded = findViewById<android.widget.RadioButton>(R.id.rbMaskRounded)
@@ -246,6 +247,7 @@ class SettingsActivity : AppCompatActivity() {
         // Setup Inpaint UI State
         cbInpaintDetectTextInside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_inside", true)
         cbInpaintDetectTextOutside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_outside", true)
+        cbMLKitDoubleProcess.isChecked = settingsPrefs.getBoolean("mlkit_double_process", false)
 
         val savedShape = settingsPrefs.getString("inpaint_mask_shape", "Rectangle")
         if (savedShape == "Rounded") {
@@ -266,6 +268,10 @@ class SettingsActivity : AppCompatActivity() {
 
         cbInpaintDetectTextOutside.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("inpaint_detect_text_outside", isChecked).apply()
+        }
+
+        cbMLKitDoubleProcess.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("mlkit_double_process", isChecked).apply()
         }
 
         rgInpaintMaskShape.setOnCheckedChangeListener { _, checkedId ->
