@@ -59,7 +59,12 @@ class BubbleDetectorProcessor(private val context: Context) {
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val useInt8 = prefs.getString("typer_model_version", "Original") == "Int8"
         val activeFile = if (useInt8) modelInt8File else modelFile
-        return activeFile.exists() && activeFile.length() > 0
+
+        if (!activeFile.exists() || activeFile.length() <= 0) {
+            val fallbackFile = if (useInt8) modelFile else modelInt8File
+            return fallbackFile.exists() && fallbackFile.length() > 0
+        }
+        return true
     }
 
     fun isOriginalModelAvailable(): Boolean {
@@ -175,7 +180,12 @@ class BubbleDetectorProcessor(private val context: Context) {
              }
              val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
              val useInt8 = prefs.getString("typer_model_version", "Original") == "Int8"
-             val activeFile = if (useInt8) modelInt8File else modelFile
+             var activeFile = if (useInt8) modelInt8File else modelFile
+
+             if (!activeFile.exists() || activeFile.length() <= 0) {
+                 activeFile = if (useInt8) modelFile else modelInt8File
+             }
+
              ortSession = ortEnvironment!!.createSession(activeFile.absolutePath, sessionOptions)
         }
         return ortSession!!
