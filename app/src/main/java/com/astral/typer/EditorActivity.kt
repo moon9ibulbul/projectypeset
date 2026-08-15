@@ -4667,11 +4667,23 @@ class EditorActivity : AppCompatActivity() {
         val bg = canvasView.getBackgroundImage()
         if (bg == null) return
 
+        val prefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
+        val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", true)
+
+        val allowedLabels = mutableSetOf<Long>()
+        if (detectInside) allowedLabels.add(1L)
+        if (detectOutside) allowedLabels.add(2L)
+
+        if (allowedLabels.isEmpty()) {
+            Toast.makeText(this, "Please enable at least one text detection option in Settings", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         loadingDialog?.show()
         lifecycleScope.launch {
-            // Class 1 (text_bubble) and 2 (text_free)
             // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
-            val rects = bubbleProcessor.detect(bg, setOf(1L, 2L), 1.0f)
+            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f)
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
                 if (rects.isNotEmpty()) {
@@ -4734,8 +4746,8 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
 
         lifecycleScope.launch {
-            // Increase boxScale to 0.90 as requested
-            val rects = bubbleProcessor.detect(bg, boxScale = 0.90f)
+            // Class 0 (bubble). Increase boxScale to 0.90 as requested
+            val rects = bubbleProcessor.detect(bg, setOf(0L), 0.90f)
             withContext(Dispatchers.Main) {
                 loadingDialog?.dismiss()
 

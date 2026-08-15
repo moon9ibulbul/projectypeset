@@ -309,6 +309,77 @@
                     android:backgroundTint="@android:color/white"/>
             </LinearLayout>
 
+            <!-- Inpaint Text Detection Settings -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Inpaint Text Detection"
+                android:textColor="#AAAAAA"
+                android:textSize="12sp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+
+            <CheckBox
+                android:id="@+id/cbInpaintDetectTextInside"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Text Inside Bubble"
+                android:textColor="@android:color/white"/>
+
+            <CheckBox
+                android:id="@+id/cbInpaintDetectTextOutside"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Text Outside Bubble"
+                android:textColor="@android:color/white"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Text Mask Shape"
+                android:textColor="#AAAAAA"
+                android:textSize="12sp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp"/>
+
+            <RadioGroup
+                android:id="@+id/rgInpaintMaskShape"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/rbMaskRectangle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Rectangle"
+                    android:textColor="@android:color/white"/>
+
+                <RadioButton
+                    android:id="@+id/rbMaskRounded"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Rounded"
+                    android:textColor="@android:color/white"
+                    android:layout_marginStart="16dp"/>
+            </RadioGroup>
+
+            <TextView
+                android:id="@+id/tvInpaintMaskPadding"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Mask Padding: 0px"
+                android:textColor="@android:color/white"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp"/>
+
+            <SeekBar
+                android:id="@+id/sbInpaintMaskPadding"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="40"
+                android:progress="20"/>
+
         </LinearLayout>
 
         <!-- Watermark -->
