@@ -57,7 +57,7 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     fun isModelAvailable(): Boolean {
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val useInt8 = prefs.getString("typer_model_version", "Original") == "Int8"
+        val useInt8 = prefs.getString("typer_model_version", "Int8") == "Int8"
         val activeFile = if (useInt8) modelInt8File else modelFile
 
         if (!activeFile.exists() || activeFile.length() <= 0) {
@@ -179,7 +179,7 @@ class BubbleDetectorProcessor(private val context: Context) {
                  Log.w("BubbleDetector", "Failed to set opts", e)
              }
              val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-             val useInt8 = prefs.getString("typer_model_version", "Original") == "Int8"
+             val useInt8 = prefs.getString("typer_model_version", "Int8") == "Int8"
              var activeFile = if (useInt8) modelInt8File else modelFile
 
              if (!activeFile.exists() || activeFile.length() <= 0) {

@@ -514,9 +514,23 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun addInpaintMask(rects: List<RectF>) {
         if (!isInpaintMode) return
+
+        val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val shape = prefs.getString("inpaint_mask_shape", "Rectangle") ?: "Rectangle"
+        val padding = prefs.getInt("inpaint_text_padding", 0).toFloat()
+
         val path = Path()
         for (rect in rects) {
-            path.addRect(rect, Path.Direction.CW)
+            val paddedRect = RectF(rect)
+            if (padding != 0f) {
+                paddedRect.inset(-padding, -padding)
+            }
+
+            if (shape == "Rounded") {
+                path.addRoundRect(paddedRect, 16f, 16f, Path.Direction.CW)
+            } else {
+                path.addRect(paddedRect, Path.Direction.CW)
+            }
         }
         if (!path.isEmpty) {
             inpaintOps.add(Pair(path, InpaintTool.LASSO))

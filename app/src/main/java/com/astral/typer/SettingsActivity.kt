@@ -235,6 +235,57 @@ class SettingsActivity : AppCompatActivity() {
         val layoutTyperModelSelect = findViewById<android.widget.LinearLayout>(R.id.layoutTyperModelSelect)
         val spinnerTyperModelSelect = findViewById<android.widget.Spinner>(R.id.spinnerTyperModelSelect)
 
+        val cbInpaintDetectTextInside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextInside)
+        val cbInpaintDetectTextOutside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextOutside)
+        val rgInpaintMaskShape = findViewById<android.widget.RadioGroup>(R.id.rgInpaintMaskShape)
+        val rbMaskRectangle = findViewById<android.widget.RadioButton>(R.id.rbMaskRectangle)
+        val rbMaskRounded = findViewById<android.widget.RadioButton>(R.id.rbMaskRounded)
+        val sbInpaintMaskPadding = findViewById<android.widget.SeekBar>(R.id.sbInpaintMaskPadding)
+        val tvInpaintMaskPadding = findViewById<TextView>(R.id.tvInpaintMaskPadding)
+
+        // Setup Inpaint UI State
+        cbInpaintDetectTextInside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_inside", true)
+        cbInpaintDetectTextOutside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_outside", true)
+
+        val savedShape = settingsPrefs.getString("inpaint_mask_shape", "Rectangle")
+        if (savedShape == "Rounded") {
+            rbMaskRounded.isChecked = true
+        } else {
+            rbMaskRectangle.isChecked = true
+        }
+
+        // Setup Padding SeekBar (Range -20 to 20, represented as 0 to 40)
+        val savedPadding = settingsPrefs.getInt("inpaint_text_padding", 0)
+        val progressVal = savedPadding + 20
+        sbInpaintMaskPadding.progress = progressVal.coerceIn(0, 40)
+        tvInpaintMaskPadding.text = "Mask Padding: ${savedPadding}px"
+
+        cbInpaintDetectTextInside.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("inpaint_detect_text_inside", isChecked).apply()
+        }
+
+        cbInpaintDetectTextOutside.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("inpaint_detect_text_outside", isChecked).apply()
+        }
+
+        rgInpaintMaskShape.setOnCheckedChangeListener { _, checkedId ->
+            val shape = if (checkedId == R.id.rbMaskRounded) "Rounded" else "Rectangle"
+            settingsPrefs.edit().putString("inpaint_mask_shape", shape).apply()
+        }
+
+        sbInpaintMaskPadding.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                val actualPadding = progress - 20
+                tvInpaintMaskPadding.text = "Mask Padding: ${actualPadding}px"
+                if (fromUser) {
+                    settingsPrefs.edit().putInt("inpaint_text_padding", actualPadding).apply()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
+
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
         // Init MIGAN Processor Logic
@@ -248,7 +299,7 @@ class SettingsActivity : AppCompatActivity() {
         spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerTyperModelSelect.adapter = spinnerAdapter
 
-        val savedModelVersion = settingsPrefs.getString("typer_model_version", "Original")
+        val savedModelVersion = settingsPrefs.getString("typer_model_version", "Int8")
         val modelIndex = modelVersions.indexOf(savedModelVersion).coerceAtLeast(0)
         spinnerTyperModelSelect.setSelection(modelIndex)
 
