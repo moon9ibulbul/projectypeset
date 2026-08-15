@@ -53,6 +53,10 @@ dependencies {
     // ONNX Runtime for LaMa Inpainting
     implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.18.0'
 
+    // Google ML Kit Text Recognition for Inpaint mask refinement
+    implementation 'com.google.mlkit:text-recognition:16.0.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.6.4'
+
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'

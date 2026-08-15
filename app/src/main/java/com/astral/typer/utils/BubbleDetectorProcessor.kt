@@ -291,13 +291,17 @@ class BubbleDetectorProcessor(private val context: Context) {
             val nmsResults = nonMaximumSuppression(filteredDetections)
 
             // 4. Merge Adjacent Boxes (Split by tiling)
-            val mergedBoxes = if (mergeBoxes) mergeTouchingBoxes(nmsResults) else nmsResults
+            val finalBoxes = if (mergeBoxes) {
+                mergeTouchingBoxes(nmsResults)
+            } else {
+                nmsResults
+            }
 
             // 5. Shrink boxes to fit inside the bubble (Inner Box)
             // Scale factor 0.75 approximates the inscribed rectangle of an ellipse/circle
             // boxScale is now a parameter
 
-            return@withContext mergedBoxes.map { box ->
+            return@withContext finalBoxes.map { box ->
                 // Map back to original coordinates
                 val originalBox = RectF(
                     box.left / scaleFactor,

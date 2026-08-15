@@ -55,6 +55,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.tasks.await
+import android.graphics.RectF
+import android.graphics.Bitmap
+import android.util.Log
+
 enum class InpaintSelectionMode {
     TOUCH, LASSO, MAGIC_WAND
 }
@@ -4670,6 +4678,7 @@ class EditorActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
         val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", true)
+        val useMLKitDoubleProcess = prefs.getBoolean("mlkit_double_process", false)
 
         val allowedLabels = mutableSetOf<Long>()
         if (detectInside) allowedLabels.add(1L)
@@ -4683,14 +4692,62 @@ class EditorActivity : AppCompatActivity() {
         loadingDialog?.show()
         lifecycleScope.launch {
             // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
-            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f, mergeBoxes = false)
-            withContext(Dispatchers.Main) {
-                loadingDialog?.dismiss()
-                if (rects.isNotEmpty()) {
-                    canvasView.addInpaintMask(rects)
-                    Toast.makeText(this@EditorActivity, "Added ${rects.size} text masks", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this@EditorActivity, "No text detected", Toast.LENGTH_SHORT).show()
+            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f, !useMLKitDoubleProcess)
+
+            if (useMLKitDoubleProcess && rects.isNotEmpty()) {
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                val mlKitBoxes = mutableListOf<RectF>()
+
+                for (rect in rects) {
+                    val left = maxOf(0f, rect.left).toInt()
+                    val top = maxOf(0f, rect.top).toInt()
+                    val right = minOf(bg.width.toFloat(), rect.right).toInt()
+                    val bottom = minOf(bg.height.toFloat(), rect.bottom).toInt()
+
+                    val width = right - left
+                    val height = bottom - top
+                    if (width <= 0 || height <= 0) continue
+
+                    val croppedBitmap = Bitmap.createBitmap(bg, left, top, width, height)
+                    val image = InputImage.fromBitmap(croppedBitmap, 0)
+
+                    try {
+                        val resultText = recognizer.process(image).await()
+                        for (block in resultText.textBlocks) {
+                            for (line in block.lines) {
+                                line.boundingBox?.let { lineBox ->
+                                    mlKitBoxes.add(RectF(
+                                        (left + lineBox.left).toFloat(),
+                                        (top + lineBox.top).toFloat(),
+                                        (left + lineBox.right).toFloat(),
+                                        (top + lineBox.bottom).toFloat()
+                                    ))
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("EditorActivity", "Text recognition failed", e)
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    loadingDialog?.dismiss()
+                    if (mlKitBoxes.isNotEmpty()) {
+                        canvasView.addInpaintMask(mlKitBoxes)
+                        Toast.makeText(this@EditorActivity, "Added ${mlKitBoxes.size} ML Kit text masks", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@EditorActivity, "No text detected by ML Kit", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    loadingDialog?.dismiss()
+                    if (rects.isNotEmpty()) {
+                        canvasView.addInpaintMask(rects)
+                        Toast.makeText(this@EditorActivity, "Added ${rects.size} text masks", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@EditorActivity, "No text detected", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
