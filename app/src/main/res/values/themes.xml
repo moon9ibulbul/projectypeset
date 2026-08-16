@@ -16,6 +16,19 @@
         <item name="appTextColorPrimary">#FFFFFF</item>
         <item name="appTextColorSecondary">#AAAAAA</item>
         <item name="appIconTint">#FFFFFF</item>
+        <item name="appButtonBgColor">#444444</item>
+        <item name="appButtonBorderColor">@android:color/transparent</item>
+        <item name="appButtonBorderWidth">0dp</item>
+        <item name="appInputBgColor">#333333</item>
+        <item name="appInputBorderColor">@android:color/transparent</item>
+        <item name="appInputBorderWidth">0dp</item>
+        <item name="appPanelBorderColor">@android:color/transparent</item>
+        <item name="appPanelBorderWidth">0dp</item>
+        <item name="appDialogBorderColor">@android:color/transparent</item>
+        <item name="appDialogBorderWidth">0dp</item>
+        <item name="appCardBgColor">#333333</item>
+        <item name="appCardBorderColor">@android:color/transparent</item>
+        <item name="appCardBorderWidth">0dp</item>
     </style>
 
     <!-- Pitch Black -->
@@ -28,6 +41,19 @@
         <item name="appTextColorPrimary">#FFFFFF</item>
         <item name="appTextColorSecondary">#AAAAAA</item>
         <item name="appIconTint">#FFFFFF</item>
+        <item name="appButtonBgColor">#444444</item>
+        <item name="appButtonBorderColor">@android:color/transparent</item>
+        <item name="appButtonBorderWidth">0dp</item>
+        <item name="appInputBgColor">#333333</item>
+        <item name="appInputBorderColor">@android:color/transparent</item>
+        <item name="appInputBorderWidth">0dp</item>
+        <item name="appPanelBorderColor">@android:color/transparent</item>
+        <item name="appPanelBorderWidth">0dp</item>
+        <item name="appDialogBorderColor">@android:color/transparent</item>
+        <item name="appDialogBorderWidth">0dp</item>
+        <item name="appCardBgColor">#333333</item>
+        <item name="appCardBorderColor">@android:color/transparent</item>
+        <item name="appCardBorderWidth">0dp</item>
     </style>
 
     <!-- Light Grey -->
@@ -40,6 +66,19 @@
         <item name="appTextColorPrimary">#FFFFFF</item>
         <item name="appTextColorSecondary">#CCCCCC</item>
         <item name="appIconTint">#FFFFFF</item>
+        <item name="appButtonBgColor">#444444</item>
+        <item name="appButtonBorderColor">@android:color/transparent</item>
+        <item name="appButtonBorderWidth">0dp</item>
+        <item name="appInputBgColor">#333333</item>
+        <item name="appInputBorderColor">@android:color/transparent</item>
+        <item name="appInputBorderWidth">0dp</item>
+        <item name="appPanelBorderColor">@android:color/transparent</item>
+        <item name="appPanelBorderWidth">0dp</item>
+        <item name="appDialogBorderColor">@android:color/transparent</item>
+        <item name="appDialogBorderWidth">0dp</item>
+        <item name="appCardBgColor">#333333</item>
+        <item name="appCardBorderColor">@android:color/transparent</item>
+        <item name="appCardBorderWidth">0dp</item>
     </style>
 
     <!-- Light -->
@@ -52,6 +91,19 @@
         <item name="appTextColorPrimary">#000000</item>
         <item name="appTextColorSecondary">#666666</item>
         <item name="appIconTint">#333333</item>
+        <item name="appButtonBgColor">#FFFFFF</item>
+        <item name="appButtonBorderColor">#000000</item>
+        <item name="appButtonBorderWidth">1dp</item>
+        <item name="appInputBgColor">#FFFFFF</item>
+        <item name="appInputBorderColor">#000000</item>
+        <item name="appInputBorderWidth">1dp</item>
+        <item name="appPanelBorderColor">#000000</item>
+        <item name="appPanelBorderWidth">1dp</item>
+        <item name="appDialogBorderColor">#000000</item>
+        <item name="appDialogBorderWidth">1dp</item>
+        <item name="appCardBgColor">#FFFFFF</item>
+        <item name="appCardBorderColor">#000000</item>
+        <item name="appCardBorderWidth">1dp</item>
     </style>
 
     <!-- Cream -->
@@ -64,6 +116,19 @@
         <item name="appTextColorPrimary">#4A3B2C</item>
         <item name="appTextColorSecondary">#7A6A56</item>
         <item name="appIconTint">#4A3B2C</item>
+        <item name="appButtonBgColor">#FAF6B8</item>
+        <item name="appButtonBorderColor">@android:color/transparent</item>
+        <item name="appButtonBorderWidth">0dp</item>
+        <item name="appInputBgColor">#F4EBB1</item>
+        <item name="appInputBorderColor">@android:color/transparent</item>
+        <item name="appInputBorderWidth">0dp</item>
+        <item name="appPanelBorderColor">@android:color/transparent</item>
+        <item name="appPanelBorderWidth">0dp</item>
+        <item name="appDialogBorderColor">@android:color/transparent</item>
+        <item name="appDialogBorderWidth">0dp</item>
+        <item name="appCardBgColor">#F4EBB1</item>
+        <item name="appCardBorderColor">@android:color/transparent</item>
+        <item name="appCardBorderWidth">0dp</item>
     </style>
 
     <!-- Sunset -->
@@ -76,6 +141,19 @@
         <item name="appTextColorPrimary">#FDE2D9</item>
         <item name="appTextColorSecondary">#D9B3A9</item>
         <item name="appIconTint">#FDE2D9</item>
+        <item name="appButtonBgColor">#3D1B26</item>
+        <item name="appButtonBorderColor">@android:color/transparent</item>
+        <item name="appButtonBorderWidth">0dp</item>
+        <item name="appInputBgColor">#4A2131</item>
+        <item name="appInputBorderColor">@android:color/transparent</item>
+        <item name="appInputBorderWidth">0dp</item>
+        <item name="appPanelBorderColor">@android:color/transparent</item>
+        <item name="appPanelBorderWidth">0dp</item>
+        <item name="appDialogBorderColor">@android:color/transparent</item>
+        <item name="appDialogBorderWidth">0dp</item>
+        <item name="appCardBgColor">#4A2131</item>
+        <item name="appCardBorderColor">@android:color/transparent</item>
+        <item name="appCardBorderWidth">0dp</item>
     </style>
 
     <!-- Pink -->
@@ -88,5 +166,18 @@
         <item name="appTextColorPrimary">#880E4F</item>
         <item name="appTextColorSecondary">#AD1457</item>
         <item name="appIconTint">#880E4F</item>
+        <item name="appButtonBgColor">#FFFFFF</item>
+        <item name="appButtonBorderColor">#000000</item>
+        <item name="appButtonBorderWidth">1dp</item>
+        <item name="appInputBgColor">#FFFFFF</item>
+        <item name="appInputBorderColor">#000000</item>
+        <item name="appInputBorderWidth">1dp</item>
+        <item name="appPanelBorderColor">#000000</item>
+        <item name="appPanelBorderWidth">1dp</item>
+        <item name="appDialogBorderColor">#000000</item>
+        <item name="appDialogBorderWidth">1dp</item>
+        <item name="appCardBgColor">#FFFFFF</item>
+        <item name="appCardBorderColor">#000000</item>
+        <item name="appCardBorderWidth">1dp</item>
     </style>
 </resources>

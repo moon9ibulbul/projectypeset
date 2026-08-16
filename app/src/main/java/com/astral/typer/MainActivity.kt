@@ -534,12 +534,12 @@ class MainActivity : AppCompatActivity() {
         var selectedColor = Color.WHITE
         var isTransparent = false
 
-        dialogBinding.viewColorPreview.setBackgroundColor(selectedColor)
+        dialogBinding.viewColorPreview.background = GradientDrawable().apply { setColor(selectedColor); setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(this@MainActivity, com.astral.typer.R.attr.appInputBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appInputBorderColor)); cornerRadius = 0f }
         dialogBinding.viewColorPreview.setOnClickListener {
             if (!isTransparent) {
                 showColorPickerDialog(selectedColor) { newColor ->
                     selectedColor = newColor
-                    dialogBinding.viewColorPreview.setBackgroundColor(newColor)
+                    dialogBinding.viewColorPreview.background = GradientDrawable().apply { setColor(newColor); setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(this@MainActivity, com.astral.typer.R.attr.appInputBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appInputBorderColor)); cornerRadius = 0f }
                 }
             }
         }

@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:padding="24dp"
-    android:background="@drawable/bg_dialog">
+    android:background="@drawable/bg_dialog_dynamic">
 
     <TextView
         android:id="@+id/tvDialogTitle"
@@ -40,7 +40,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="@string/width"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="?attr/appInputBorderColor">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etWidth"
@@ -60,7 +61,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="@string/height"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="?attr/appInputBorderColor">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etHeight"
@@ -92,7 +94,8 @@
                 android:layout_height="40dp"
                 android:text="1:1"
                 android:textColor="?attr/appTextColorPrimary"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="?attr/appButtonBorderColor"/>
             <Button
                 android:id="@+id/btnRatio916"
                 android:layout_width="wrap_content"
@@ -100,7 +103,8 @@
                 android:text="9:16"
                 android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginStart="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="?attr/appButtonBorderColor"/>
             <Button
                 android:id="@+id/btnRatio169"
                 android:layout_width="wrap_content"
@@ -108,7 +112,8 @@
                 android:text="16:9"
                 android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginStart="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="?attr/appButtonBorderColor"/>
              <Button
                 android:id="@+id/btnRatio34"
                 android:layout_width="wrap_content"
@@ -116,7 +121,8 @@
                 android:text="3:4"
                 android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginStart="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="?attr/appButtonBorderColor"/>
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -142,7 +148,7 @@
             android:id="@+id/viewColorPreview"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:background="@color/white" />
+            android:background="@drawable/bg_input_dynamic" />
 
         <CheckBox
             android:id="@+id/cbTransparent"

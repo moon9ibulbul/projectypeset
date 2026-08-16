@@ -10,4 +10,11 @@ object ThemeUtils {
         theme.resolveAttribute(attrId, typedValue, true)
         return typedValue.data
     }
+
+    fun getDimensionFromAttr(context: Context, attrId: Int): Float {
+        val typedValue = TypedValue()
+        val theme = context.theme
+        theme.resolveAttribute(attrId, typedValue, true)
+        return TypedValue.complexToDimension(typedValue.data, context.resources.displayMetrics)
+    }
 }

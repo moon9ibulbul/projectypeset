@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/bg_dialog_dark"
+    android:background="@drawable/bg_dialog_dynamic"
     android:padding="16dp"
     android:scrollbars="none">
 
@@ -16,7 +16,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="150dp"
-            android:background="@drawable/bg_input_dark"
+            android:background="@drawable/bg_input_dynamic"
             android:padding="16dp"
             android:textColor="?attr/appTextColorPrimary"
             android:hint="Paste your text here..."
@@ -32,7 +32,7 @@
             android:layout_height="wrap_content"
             android:text="Parse Text"
             android:textColor="?attr/appTextColorPrimary"
-            android:background="@drawable/bg_button_dark"/>
+            android:background="@drawable/bg_button_dynamic"/>
 
     </LinearLayout>
 

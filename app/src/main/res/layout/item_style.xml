@@ -6,7 +6,7 @@
     android:layout_margin="8dp"
     android:orientation="vertical"
     android:gravity="center"
-    android:background="@drawable/bg_style_item">
+    android:background="@drawable/bg_item_border">
 
     <ImageView
         android:id="@+id/ivPreview"
