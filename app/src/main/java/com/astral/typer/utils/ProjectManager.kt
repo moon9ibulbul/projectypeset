@@ -239,7 +239,12 @@ object ProjectManager {
         val isGlobalGradient: Boolean? = null,
         val globalP1X: Float? = null, val globalP1Y: Float? = null,
         val globalP2X: Float? = null, val globalP2Y: Float? = null,
-        val caseType: String? = null
+        val caseType: String? = null,
+        val transformTypes: Set<String>? = null,
+        val transformSizeMultiplier: Float? = null,
+        val transformAngleMultiplier: Float? = null,
+        val transformCircleRadiusMultiplier: Float? = null,
+        val transformDotsMultiplier: Float? = null
     )
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -566,7 +571,12 @@ object ProjectManager {
                         isGlobalGradient = layer.isGlobalGradient,
                         globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y,
                         globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y,
-                        caseType = layer.caseType
+                        caseType = layer.caseType,
+                        transformTypes = layer.transformTypes,
+                        transformSizeMultiplier = layer.transformSizeMultiplier,
+                        transformAngleMultiplier = layer.transformAngleMultiplier,
+                        transformCircleRadiusMultiplier = layer.transformCircleRadiusMultiplier,
+                        transformDotsMultiplier = layer.transformDotsMultiplier
                     ))
 
                 } else if (layer is com.astral.typer.models.ShapeLayer) {
@@ -1199,6 +1209,11 @@ object ProjectManager {
             }
 
             model.caseType?.let { layer.caseType = it }
+            model.transformTypes?.let { layer.transformTypes = it.toMutableSet() }
+            model.transformSizeMultiplier?.let { layer.transformSizeMultiplier = it }
+            model.transformAngleMultiplier?.let { layer.transformAngleMultiplier = it }
+            model.transformCircleRadiusMultiplier?.let { layer.transformCircleRadiusMultiplier = it }
+            model.transformDotsMultiplier?.let { layer.transformDotsMultiplier = it }
             model.fontSize?.let { layer.fontSize = it }
             layer.fontPath = model.fontPath
             val appInstance = TyperApplication.instance

@@ -4064,6 +4064,11 @@ class EditorActivity : AppCompatActivity() {
 
         // Formatting & caseType assignment
         layer.caseType = style.caseType ?: "NORMAL"
+        style.transformTypes?.let { layer.transformTypes = it.toMutableSet() }
+        style.transformSizeMultiplier?.let { layer.transformSizeMultiplier = it }
+        style.transformAngleMultiplier?.let { layer.transformAngleMultiplier = it }
+        style.transformCircleRadiusMultiplier?.let { layer.transformCircleRadiusMultiplier = it }
+        style.transformDotsMultiplier?.let { layer.transformDotsMultiplier = it }
         layer.isBold = style.isBold
         layer.isItalic = style.isItalic
         layer.isUnderline = style.isUnderline
