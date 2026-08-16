@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="Saved Projects"
-            app:titleTextColor="@android:color/white"
+            app:titleTextColor="?attr/appTextColorPrimary"
             app:navigationIcon="@drawable/ic_arrow_back"
             app:menu="@menu/recent_menu" />
 

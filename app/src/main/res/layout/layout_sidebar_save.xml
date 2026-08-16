@@ -13,7 +13,7 @@
         android:layout_width="300dp"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="@color/surface_dark"
+        android:background="?attr/appSurfaceColor"
         app:layout_constraintEnd_toEndOf="parent"
         android:padding="16dp">
 
@@ -22,7 +22,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Save Options"
-            android:textColor="@color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:textSize="20sp"
             android:textStyle="bold"
             android:layout_marginBottom="24dp"/>
@@ -95,14 +95,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="RAW Mode"
-                    android:textColor="@color/white"
+                    android:textColor="?attr/appTextColorPrimary"
                     android:layout_marginBottom="8dp"/>
 
                 <Spinner
                     android:id="@+id/spinnerRawMode"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="@color/white"
+                    android:backgroundTint="?attr/appIconTint"
                     android:layout_marginBottom="16dp"/>
 
                 <TextView
@@ -110,7 +110,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="RAW Opacity: 100%"
-                    android:textColor="@color/white"
+                    android:textColor="?attr/appTextColorPrimary"
                     android:layout_marginBottom="8dp"/>
 
                 <SeekBar
@@ -144,7 +144,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Project Name"
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <EditText
@@ -152,7 +152,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Enter project name"
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:textColorHint="@android:color/darker_gray"
                 android:background="@drawable/bg_input_dark"
                 android:padding="12dp"
@@ -170,7 +170,7 @@
                 android:layout_height="wrap_content"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:text="Back"
-                android:textColor="@color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
         </LinearLayout>
 
@@ -186,7 +186,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="File Name"
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <EditText
@@ -194,7 +194,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Enter file name"
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:textColorHint="@android:color/darker_gray"
                 android:background="@drawable/bg_input_dark"
                 android:padding="12dp"
@@ -204,28 +204,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Format"
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <Spinner
                 android:id="@+id/spinnerFormat"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:backgroundTint="@color/white"
+                android:backgroundTint="?attr/appIconTint"
                 android:layout_marginBottom="16dp"/>
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Export Scale"
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <Spinner
                 android:id="@+id/spinnerExportScale"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:backgroundTint="@color/white"
+                android:backgroundTint="?attr/appIconTint"
                 android:layout_marginBottom="16dp"/>
 
             <LinearLayout
@@ -239,7 +239,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Quality: 100%"
-                    android:textColor="@color/white"
+                    android:textColor="?attr/appTextColorPrimary"
                     android:layout_marginBottom="8dp"/>
 
                 <SeekBar
@@ -263,7 +263,7 @@
                 android:layout_height="wrap_content"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:text="Back"
-                android:textColor="@color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
         </LinearLayout>
 

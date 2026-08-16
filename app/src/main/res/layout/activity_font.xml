@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/background_dark">
+    android:background="?attr/appBackgroundColor">
 
     <!-- Header / Toolbar -->
     <LinearLayout
@@ -12,14 +13,14 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:padding="16dp"
-        android:background="@color/surface_dark">
+        android:background="?attr/appSurfaceColor">
 
         <ImageButton
             android:id="@+id/btnBack"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="?android:attr/actionModeCloseDrawable"
-            android:tint="@color/white"
+            app:tint="?attr/appIconTint"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Back" />
 
@@ -27,7 +28,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Font Manager"
-            android:textColor="@color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:textSize="20sp"
             android:textStyle="bold"
             android:layout_marginStart="16dp" />
@@ -57,7 +58,7 @@
                 android:id="@+id/spinnerOrderBy"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:backgroundTint="@color/white"
+                android:backgroundTint="?attr/appIconTint"
                 android:layout_marginBottom="24dp" />
 
             <!-- Categories Section -->
@@ -115,7 +116,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Search fonts..."
-                android:textColor="@color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:textColorHint="@android:color/darker_gray"
                 android:background="@drawable/bg_input_dark"
                 android:padding="12dp"

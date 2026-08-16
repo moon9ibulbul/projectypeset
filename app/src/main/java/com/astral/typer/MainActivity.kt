@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
             )
         }
+        ThemeHelper.applyTheme(this)
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)

@@ -11,7 +11,7 @@
         android:id="@+id/tvTextContent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@android:color/white"
+        android:textColor="?attr/appTextColorPrimary"
         android:textSize="14sp"
         android:maxLines="3"
         android:ellipsize="end"
@@ -21,7 +21,7 @@
         android:id="@+id/spinnerStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:backgroundTint="@android:color/white" />
+        android:backgroundTint="?attr/appIconTint" />
 
     <View
         android:layout_width="match_parent"

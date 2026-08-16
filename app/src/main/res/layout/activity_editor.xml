@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark"
+    android:background="?attr/appBackgroundColor"
     tools:context=".EditorActivity">
 
     <!-- Top Bar -->
@@ -12,7 +12,7 @@
         android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="@color/surface_dark"
+        android:background="?attr/appSurfaceColor"
         android:paddingHorizontal="4dp"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -21,7 +21,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_revert"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -34,7 +34,7 @@
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_rotate"
             android:scaleX="-1"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnBack"
             app:layout_constraintEnd_toStartOf="@id/btnRedo"
@@ -45,7 +45,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_rotate"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnUndo"
             app:layout_constraintEnd_toStartOf="@id/btnAdd"
@@ -56,7 +56,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_input_add"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnRedo"
             app:layout_constraintEnd_toStartOf="@id/btnTopTyper"
@@ -67,7 +67,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_typer"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnAdd"
             app:layout_constraintEnd_toStartOf="@id/btnEraser"
@@ -78,7 +78,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_eraser"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnTopTyper"
             app:layout_constraintEnd_toStartOf="@id/btnCut"
@@ -89,7 +89,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_crop"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnEraser"
@@ -101,7 +101,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_sort_by_size"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnCut"
             app:layout_constraintEnd_toStartOf="@id/btnSave"
@@ -112,7 +112,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@android:drawable/ic_menu_save"
-            app:tint="@color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btnLayers"
             app:layout_constraintEnd_toEndOf="parent"
@@ -144,7 +144,7 @@
             android:id="@+id/menuInsert"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/surface_dark"
+            android:background="?attr/appSurfaceColor"
             android:orientation="horizontal"
             android:padding="16dp"
             android:gravity="center_vertical">
@@ -155,7 +155,7 @@
                 android:layout_height="wrap_content"
                 android:text="Text"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="@color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
             <Button
                 android:id="@+id/btnInsertImage"
@@ -163,7 +163,7 @@
                 android:layout_height="wrap_content"
                 android:text="Image"
                  style="@style/Widget.MaterialComponents.Button.TextButton"
-                 android:textColor="@color/white"/>
+                 android:textColor="?attr/appTextColorPrimary"/>
 
             <Button
                 android:id="@+id/btnInsertShape"
@@ -171,7 +171,7 @@
                 android:layout_height="wrap_content"
                 android:text="Shape"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="@color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
             <Button
                 android:id="@+id/btnInsertBrush"
@@ -179,7 +179,7 @@
                 android:layout_height="wrap_content"
                 android:text="Brush"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="@color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
         </LinearLayout>
 
@@ -188,7 +188,7 @@
             android:id="@+id/menuProperties"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/surface_dark"
+            android:background="?attr/appSurfaceColor"
             android:scrollbars="none"
             android:visibility="gone">
 
@@ -204,7 +204,7 @@
                     android:layout_height="wrap_content"
                     android:text="Quick Edit"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                 <Button
                     android:id="@+id/btnPropStyle"
@@ -212,7 +212,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/style"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                 <Button
                     android:id="@+id/btnPropFont"
@@ -220,7 +220,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/font"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                  <Button
                     android:id="@+id/btnPropFormat"
@@ -228,7 +228,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/format"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                  <Button
                     android:id="@+id/btnPropColor"
@@ -236,7 +236,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/color"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                  <Button
                     android:id="@+id/btnPropBrush"
@@ -244,7 +244,7 @@
                     android:layout_height="wrap_content"
                     android:text="Brush"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                  <Button
                     android:id="@+id/btnPropSpacing"
@@ -252,7 +252,7 @@
                     android:layout_height="wrap_content"
                     android:text="Spacing"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropStroke"
@@ -260,7 +260,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/stroke"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropDoubleStroke"
@@ -268,7 +268,7 @@
                     android:layout_height="wrap_content"
                     android:text="Double Stroke"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropShadow"
@@ -276,7 +276,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/shadow"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropGradation"
@@ -284,7 +284,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/gradation"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                  <Button
                     android:id="@+id/btnPropEffect"
@@ -292,7 +292,7 @@
                     android:layout_height="wrap_content"
                     android:text="Effect"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropTexture"
@@ -300,7 +300,7 @@
                     android:layout_height="wrap_content"
                     android:text="Texture"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropOpacity"
@@ -308,7 +308,7 @@
                     android:layout_height="wrap_content"
                     android:text="Opacity"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropErase"
@@ -316,7 +316,7 @@
                     android:layout_height="wrap_content"
                     android:text="Erase"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropPerspective"
@@ -324,7 +324,7 @@
                     android:layout_height="wrap_content"
                     android:text="Perspective"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropWarp"
@@ -332,7 +332,7 @@
                     android:layout_height="wrap_content"
                     android:text="Warp"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                   <Button
                     android:id="@+id/btnPropPuppetWarp"
@@ -340,7 +340,7 @@
                     android:layout_height="wrap_content"
                     android:text="Puppet Warp"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="@color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
             </LinearLayout>
         </HorizontalScrollView>
 
@@ -351,7 +351,7 @@
         android:id="@+id/propertyDetailContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface_dark"
+        android:background="?attr/appSurfaceColor"
         app:layout_constraintBottom_toTopOf="@id/bottomMenuContainer"
         android:visibility="gone">
 
@@ -362,7 +362,7 @@
              android:layout_height="100dp"
              android:text="Detail Panel"
              android:gravity="center"
-             android:textColor="@color/white"/>
+             android:textColor="?attr/appTextColorPrimary"/>
 
     </FrameLayout>
 
@@ -393,7 +393,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:indeterminate="true"
-            android:indeterminateTint="@color/white"/>
+            android:indeterminateTint="?attr/appIconTint"/>
 
     </FrameLayout>
 

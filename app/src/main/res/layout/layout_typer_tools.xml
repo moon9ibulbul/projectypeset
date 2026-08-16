@@ -13,7 +13,7 @@
         android:layout_height="40dp"
         android:src="@drawable/ic_hand"
         android:padding="8dp"
-        app:tint="@color/white"
+        app:tint="?attr/appIconTint"
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
 
     <ImageView
@@ -22,7 +22,7 @@
         android:layout_height="40dp"
         android:src="@drawable/ic_crop_square"
         android:padding="8dp"
-        app:tint="@color/white"
+        app:tint="?attr/appIconTint"
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
 
     <ImageView
@@ -31,7 +31,7 @@
         android:layout_height="40dp"
         android:src="@drawable/ic_circle"
         android:padding="8dp"
-        app:tint="@color/white"
+        app:tint="?attr/appIconTint"
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
 
     <ImageView
@@ -40,7 +40,7 @@
         android:layout_height="40dp"
         android:src="@drawable/ic_lasso"
         android:padding="8dp"
-        app:tint="@color/white"
+        app:tint="?attr/appIconTint"
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
 
     <ImageView
@@ -49,7 +49,7 @@
         android:layout_height="40dp"
         android:src="@drawable/ic_eraser"
         android:padding="8dp"
-        app:tint="@color/white"
+        app:tint="?attr/appIconTint"
         xmlns:app="http://schemas.android.com/apk/res-auto"/>
 
 </LinearLayout>

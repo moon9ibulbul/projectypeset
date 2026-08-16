@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Importing..."
-        android:textColor="@android:color/white"
+        android:textColor="?attr/appTextColorPrimary"
         android:textSize="16sp"
         android:layout_marginBottom="16dp" />
 
