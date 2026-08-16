@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#222222"
+    android:background="?attr/appBackgroundColor"
     android:fillViewport="true">
 
     <LinearLayout
@@ -15,17 +15,38 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Settings"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:textSize="24sp"
             android:textStyle="bold"
             android:layout_marginBottom="24dp"/>
+
+
+        <!-- Theme Settings -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Theme Settings"
+            android:textColor="?attr/appTextColorSecondary"
+            android:textSize="14sp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnChangeTheme"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Change Theme"
+            android:textColor="?attr/appTextColorPrimary"
+            android:backgroundTint="?attr/appSurfaceColor"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp" />
 
         <!-- Data Management -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Data Management"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -34,7 +55,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Style List"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:checked="true"/>
 
         <CheckBox
@@ -42,7 +63,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Favorites &amp; Custom Categories (Fonts)"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:checked="true"/>
 
         <CheckBox
@@ -50,7 +71,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="My Fonts (Files)"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:checked="true"/>
 
         <CheckBox
@@ -58,7 +79,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Enable Autosave"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:checked="true"/>
 
         <CheckBox
@@ -66,7 +87,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Disable Snap to Center"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:checked="false"/>
 
         <LinearLayout
@@ -98,7 +119,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Font Manager"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -114,7 +135,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Cache"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -131,7 +152,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Cache Size: Calculating..."
-                android:textColor="@android:color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
             <Button
                 android:id="@+id/btnClearCache"
@@ -145,7 +166,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Inpaint Model (LaMa)"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -160,7 +181,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Enable NNAPI (Hardware Acceleration)"
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:checked="true"
                 android:layout_marginBottom="8dp"/>
 
@@ -169,7 +190,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Status: Checking..."
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <ProgressBar
@@ -192,7 +213,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Inpaint Model (MIGAN)"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -207,7 +228,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Status: Checking..."
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <ProgressBar
@@ -230,7 +251,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Bubble &amp; Text Detector"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -245,7 +266,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Status: Checking..."
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <ProgressBar
@@ -268,7 +289,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Status: Checking..."
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="8dp"/>
 
@@ -298,7 +319,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Select Model Version"
-                    android:textColor="#AAAAAA"
+                    android:textColor="?attr/appTextColorSecondary"
                     android:textSize="12sp"
                     android:layout_marginBottom="4dp"/>
 
@@ -306,7 +327,7 @@
                     android:id="@+id/spinnerTyperModelSelect"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="@android:color/white"/>
+                    android:backgroundTint="?attr/appIconTint"/>
             </LinearLayout>
 
             <!-- Inpaint Text Detection Settings -->
@@ -314,7 +335,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Inpaint Text Detection"
-                android:textColor="#AAAAAA"
+                android:textColor="?attr/appTextColorSecondary"
                 android:textSize="12sp"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="4dp"/>
@@ -324,20 +345,20 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Text Inside Bubble"
-                android:textColor="@android:color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
             <CheckBox
                 android:id="@+id/cbInpaintDetectTextOutside"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Text Outside Bubble"
-                android:textColor="@android:color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Text Mask Shape"
-                android:textColor="#AAAAAA"
+                android:textColor="?attr/appTextColorSecondary"
                 android:textSize="12sp"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="4dp"/>
@@ -353,14 +374,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Rectangle"
-                    android:textColor="@android:color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                 <RadioButton
                     android:id="@+id/rbMaskRounded"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Rounded"
-                    android:textColor="@android:color/white"
+                    android:textColor="?attr/appTextColorPrimary"
                     android:layout_marginStart="16dp"/>
             </RadioGroup>
 
@@ -369,7 +390,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Mask Padding: 0px"
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="4dp"/>
 
@@ -387,7 +408,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Watermark"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -396,7 +417,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Enable Global Watermark"
-            android:textColor="@android:color/white"/>
+            android:textColor="?attr/appTextColorPrimary"/>
 
         <LinearLayout
             android:id="@+id/layoutWatermarkOptions"
@@ -427,7 +448,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Watermark Opacity: 100%"
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
             <SeekBar
@@ -443,14 +464,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Auto Watermark"
-                android:textColor="@android:color/white"/>
+                android:textColor="?attr/appTextColorPrimary"/>
 
             <CheckBox
                 android:id="@+id/cbWatermarkAutoScaling"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Auto Scaling"
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginTop="8dp"/>
 
             <LinearLayout
@@ -466,7 +487,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Watermark Scale Factor: 25%"
-                    android:textColor="@android:color/white"/>
+                    android:textColor="?attr/appTextColorPrimary"/>
 
                 <SeekBar
                     android:id="@+id/sbWatermarkScale"
@@ -488,7 +509,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Watermark Position"
-                    android:textColor="#AAAAAA"
+                    android:textColor="?attr/appTextColorSecondary"
                     android:textSize="12sp"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="4dp"/>
@@ -497,7 +518,7 @@
                     android:id="@+id/spinnerWatermarkPosition"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="@android:color/white"/>
+                    android:backgroundTint="?attr/appIconTint"/>
             </LinearLayout>
         </LinearLayout>
 
@@ -506,7 +527,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/pdf_export_settings"
-            android:textColor="#AAAAAA"
+            android:textColor="?attr/appTextColorSecondary"
             android:textSize="14sp"
             android:layout_marginBottom="8dp"/>
 
@@ -521,14 +542,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="PDF Compression Quality: 80%"
-                android:textColor="@android:color/white"
+                android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="4dp"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/pdf_quality_summary"
-                android:textColor="#888888"
+                android:textColor="?attr/appTextColorSecondary"
                 android:textSize="12sp"
                 android:layout_marginBottom="8dp"/>
 
@@ -552,7 +573,7 @@
             android:layout_height="wrap_content"
             android:text="Donate Me"
             android:backgroundTint="#FF9800"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:textStyle="bold"/>
 
     </LinearLayout>

@@ -55,6 +55,7 @@ class FontActivity : AppCompatActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
             )
         }
+        ThemeHelper.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_font)
 

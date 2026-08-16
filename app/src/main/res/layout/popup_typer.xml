@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="#222222"
+    android:background="?attr/appBackgroundColor"
     android:padding="16dp">
 
     <TextView
@@ -61,12 +61,12 @@
             android:layout_width="match_parent"
             android:layout_height="150dp"
             android:background="#333333"
-            android:textColor="#FFFFFF"
+            android:textColor="?attr/appTextColorPrimary"
             android:gravity="top|start"
             android:padding="8dp"
             android:inputType="textMultiLine|text"
             android:hint="Paste your text here..."
-            android:textColorHint="#888888"/>
+            android:textColorHint="?attr/appTextColorSecondary"/>
 
         <Button
             android:id="@+id/btnParsePaste"
@@ -97,7 +97,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:indeterminate="true"
-            android:indeterminateTint="@color/white"/>
+            android:indeterminateTint="?attr/appIconTint"/>
 
     </FrameLayout>
 

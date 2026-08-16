@@ -69,6 +69,7 @@ class SettingsActivity : AppCompatActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
             )
         }
+        ThemeHelper.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
@@ -487,6 +488,60 @@ class SettingsActivity : AppCompatActivity() {
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
 
+
+        // Theme Logic
+        findViewById<Button>(R.id.btnChangeTheme).setOnClickListener {
+            val dialogView = layoutInflater.inflate(R.layout.dialog_theme_picker, null)
+            val dialog = android.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create()
+
+            val rgThemes = dialogView.findViewById<android.widget.RadioGroup>(R.id.rgThemes)
+            val appPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+            val currentTheme = appPrefs.getString("app_theme", "Dark Grey")
+
+            when (currentTheme) {
+                "Dark Grey" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeDarkGrey).isChecked = true
+                "Pitch Black" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemePitchBlack).isChecked = true
+                "Light Grey" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeLightGrey).isChecked = true
+                "Light" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeLight).isChecked = true
+                "Cream" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeCream).isChecked = true
+                "Sunset" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeSunset).isChecked = true
+                "Pink" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemePink).isChecked = true
+                else -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeDarkGrey).isChecked = true
+            }
+
+            dialogView.findViewById<Button>(R.id.btnCancelTheme).setOnClickListener {
+                dialog.dismiss()
+            }
+
+            dialogView.findViewById<Button>(R.id.btnApplyTheme).setOnClickListener {
+                val selectedId = rgThemes.checkedRadioButtonId
+                val newTheme = when (selectedId) {
+                    R.id.rbThemeDarkGrey -> "Dark Grey"
+                    R.id.rbThemePitchBlack -> "Pitch Black"
+                    R.id.rbThemeLightGrey -> "Light Grey"
+                    R.id.rbThemeLight -> "Light"
+                    R.id.rbThemeCream -> "Cream"
+                    R.id.rbThemeSunset -> "Sunset"
+                    R.id.rbThemePink -> "Pink"
+                    else -> "Dark Grey"
+                }
+
+                appPrefs.edit().putString("app_theme", newTheme).apply()
+                dialog.dismiss()
+
+                // Restart app to apply theme
+                val intent = packageManager.getLaunchIntentForPackage(packageName)
+                intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                intent?.let { startActivity(it) }
+                finish()
+            }
+
+            dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            dialog.show()
+        }
+
         // Cache Logic
         updateCacheSize()
         btnClearCache.setOnClickListener {
@@ -508,14 +563,14 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnFontManager).setOnClickListener {
             val intent = Intent(this, FontActivity::class.java)
-            startActivity(intent)
+            intent?.let { startActivity(it) }
         }
 
         // Donate
         btnDonate.setOnClickListener {
             try {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://parlor.astralscans.top/donasi.html"))
-                startActivity(intent)
+                intent?.let { startActivity(it) }
             } catch (e: Exception) {
                 Toast.makeText(this, "Could not open browser", Toast.LENGTH_SHORT).show()
             }
@@ -690,7 +745,7 @@ class SettingsActivity : AppCompatActivity() {
             // Give time for Toast then restart
             val intent = packageManager.getLaunchIntentForPackage(packageName)
             intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            startActivity(intent)
+            intent?.let { startActivity(it) }
             finish()
 
         } catch (e: Exception) {

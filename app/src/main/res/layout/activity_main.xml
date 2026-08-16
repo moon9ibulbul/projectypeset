@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark"
+    android:background="?attr/appBackgroundColor"
     tools:context=".MainActivity">
 
     <ImageView
@@ -13,7 +13,7 @@
         android:layout_height="48dp"
         android:padding="12dp"
         android:src="@drawable/ic_settings"
-        app:tint="@color/white"
+        app:tint="?attr/appIconTint"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_margin="16dp" />
@@ -38,7 +38,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Recent Projects"
-        android:textColor="@color/white"
+        android:textColor="?attr/appTextColorPrimary"
         android:layout_marginStart="40dp"
         android:layout_marginBottom="8dp"
         android:visibility="gone"
@@ -63,7 +63,7 @@
         android:layout_marginHorizontal="40dp"
         android:layout_marginBottom="20dp"
         android:text="@string/new_project"
-        android:backgroundTint="@color/surface_dark"
+        android:backgroundTint="?attr/appSurfaceColor"
         app:layout_constraintBottom_toTopOf="@+id/btnOpenProject"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
@@ -75,7 +75,7 @@
         android:layout_marginHorizontal="40dp"
         android:layout_marginBottom="20dp"
         android:text="@string/open_project"
-        android:backgroundTint="@color/surface_dark"
+        android:backgroundTint="?attr/appSurfaceColor"
         app:layout_constraintBottom_toTopOf="@+id/btnImportImage"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

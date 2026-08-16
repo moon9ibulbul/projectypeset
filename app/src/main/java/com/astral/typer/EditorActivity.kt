@@ -175,6 +175,7 @@ class EditorActivity : AppCompatActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
             )
         }
+        ThemeHelper.applyTheme(this)
         super.onCreate(savedInstanceState)
 
         // Clear Undo history from previous sessions if any

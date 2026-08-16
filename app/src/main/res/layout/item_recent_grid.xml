@@ -44,7 +44,7 @@
             android:src="@drawable/ic_check"
             android:visibility="gone"
             android:layout_margin="8dp"
-            app:tint="@android:color/white"
+            app:tint="?attr/appIconTint"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
@@ -55,7 +55,7 @@
             android:layout_height="wrap_content"
             android:padding="8dp"
             android:text="Project Name"
-            android:textColor="@android:color/white"
+            android:textColor="?attr/appTextColorPrimary"
             android:textSize="12sp"
             android:maxLines="1"
             android:ellipsize="end"
