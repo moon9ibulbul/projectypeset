@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="#1E1E1E">
+    android:background="?attr/appSurfaceColor">
 
     <TextView
         android:id="@+id/tvImportStatus"

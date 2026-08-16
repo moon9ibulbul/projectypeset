@@ -171,8 +171,8 @@ class SettingsActivity : AppCompatActivity() {
 
         // Spinner Setup
         val positions = arrayOf("Upper left", "Top", "Upper Right", "Middle Left", "Center", "Middle Right", "Bottom Left", "Bottom", "Bottom Right", "Random")
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, positions)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, positions)
+        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinnerWatermarkPosition.adapter = adapter
 
         val savedPosition = settingsPrefs.getString("watermark_position", "Center")
@@ -296,8 +296,8 @@ class SettingsActivity : AppCompatActivity() {
 
         // Setup Spinner Options
         val modelVersions = arrayOf("Original", "Int8")
-        val spinnerAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modelVersions)
-        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val spinnerAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modelVersions)
+        spinnerAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinnerTyperModelSelect.adapter = spinnerAdapter
 
         val savedModelVersion = settingsPrefs.getString("typer_model_version", "Int8")
