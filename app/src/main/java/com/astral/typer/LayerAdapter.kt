@@ -51,7 +51,7 @@ class LayerAdapter(
             setPadding(4,4,4,4)
             setImageResource(android.R.drawable.ic_menu_view) // Built-in eye icon? Or close enough
             // Using generic resources for simplicity or color filters
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
         }
 
         val btnLock = ImageView(context).apply {
@@ -59,7 +59,7 @@ class LayerAdapter(
             layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
             setPadding(4,4,4,4)
             setImageResource(android.R.drawable.ic_lock_idle_lock) // Or generic lock
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
         }
 
         val btnClip = ImageView(context).apply {
@@ -67,7 +67,7 @@ class LayerAdapter(
             layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
             setPadding(4,4,4,4)
             setImageResource(android.R.drawable.ic_menu_directions) // Icon for Clip to Layer Below
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
         }
 
         val btnDelete = ImageView(context).apply {
@@ -75,7 +75,7 @@ class LayerAdapter(
             layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
             setPadding(4,4,4,4)
             setImageResource(android.R.drawable.ic_menu_delete) // Or generic trash
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
         }
 
         layout.addView(tvName)

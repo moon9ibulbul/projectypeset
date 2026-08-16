@@ -285,7 +285,7 @@ class MainActivity : AppCompatActivity() {
                                 id = View.generateViewId()
                                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                                 gravity = Gravity.CENTER
-                                setTextColor(Color.WHITE)
+                                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                 textSize = 12f
                                 maxLines = 1
                                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -344,7 +344,7 @@ class MainActivity : AppCompatActivity() {
                                         text.setTextColor(Color.YELLOW)
                                     } else {
                                         text.text = name
-                                        text.setTextColor(Color.WHITE)
+                                        text.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                     }
 
                                     val isSubFolder = file.isDirectory && !ProjectManager.isProjectDirectory(this@MainActivity, file)
