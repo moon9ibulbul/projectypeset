@@ -165,7 +165,8 @@ class FontActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply { setMargins(0, 4, 0, 4) }
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#2A2A2A"))
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(context, com.astral.typer.R.attr.appButtonBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = 8f
                 }
             }
@@ -501,9 +502,9 @@ class FontActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply { setMargins(0, 6, 0, 6) }
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#1E1E1E"))
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appCardBgColor))
                     cornerRadius = 10f
-                    setStroke(1, Color.parseColor("#333333"))
+                    setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(context, com.astral.typer.R.attr.appCardBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appCardBorderColor))
                 }
             }
 
@@ -520,11 +521,13 @@ class FontActivity : AppCompatActivity() {
             }
 
             val tvType = TextView(context).apply {
+                val fontColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorSecondary)
                 tag = "tvType"
                 textSize = 12f
                 setPadding(12, 4, 12, 4)
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#2A2A2A"))
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(context, com.astral.typer.R.attr.appButtonBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = 4f
                 }
             }
@@ -544,7 +547,7 @@ class FontActivity : AppCompatActivity() {
 
             val tvAssigned = TextView(context).apply {
                 tag = "tvAssigned"
-                setTextColor(Color.parseColor("#A0A0A0"))
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorSecondary))
                 textSize = 12f
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             }

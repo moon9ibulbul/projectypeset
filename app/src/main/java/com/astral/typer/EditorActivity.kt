@@ -966,7 +966,7 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 val borderColor = if (isSelected) Color.CYAN else if (isSecondary) Color.MAGENTA else if (isTertiary) Color.YELLOW else Color.TRANSPARENT
-                val bgColor = if (isSelected || isSecondary || isTertiary) Color.DKGRAY else Color.parseColor("#333333")
+                val bgColor = if (isSelected || isSecondary || isTertiary) com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor) else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appInputBgColor)
 
                 background = GradientDrawable().apply {
                     setColor(bgColor)
@@ -1762,7 +1762,7 @@ class EditorActivity : AppCompatActivity() {
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Glitch Seed"
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.glitchSeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
@@ -1825,7 +1825,7 @@ class EditorActivity : AppCompatActivity() {
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Glitch Seed"
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.glitchSeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
@@ -2009,7 +2009,7 @@ class EditorActivity : AppCompatActivity() {
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Decay Seed"
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.decaySeed = java.util.Random().nextInt(10000).toLong()
                         canvasView.invalidate()
@@ -2537,7 +2537,7 @@ class EditorActivity : AppCompatActivity() {
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Lines"
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.effectSeed = java.util.Random().nextInt(100000).toLong()
                         canvasView.invalidate()
@@ -2580,7 +2580,7 @@ class EditorActivity : AppCompatActivity() {
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     textSize = 12f
                     background = GradientDrawable().apply {
-                        setColor(if (stylableLayer.woodScratchColor == Color.TRANSPARENT) Color.parseColor("#BB86FC") else Color.DKGRAY)
+                        setColor(if (stylableLayer.woodScratchColor == Color.TRANSPARENT) Color.parseColor("#BB86FC") else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                         cornerRadius = dpToPx(8).toFloat()
                     }
                     setOnClickListener {
@@ -2607,7 +2607,7 @@ class EditorActivity : AppCompatActivity() {
                 val btnScratchSeed = android.widget.Button(this).apply {
                     text = "Randomize Scratches"
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                    background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.woodScratchSeed = java.util.Random().nextLong()
                         canvasView.invalidate()
@@ -2719,7 +2719,7 @@ class EditorActivity : AppCompatActivity() {
                 // Button: Randomize Seed
                 val btnRandomSeed = android.widget.Button(this).apply {
                     text = "Randomize Seed"
-                    setBackgroundColor(Color.parseColor("#444444"))
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     setOnClickListener {
                         stylableLayer.tailSeed = System.currentTimeMillis()
@@ -2760,8 +2760,9 @@ class EditorActivity : AppCompatActivity() {
             text = "Import"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(8).toFloat()
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(0, 0, dpToPx(8), 0)
@@ -2777,8 +2778,9 @@ class EditorActivity : AppCompatActivity() {
             text = "Browse"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(8).toFloat()
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(dpToPx(8), 0, 0, 0)
@@ -2869,7 +2871,7 @@ class EditorActivity : AppCompatActivity() {
                     textSize = 12f
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply {
-                         setColor(Color.parseColor("#444444"))
+                         setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                          cornerRadius = dpToPx(8).toFloat()
                     }
                     layoutParams = GridLayout.LayoutParams().apply {
@@ -2893,7 +2895,7 @@ class EditorActivity : AppCompatActivity() {
             controls.addView(createArrow("◄", -10f, 0f))
             val btnReset = android.widget.Button(this).apply {
                 text = "R"
-                background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+                background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 layoutParams = GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40); setMargins(2,2,2,2) }
                 setOnClickListener {
@@ -2980,7 +2982,7 @@ class EditorActivity : AppCompatActivity() {
             textSize = 16f
             setTypeface(null, Typeface.BOLD)
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#444444"))
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(20).toFloat()
                 setStroke(dpToPx(2), Color.WHITE)
             }
@@ -3515,7 +3517,7 @@ class EditorActivity : AppCompatActivity() {
                 textSize = 16f
                 setTypeface(null, Typeface.BOLD)
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#444444")) // Dark gray
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)) // Dark gray
                     cornerRadius = dpToPx(20).toFloat()
                     setStroke(dpToPx(2), Color.WHITE)
                 }
@@ -4131,7 +4133,8 @@ class EditorActivity : AppCompatActivity() {
                 text = "Save Current Style"
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -4148,7 +4151,8 @@ class EditorActivity : AppCompatActivity() {
             text = if (isStyleRearrangeMode) "Done" else "Rearrange"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
-                setColor(if (isStyleRearrangeMode) 0xFF4CAF50.toInt() else Color.DKGRAY) // Green when active, otherwise gray
+                setColor(if (isStyleRearrangeMode) 0xFF4CAF50.toInt() else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                if(!isStyleRearrangeMode) setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)) // Green when active, otherwise gray
                 cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(
@@ -4769,7 +4773,8 @@ class EditorActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 8, 16, 8)
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#333333"))
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appInputBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appInputBorderColor))
                 cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(
@@ -5142,7 +5147,7 @@ class EditorActivity : AppCompatActivity() {
                 textSize = 14f
                 setPadding(16, 8, 16, 8)
                 background = GradientDrawable().apply {
-                     setColor(Color.parseColor("#444444"))
+                     setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                      cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(
@@ -5182,8 +5187,9 @@ class EditorActivity : AppCompatActivity() {
                         ViewGroup.LayoutParams.WRAP_CONTENT
                     ).apply { setMargins(0, 0, 0, 16) }
                     background = GradientDrawable().apply {
-                        setColor(Color.DKGRAY)
-                        cornerRadius = dpToPx(8).toFloat()
+                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
                     }
                     setOnClickListener { importFontLauncher.launch("*/*") }
                 }
@@ -5248,8 +5254,9 @@ class EditorActivity : AppCompatActivity() {
                                 ).apply { setMargins(0, 4, 0, 4) }
 
                                 background = GradientDrawable().apply {
-                                    setColor(Color.DKGRAY)
-                                    cornerRadius = dpToPx(8).toFloat()
+                                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
                                 }
 
                                 setOnClickListener {
@@ -5319,8 +5326,9 @@ class EditorActivity : AppCompatActivity() {
                                              ).apply { setMargins(0, 4, 0, 4) }
 
                                              background = GradientDrawable().apply {
-                                                 setColor(Color.DKGRAY)
-                                                 cornerRadius = dpToPx(8).toFloat()
+                                                 setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
                                              }
 
                                              setOnClickListener {
@@ -5488,7 +5496,8 @@ class EditorActivity : AppCompatActivity() {
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -5516,7 +5525,8 @@ class EditorActivity : AppCompatActivity() {
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(24, 16, 24, 16)
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -5582,7 +5592,8 @@ class EditorActivity : AppCompatActivity() {
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -5607,7 +5618,8 @@ class EditorActivity : AppCompatActivity() {
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(24, 16, 24, 16)
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -5632,7 +5644,7 @@ class EditorActivity : AppCompatActivity() {
                 textSize = 12f
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#444444"))
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     setStroke(dpToPx(1), Color.RED)
                     cornerRadius = dpToPx(8).toFloat()
                 }
@@ -5682,7 +5694,8 @@ class EditorActivity : AppCompatActivity() {
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -5709,7 +5722,8 @@ class EditorActivity : AppCompatActivity() {
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(24, 16, 24, 16)
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -6905,7 +6919,8 @@ class EditorActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 setPadding(16, 16, 16, 16)
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = 8f
                 }
                 setOnClickListener { onClick() }
@@ -6959,7 +6974,8 @@ class EditorActivity : AppCompatActivity() {
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(4).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
@@ -6981,7 +6997,8 @@ class EditorActivity : AppCompatActivity() {
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(4).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
@@ -7205,7 +7222,7 @@ class EditorActivity : AppCompatActivity() {
             setImageResource(R.drawable.ic_menu_eyedropper)
             setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
             setPadding(24, 16, 24, 16)
-            background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+            background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 0, 16, 0)
             }
@@ -7225,7 +7242,7 @@ class EditorActivity : AppCompatActivity() {
             setImageResource(R.drawable.ic_menu_palette)
             setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
             setPadding(24, 16, 24, 16)
-            background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
+            background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
             setOnClickListener { onPaletteClick() }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 0, 16, 0)
@@ -7314,7 +7331,8 @@ class EditorActivity : AppCompatActivity() {
                 text = "Center"
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(
@@ -7490,7 +7508,7 @@ class EditorActivity : AppCompatActivity() {
             text = if (canvasView.currentModeName() == "GRADATION") "Exit Gradation Mode" else "Enter Gradation Mode"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
-                setColor(if (canvasView.currentModeName() == "GRADATION") Color.CYAN else Color.DKGRAY)
+                setColor(if (canvasView.currentModeName() == "GRADATION") Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -7949,8 +7967,9 @@ class EditorActivity : AppCompatActivity() {
                     this.text = text
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply {
-                        setColor(Color.DKGRAY)
-                        cornerRadius = dpToPx(8).toFloat()
+                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
                     }
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                         setMargins(8, 0, 8, 0)
@@ -8032,7 +8051,8 @@ class EditorActivity : AppCompatActivity() {
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(4).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
@@ -8049,7 +8069,8 @@ class EditorActivity : AppCompatActivity() {
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(4).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
@@ -8138,8 +8159,9 @@ class EditorActivity : AppCompatActivity() {
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                cornerRadius = dpToPx(4).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
                 setOnClickListener {
@@ -8155,8 +8177,9 @@ class EditorActivity : AppCompatActivity() {
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                cornerRadius = dpToPx(4).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
                 setOnClickListener {
@@ -8249,8 +8272,9 @@ class EditorActivity : AppCompatActivity() {
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                cornerRadius = dpToPx(4).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
                 setOnClickListener {
@@ -8266,8 +8290,9 @@ class EditorActivity : AppCompatActivity() {
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
-                    cornerRadius = dpToPx(4).toFloat()
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                cornerRadius = dpToPx(4).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
                 setOnClickListener {
@@ -8419,8 +8444,9 @@ class EditorActivity : AppCompatActivity() {
             text = "Reset Points"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(8).toFloat()
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
             }
             setOnClickListener {
                 initWarpMesh(layer, stylableLayer.warpRows, stylableLayer.warpCols, forceReset = true)
@@ -8545,7 +8571,7 @@ class EditorActivity : AppCompatActivity() {
                 val isSelectedTarget = textLayer.selectedWarpIndex == target.index
                 setTextColor(if (isSelectedTarget) Color.BLACK else Color.WHITE)
                 background = GradientDrawable().apply {
-                    setColor(if (isSelectedTarget) Color.YELLOW else Color.DKGRAY)
+                    setColor(if (isSelectedTarget) Color.YELLOW else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(6).toFloat()
                 }
 
@@ -8624,7 +8650,8 @@ class EditorActivity : AppCompatActivity() {
                 text = "Reset Letter Points"
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
-                    setColor(Color.DKGRAY)
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(8).toFloat()
                 }
                 setOnClickListener {
@@ -8657,8 +8684,9 @@ class EditorActivity : AppCompatActivity() {
             text = "Reset"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
-                setColor(Color.DKGRAY)
-                cornerRadius = dpToPx(8).toFloat()
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,

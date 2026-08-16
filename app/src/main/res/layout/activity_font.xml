@@ -59,7 +59,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:backgroundTint="?attr/appIconTint"
-                android:layout_marginBottom="24dp" />
+                android:layout_marginBottom="24dp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:background="@drawable/bg_button_dynamic" />
 
             <!-- Categories Section -->
             <TextView
@@ -83,7 +85,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginBottom="24dp" />
+                android:layout_marginBottom="24dp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:background="@drawable/bg_button_dynamic" />
 
             <!-- Import Section -->
             <TextView
@@ -99,7 +103,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="+ Import TTF / OTF / ZIP"
-                android:layout_marginBottom="24dp" />
+                android:layout_marginBottom="24dp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:background="@drawable/bg_button_dynamic" />
 
             <!-- Fonts Section -->
             <TextView
@@ -118,7 +124,7 @@
                 android:hint="Search fonts..."
                 android:textColor="?attr/appTextColorPrimary"
                 android:textColorHint="?attr/appTextColorSecondary"
-                android:background="@drawable/bg_input_dark"
+                android:background="@drawable/bg_input_dynamic"
                 android:padding="12dp"
                 android:layout_marginBottom="12dp"
                 android:maxLines="1"

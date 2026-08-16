@@ -5,4 +5,18 @@
     <attr name="appTextColorPrimary" format="color" />
     <attr name="appTextColorSecondary" format="color" />
     <attr name="appIconTint" format="color" />
+    <attr name="appButtonBgColor" format="color" />
+    <attr name="appButtonBorderColor" format="color" />
+    <attr name="appButtonBorderWidth" format="dimension" />
+    <attr name="appInputBgColor" format="color" />
+    <attr name="appInputBorderColor" format="color" />
+    <attr name="appInputBorderWidth" format="dimension" />
+    <attr name="appPanelBorderColor" format="color" />
+    <attr name="appPanelBorderWidth" format="dimension" />
+    <attr name="appDialogBorderColor" format="color" />
+    <attr name="appDialogBorderWidth" format="dimension" />
+    <attr name="appCardBgColor" format="color" />
+    <attr name="appCardBorderColor" format="color" />
+    <attr name="appCardBorderWidth" format="dimension" />
+
 </resources>
