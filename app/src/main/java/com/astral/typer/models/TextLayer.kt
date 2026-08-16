@@ -45,6 +45,7 @@ class TextLayer(
     var transformSizeMultiplier: Float = 1f
     var transformAngleMultiplier: Float = 1f
     var transformCircleRadiusMultiplier: Float = 1f
+    var transformDotsMultiplier: Float = 0.4f
 
     var text: SpannableStringBuilder
         get() = _text
@@ -531,6 +532,7 @@ class TextLayer(
         result = 31 * result + transformSizeMultiplier.hashCode()
         result = 31 * result + transformAngleMultiplier.hashCode()
         result = 31 * result + transformCircleRadiusMultiplier.hashCode()
+        result = 31 * result + transformDotsMultiplier.hashCode()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
         result = 31 * result + pad.hashCode()
@@ -811,6 +813,7 @@ class TextLayer(
         newLayer.transformSizeMultiplier = this.transformSizeMultiplier
         newLayer.transformAngleMultiplier = this.transformAngleMultiplier
         newLayer.transformCircleRadiusMultiplier = this.transformCircleRadiusMultiplier
+        newLayer.transformDotsMultiplier = this.transformDotsMultiplier
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
         newLayer.typeface = this.typeface
@@ -1277,7 +1280,7 @@ class TextLayer(
                 val matches = regex.findAll(tempText.toString())
                 for (match in matches) {
                     // Shift the dots up by half the font size to center them vertically
-                    tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(-fontSize * 0.4f), match.range.first, match.range.last + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(-fontSize * transformDotsMultiplier), match.range.first, match.range.last + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
         }

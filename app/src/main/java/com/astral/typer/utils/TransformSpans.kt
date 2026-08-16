@@ -88,10 +88,18 @@ class CircleTextSpan(var radius: Float) : ReplacementSpan() {
 
         path.addCircle(cx, cy, radius, Path.Direction.CW)
 
+        val originalTextScaleX = paint.textScaleX
+        var textWidth = paint.measureText(str)
+        val circumference = 2 * Math.PI * radius
+
+        // If the text is wider than the circumference, squish it horizontally to fit perfectly
+        if (textWidth > circumference) {
+            paint.textScaleX = originalTextScaleX * (circumference.toFloat() / textWidth)
+            textWidth = paint.measureText(str)
+        }
+
         // We draw text along this circular path
         // Adjust hOffset to center the text at the top
-        val textWidth = paint.measureText(str)
-        val circumference = 2 * Math.PI * radius
         // The text naturally starts drawing at the start of the path (which is the rightmost point for addCircle in Android).
         // For Path.Direction.CW, it goes clockwise.
         // We want the text centered at the top (which is -90 degrees from the start).
@@ -99,5 +107,8 @@ class CircleTextSpan(var radius: Float) : ReplacementSpan() {
         val hOffset = (circumference * 0.75 - textWidth / 2).toFloat()
 
         canvas.drawTextOnPath(str, path, hOffset, 0f, paint)
+
+        // Restore paint state
+        paint.textScaleX = originalTextScaleX
     }
 }
