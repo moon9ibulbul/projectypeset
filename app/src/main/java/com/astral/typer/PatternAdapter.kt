@@ -56,7 +56,7 @@ class PatternAdapter(
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
             textSize = 10f
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END

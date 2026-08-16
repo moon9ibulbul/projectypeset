@@ -172,7 +172,7 @@ class FontActivity : AppCompatActivity() {
 
             val tvName = TextView(this).apply {
                 text = cat
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 16f
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             }
@@ -193,7 +193,7 @@ class FontActivity : AppCompatActivity() {
                 text = "Delete"
                 textSize = 12f
                 setBackgroundColor(Color.parseColor("#D32F2F"))
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
                 setOnClickListener {
                     showDeleteCategoryConfirmation(cat)
                 }
@@ -514,7 +514,7 @@ class FontActivity : AppCompatActivity() {
 
             val tvName = TextView(context).apply {
                 tag = "tvName"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 18f
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             }
@@ -567,7 +567,7 @@ class FontActivity : AppCompatActivity() {
                 text = "Delete"
                 textSize = 11f
                 setBackgroundColor(Color.parseColor("#D32F2F"))
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT

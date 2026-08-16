@@ -1021,7 +1021,7 @@ class EditorActivity : AppCompatActivity() {
 
             val tv = TextView(this).apply {
                 text = title
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 12f
                 gravity = Gravity.CENTER
                 setPadding(8, 8, 8, 8)
@@ -1196,7 +1196,7 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s2)
-                val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                val tvColor = TextView(this).apply { text = "Shadow Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.longShadowColor,
                     { c -> stylableLayer.longShadowColor = c; canvasView.invalidate(); showEffectMenu() },
@@ -1220,7 +1220,7 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s1)
-                val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                val tvColor = TextView(this).apply { text = "Fire Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.fieryColor,
                     { c -> stylableLayer.fieryColor = c; canvasView.invalidate(); showEffectMenu() },
@@ -1431,7 +1431,7 @@ class EditorActivity : AppCompatActivity() {
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
                 // 1. Type Spinner: INNER vs OUTER
-                val tvTypeLabel = TextView(this).apply { text = "Halftone Type"; setTextColor(Color.WHITE); setPadding(0,16,0,8) }
+                val tvTypeLabel = TextView(this).apply { text = "Halftone Type"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); setPadding(0,16,0,8) }
                 settingsLayout.addView(tvTypeLabel)
 
                 val spinnerType = android.widget.Spinner(this)
@@ -1443,7 +1443,7 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(spinnerType)
 
                 // 2. Shape Spinner: Dot, Square, Line
-                val tvShapeLabel = TextView(this).apply { text = "Shape"; setTextColor(Color.WHITE); setPadding(0,16,0,8) }
+                val tvShapeLabel = TextView(this).apply { text = "Shape"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); setPadding(0,16,0,8) }
                 settingsLayout.addView(tvShapeLabel)
 
                 val spinnerShape = android.widget.Spinner(this)
@@ -1558,7 +1558,7 @@ class EditorActivity : AppCompatActivity() {
                     override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
                 }
 
-                val tvColor = TextView(this).apply { text = "Halftone Color"; setTextColor(Color.WHITE); setPadding(0,16,0,8) }
+                val tvColor = TextView(this).apply { text = "Halftone Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); setPadding(0,16,0,8) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.halftoneDotColor,
                     { c -> stylableLayer.halftoneDotColor = c; canvasView.invalidate(); showEffectMenu() },
@@ -1588,7 +1588,7 @@ class EditorActivity : AppCompatActivity() {
                 for (p in palettes) {
                     val btn = android.widget.Button(this).apply {
                         text = p.name
-                        setTextColor(Color.WHITE)
+                        setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                         textSize = 10f
                         background = GradientDrawable().apply {
                             orientation = GradientDrawable.Orientation.LEFT_RIGHT
@@ -1607,7 +1607,7 @@ class EditorActivity : AppCompatActivity() {
                     paletteContainer.addView(btn)
                 }
 
-                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
                 settingsLayout.addView(scrollPalette)
 
                 val currentMGAngle = stylableLayer.multiGradientAngle
@@ -1724,7 +1724,7 @@ class EditorActivity : AppCompatActivity() {
                 // Knockout Switch
                 val swKnockout = android.widget.Switch(this).apply {
                     text = "Knockout"
-                    setTextColor(Color.LTGRAY)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                     isChecked = stylableLayer.neonKnockout
                     setOnCheckedChangeListener { _, isChecked ->
                         stylableLayer.neonKnockout = isChecked
@@ -1735,7 +1735,7 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(swKnockout)
 
                 // Color Picker
-                val tvColor = TextView(this).apply { text = "Glow Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) }
+                val tvColor = TextView(this).apply { text = "Glow Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.neonColor,
                     { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() },
@@ -1761,7 +1761,7 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Glitch Seed"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.glitchSeed = java.util.Random().nextInt(10000).toLong()
@@ -1824,7 +1824,7 @@ class EditorActivity : AppCompatActivity() {
 
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Glitch Seed"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.glitchSeed = java.util.Random().nextInt(10000).toLong()
@@ -1876,7 +1876,7 @@ class EditorActivity : AppCompatActivity() {
                 for (p in palettes) {
                     val btn = android.widget.Button(this).apply {
                         text = p.name
-                        setTextColor(Color.WHITE)
+                        setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                         textSize = 10f
                         background = GradientDrawable().apply {
                             orientation = GradientDrawable.Orientation.LEFT_RIGHT
@@ -1903,7 +1903,7 @@ class EditorActivity : AppCompatActivity() {
 
                 val customLabel = TextView(this).apply {
                     text = "Custom: "
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     textSize = 10f
                     setPadding(8, 0, 8, 0)
                 }
@@ -1933,7 +1933,7 @@ class EditorActivity : AppCompatActivity() {
 
                 paletteContainer.addView(customContainer)
 
-                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
                 settingsLayout.addView(scrollPalette)
 
                 val currentShift = stylableLayer.chromaticShift
@@ -2008,7 +2008,7 @@ class EditorActivity : AppCompatActivity() {
 
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Decay Seed"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.decaySeed = java.util.Random().nextInt(10000).toLong()
@@ -2163,7 +2163,7 @@ class EditorActivity : AppCompatActivity() {
                 }
                 val tvMirror = TextView(this).apply {
                     text = "Mirror Reflection"
-                    setTextColor(Color.LTGRAY)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
                 val swMirror = android.widget.Switch(this).apply {
@@ -2386,7 +2386,7 @@ class EditorActivity : AppCompatActivity() {
 
         if (isEffectActive(TextEffectType.SPEED_LINE)) {
                 // Type Spinner: Radial, Linear
-                val tvTypeLabel = TextView(this).apply { text = "Type"; setTextColor(Color.WHITE); setPadding(0, 16, 0, 8) }
+                val tvTypeLabel = TextView(this).apply { text = "Type"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); setPadding(0, 16, 0, 8) }
                 settingsLayout.addView(tvTypeLabel)
 
                 val spinnerType = android.widget.Spinner(this)
@@ -2526,7 +2526,7 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Palette warna untuk Line color
-                val tvColor = TextView(this).apply { text = "Line Color"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 8) }
+                val tvColor = TextView(this).apply { text = "Line Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0, 16, 0, 8) }
                 settingsLayout.addView(tvColor)
                 settingsLayout.addView(createColorScroll(stylableLayer.speedLineColor,
                     { c -> stylableLayer.speedLineColor = c; canvasView.invalidate(); showEffectMenu() },
@@ -2536,7 +2536,7 @@ class EditorActivity : AppCompatActivity() {
                 // Seed randomizer button (to change seed and generate different random speedlines)
                 val btnSeed = android.widget.Button(this).apply {
                     text = "Randomize Lines"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.effectSeed = java.util.Random().nextInt(100000).toLong()
@@ -2566,7 +2566,7 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s1)
 
                 // Title: Scratch Color
-                val tvColorLabel = TextView(this).apply { text = "Scratch Color"; setTextColor(Color.LTGRAY); setPadding(0, 16, 0, 8) }
+                val tvColorLabel = TextView(this).apply { text = "Scratch Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0, 16, 0, 8) }
                 settingsLayout.addView(tvColorLabel)
 
                 // Row for Cutout (Transparent) option + Custom Color Picker
@@ -2577,7 +2577,7 @@ class EditorActivity : AppCompatActivity() {
 
                 val btnTransparent = android.widget.Button(this).apply {
                     text = "Cutout (Transparent)"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     textSize = 12f
                     background = GradientDrawable().apply {
                         setColor(if (stylableLayer.woodScratchColor == Color.TRANSPARENT) Color.parseColor("#BB86FC") else Color.DKGRAY)
@@ -2606,7 +2606,7 @@ class EditorActivity : AppCompatActivity() {
                 // Seed randomizer button
                 val btnScratchSeed = android.widget.Button(this).apply {
                     text = "Randomize Scratches"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.woodScratchSeed = java.util.Random().nextLong()
@@ -2701,7 +2701,7 @@ class EditorActivity : AppCompatActivity() {
                 // Checkbox: Arrow Point
                 val cbArrow = android.widget.CheckBox(this).apply {
                     text = "Arrow Point"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     isChecked = stylableLayer.tailArrowPoint
                     setOnCheckedChangeListener { _, isChecked ->
                         stylableLayer.tailArrowPoint = isChecked
@@ -2720,7 +2720,7 @@ class EditorActivity : AppCompatActivity() {
                 val btnRandomSeed = android.widget.Button(this).apply {
                     text = "Randomize Seed"
                     setBackgroundColor(Color.parseColor("#444444"))
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     setOnClickListener {
                         stylableLayer.tailSeed = System.currentTimeMillis()
                         canvasView.invalidate()
@@ -2758,7 +2758,7 @@ class EditorActivity : AppCompatActivity() {
         // Import Button
         val btnImport = android.widget.Button(this).apply {
             text = "Import"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
@@ -2775,7 +2775,7 @@ class EditorActivity : AppCompatActivity() {
         // Browse Button
         val btnBrowse = android.widget.Button(this).apply {
             text = "Browse"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
@@ -2807,7 +2807,7 @@ class EditorActivity : AppCompatActivity() {
                 val currentPatternRotation = stylableLayer.patternRotation
 
                 // Color
-                settingsLayout.addView(TextView(this).apply { text = "Pattern Color"; setTextColor(Color.LTGRAY) })
+                settingsLayout.addView(TextView(this).apply { text = "Pattern Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
                 settingsLayout.addView(createColorScroll(stylableLayer.patternColor,
                     { c -> stylableLayer.patternColor = c; canvasView.invalidate(); showTextureMenu() },
                     { showColorWheelDialogForProperty(stylableLayer.patternColor) { c -> stylableLayer.patternColor = c; canvasView.invalidate(); showTextureMenu() } }
@@ -2835,7 +2835,7 @@ class EditorActivity : AppCompatActivity() {
 
                 val btnClear = android.widget.Button(this).apply {
                     text = "Clear Pattern"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply { setColor(Color.parseColor("#880000")); cornerRadius = dpToPx(8).toFloat() }
                     setOnClickListener {
                         stylableLayer.patternName = null
@@ -2849,7 +2849,7 @@ class EditorActivity : AppCompatActivity() {
             // Offset Controls (Arrows)
             val controlsLabel = TextView(this).apply {
                 text = if (stylableLayer.patternName != null) "Shift Pattern" else "Shift Texture"
-                setTextColor(Color.LTGRAY)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 setPadding(0, 16, 0, 8)
             }
             settingsLayout.addView(controlsLabel)
@@ -2867,7 +2867,7 @@ class EditorActivity : AppCompatActivity() {
                 return android.widget.Button(this).apply {
                     this.text = text
                     textSize = 12f
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply {
                          setColor(Color.parseColor("#444444"))
                          cornerRadius = dpToPx(8).toFloat()
@@ -2894,7 +2894,7 @@ class EditorActivity : AppCompatActivity() {
             val btnReset = android.widget.Button(this).apply {
                 text = "R"
                 background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 layoutParams = GridLayout.LayoutParams().apply { width = dpToPx(40); height = dpToPx(40); setMargins(2,2,2,2) }
                 setOnClickListener {
                     stylableLayer.textureOffsetX = 0f
@@ -2933,12 +2933,12 @@ class EditorActivity : AppCompatActivity() {
         }
         val btnBack = android.widget.ImageView(this).apply {
             setImageResource(R.drawable.ic_close)
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
             setOnClickListener { showTextureMenu() }
         }
         val tvTitle = TextView(this).apply {
             text = "Browse Patterns"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 16f
             setPadding(16, 0, 0, 0)
         }
@@ -2976,7 +2976,7 @@ class EditorActivity : AppCompatActivity() {
         // Show Apply/Cancel
         val btn = android.widget.Button(this).apply {
             text = "APPLY CUT"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 16f
             setTypeface(null, Typeface.BOLD)
             background = GradientDrawable().apply {
@@ -3511,7 +3511,7 @@ class EditorActivity : AppCompatActivity() {
             // Add Apply Button
             val btn = android.widget.Button(this).apply {
                 text = "APPLY"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 16f
                 setTypeface(null, Typeface.BOLD)
                 background = GradientDrawable().apply {
@@ -3542,7 +3542,7 @@ class EditorActivity : AppCompatActivity() {
 
         } else {
             binding.btnEraser.setImageResource(R.drawable.ic_eraser)
-            binding.btnEraser.setColorFilter(Color.WHITE) // Inactive Indicator
+            binding.btnEraser.setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint)) // Inactive Indicator
             canvasView.setInpaintMode(false)
             binding.bottomMenuContainer.visibility = View.VISIBLE
             showInsertMenu()
@@ -3633,7 +3633,7 @@ class EditorActivity : AppCompatActivity() {
 
             val tvLabel = TextView(this).apply {
                 text = "Engine: "
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             }
             engineLayout.addView(tvLabel)
             engineLayout.addView(spinner)
@@ -3653,7 +3653,7 @@ class EditorActivity : AppCompatActivity() {
         }
         val tvSize = TextView(this).apply {
             text = "Size"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             setPadding(0,0,8,0)
         }
@@ -3692,7 +3692,7 @@ class EditorActivity : AppCompatActivity() {
         }
         val tvExpand = TextView(this).apply {
             text = "Expand: 0"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             setPadding(0,0,8,0)
         }
@@ -3730,12 +3730,12 @@ class EditorActivity : AppCompatActivity() {
             }
             val ivDetect = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_typer) // Reusing Typer icon
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24))
             }
             val tvDetect = TextView(this).apply {
                 text = "Text"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 10f
                 gravity = Gravity.CENTER
             }
@@ -3762,8 +3762,8 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
             layoutParams = LinearLayout.LayoutParams(dpToPx(60), ViewGroup.LayoutParams.WRAP_CONTENT) // Fixed width to prevent truncation
         }
-        val ivBE = android.widget.ImageView(this).apply { setColorFilter(Color.WHITE); layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24)) }
-        val tvBE = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f; gravity = Gravity.CENTER }
+        val ivBE = android.widget.ImageView(this).apply { setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint)); layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24)) }
+        val tvBE = TextView(this).apply { setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); textSize = 10f; gravity = Gravity.CENTER }
         btnBrushEraser.addView(ivBE); btnBrushEraser.addView(tvBE)
 
         // --- Pair 2: Touch <-> Lasso <-> Magic Wand ---
@@ -3773,8 +3773,8 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
             layoutParams = LinearLayout.LayoutParams(dpToPx(60), ViewGroup.LayoutParams.WRAP_CONTENT) // Fixed width to prevent truncation
         }
-        val ivLT = android.widget.ImageView(this).apply { setColorFilter(Color.WHITE); layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24)) }
-        val tvLT = TextView(this).apply { setTextColor(Color.WHITE); textSize = 10f; gravity = Gravity.CENTER }
+        val ivLT = android.widget.ImageView(this).apply { setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint)); layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24)) }
+        val tvLT = TextView(this).apply { setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); textSize = 10f; gravity = Gravity.CENTER }
         btnLassoTouch.addView(ivLT); btnLassoTouch.addView(tvLT)
 
         var isBaseToolEraser = false // true if Eraser, false if Brush
@@ -4129,7 +4129,7 @@ class EditorActivity : AppCompatActivity() {
         if (layer != null) {
             val btnSaveStyle = android.widget.Button(this).apply {
                 text = "Save Current Style"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
                     cornerRadius = dpToPx(8).toFloat()
@@ -4146,7 +4146,7 @@ class EditorActivity : AppCompatActivity() {
 
         val btnRearrange = android.widget.Button(this).apply {
             text = if (isStyleRearrangeMode) "Done" else "Rearrange"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(if (isStyleRearrangeMode) 0xFF4CAF50.toInt() else Color.DKGRAY) // Green when active, otherwise gray
                 cornerRadius = dpToPx(8).toFloat()
@@ -4717,7 +4717,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Reset UI
         binding.bottomMenuContainer.visibility = View.VISIBLE
-        binding.btnTopTyper.setColorFilter(Color.WHITE)
+        binding.btnTopTyper.setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
 
         if (currentMenuType == "TYPER") {
             currentMenuType = null
@@ -4781,7 +4781,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         val editText = EditText(this).apply {
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             setText(layer.text) // Copies spans
             textSize = 14f
             setHint("Type here...")
@@ -4925,7 +4925,7 @@ class EditorActivity : AppCompatActivity() {
         fun addIcon(iconRes: Int, onClick: (View) -> Unit) {
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(0, 16, 0, 16)
                 scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
                 // Use weight to distribute evenly
@@ -5083,7 +5083,7 @@ class EditorActivity : AppCompatActivity() {
                     btn.setTextColor(Color.CYAN)
                     btn.alpha = 1.0f
                 } else {
-                    btn.setTextColor(Color.LTGRAY)
+                    btn.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                     btn.alpha = 0.6f
                 }
             }
@@ -5138,7 +5138,7 @@ class EditorActivity : AppCompatActivity() {
             val searchInput = EditText(this).apply {
                 hint = "Search fonts..."
                 setHintTextColor(Color.GRAY)
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 14f
                 setPadding(16, 8, 16, 8)
                 background = GradientDrawable().apply {
@@ -5174,7 +5174,7 @@ class EditorActivity : AppCompatActivity() {
             if (type == "My Font") {
                 val btnImport = TextView(this).apply {
                     text = "+ Import"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     setPadding(24, 16, 24, 16)
                     gravity = Gravity.CENTER
                     layoutParams = LinearLayout.LayoutParams(
@@ -5276,7 +5276,7 @@ class EditorActivity : AppCompatActivity() {
                                 text = font.name
                                 typeface = font.typeface
                                 textSize = 16f
-                                setTextColor(Color.WHITE)
+                                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                 gravity = Gravity.CENTER_VERTICAL or Gravity.START
                                 maxLines = 1
                                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -5303,7 +5303,7 @@ class EditorActivity : AppCompatActivity() {
                         if (filtered.size > limit && query.isEmpty()) {
                              val moreBtn = TextView(this).apply {
                                  text = "Load more..."
-                                 setTextColor(Color.LTGRAY)
+                                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                                  setPadding(16,16,16,16)
                                  gravity = Gravity.CENTER
                                  setOnClickListener {
@@ -5347,7 +5347,7 @@ class EditorActivity : AppCompatActivity() {
                                              text = font.name
                                              typeface = font.typeface
                                              textSize = 16f
-                                             setTextColor(Color.WHITE)
+                                             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                              gravity = Gravity.CENTER_VERTICAL or Gravity.START
                                              maxLines = 1
                                              ellipsize = android.text.TextUtils.TruncateAt.END
@@ -5410,7 +5410,7 @@ class EditorActivity : AppCompatActivity() {
             val btn = TextView(this).apply {
                 text = name
                 gravity = Gravity.CENTER
-                setTextColor(Color.LTGRAY)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 textSize = 14f
                 setPadding(16, 12, 16, 12)
                 minWidth = dpToPx(80)
@@ -5468,7 +5468,7 @@ class EditorActivity : AppCompatActivity() {
             // 1. Text Color Section
             val tvTextColor = TextView(this).apply {
                 text = "Text Color"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 12f
                 setPadding(dpToPx(16), dpToPx(4), dpToPx(16), 0)
             }
@@ -5485,7 +5485,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnEyedropperText = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_menu_eyedropper)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -5513,7 +5513,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnPaletteText = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_menu_palette)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(24, 16, 24, 16)
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -5562,7 +5562,7 @@ class EditorActivity : AppCompatActivity() {
             // 2. Highlight Color Section
             val tvHighlightColor = TextView(this).apply {
                 text = "Highlight Color"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 12f
                 setPadding(dpToPx(16), dpToPx(4), dpToPx(16), 0)
             }
@@ -5579,7 +5579,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnEyedropperHighlight = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_menu_eyedropper)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -5604,7 +5604,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnPaletteHighlight = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_menu_palette)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(24, 16, 24, 16)
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -5628,7 +5628,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnNoHighlight = TextView(this).apply {
                 text = "None"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 12f
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
@@ -5679,7 +5679,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnEyedropper = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_menu_eyedropper)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -5706,7 +5706,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnPalette = android.widget.ImageView(this).apply {
                 setImageResource(R.drawable.ic_menu_palette)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(24, 16, 24, 16)
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -5773,7 +5773,7 @@ class EditorActivity : AppCompatActivity() {
         // 1. Horizontal list of brushes
         val brushesLabel = TextView(this).apply {
             text = "Choose Brush"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             setPadding(0, 0, 0, 4)
         }
@@ -5863,7 +5863,7 @@ class EditorActivity : AppCompatActivity() {
                     btn.setTextColor(Color.YELLOW)
                     btn.setTypeface(null, Typeface.BOLD)
                 } else {
-                    btn.setTextColor(Color.LTGRAY)
+                    btn.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                     btn.setTypeface(null, Typeface.NORMAL)
                 }
             }
@@ -5959,13 +5959,13 @@ class EditorActivity : AppCompatActivity() {
                     ivThumbnail.setImageBitmap(bmp)
                 } catch (e: Exception) {
                     ivThumbnail.setImageResource(R.drawable.ic_brush)
-                    ivThumbnail.setColorFilter(Color.WHITE)
+                    ivThumbnail.setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 }
 
                 // Name
                 val tvName = TextView(this@EditorActivity).apply {
                     text = displayName
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     textSize = 10f
                     gravity = Gravity.CENTER
                     maxLines = 1
@@ -6052,7 +6052,7 @@ class EditorActivity : AppCompatActivity() {
             val btn = TextView(this).apply {
                 text = name
                 gravity = Gravity.CENTER
-                setTextColor(Color.LTGRAY)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 textSize = 12f
                 setPadding(12, 12, 12, 12)
                 tag = name
@@ -6086,7 +6086,7 @@ class EditorActivity : AppCompatActivity() {
         }
         sizeLabel = TextView(this).apply {
             text = "Size: ${layer.brushSize.toInt()} px"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
@@ -6119,7 +6119,7 @@ class EditorActivity : AppCompatActivity() {
         }
         hardnessLabel = TextView(this).apply {
             text = "Hardness: ${(layer.brushHardness * 100).toInt()}%"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
@@ -6151,7 +6151,7 @@ class EditorActivity : AppCompatActivity() {
         }
         opacityLabel = TextView(this).apply {
             text = "Opacity: ${(layer.brushOpacity * 100 / 255).toInt()}%"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
@@ -6183,7 +6183,7 @@ class EditorActivity : AppCompatActivity() {
         }
         slowTrackingLabel = TextView(this).apply {
             text = "Slow Tracking: ${String.format(java.util.Locale.US, "%.1f", layer.brushSlowTracking)}"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
@@ -6262,7 +6262,7 @@ class EditorActivity : AppCompatActivity() {
         val btnFormat = TextView(this).apply {
             text = "Formatting"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -6272,7 +6272,7 @@ class EditorActivity : AppCompatActivity() {
         val btnSize = TextView(this).apply {
             text = "Size"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -6282,7 +6282,7 @@ class EditorActivity : AppCompatActivity() {
         val btnTransform = TextView(this).apply {
             text = "Transform"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -6427,7 +6427,7 @@ class EditorActivity : AppCompatActivity() {
             val btn = TextView(this).apply {
                 text = label
                 textSize = 16f
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 setPadding(0, 16, 0, 16)
                 this.tag = type
@@ -6506,7 +6506,7 @@ class EditorActivity : AppCompatActivity() {
         fun addAlignBtn(iconRes: Int, tag: String, onClick: () -> Unit) {
             val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(0, 16, 0, 16)
                 this.tag = tag
                 layoutParams = LinearLayout.LayoutParams(
@@ -6560,7 +6560,7 @@ class EditorActivity : AppCompatActivity() {
         fun addMirrorBtn(iconRes: Int, onClick: () -> Unit) {
              val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
-                setColorFilter(Color.WHITE)
+                setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(0, 16, 0, 16)
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener { onClick() }
@@ -6580,7 +6580,7 @@ class EditorActivity : AppCompatActivity() {
         // Shape Toggle (Oval/Rect)
         val btnShape = android.widget.ImageView(this).apply {
             setImageResource(if (layer.isOval) R.drawable.ic_shape_oval else R.drawable.ic_crop_square)
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
             setPadding(0, 16, 0, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener {
@@ -6781,7 +6781,7 @@ class EditorActivity : AppCompatActivity() {
         for (type in transformTypes) {
             val cb = android.widget.CheckBox(this).apply {
                 text = type
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
                 isChecked = layer.transformTypes.contains(type)
 
@@ -6882,7 +6882,7 @@ class EditorActivity : AppCompatActivity() {
         // Add D-pad for shifting letters
         val dpadLabel = TextView(this).apply {
             text = "Shift Selected Text Position"
-            setTextColor(Color.LTGRAY)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
             textSize = 14f
             setPadding(0, 16, 0, 8)
         }
@@ -6901,7 +6901,7 @@ class EditorActivity : AppCompatActivity() {
             return TextView(this).apply {
                 text = iconName
                 textSize = 24f
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 setPadding(16, 16, 16, 16)
                 background = GradientDrawable().apply {
@@ -6947,7 +6947,7 @@ class EditorActivity : AppCompatActivity() {
 
         val tvLabel = TextView(this).apply {
             text = label
-            setTextColor(Color.LTGRAY)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
             textSize = 14f
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
@@ -6956,7 +6956,7 @@ class EditorActivity : AppCompatActivity() {
             this.tag = "MINUS_BTN"
             text = "-"
             textSize = 18f
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
@@ -6978,7 +6978,7 @@ class EditorActivity : AppCompatActivity() {
             this.tag = "PLUS_BTN"
             text = "+"
             textSize = 18f
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
@@ -7150,7 +7150,7 @@ class EditorActivity : AppCompatActivity() {
         val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0,8,0,8) }
         val tv = TextView(this).apply {
             text = label
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             tag = "SLIDER_LABEL"
         }
         val sb = SeekBar(this).apply {
@@ -7203,7 +7203,7 @@ class EditorActivity : AppCompatActivity() {
         // Eyedropper Button
         val btnEyedropper = android.widget.ImageView(this).apply {
             setImageResource(R.drawable.ic_menu_eyedropper)
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
             setPadding(24, 16, 24, 16)
             background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -7223,7 +7223,7 @@ class EditorActivity : AppCompatActivity() {
         // Palette Button
         val btnPalette = android.widget.ImageView(this).apply {
             setImageResource(R.drawable.ic_menu_palette)
-            setColorFilter(Color.WHITE)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
             setPadding(24, 16, 24, 16)
             background = GradientDrawable().apply { setColor(Color.DKGRAY); cornerRadius = dpToPx(8).toFloat() }
             setOnClickListener { onPaletteClick() }
@@ -7312,7 +7312,7 @@ class EditorActivity : AppCompatActivity() {
             })
             val btnCenter = android.widget.Button(this@EditorActivity).apply {
                 text = "Center"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
                     cornerRadius = dpToPx(8).toFloat()
@@ -7367,7 +7367,7 @@ class EditorActivity : AppCompatActivity() {
             // Angle
             val angleLabel = TextView(this@EditorActivity).apply {
                 text = "Blur Angle: ${currentMShadowAngle}°"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             }
             layout.addView(angleLabel)
 
@@ -7390,7 +7390,7 @@ class EditorActivity : AppCompatActivity() {
             // Distance
             val distLabel = TextView(this@EditorActivity).apply {
                 text = "Blur Distance: ${currentMShadowDist.toInt()}"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 setPadding(0, 16, 0, 0)
             }
             layout.addView(distLabel)
@@ -7420,7 +7420,7 @@ class EditorActivity : AppCompatActivity() {
             // Include Stroke Checkbox
             val cbIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {
                 text = "Include stroke"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 isChecked = currentMShadowStroke
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
                 setOnCheckedChangeListener { _, isChecked ->
@@ -7444,7 +7444,7 @@ class EditorActivity : AppCompatActivity() {
         val btnDrop = TextView(this).apply {
             text = "Drop Shadow"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -7454,7 +7454,7 @@ class EditorActivity : AppCompatActivity() {
         val btnMotion = TextView(this).apply {
             text = "Motion Shadow"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -7488,7 +7488,7 @@ class EditorActivity : AppCompatActivity() {
         // Enter Gradation Mode Button
         val btnGradMode = android.widget.Button(this).apply {
             text = if (canvasView.currentModeName() == "GRADATION") "Exit Gradation Mode" else "Enter Gradation Mode"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(if (canvasView.currentModeName() == "GRADATION") Color.CYAN else Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
@@ -7524,7 +7524,7 @@ class EditorActivity : AppCompatActivity() {
             return android.widget.CheckBox(this).apply {
                 setText(text)
                 this.isChecked = isChecked
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
                 setOnCheckedChangeListener { _, b -> onChecked(b) }
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -7558,7 +7558,7 @@ class EditorActivity : AppCompatActivity() {
             val chkAutoGradation = android.widget.CheckBox(this).apply {
                 setText("Auto Gradation")
                 isChecked = false
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
                 setOnCheckedChangeListener { _, b ->
                     if (b) {
@@ -7605,7 +7605,7 @@ class EditorActivity : AppCompatActivity() {
         val chkMiddleColor = android.widget.CheckBox(this).apply {
             setText("Middle Color")
             isChecked = hasMiddleColorCurrent
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
             setOnCheckedChangeListener { _, b ->
                 if (isGradationMode) {
@@ -7627,7 +7627,7 @@ class EditorActivity : AppCompatActivity() {
         mainLayout.addView(middleColorToggleLayout)
 
         // Start Color
-        mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(Color.LTGRAY) })
+        mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
         mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else (if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor),
              { c ->
                  if (isGradationMode) {
@@ -7804,7 +7804,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Middle Color palette (Only if active/hasMiddleColorCurrent is true)
         if (hasMiddleColorCurrent) {
-            mainLayout.addView(TextView(this).apply { text = "Middle Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
+            mainLayout.addView(TextView(this).apply { text = "Middle Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) })
             mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientMiddleColor else (if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor),
                  { c ->
                      if (isGradationMode) {
@@ -7846,7 +7846,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // End Color
-        mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(Color.LTGRAY); setPadding(0,16,0,0) })
+        mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) })
         mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else (if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor),
              { c ->
                  if (isGradationMode) {
@@ -7947,7 +7947,7 @@ class EditorActivity : AppCompatActivity() {
             val createArrowButton = { text: String, targetAngle: Int ->
                 android.widget.Button(this).apply {
                     this.text = text
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     background = GradientDrawable().apply {
                         setColor(Color.DKGRAY)
                         cornerRadius = dpToPx(8).toFloat()
@@ -8012,7 +8012,7 @@ class EditorActivity : AppCompatActivity() {
 
         val tvLabel = TextView(this).apply {
             text = "Stroke Width"
-            setTextColor(Color.LTGRAY)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
             textSize = 14f
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
@@ -8029,7 +8029,7 @@ class EditorActivity : AppCompatActivity() {
         val btnMinus = TextView(this).apply {
             text = "-"
             textSize = 18f
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
@@ -8046,7 +8046,7 @@ class EditorActivity : AppCompatActivity() {
         val btnPlus = TextView(this).apply {
             text = "+"
             textSize = 18f
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
@@ -8069,7 +8069,7 @@ class EditorActivity : AppCompatActivity() {
         // ==================== Checkbox for 2nd Stroke ====================
         val cb2ndStroke = android.widget.CheckBox(this).apply {
             text = "2nd Stroke"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             isChecked = stylableLayer.doubleStrokeWidth > 0f
             setPadding(16, 8, 16, 8)
             setOnCheckedChangeListener { _, isChecked ->
@@ -8120,7 +8120,7 @@ class EditorActivity : AppCompatActivity() {
 
             val tvLabel2nd = TextView(this).apply {
                 text = "2nd Stroke Width"
-                setTextColor(Color.LTGRAY)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             }
@@ -8135,7 +8135,7 @@ class EditorActivity : AppCompatActivity() {
             val btnMinus2nd = TextView(this).apply {
                 text = "-"
                 textSize = 18f
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -8152,7 +8152,7 @@ class EditorActivity : AppCompatActivity() {
             val btnPlus2nd = TextView(this).apply {
                 text = "+"
                 textSize = 18f
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -8178,7 +8178,7 @@ class EditorActivity : AppCompatActivity() {
         // ==================== Checkbox for 3rd Stroke ====================
         val cb3rdStroke = android.widget.CheckBox(this).apply {
             text = "3rd Stroke"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             isChecked = stylableLayer.tripleStrokeWidth > 0f
             setPadding(16, 8, 16, 8)
             setOnCheckedChangeListener { _, isChecked ->
@@ -8231,7 +8231,7 @@ class EditorActivity : AppCompatActivity() {
 
             val tvLabel3rd = TextView(this).apply {
                 text = "3rd Stroke Width"
-                setTextColor(Color.LTGRAY)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             }
@@ -8246,7 +8246,7 @@ class EditorActivity : AppCompatActivity() {
             val btnMinus3rd = TextView(this).apply {
                 text = "-"
                 textSize = 18f
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -8263,7 +8263,7 @@ class EditorActivity : AppCompatActivity() {
             val btnPlus3rd = TextView(this).apply {
                 text = "+"
                 textSize = 18f
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
@@ -8306,7 +8306,7 @@ class EditorActivity : AppCompatActivity() {
 
         val cbRoughStroke = android.widget.CheckBox(this).apply {
             text = "Rough Stroke"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             isChecked = stylableLayer.isRoughStroke
             setPadding(16, 8, 16, 8)
             setOnCheckedChangeListener { _, isChecked ->
@@ -8378,17 +8378,17 @@ class EditorActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 gravity = Gravity.CENTER
             }
-            val tv = TextView(this).apply { text = "$label: $value"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0,0,8,0) }
+            val tv = TextView(this).apply { text = "$label: $value"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); textSize = 14f; setPadding(0,0,8,0) }
             val btnMinus = TextView(this).apply {
                 text = "-"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize=20f
                 setPadding(16,0,16,0)
                 setOnClickListener { onChange((value - 1).coerceAtLeast(min)) }
             }
             val btnPlus = TextView(this).apply {
                 text = "+"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize=20f
                 setPadding(16,0,16,0)
                 setOnClickListener { onChange(value + 1) }
@@ -8417,7 +8417,7 @@ class EditorActivity : AppCompatActivity() {
         // Reset Button
         val btnReset = android.widget.Button(this).apply {
             text = "Reset Points"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
@@ -8504,7 +8504,7 @@ class EditorActivity : AppCompatActivity() {
 
         val title = TextView(this).apply {
             text = "Puppet Warp - Select Character:"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 14f
             setPadding(0, 0, 0, 8)
         }
@@ -8584,17 +8584,17 @@ class EditorActivity : AppCompatActivity() {
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     gravity = Gravity.CENTER
                 }
-                val tv = TextView(this).apply { text = "$label: $value"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0,0,8,0) }
+                val tv = TextView(this).apply { text = "$label: $value"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)); textSize = 14f; setPadding(0,0,8,0) }
                 val btnMinus = TextView(this).apply {
                     text = "-"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     textSize = 20f
                     setPadding(16,0,16,0)
                     setOnClickListener { onChange((value - 1).coerceAtLeast(min)) }
                 }
                 val btnPlus = TextView(this).apply {
                     text = "+"
-                    setTextColor(Color.WHITE)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     textSize = 20f
                     setPadding(16,0,16,0)
                     setOnClickListener { onChange(value + 1) }
@@ -8622,7 +8622,7 @@ class EditorActivity : AppCompatActivity() {
 
             val btnReset = android.widget.Button(this).apply {
                 text = "Reset Letter Points"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
                     setColor(Color.DKGRAY)
                     cornerRadius = dpToPx(8).toFloat()
@@ -8655,7 +8655,7 @@ class EditorActivity : AppCompatActivity() {
 
         val btnReset = android.widget.Button(this).apply {
             text = "Reset"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(Color.DKGRAY)
                 cornerRadius = dpToPx(8).toFloat()
@@ -8774,7 +8774,7 @@ class EditorActivity : AppCompatActivity() {
             }
             override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
         }
-        layout.addView(TextView(this).apply { text = "Blend Mode"; setTextColor(Color.LTGRAY) })
+        layout.addView(TextView(this).apply { text = "Blend Mode"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
         layout.addView(spinner)
 
         // 2. Global Opacity
@@ -8799,7 +8799,7 @@ class EditorActivity : AppCompatActivity() {
         val toggleGrad = android.widget.CheckBox(this).apply {
             text = "Gradient Opacity"
             isChecked = layer.isOpacityGradient
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
             setOnCheckedChangeListener { _, b ->
                 layer.isOpacityGradient = b

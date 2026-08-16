@@ -48,7 +48,7 @@ object ColorPickerHelper {
         if (onAddCurrentColor != null) {
             val btnAdd = TextView(context).apply {
                 text = "+"
-                setTextColor(Color.WHITE)
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
                 textSize = 24f
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
@@ -168,7 +168,7 @@ object ColorPickerHelper {
         // Hex Input
         val hexInput = EditText(context).apply {
             hint = "#AARRGGBB"
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
             setHintTextColor(Color.GRAY)
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -238,7 +238,7 @@ object ColorPickerHelper {
 
         val btnCancel = TextView(context).apply {
              text = "Cancel"
-             setTextColor(Color.WHITE)
+             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
              setPadding(16,16,16,16)
              setOnClickListener { dialog.dismiss() }
         }
