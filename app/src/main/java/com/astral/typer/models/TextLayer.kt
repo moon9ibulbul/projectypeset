@@ -1131,8 +1131,7 @@ class TextLayer(
 
     override fun calculatePadding(): Float {
         var p = strokeWidthToUse + doubleStrokeWidthToUse + tripleStrokeWidthToUse
-        val blurRadiusToUse = if (isWarpActive) shadowRadius / 0.5f else shadowRadius
-        val shadowPadding = blurRadiusToUse + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
+        val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
         p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
 
@@ -1193,8 +1192,7 @@ class TextLayer(
         textPaint.letterSpacing = letterSpacing
 
         if (shadowRadius > 0 && !isMotionShadow) {
-            val blurRadiusToUse = if (isWarpActive) shadowRadius / 0.5f else shadowRadius
-            textPaint.setShadowLayer(blurRadiusToUse, shadowDx, shadowDy, shadowColor)
+            textPaint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
         } else {
             textPaint.clearShadowLayer()
         }
@@ -1657,8 +1655,20 @@ class TextLayer(
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
+        val prevShadowRadius = shadowRadius
+        val prevShadowDx = shadowDx
+        val prevShadowDy = shadowDy
+        val prevShadowColor = shadowColor
+
         if (hasTransform) {
             isDrawingStrokePass = !isRoughStroke
+        }
+
+        if (isDrawingStrokePass) {
+            shadowRadius = 0f
+            shadowDx = 0f
+            shadowDy = 0f
+            shadowColor = Color.TRANSPARENT
         }
         try {
             if (useHardwareTransformEffects) {
@@ -1801,6 +1811,10 @@ class TextLayer(
             if (hasTransform) {
                 isDrawingStrokePass = false
             }
+            shadowRadius = prevShadowRadius
+            shadowDx = prevShadowDx
+            shadowDy = prevShadowDy
+            shadowColor = prevShadowColor
         }
 
         if (isOpacityGradient) {
@@ -3356,13 +3370,10 @@ class TextLayer(
 
             // 2. Standard Shadow
             if (!isMotionShadow && shadowRadius > 0) {
-
-                val blurRadiusToUse = if (isWarpActive) shadowRadius / 0.5f else shadowRadius
                 if (isGradient && isGradientShadow) {
-
                     paint.shader = gradientShader
                     paint.color = Color.WHITE
-                    paint.maskFilter = BlurMaskFilter(blurRadiusToUse, BlurMaskFilter.Blur.NORMAL)
+                    paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
                     targetCanvas.save()
                     targetCanvas.translate(shadowDx, shadowDy)
                     if (shadowThickness > 0f) {
@@ -3400,7 +3411,7 @@ class TextLayer(
 
                         paint.shader = null
                         paint.color = shadowColor
-                        paint.maskFilter = BlurMaskFilter(blurRadiusToUse, BlurMaskFilter.Blur.NORMAL)
+                        paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
 
                         targetCanvas.save()
                         targetCanvas.translate(shadowDx, shadowDy)
@@ -3427,7 +3438,7 @@ class TextLayer(
                         paint.maskFilter = shadowMaskFilter
                         paint.pathEffect = null
                     } else {
-                        paint.setShadowLayer(blurRadiusToUse, shadowDx, shadowDy, shadowColor)
+                        paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
                         layout.draw(targetCanvas)
                         drawTailPath(targetCanvas, paint)
                         paint.clearShadowLayer()
@@ -3448,7 +3459,7 @@ class TextLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask) {
+            if (!isDrawingClippingMask && !isDrawingStrokePass) {
                 drawShadows(innerCanvas)
             }
             drawMain(innerCanvas)

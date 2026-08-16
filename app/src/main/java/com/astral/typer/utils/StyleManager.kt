@@ -309,7 +309,6 @@ object StyleManager {
             l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint,
             l.tailOffsetX, l.tailOffsetY, l.tailThickness, l.tailSeed,
             l.glitchAmount, l.glitchDistance, l.glitchDirection
-
         )
     }
 
