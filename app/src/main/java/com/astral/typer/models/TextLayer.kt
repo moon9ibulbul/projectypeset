@@ -1131,7 +1131,8 @@ class TextLayer(
 
     override fun calculatePadding(): Float {
         var p = strokeWidthToUse + doubleStrokeWidthToUse + tripleStrokeWidthToUse
-        val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
+        val blurRadiusToUse = if (isWarpActive) shadowRadius / 0.5f else shadowRadius
+        val shadowPadding = blurRadiusToUse + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
         p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
 
@@ -1192,7 +1193,8 @@ class TextLayer(
         textPaint.letterSpacing = letterSpacing
 
         if (shadowRadius > 0 && !isMotionShadow) {
-            textPaint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+            val blurRadiusToUse = if (isWarpActive) shadowRadius / 0.5f else shadowRadius
+            textPaint.setShadowLayer(blurRadiusToUse, shadowDx, shadowDy, shadowColor)
         } else {
             textPaint.clearShadowLayer()
         }
@@ -3354,10 +3356,13 @@ class TextLayer(
 
             // 2. Standard Shadow
             if (!isMotionShadow && shadowRadius > 0) {
+
+                val blurRadiusToUse = if (isWarpActive) shadowRadius / 0.5f else shadowRadius
                 if (isGradient && isGradientShadow) {
+
                     paint.shader = gradientShader
                     paint.color = Color.WHITE
-                    paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                    paint.maskFilter = BlurMaskFilter(blurRadiusToUse, BlurMaskFilter.Blur.NORMAL)
                     targetCanvas.save()
                     targetCanvas.translate(shadowDx, shadowDy)
                     if (shadowThickness > 0f) {
@@ -3395,7 +3400,7 @@ class TextLayer(
 
                         paint.shader = null
                         paint.color = shadowColor
-                        paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                        paint.maskFilter = BlurMaskFilter(blurRadiusToUse, BlurMaskFilter.Blur.NORMAL)
 
                         targetCanvas.save()
                         targetCanvas.translate(shadowDx, shadowDy)
@@ -3422,7 +3427,7 @@ class TextLayer(
                         paint.maskFilter = shadowMaskFilter
                         paint.pathEffect = null
                     } else {
-                        paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
+                        paint.setShadowLayer(blurRadiusToUse, shadowDx, shadowDy, shadowColor)
                         layout.draw(targetCanvas)
                         drawTailPath(targetCanvas, paint)
                         paint.clearShadowLayer()
@@ -3442,10 +3447,12 @@ class TextLayer(
             paint.pathEffect = originalPathEffect
         }
 
-        if (!isDrawingClippingMask) {
-            drawShadows(canvas)
+        val drawBase = { innerCanvas: Canvas ->
+            if (!isDrawingClippingMask) {
+                drawShadows(innerCanvas)
+            }
+            drawMain(innerCanvas)
         }
-        val drawBase = { innerCanvas: Canvas -> drawMain(innerCanvas) }
 
         // Setup effects chain
         val activeEffects = mutableListOf<TextEffectType>()
