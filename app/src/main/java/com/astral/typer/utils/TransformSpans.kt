@@ -53,13 +53,14 @@ class CircleTextSpan(var radius: Float) : ReplacementSpan() {
         paint.getFontMetricsInt(originalFm)
         val textHeight = originalFm.descent - originalFm.ascent
 
+        // Ensure bounds cover the entire circle + text height
         if (fm != null) {
-            fm.ascent = (-radius).toInt() + originalFm.ascent
-            fm.top = (-radius).toInt() + originalFm.top
-            fm.descent = radius.toInt() + originalFm.descent
-            fm.bottom = radius.toInt() + originalFm.bottom
+            fm.ascent = (-radius - textHeight).toInt()
+            fm.top = (-radius - textHeight).toInt()
+            fm.descent = (radius + textHeight).toInt()
+            fm.bottom = (radius + textHeight).toInt()
         }
-        return (radius * 2 + textHeight).toInt()
+        return (radius * 2 + textHeight * 2).toInt()
     }
 
     override fun draw(
@@ -76,16 +77,26 @@ class CircleTextSpan(var radius: Float) : ReplacementSpan() {
         val str = text?.substring(start, end) ?: return
         val path = Path()
 
+        val originalFm = Paint.FontMetricsInt()
+        paint.getFontMetricsInt(originalFm)
+        val textHeight = originalFm.descent - originalFm.ascent
+
         // Draw circle path starting from bottom and going counter-clockwise (so text is upright at top)
-        val cx = x + radius
-        val cy = y.toFloat()
+        val cx = x + radius + textHeight
+        // Calculate vertical center relative to y baseline to maintain symmetry
+        val cy = top + (bottom - top) / 2f
+
         path.addCircle(cx, cy, radius, Path.Direction.CW)
 
         // We draw text along this circular path
         // Adjust hOffset to center the text at the top
         val textWidth = paint.measureText(str)
         val circumference = 2 * Math.PI * radius
-        val hOffset = (circumference / 2 - textWidth / 2).toFloat()
+        // The text naturally starts drawing at the start of the path (which is the rightmost point for addCircle in Android).
+        // For Path.Direction.CW, it goes clockwise.
+        // We want the text centered at the top (which is -90 degrees from the start).
+        // 1/4 of the circumference brings us to the bottom, 3/4 brings us to the top.
+        val hOffset = (circumference * 0.75 - textWidth / 2).toFloat()
 
         canvas.drawTextOnPath(str, path, hOffset, 0f, paint)
     }

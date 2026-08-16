@@ -6651,6 +6651,113 @@ class EditorActivity : AppCompatActivity() {
 
         val checkBoxes = mutableMapOf<String, android.widget.CheckBox>()
 
+        val slidersLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+
+        fun updateCheckboxesState() {
+            val hasB2S = layer.transformTypes.contains("Bigger to Smaller")
+            val hasS2B = layer.transformTypes.contains("Smaller to Bigger")
+            val hasZigZag = layer.transformTypes.contains("Zig-Zag")
+            val hasConvex = layer.transformTypes.contains("Convex Upward")
+            val hasConcave = layer.transformTypes.contains("Concave Downward")
+            val hasCircle = layer.transformTypes.contains("Circle")
+            val hasFlag = layer.transformTypes.contains("Flag")
+
+            // Bigger to Smaller
+            val b2sDisabled = hasS2B || hasCircle
+            checkBoxes["Bigger to Smaller"]?.isEnabled = !b2sDisabled
+            checkBoxes["Bigger to Smaller"]?.alpha = if (b2sDisabled) 0.5f else 1.0f
+
+            // Smaller to Bigger
+            val s2bDisabled = hasB2S || hasCircle
+            checkBoxes["Smaller to Bigger"]?.isEnabled = !s2bDisabled
+            checkBoxes["Smaller to Bigger"]?.alpha = if (s2bDisabled) 0.5f else 1.0f
+
+            // Zig-Zag
+            val zigZagDisabled = hasCircle || hasFlag
+            checkBoxes["Zig-Zag"]?.isEnabled = !zigZagDisabled
+            checkBoxes["Zig-Zag"]?.alpha = if (zigZagDisabled) 0.5f else 1.0f
+
+            // Convex Upward
+            val convexDisabled = hasConcave || hasCircle || hasZigZag || hasFlag
+            checkBoxes["Convex Upward"]?.isEnabled = !convexDisabled
+            checkBoxes["Convex Upward"]?.alpha = if (convexDisabled) 0.5f else 1.0f
+
+            // Concave Downward
+            val concaveDisabled = hasConvex || hasCircle || hasZigZag || hasFlag
+            checkBoxes["Concave Downward"]?.isEnabled = !concaveDisabled
+            checkBoxes["Concave Downward"]?.alpha = if (concaveDisabled) 0.5f else 1.0f
+
+            // Circle
+            val circleDisabled = hasB2S || hasS2B || hasZigZag || hasConvex || hasConcave || hasFlag
+            checkBoxes["Circle"]?.isEnabled = !circleDisabled
+            checkBoxes["Circle"]?.alpha = if (circleDisabled) 0.5f else 1.0f
+
+            // Flag
+            val flagDisabled = hasZigZag || hasCircle
+            checkBoxes["Flag"]?.isEnabled = !flagDisabled
+            checkBoxes["Flag"]?.alpha = if (flagDisabled) 0.5f else 1.0f
+
+            // Sliders UI
+            slidersLayout.removeAllViews()
+
+            if (hasB2S || hasS2B) {
+                val s1 = createSlider("Zoom Multiplier: ${(layer.transformSizeMultiplier * 100).toInt()}%", (layer.transformSizeMultiplier * 100).toInt(), 300) { v ->
+                    layer.transformSizeMultiplier = v / 100f
+                    canvasView.invalidate()
+                }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.transformSizeMultiplier = p / 100f
+                        tv1?.text = "Zoom Multiplier: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                slidersLayout.addView(s1)
+            }
+
+            if (hasConvex || hasConcave) {
+                val s2 = createSlider("Curve Angle: ${(layer.transformAngleMultiplier * 100).toInt()}%", (layer.transformAngleMultiplier * 100).toInt(), 300) { v ->
+                    layer.transformAngleMultiplier = v / 100f
+                    canvasView.invalidate()
+                }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.transformAngleMultiplier = p / 100f
+                        tv2?.text = "Curve Angle: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                slidersLayout.addView(s2)
+            }
+
+            if (hasCircle) {
+                val s3 = createSlider("Circle Radius: ${(layer.transformCircleRadiusMultiplier * 100).toInt()}%", (layer.transformCircleRadiusMultiplier * 100).toInt(), 300) { v ->
+                    layer.transformCircleRadiusMultiplier = v / 100f
+                    canvasView.invalidate()
+                }
+                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.transformCircleRadiusMultiplier = p / 100f
+                        tv3?.text = "Circle Radius: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                slidersLayout.addView(s3)
+            }
+        }
+
         for (type in transformTypes) {
             val cb = android.widget.CheckBox(this).apply {
                 text = type
@@ -6665,26 +6772,79 @@ class EditorActivity : AppCompatActivity() {
                         layer.transformTypes.remove(type)
                     }
 
-                    // Mutual exclusion logic
-                    if (type == "Bigger to Smaller" && isChecked) {
-                        layer.transformTypes.remove("Smaller to Bigger")
-                        checkBoxes["Smaller to Bigger"]?.isChecked = false
-                    } else if (type == "Smaller to Bigger" && isChecked) {
-                        layer.transformTypes.remove("Bigger to Smaller")
-                        checkBoxes["Bigger to Smaller"]?.isChecked = false
+                    // Mutual exclusion logic (uncheck incompatible active items)
+                    if (isChecked) {
+                        when (type) {
+                            "Bigger to Smaller" -> {
+                                layer.transformTypes.remove("Smaller to Bigger")
+                                checkBoxes["Smaller to Bigger"]?.isChecked = false
+                                layer.transformTypes.remove("Circle")
+                                checkBoxes["Circle"]?.isChecked = false
+                            }
+                            "Smaller to Bigger" -> {
+                                layer.transformTypes.remove("Bigger to Smaller")
+                                checkBoxes["Bigger to Smaller"]?.isChecked = false
+                                layer.transformTypes.remove("Circle")
+                                checkBoxes["Circle"]?.isChecked = false
+                            }
+                            "Zig-Zag" -> {
+                                layer.transformTypes.remove("Convex Upward")
+                                checkBoxes["Convex Upward"]?.isChecked = false
+                                layer.transformTypes.remove("Concave Downward")
+                                checkBoxes["Concave Downward"]?.isChecked = false
+                                layer.transformTypes.remove("Circle")
+                                checkBoxes["Circle"]?.isChecked = false
+                                layer.transformTypes.remove("Flag")
+                                checkBoxes["Flag"]?.isChecked = false
+                            }
+                            "Convex Upward" -> {
+                                layer.transformTypes.remove("Concave Downward")
+                                checkBoxes["Concave Downward"]?.isChecked = false
+                                layer.transformTypes.remove("Circle")
+                                checkBoxes["Circle"]?.isChecked = false
+                                layer.transformTypes.remove("Zig-Zag")
+                                checkBoxes["Zig-Zag"]?.isChecked = false
+                                layer.transformTypes.remove("Flag")
+                                checkBoxes["Flag"]?.isChecked = false
+                            }
+                            "Concave Downward" -> {
+                                layer.transformTypes.remove("Convex Upward")
+                                checkBoxes["Convex Upward"]?.isChecked = false
+                                layer.transformTypes.remove("Circle")
+                                checkBoxes["Circle"]?.isChecked = false
+                                layer.transformTypes.remove("Zig-Zag")
+                                checkBoxes["Zig-Zag"]?.isChecked = false
+                                layer.transformTypes.remove("Flag")
+                                checkBoxes["Flag"]?.isChecked = false
+                            }
+                            "Circle" -> {
+                                layer.transformTypes.remove("Bigger to Smaller")
+                                checkBoxes["Bigger to Smaller"]?.isChecked = false
+                                layer.transformTypes.remove("Smaller to Bigger")
+                                checkBoxes["Smaller to Bigger"]?.isChecked = false
+                                layer.transformTypes.remove("Convex Upward")
+                                checkBoxes["Convex Upward"]?.isChecked = false
+                                layer.transformTypes.remove("Concave Downward")
+                                checkBoxes["Concave Downward"]?.isChecked = false
+                                layer.transformTypes.remove("Zig-Zag")
+                                checkBoxes["Zig-Zag"]?.isChecked = false
+                                layer.transformTypes.remove("Flag")
+                                checkBoxes["Flag"]?.isChecked = false
+                            }
+                            "Flag" -> {
+                                layer.transformTypes.remove("Zig-Zag")
+                                checkBoxes["Zig-Zag"]?.isChecked = false
+                                layer.transformTypes.remove("Circle")
+                                checkBoxes["Circle"]?.isChecked = false
+                                layer.transformTypes.remove("Convex Upward")
+                                checkBoxes["Convex Upward"]?.isChecked = false
+                                layer.transformTypes.remove("Concave Downward")
+                                checkBoxes["Concave Downward"]?.isChecked = false
+                            }
+                        }
                     }
 
-                    // Grey out mutually exclusive options
-                    if (type == "Bigger to Smaller" || type == "Smaller to Bigger") {
-                        val hasB2S = layer.transformTypes.contains("Bigger to Smaller")
-                        val hasS2B = layer.transformTypes.contains("Smaller to Bigger")
-
-                        checkBoxes["Bigger to Smaller"]?.isEnabled = !hasS2B
-                        checkBoxes["Bigger to Smaller"]?.alpha = if (hasS2B) 0.5f else 1.0f
-
-                        checkBoxes["Smaller to Bigger"]?.isEnabled = !hasB2S
-                        checkBoxes["Smaller to Bigger"]?.alpha = if (hasB2S) 0.5f else 1.0f
-                    }
+                    updateCheckboxesState()
 
                     canvasView.invalidate()
                 }
@@ -6693,13 +6853,11 @@ class EditorActivity : AppCompatActivity() {
             layout.addView(cb)
         }
 
-        // Initial state for grey out
-        val hasB2S = layer.transformTypes.contains("Bigger to Smaller")
-        val hasS2B = layer.transformTypes.contains("Smaller to Bigger")
-        checkBoxes["Bigger to Smaller"]?.isEnabled = !hasS2B
-        checkBoxes["Bigger to Smaller"]?.alpha = if (hasS2B) 0.5f else 1.0f
-        checkBoxes["Smaller to Bigger"]?.isEnabled = !hasB2S
-        checkBoxes["Smaller to Bigger"]?.alpha = if (hasB2S) 0.5f else 1.0f
+
+
+
+        updateCheckboxesState()
+        layout.addView(slidersLayout)
 
         // Add D-pad for shifting letters
         val dpadLabel = TextView(this).apply {
