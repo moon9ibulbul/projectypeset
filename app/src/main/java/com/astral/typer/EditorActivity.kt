@@ -6664,6 +6664,7 @@ class EditorActivity : AppCompatActivity() {
             val hasConcave = layer.transformTypes.contains("Concave Downward")
             val hasCircle = layer.transformTypes.contains("Circle")
             val hasFlag = layer.transformTypes.contains("Flag")
+            val hasDots = layer.transformTypes.contains("Centered Double/Triple Dots")
 
             // Bigger to Smaller
             val b2sDisabled = hasS2B || hasCircle
@@ -6755,6 +6756,24 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 slidersLayout.addView(s3)
+            }
+
+            if (hasDots) {
+                val s4 = createSlider("Dots Height: ${(layer.transformDotsMultiplier * 100).toInt()}%", (layer.transformDotsMultiplier * 100).toInt(), 200) { v ->
+                    layer.transformDotsMultiplier = v / 100f
+                    canvasView.invalidate()
+                }
+                val tv4 = s4.findViewWithTag<TextView>("SLIDER_LABEL")
+                s4.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        layer.transformDotsMultiplier = p / 100f
+                        tv4?.text = "Dots Height: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                slidersLayout.addView(s4)
             }
         }
 
