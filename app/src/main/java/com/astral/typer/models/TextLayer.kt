@@ -42,6 +42,9 @@ class TextLayer(
     var isStrikethrough: Boolean = false
     var caseType: String = "NORMAL"
     var transformTypes: MutableSet<String> = mutableSetOf()
+    var transformSizeMultiplier: Float = 1f
+    var transformAngleMultiplier: Float = 1f
+    var transformCircleRadiusMultiplier: Float = 1f
 
     var text: SpannableStringBuilder
         get() = _text
@@ -525,6 +528,9 @@ class TextLayer(
         var result = text.toString().hashCode()
         result = 31 * result + getSpansHash()
         result = 31 * result + transformTypes.hashCode()
+        result = 31 * result + transformSizeMultiplier.hashCode()
+        result = 31 * result + transformAngleMultiplier.hashCode()
+        result = 31 * result + transformCircleRadiusMultiplier.hashCode()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
         result = 31 * result + pad.hashCode()
@@ -802,6 +808,9 @@ class TextLayer(
         newLayer.isStrikethrough = this.isStrikethrough
         newLayer.caseType = this.caseType
         newLayer.transformTypes = this.transformTypes.toMutableSet()
+        newLayer.transformSizeMultiplier = this.transformSizeMultiplier
+        newLayer.transformAngleMultiplier = this.transformAngleMultiplier
+        newLayer.transformCircleRadiusMultiplier = this.transformCircleRadiusMultiplier
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
         newLayer.typeface = this.typeface
@@ -1212,7 +1221,7 @@ class TextLayer(
 
             if (hasCircle) {
                 // Circle transform applies to the whole text
-                val radius = fontSize * 2f // Example radius, can be adjusted
+                val radius = fontSize * 2f * transformCircleRadiusMultiplier // Example radius, can be adjusted
                 tempText.setSpan(com.astral.typer.utils.CircleTextSpan(radius), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             } else {
                 for (i in 0 until len) {
@@ -1223,10 +1232,10 @@ class TextLayer(
 
                     // Size transforms
                     if (hasB2S) {
-                        val newSize = (fontSize * (1.5f - progress)).toInt().coerceAtLeast(10)
+                        val newSize = (fontSize * (1f + (0.5f - progress) * transformSizeMultiplier)).toInt().coerceAtLeast(10)
                         tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                     } else if (hasS2B) {
-                        val newSize = (fontSize * (0.5f + progress)).toInt().coerceAtLeast(10)
+                        val newSize = (fontSize * (1f + (progress - 0.5f) * transformSizeMultiplier)).toInt().coerceAtLeast(10)
                         tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
 
@@ -1239,11 +1248,11 @@ class TextLayer(
                     } else if (hasConvex) {
                         // Parabola pointing down (middle is higher)
                         val x = progress * 2f - 1f // -1 to 1
-                        shiftY = (x * x - 1f) * (fontSize * 0.5f)
+                        shiftY = (x * x - 1f) * (fontSize * 0.5f * transformAngleMultiplier)
                     } else if (hasConcave) {
                         // Parabola pointing up (middle is lower)
                         val x = progress * 2f - 1f
-                        shiftY = (1f - x * x) * (fontSize * 0.5f)
+                        shiftY = (1f - x * x) * (fontSize * 0.5f * transformAngleMultiplier)
                     }
 
                     // Check if there's already a PositionShiftSpan from manual D-pad
