@@ -53,8 +53,8 @@ class TyperTextAdapter(
 
         // Setup Spinner
         val styleNames = availableStyles.map { it.name }
-        val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, styleNames)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val adapter = ArrayAdapter(context, R.layout.item_spinner, styleNames)
+        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         holder.spinnerStyle.adapter = adapter
 
         // Set selection

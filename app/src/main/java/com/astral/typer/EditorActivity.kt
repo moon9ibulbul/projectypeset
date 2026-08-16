@@ -1436,8 +1436,8 @@ class EditorActivity : AppCompatActivity() {
 
                 val spinnerType = android.widget.Spinner(this)
                 val typeOptions = listOf("INNER", "OUTER")
-                val typeAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, typeOptions)
-                typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                val typeAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, typeOptions)
+                typeAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                 spinnerType.adapter = typeAdapter
                 spinnerType.setSelection(typeOptions.indexOf(stylableLayer.halftoneType).coerceAtLeast(0))
                 settingsLayout.addView(spinnerType)
@@ -1449,8 +1449,8 @@ class EditorActivity : AppCompatActivity() {
                 val spinnerShape = android.widget.Spinner(this)
                 val shapeLabelOptions = listOf("Dot (lingkaran)", "Square (kotak)", "Line (garis)")
                 val shapeValueOptions = listOf("DOT", "SQUARE", "LINE")
-                val shapeAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, shapeLabelOptions)
-                shapeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                val shapeAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, shapeLabelOptions)
+                shapeAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                 spinnerShape.adapter = shapeAdapter
                 spinnerShape.setSelection(shapeValueOptions.indexOf(stylableLayer.halftoneShape).coerceAtLeast(0))
                 settingsLayout.addView(spinnerShape)
@@ -2392,8 +2392,8 @@ class EditorActivity : AppCompatActivity() {
                 val spinnerType = android.widget.Spinner(this)
                 val typeOptions = listOf("Radial", "Linear")
                 val typeValueOptions = listOf("RADIAL", "LINEAR")
-                val typeAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, typeOptions)
-                typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                val typeAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, typeOptions)
+                typeAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
                 spinnerType.adapter = typeAdapter
                 spinnerType.setSelection(typeValueOptions.indexOf(stylableLayer.speedLineType).coerceAtLeast(0))
                 spinnerType.onItemSelectedListener = object: android.widget.AdapterView.OnItemSelectedListener {
@@ -3139,8 +3139,8 @@ class EditorActivity : AppCompatActivity() {
 
             // Setup Spinner
             val formats = arrayOf("PNG", "JPG", "WEBP")
-            val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, formats)
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, formats)
+            adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
             sidebarBinding.spinnerFormat.adapter = adapter
 
             sidebarBinding.spinnerFormat.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
@@ -3154,8 +3154,8 @@ class EditorActivity : AppCompatActivity() {
 
             // Setup Export Scale Spinner
             val scales = arrayOf("1x", "2x", "3x", "4x")
-            val scaleAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, scales)
-            scaleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            val scaleAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, scales)
+            scaleAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
             sidebarBinding.spinnerExportScale.adapter = scaleAdapter
         }
 
@@ -3184,8 +3184,8 @@ class EditorActivity : AppCompatActivity() {
         }
 
         val rawModes = arrayOf("Load on top Canvas", "Load Beside Canvas")
-        val rawAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, rawModes)
-        rawAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val rawAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, rawModes)
+        rawAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         sidebarBinding.spinnerRawMode.adapter = rawAdapter
 
         val currentModePos = if (canvasView.rawPanelMode == AstralCanvasView.RawPanelMode.ON_TOP) 0 else 1
@@ -3605,8 +3605,8 @@ class EditorActivity : AppCompatActivity() {
             }
 
             val spinner = android.widget.Spinner(this)
-            val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modes)
+            adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
             spinner.adapter = adapter
 
             // Set initial selection
@@ -8756,8 +8756,8 @@ class EditorActivity : AppCompatActivity() {
         // 1. Blend Mode
         val modes = arrayOf("NORMAL", "OVERLAY", "ADD", "MULTIPLY", "SCREEN", "DARKEN", "LIGHTEN")
         val spinner = android.widget.Spinner(this)
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modes)
+        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinner.adapter = adapter
 
         // Set selection

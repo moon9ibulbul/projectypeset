@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Please create a text style first."
-        android:textColor="#FF5555"
+        android:textColor="?attr/appTextColorPrimary"
         android:textSize="14sp"
         android:visibility="gone"
         android:layout_marginBottom="8dp"/>
@@ -60,7 +60,7 @@
             android:id="@+id/etPasteInput"
             android:layout_width="match_parent"
             android:layout_height="150dp"
-            android:background="#333333"
+            android:background="?attr/appSurfaceColor"
             android:textColor="?attr/appTextColorPrimary"
             android:gravity="top|start"
             android:padding="8dp"
@@ -81,7 +81,7 @@
         android:layout_width="match_parent"
         android:layout_height="250dp"
         android:scrollbars="vertical"
-        android:background="#111111"/>
+        android:background="?attr/appSurfaceColor"/>
 
     <FrameLayout
         android:id="@+id/loadingOverlay"

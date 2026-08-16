@@ -83,8 +83,8 @@ class FontActivity : AppCompatActivity() {
 
         // Setup Order By Spinner
         val orderOptions = arrayOf("Name", "Latest Installed", "Most Used")
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, orderOptions)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val adapter = ArrayAdapter(this, R.layout.item_spinner, orderOptions)
+        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinnerOrderBy.adapter = adapter
 
         val prefs = getSharedPreferences("font_prefs", MODE_PRIVATE)
