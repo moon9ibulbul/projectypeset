@@ -443,7 +443,7 @@ class ShapeLayer(
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
         if (hasTransform) {
-            isDrawingStrokePass = !isRoughStroke
+            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
         }
         try {
             if (useHardwareTransformEffects) {
@@ -551,7 +551,7 @@ class ShapeLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
@@ -716,7 +716,7 @@ class ShapeLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
