@@ -1661,7 +1661,7 @@ class TextLayer(
         val prevShadowColor = shadowColor
 
         if (hasTransform) {
-            isDrawingStrokePass = !isRoughStroke
+            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
         }
 
         try {
@@ -1905,7 +1905,7 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
@@ -2420,7 +2420,7 @@ class TextLayer(
                     val morphedBmp = morphedCharBmpCache[i]!!
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-                    val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke
+                    val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
                     if (hasStrokes) {
                         // 3rd stroke
                         if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
@@ -2655,7 +2655,7 @@ class TextLayer(
             val morphedBmp = morphedBmpCache!!
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
-            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && !isFreshBmp
+            val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && !isFreshBmp && isDrawingStrokePass
             if (hasStrokes) {
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
