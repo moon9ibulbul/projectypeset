@@ -41,7 +41,7 @@ class LayerAdapter(
         val tvName = TextView(context).apply {
             id = 1
             textSize = 14f
-            setTextColor(Color.WHITE)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
@@ -124,14 +124,14 @@ class LayerAdapter(
 
         holder.btnVisible.alpha = if (layer.isVisible) 1.0f else 0.5f
         holder.btnLock.alpha = if (layer.isLocked) 1.0f else 0.5f
-        holder.btnLock.setColorFilter(if (layer.isLocked) Color.RED else Color.WHITE)
+        holder.btnLock.setColorFilter(if (layer.isLocked) Color.RED else com.astral.typer.utils.ThemeUtils.getColorFromAttr(holder.itemView.context, com.astral.typer.R.attr.appIconTint))
 
         if (layerIndex == 0) {
             holder.btnClip.visibility = View.INVISIBLE
         } else {
             holder.btnClip.visibility = View.VISIBLE
             holder.btnClip.alpha = if (layer.isClipped) 1.0f else 0.5f
-            holder.btnClip.setColorFilter(if (layer.isClipped) Color.CYAN else Color.WHITE)
+            holder.btnClip.setColorFilter(if (layer.isClipped) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(holder.itemView.context, com.astral.typer.R.attr.appIconTint))
         }
 
         holder.itemView.setOnClickListener {

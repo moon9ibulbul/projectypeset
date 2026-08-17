@@ -965,13 +965,18 @@ class EditorActivity : AppCompatActivity() {
                     setMargins(8, 8, 8, 8)
                 }
 
-                val borderColor = if (isSelected) Color.CYAN else if (isSecondary) Color.MAGENTA else if (isTertiary) Color.YELLOW else Color.TRANSPARENT
+                val defaultBorderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appCardBorderColor)
+                val defaultBorderWidth = com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(this@EditorActivity, com.astral.typer.R.attr.appCardBorderWidth).toInt()
+
+                val borderColor = if (isSelected) Color.CYAN else if (isSecondary) Color.MAGENTA else if (isTertiary) Color.YELLOW else defaultBorderColor
+                val borderWidth = if (isSelected || isSecondary || isTertiary) dpToPx(2) else defaultBorderWidth
+
                 val bgColor = if (isSelected || isSecondary || isTertiary) com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor) else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appInputBgColor)
 
                 background = GradientDrawable().apply {
                     setColor(bgColor)
                     cornerRadius = dpToPx(8).toFloat()
-                    setStroke(dpToPx(2), borderColor)
+                    setStroke(borderWidth, borderColor)
                 }
 
                 val gestureDetector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
@@ -4585,11 +4590,12 @@ class EditorActivity : AppCompatActivity() {
 
         fun updateToolUI(tool: AstralCanvasView.TyperTool) {
             canvasView.currentTyperTool = tool
-            btnHand.setColorFilter(if (tool == AstralCanvasView.TyperTool.HAND) Color.CYAN else Color.WHITE)
-            btnRect.setColorFilter(if (tool == AstralCanvasView.TyperTool.RECT) Color.CYAN else Color.WHITE)
-            btnCircle.setColorFilter(if (tool == AstralCanvasView.TyperTool.CIRCLE) Color.CYAN else Color.WHITE)
-            btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else Color.WHITE)
-            btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else Color.WHITE)
+            val iconTint = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint)
+            btnHand.setColorFilter(if (tool == AstralCanvasView.TyperTool.HAND) Color.CYAN else iconTint)
+            btnRect.setColorFilter(if (tool == AstralCanvasView.TyperTool.RECT) Color.CYAN else iconTint)
+            btnCircle.setColorFilter(if (tool == AstralCanvasView.TyperTool.CIRCLE) Color.CYAN else iconTint)
+            btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else iconTint)
+            btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else iconTint)
         }
 
         btnHand.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.HAND) }
