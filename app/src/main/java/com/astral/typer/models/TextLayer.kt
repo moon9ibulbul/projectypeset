@@ -390,6 +390,18 @@ class TextLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Drop Shadow Shader Effect
+    override var dropShadowAlpha: Float = 0.5f
+    override var dropShadowBlur: Float = 2f
+    override var dropShadowColor: Int = Color.BLACK
+    override var dropShadowOffsetX: Float = 4f
+    override var dropShadowOffsetY: Float = 4f
+    override var dropShadowPixelSizeX: Float = 1f
+    override var dropShadowPixelSizeY: Float = 1f
+    override var dropShadowQuality: Int = 4
+    override var dropShadowOnly: Boolean = false
+    override var dropShadowKernels: FloatArray = floatArrayOf()
+
     // Shape
     var isOval: Boolean = false
 
@@ -1145,6 +1157,10 @@ class TextLayer(
                     effectExpansion = Math.max(effectExpansion, expansion)
                 }
                 TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
+                TextEffectType.DROP_SHADOW -> {
+                    val dsPad = Math.max(Math.abs(dropShadowOffsetX), Math.abs(dropShadowOffsetY)) + dropShadowBlur * 2f + dropShadowQuality * 4f
+                    effectExpansion = Math.max(effectExpansion, dsPad)
+                }
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
@@ -1651,7 +1667,8 @@ class TextLayer(
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON
+            it == TextEffectType.NEON ||
+            it == TextEffectType.DROP_SHADOW
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -3778,6 +3795,45 @@ class TextLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.DROP_SHADOW -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("DropShadowNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(DROP_SHADOW_SHADER)
+                            shader.setFloatUniform("uAlpha", dropShadowAlpha)
+                            val r = Color.red(dropShadowColor) / 255f
+                            val g = Color.green(dropShadowColor) / 255f
+                            val b = Color.blue(dropShadowColor) / 255f
+                            shader.setFloatUniform("uColor", floatArrayOf(r, g, b))
+                            shader.setFloatUniform("uOffset", dropShadowOffsetX, dropShadowOffsetY)
+                            shader.setFloatUniform("uPixelSize", dropShadowPixelSizeX, dropShadowPixelSizeY)
+                            shader.setIntUniform("shadowOnly", if (dropShadowOnly) 1 else 0)
+                            shader.setFloatUniform("blur", dropShadowBlur)
+                            shader.setIntUniform("quality", dropShadowQuality)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
                 TextEffectType.NEON -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -4744,6 +4800,51 @@ class TextLayer(
     }
 
     companion object {
+
+        const val DROP_SHADOW_SHADER = """
+            uniform shader content;
+            uniform float uAlpha;
+            uniform float3 uColor;
+            uniform float2 uOffset;
+            uniform float2 uPixelSize;
+            uniform int shadowOnly;
+            uniform float blur;
+            uniform int quality;
+
+            half4 main(float2 coord) {
+                half4 original = content.eval(coord);
+                float shadowAlpha = 0.0;
+
+                // Box blur implementation
+                float radius = blur;
+                int q = quality;
+                if (q < 1) q = 1;
+
+                int samples = 0;
+                for (int x = -10; x <= 10; x++) {
+                    if (x < -q || x > q) continue;
+                    for (int y = -10; y <= 10; y++) {
+                        if (y < -q || y > q) continue;
+                        float2 offsetCoord = float2(float(x), float(y)) * uPixelSize * (radius / float(q));
+                        shadowAlpha += content.eval(coord - uOffset + offsetCoord).a;
+                        samples++;
+                    }
+                }
+
+                if (samples > 0) {
+                    shadowAlpha /= float(samples);
+                }
+
+                half4 shadow = half4(uColor * shadowAlpha * uAlpha, shadowAlpha * uAlpha);
+
+                if (shadowOnly == 1) {
+                    return shadow;
+                }
+
+                // Composite: original OVER shadow
+                return original + shadow * (1.0 - original.a);
+            }
+        """
 
         const val CHROMATIC_ABERRATION_SHADER = """
             uniform shader content;

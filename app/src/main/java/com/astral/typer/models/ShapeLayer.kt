@@ -261,6 +261,18 @@ class ShapeLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Drop Shadow Shader Effect
+    override var dropShadowAlpha: Float = 0.5f
+    override var dropShadowBlur: Float = 2f
+    override var dropShadowColor: Int = Color.BLACK
+    override var dropShadowOffsetX: Float = 4f
+    override var dropShadowOffsetY: Float = 4f
+    override var dropShadowPixelSizeX: Float = 1f
+    override var dropShadowPixelSizeY: Float = 1f
+    override var dropShadowQuality: Int = 4
+    override var dropShadowOnly: Boolean = false
+    override var dropShadowKernels: FloatArray = floatArrayOf()
+
     override var effectSeed: Long = System.currentTimeMillis()
     override var glitchSeed: Long = System.currentTimeMillis()
     override var decaySeed: Long = System.currentTimeMillis()
@@ -438,7 +450,8 @@ class ShapeLayer(
             it == TextEffectType.REFLECTION ||
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON
+            it == TextEffectType.NEON ||
+            it == TextEffectType.DROP_SHADOW
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -1520,6 +1533,45 @@ class ShapeLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.DROP_SHADOW -> {
+                    var useRenderEffect = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val node = android.graphics.RenderNode("DropShadowNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+
+                            val recordingCanvas = node.beginRecording()
+                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                            drawInner(recordingCanvas)
+                            node.endRecording()
+
+                            val shader = android.graphics.RuntimeShader(TextLayer.DROP_SHADOW_SHADER)
+                            shader.setFloatUniform("uAlpha", dropShadowAlpha)
+                            val r = Color.red(dropShadowColor) / 255f
+                            val g = Color.green(dropShadowColor) / 255f
+                            val b = Color.blue(dropShadowColor) / 255f
+                            shader.setFloatUniform("uColor", floatArrayOf(r, g, b))
+                            shader.setFloatUniform("uOffset", dropShadowOffsetX, dropShadowOffsetY)
+                            shader.setFloatUniform("uPixelSize", dropShadowPixelSizeX, dropShadowPixelSizeY)
+                            shader.setIntUniform("shadowOnly", if (dropShadowOnly) 1 else 0)
+                            shader.setFloatUniform("blur", dropShadowBlur)
+                            shader.setIntUniform("quality", dropShadowQuality)
+
+                            node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+
+                            targetCanvas.save()
+                            targetCanvas.translate(drawTranslateX, drawTranslateY)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderEffect = true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    if (!useRenderEffect) {
+                        drawInner(targetCanvas)
+                    }
+                }
                 TextEffectType.NEON -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -2214,6 +2266,10 @@ class ShapeLayer(
                     effectExpansion = Math.max(effectExpansion, expansion)
                 }
                 TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
+                TextEffectType.DROP_SHADOW -> {
+                    val dsPad = Math.max(Math.abs(dropShadowOffsetX), Math.abs(dropShadowOffsetY)) + dropShadowBlur * 2f + dropShadowQuality * 4f
+                    effectExpansion = Math.max(effectExpansion, dsPad)
+                }
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)

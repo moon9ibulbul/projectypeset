@@ -23,5 +23,6 @@ enum class TextEffectType {
     ZOOM_BLUR,
     SPEED_LINE,
     WOOD_SCRATCH,
-    TEXT_TAIL
+    TEXT_TAIL,
+    DROP_SHADOW
 }

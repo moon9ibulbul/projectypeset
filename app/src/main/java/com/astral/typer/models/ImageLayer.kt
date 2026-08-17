@@ -197,6 +197,18 @@ class ImageLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Drop Shadow Shader Effect
+    override var dropShadowAlpha: Float = 0.5f
+    override var dropShadowBlur: Float = 2f
+    override var dropShadowColor: Int = Color.BLACK
+    override var dropShadowOffsetX: Float = 4f
+    override var dropShadowOffsetY: Float = 4f
+    override var dropShadowPixelSizeX: Float = 1f
+    override var dropShadowPixelSizeY: Float = 1f
+    override var dropShadowQuality: Int = 4
+    override var dropShadowOnly: Boolean = false
+    override var dropShadowKernels: FloatArray = floatArrayOf()
+
     // Erase
     override var eraseMask: Bitmap? = null
     override val erasePaths = mutableListOf<ErasePathData>()
