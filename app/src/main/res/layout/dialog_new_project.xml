@@ -40,6 +40,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="@string/width"
+            app:hintTextColor="?attr/appTextColorPrimary"
+            android:textColorHint="?attr/appTextColorSecondary"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             app:boxStrokeColor="?attr/appInputBorderColor">
 
@@ -61,6 +63,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="@string/height"
+            app:hintTextColor="?attr/appTextColorPrimary"
+            android:textColorHint="?attr/appTextColorSecondary"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             app:boxStrokeColor="?attr/appInputBorderColor">
 
