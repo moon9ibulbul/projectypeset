@@ -1215,10 +1215,32 @@ class ShapeLayer(
             }
         }
 
-        if (!isDrawingClippingMask) {
-            drawShadows(canvas)
+        val drawBase = { innerCanvas: Canvas ->
+            if (!isDrawingClippingMask) {
+                drawShadows(innerCanvas)
+            }
+
+            val tempShadowRadius = shadowRadius
+            val tempShadowDx = shadowDx
+            val tempShadowDy = shadowDy
+            val tempShadowColor = shadowColor
+
+            if (isDrawingStrokePass) {
+                shadowRadius = 0f
+                shadowDx = 0f
+                shadowDy = 0f
+                shadowColor = Color.TRANSPARENT
+            }
+
+            try {
+                drawMain(innerCanvas)
+            } finally {
+                shadowRadius = tempShadowRadius
+                shadowDx = tempShadowDx
+                shadowDy = tempShadowDy
+                shadowColor = tempShadowColor
+            }
         }
-        val drawBase = { innerCanvas: Canvas -> drawMain(innerCanvas) }
 
         val activeEffects = mutableListOf<TextEffectType>()
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
