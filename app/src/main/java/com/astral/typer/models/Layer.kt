@@ -106,6 +106,19 @@ interface StylableLayer {
     var glitchAmount: Float
     var glitchDistance: Float
     var glitchDirection: Float
+
+    // Drop Shadow Shader Effect
+    var dropShadowAlpha: Float
+    var dropShadowBlur: Float
+    var dropShadowColor: Int
+    var dropShadowOffsetX: Float
+    var dropShadowOffsetY: Float
+    var dropShadowPixelSizeX: Float
+    var dropShadowPixelSizeY: Float
+    var dropShadowQuality: Int
+    var dropShadowOnly: Boolean
+    var dropShadowKernels: FloatArray
+
     var pixelBlockSize: Float
     var chromaticShift: Float
     var chromaticColors: IntArray
