@@ -1655,20 +1655,8 @@ class TextLayer(
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
-        val prevShadowRadius = shadowRadius
-        val prevShadowDx = shadowDx
-        val prevShadowDy = shadowDy
-        val prevShadowColor = shadowColor
-
         if (hasTransform) {
             isDrawingStrokePass = !isRoughStroke
-        }
-
-        if (isDrawingStrokePass) {
-            shadowRadius = 0f
-            shadowDx = 0f
-            shadowDy = 0f
-            shadowColor = Color.TRANSPARENT
         }
         try {
             if (useHardwareTransformEffects) {
@@ -1811,10 +1799,6 @@ class TextLayer(
             if (hasTransform) {
                 isDrawingStrokePass = false
             }
-            shadowRadius = prevShadowRadius
-            shadowDx = prevShadowDx
-            shadowDy = prevShadowDy
-            shadowColor = prevShadowColor
         }
 
         if (isOpacityGradient) {
@@ -3459,10 +3443,29 @@ class TextLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask && !isDrawingStrokePass) {
+            if (!isDrawingClippingMask) {
                 drawShadows(innerCanvas)
             }
-            drawMain(innerCanvas)
+
+            val prevShadowRadius = shadowRadius
+            val prevShadowDx = shadowDx
+            val prevShadowDy = shadowDy
+            val prevShadowColor = shadowColor
+
+            if (isDrawingStrokePass) {
+                shadowRadius = 0f
+                shadowDx = 0f
+                shadowDy = 0f
+                shadowColor = Color.TRANSPARENT
+            }
+            try {
+                drawMain(innerCanvas)
+            } finally {
+                shadowRadius = prevShadowRadius
+                shadowDx = prevShadowDx
+                shadowDy = prevShadowDy
+                shadowColor = prevShadowColor
+            }
         }
 
         // Setup effects chain
