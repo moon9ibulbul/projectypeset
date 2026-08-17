@@ -19,4 +19,8 @@
     <attr name="appCardBorderColor" format="color" />
     <attr name="appCardBorderWidth" format="dimension" />
 
+    <attr name="appLogoColor" format="color" />
+    <attr name="appImportBtnColor" format="color" />
+    <attr name="appImportBtnTextColor" format="color" />
+
 </resources>

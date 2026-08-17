@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private var currentThemeName: String = ""
 
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { openEditorWithImage(it) }
@@ -74,6 +75,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
         ThemeHelper.applyTheme(this)
+        currentThemeName = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -244,6 +246,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
+        if (prefsTheme != currentThemeName) {
+            recreate()
+            return
+        }
         setupRecentProjects()
     }
 
@@ -268,9 +275,9 @@ class MainActivity : AppCompatActivity() {
                                     ViewGroup.LayoutParams.MATCH_PARENT
                                 ).apply { setMargins(8,0,8,0) }
                                 background = GradientDrawable().apply {
-                                     setColor(Color.DKGRAY)
+                                                                          setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appCardBgColor))
                                      cornerRadius = 16f
-                                     setStroke(2, Color.LTGRAY)
+                                     setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(this@MainActivity, com.astral.typer.R.attr.appCardBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appCardBorderColor))
                                 }
                                 setPadding(8,8,8,8)
                             }
@@ -306,11 +313,11 @@ class MainActivity : AppCompatActivity() {
                             val isViewAll = position == itemCount - 1
 
                             if (isViewAll) {
-                                // View All Card
+                                                                // View All Card
                                 text.text = "View All"
-                                text.setTextColor(Color.CYAN)
+                                text.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                 img.setImageResource(android.R.drawable.ic_menu_view)
-                                img.setColorFilter(Color.CYAN)
+                                img.setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@MainActivity, com.astral.typer.R.attr.appIconTint))
                                 img.scaleType = ImageView.ScaleType.CENTER_INSIDE
                                 holder.itemView.setOnClickListener {
                                     startActivity(Intent(this@MainActivity, RecentActivity::class.java))

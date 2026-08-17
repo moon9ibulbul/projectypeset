@@ -29,6 +29,9 @@
         <item name="appCardBgColor">#333333</item>
         <item name="appCardBorderColor">@android:color/transparent</item>
         <item name="appCardBorderWidth">0dp</item>
+        <item name="appLogoColor">@color/primary_accent</item>
+        <item name="appImportBtnColor">@color/primary_accent</item>
+        <item name="appImportBtnTextColor">@color/black</item>
     </style>
 
     <!-- Pitch Black -->
@@ -54,6 +57,9 @@
         <item name="appCardBgColor">#333333</item>
         <item name="appCardBorderColor">@android:color/transparent</item>
         <item name="appCardBorderWidth">0dp</item>
+        <item name="appLogoColor">@color/primary_accent</item>
+        <item name="appImportBtnColor">@color/primary_accent</item>
+        <item name="appImportBtnTextColor">@color/black</item>
     </style>
 
     <!-- Light Grey -->
@@ -79,6 +85,9 @@
         <item name="appCardBgColor">#333333</item>
         <item name="appCardBorderColor">@android:color/transparent</item>
         <item name="appCardBorderWidth">0dp</item>
+        <item name="appLogoColor">@color/primary_accent</item>
+        <item name="appImportBtnColor">@color/primary_accent</item>
+        <item name="appImportBtnTextColor">@color/black</item>
     </style>
 
     <!-- Light -->
@@ -104,6 +113,9 @@
         <item name="appCardBgColor">#FFFFFF</item>
         <item name="appCardBorderColor">#000000</item>
         <item name="appCardBorderWidth">1dp</item>
+        <item name="appLogoColor">#000000</item>
+        <item name="appImportBtnColor">@color/primary_accent</item>
+        <item name="appImportBtnTextColor">@color/black</item>
     </style>
 
     <!-- Cream -->
@@ -129,6 +141,9 @@
         <item name="appCardBgColor">#F4EBB1</item>
         <item name="appCardBorderColor">@android:color/transparent</item>
         <item name="appCardBorderWidth">0dp</item>
+        <item name="appLogoColor">#4A3B2C</item>
+        <item name="appImportBtnColor">#4A3B2C</item>
+        <item name="appImportBtnTextColor">#FFFFFF</item>
     </style>
 
     <!-- Sunset -->
@@ -154,6 +169,9 @@
         <item name="appCardBgColor">#4A2131</item>
         <item name="appCardBorderColor">@android:color/transparent</item>
         <item name="appCardBorderWidth">0dp</item>
+        <item name="appLogoColor">@color/primary_accent</item>
+        <item name="appImportBtnColor">@color/primary_accent</item>
+        <item name="appImportBtnTextColor">@color/black</item>
     </style>
 
     <!-- Pink -->
@@ -176,8 +194,11 @@
         <item name="appPanelBorderWidth">1dp</item>
         <item name="appDialogBorderColor">#000000</item>
         <item name="appDialogBorderWidth">1dp</item>
-        <item name="appCardBgColor">#FFFFFF</item>
+        <item name="appCardBgColor">#F8BBD0</item>
         <item name="appCardBorderColor">#000000</item>
         <item name="appCardBorderWidth">1dp</item>
+        <item name="appLogoColor">#880E4F</item>
+        <item name="appImportBtnColor">#880E4F</item>
+        <item name="appImportBtnTextColor">#FFFFFF</item>
     </style>
 </resources>
