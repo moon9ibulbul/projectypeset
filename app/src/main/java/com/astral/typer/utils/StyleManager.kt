@@ -508,7 +508,7 @@ object StyleManager {
         val canvas = Canvas(bmp)
 
         // Draw dark gray background
-        canvas.drawColor(Color.DKGRAY)
+        canvas.drawColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appBackgroundColor))
 
         val previewLayer = fromModel(context, model)
         previewLayer.text = SpannableStringBuilder("Abc")

@@ -1001,12 +1001,12 @@ class EditorActivity : AppCompatActivity() {
             val canvas = android.graphics.Canvas(previewBitmap)
             val dummyLayer = if (layer is ShapeLayer) {
                 ShapeLayer(layer.shapeName).apply {
-                    color = Color.WHITE; currentEffect = effectType
+                    color = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary); currentEffect = effectType
                     if (effectType == TextEffectType.LONG_SHADOW) shadowColor = Color.DKGRAY
                 }
             } else {
                 TextLayer("Abc").apply {
-                    fontSize = dpToPx(30).toFloat(); color = Color.WHITE; currentEffect = effectType
+                    fontSize = dpToPx(30).toFloat(); color = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary); currentEffect = effectType
                     if (effectType == TextEffectType.LONG_SHADOW) shadowColor = Color.DKGRAY
                 }
             }
@@ -8580,7 +8580,7 @@ class EditorActivity : AppCompatActivity() {
             val btn = android.widget.Button(this).apply {
                 text = target.label
                 val isSelectedTarget = textLayer.selectedWarpIndex == target.index
-                setTextColor(if (isSelectedTarget) Color.BLACK else Color.WHITE)
+                setTextColor(if (isSelectedTarget) Color.BLACK else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                 background = GradientDrawable().apply {
                     setColor(if (isSelectedTarget) Color.YELLOW else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                     cornerRadius = dpToPx(6).toFloat()
