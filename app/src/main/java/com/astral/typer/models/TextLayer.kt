@@ -1664,12 +1664,6 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke
         }
 
-        if (isDrawingStrokePass) {
-            shadowRadius = 0f
-            shadowDx = 0f
-            shadowDy = 0f
-            shadowColor = Color.TRANSPARENT
-        }
         try {
             if (useHardwareTransformEffects) {
                 val drawTransformed = { targetCanvas: Canvas ->
@@ -3459,10 +3453,30 @@ class TextLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask && !isDrawingStrokePass) {
+            if (!isDrawingClippingMask) {
                 drawShadows(innerCanvas)
             }
-            drawMain(innerCanvas)
+
+            val tempShadowRadius = shadowRadius
+            val tempShadowDx = shadowDx
+            val tempShadowDy = shadowDy
+            val tempShadowColor = shadowColor
+
+            if (isDrawingStrokePass) {
+                shadowRadius = 0f
+                shadowDx = 0f
+                shadowDy = 0f
+                shadowColor = Color.TRANSPARENT
+            }
+
+            try {
+                drawMain(innerCanvas)
+            } finally {
+                shadowRadius = tempShadowRadius
+                shadowDx = tempShadowDx
+                shadowDy = tempShadowDy
+                shadowColor = tempShadowColor
+            }
         }
 
         // Setup effects chain
