@@ -953,7 +953,7 @@ object ProjectManager {
                 model
             })
 
-            return LoadResult.Success(finalData, imageMap)
+            return checkMissingFontsAndReturn(context, finalData, imageMap)
         }
 
         val tempDir = File(context.cacheDir, "temp_load")
@@ -979,7 +979,31 @@ object ProjectManager {
             model
         })
 
-        return LoadResult.Success(finalData, imageMap)
+        return checkMissingFontsAndReturn(context, finalData, imageMap)
+    }
+
+    private fun checkMissingFontsAndReturn(context: Context, finalData: ProjectData, imageMap: Map<String, Bitmap>): LoadResult {
+        val availableFonts = FontManager.getStandardFonts(context) + FontManager.getCustomFonts(context)
+        val missingFonts = mutableListOf<String>()
+
+        for (layer in finalData.layers) {
+            if (layer.type == "TEXT" && !layer.fontPath.isNullOrEmpty()) {
+                val found = availableFonts.find {
+                    (it.isCustom && it.path == layer.fontPath) || (!it.isCustom && it.name == layer.fontPath)
+                }
+                if (found == null) {
+                    val fontName = layer.fontPath.substringAfterLast("/").substringBeforeLast(".")
+                    if (!missingFonts.contains("• $fontName")) {
+                        missingFonts.add("• $fontName")
+                    }
+                }
+            }
+        }
+        return if (missingFonts.isNotEmpty()) {
+            LoadResult.MissingAssets(finalData, imageMap, missingFonts)
+        } else {
+            LoadResult.Success(finalData, imageMap)
+        }
     }
 
     fun loadFolderThumbnail(context: Context, folder: File): Bitmap? {

@@ -245,8 +245,8 @@ class EditorActivity : AppCompatActivity() {
                              val missingFonts = result.missingFonts.joinToString("\n")
                              android.app.AlertDialog.Builder(this@EditorActivity)
                                  .setTitle("Missing Fonts")
-                                 .setMessage("The following fonts are not available on this device:\n$missingFonts\n\nDo you want to replace them with the default font?")
-                                 .setPositiveButton("Replace") { _, _ ->
+                                 .setMessage("This project uses fonts that you haven't installed yet:\n$missingFonts\n\nPlease install these fonts first or tap Continue if you want to replace them with the default font.")
+                                 .setPositiveButton("Continue") { _, _ ->
                                      // Proceed loading, but the layers will use default font since we can't load the custom one
                                      // In loadProjectData, we can handle logic to set default if font fails to load (which it already does essentially, but we want to be explicit)
                                      loadProjectData(result.projectData, result.images)
