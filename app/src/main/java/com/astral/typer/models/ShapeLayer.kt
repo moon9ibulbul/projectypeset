@@ -588,7 +588,7 @@ class ShapeLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -620,7 +620,7 @@ class ShapeLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -658,7 +658,7 @@ class ShapeLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -776,7 +776,7 @@ class ShapeLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -808,7 +808,7 @@ class ShapeLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -846,7 +846,7 @@ class ShapeLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
