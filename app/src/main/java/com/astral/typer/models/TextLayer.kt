@@ -1678,7 +1678,10 @@ class TextLayer(
         val prevShadowColor = shadowColor
 
         if (hasTransform) {
-            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
+            val hasHighlight = (cachedLayout?.text as? android.text.Spannable)?.let {
+                it.getSpans(0, it.length, android.text.style.BackgroundColorSpan::class.java).isNotEmpty()
+            } ?: false
+            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
         try {
@@ -3082,7 +3085,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor!!)
                 paint.clearShadowLayer()
-                drawLayoutSafe(targetCanvas, isDrawingStrokePass || isDrawingShadowPass)
+                drawLayoutSafe(targetCanvas, isDrawingShadowPass)
                 drawTailPath(targetCanvas, paint)
             } else if (isDrawingShadowPass) {
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
@@ -3126,7 +3129,7 @@ class TextLayer(
                         }
 
                         paint.clearShadowLayer()
-                        drawLayoutSafe(fillCanvas, isDrawingStrokePass || isDrawingShadowPass)
+                        drawLayoutSafe(fillCanvas, isDrawingShadowPass)
                         drawTailPath(fillCanvas, paint)
 
                         val centerX = w / 2f
@@ -3291,7 +3294,7 @@ class TextLayer(
                             paint.color = modulateColor(color)
                         }
                         paint.clearShadowLayer()
-                        drawLayoutSafe(fillCanvas, isDrawingStrokePass || isDrawingShadowPass)
+                        drawLayoutSafe(fillCanvas, isDrawingShadowPass)
                     drawTailPath(fillCanvas, paint)
                     }
 
@@ -3328,7 +3331,7 @@ class TextLayer(
                                 paint.color = Color.WHITE
                                 paint.alpha = patternAlpha
                                 paint.xfermode = cachedPatternXfermode
-                                drawLayoutSafe(fillCanvas, isDrawingStrokePass || isDrawingShadowPass)
+                                drawLayoutSafe(fillCanvas, isDrawingShadowPass)
                                 drawTailPath(fillCanvas, paint)
 
                                 // Restore
