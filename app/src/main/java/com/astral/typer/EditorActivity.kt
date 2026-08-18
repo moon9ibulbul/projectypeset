@@ -4110,7 +4110,6 @@ class EditorActivity : AppCompatActivity() {
         style.transformTypes?.let { layer.transformTypes = it.toMutableSet() }
         style.transformSizeMultiplier?.let { layer.transformSizeMultiplier = it }
         style.transformAngleMultiplier?.let { layer.transformAngleMultiplier = it }
-        style.transformCircleRadiusMultiplier?.let { layer.transformCircleRadiusMultiplier = it }
         style.transformDotsMultiplier?.let { layer.transformDotsMultiplier = it }
         layer.isBold = style.isBold
         layer.isItalic = style.isItalic
@@ -6804,24 +6803,6 @@ class EditorActivity : AppCompatActivity() {
                 slidersLayout.addView(s2)
             }
 
-            if (hasCircle) {
-                val s3 = createSlider("Circle Radius: ${(layer.transformCircleRadiusMultiplier * 100).toInt()}%", (layer.transformCircleRadiusMultiplier * 100).toInt(), 300) { v ->
-                    layer.transformCircleRadiusMultiplier = v / 100f
-                    canvasView.invalidate()
-                }
-                val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
-                s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.transformCircleRadiusMultiplier = p / 100f
-                        tv3?.text = "Circle Radius: $p%"
-                        canvasView.invalidate()
-                    }
-                    override fun onStartTrackingTouch(s: SeekBar?) {}
-                    override fun onStopTrackingTouch(s: SeekBar?) {}
-                })
-                slidersLayout.addView(s3)
-            }
-
             if (hasDots) {
                 val s4 = createSlider("Dots Height: ${(layer.transformDotsMultiplier * 100).toInt()}%", (layer.transformDotsMultiplier * 100).toInt(), 200) { v ->
                     layer.transformDotsMultiplier = v / 100f
@@ -6861,30 +6842,22 @@ class EditorActivity : AppCompatActivity() {
                             "Bigger to Smaller" -> {
                                 layer.transformTypes.remove("Smaller to Bigger")
                                 checkBoxes["Smaller to Bigger"]?.isChecked = false
-                                layer.transformTypes.remove("Circle")
-                                checkBoxes["Circle"]?.isChecked = false
                             }
                             "Smaller to Bigger" -> {
                                 layer.transformTypes.remove("Bigger to Smaller")
                                 checkBoxes["Bigger to Smaller"]?.isChecked = false
-                                layer.transformTypes.remove("Circle")
-                                checkBoxes["Circle"]?.isChecked = false
                             }
                             "Zig-Zag" -> {
                                 layer.transformTypes.remove("Convex Upward")
                                 checkBoxes["Convex Upward"]?.isChecked = false
                                 layer.transformTypes.remove("Concave Downward")
                                 checkBoxes["Concave Downward"]?.isChecked = false
-                                layer.transformTypes.remove("Circle")
-                                checkBoxes["Circle"]?.isChecked = false
                                 layer.transformTypes.remove("Flag")
                                 checkBoxes["Flag"]?.isChecked = false
                             }
                             "Convex Upward" -> {
                                 layer.transformTypes.remove("Concave Downward")
                                 checkBoxes["Concave Downward"]?.isChecked = false
-                                layer.transformTypes.remove("Circle")
-                                checkBoxes["Circle"]?.isChecked = false
                                 layer.transformTypes.remove("Zig-Zag")
                                 checkBoxes["Zig-Zag"]?.isChecked = false
                                 layer.transformTypes.remove("Flag")
@@ -6893,22 +6866,6 @@ class EditorActivity : AppCompatActivity() {
                             "Concave Downward" -> {
                                 layer.transformTypes.remove("Convex Upward")
                                 checkBoxes["Convex Upward"]?.isChecked = false
-                                layer.transformTypes.remove("Circle")
-                                checkBoxes["Circle"]?.isChecked = false
-                                layer.transformTypes.remove("Zig-Zag")
-                                checkBoxes["Zig-Zag"]?.isChecked = false
-                                layer.transformTypes.remove("Flag")
-                                checkBoxes["Flag"]?.isChecked = false
-                            }
-                            "Circle" -> {
-                                layer.transformTypes.remove("Bigger to Smaller")
-                                checkBoxes["Bigger to Smaller"]?.isChecked = false
-                                layer.transformTypes.remove("Smaller to Bigger")
-                                checkBoxes["Smaller to Bigger"]?.isChecked = false
-                                layer.transformTypes.remove("Convex Upward")
-                                checkBoxes["Convex Upward"]?.isChecked = false
-                                layer.transformTypes.remove("Concave Downward")
-                                checkBoxes["Concave Downward"]?.isChecked = false
                                 layer.transformTypes.remove("Zig-Zag")
                                 checkBoxes["Zig-Zag"]?.isChecked = false
                                 layer.transformTypes.remove("Flag")
@@ -6917,8 +6874,6 @@ class EditorActivity : AppCompatActivity() {
                             "Flag" -> {
                                 layer.transformTypes.remove("Zig-Zag")
                                 checkBoxes["Zig-Zag"]?.isChecked = false
-                                layer.transformTypes.remove("Circle")
-                                checkBoxes["Circle"]?.isChecked = false
                                 layer.transformTypes.remove("Convex Upward")
                                 checkBoxes["Convex Upward"]?.isChecked = false
                                 layer.transformTypes.remove("Concave Downward")

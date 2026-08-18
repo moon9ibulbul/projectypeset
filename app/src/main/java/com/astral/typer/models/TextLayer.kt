@@ -44,7 +44,6 @@ class TextLayer(
     var transformTypes: MutableSet<String> = mutableSetOf()
     var transformSizeMultiplier: Float = 1f
     var transformAngleMultiplier: Float = 1f
-    var transformCircleRadiusMultiplier: Float = 1f
     var transformDotsMultiplier: Float = 0.4f
 
     var text: SpannableStringBuilder
@@ -522,7 +521,6 @@ class TextLayer(
                 is LetterSpacingSpan -> span.spacing.hashCode()
                 is com.astral.typer.utils.PositionShiftSpan -> span.shiftX.hashCode() + span.shiftY.hashCode()
                 is com.astral.typer.utils.BaselineShiftSpan -> span.shiftY.hashCode()
-                is com.astral.typer.utils.CircleTextSpan -> span.radius.hashCode()
                 else -> span.hashCode()
             }
             list.add(SpanInfo(start, end, pVal, span.javaClass.name.hashCode()))
@@ -543,7 +541,6 @@ class TextLayer(
         result = 31 * result + transformTypes.hashCode()
         result = 31 * result + transformSizeMultiplier.hashCode()
         result = 31 * result + transformAngleMultiplier.hashCode()
-        result = 31 * result + transformCircleRadiusMultiplier.hashCode()
         result = 31 * result + transformDotsMultiplier.hashCode()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
@@ -824,7 +821,6 @@ class TextLayer(
         newLayer.transformTypes = this.transformTypes.toMutableSet()
         newLayer.transformSizeMultiplier = this.transformSizeMultiplier
         newLayer.transformAngleMultiplier = this.transformAngleMultiplier
-        newLayer.transformCircleRadiusMultiplier = this.transformCircleRadiusMultiplier
         newLayer.transformDotsMultiplier = this.transformDotsMultiplier
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
@@ -1234,20 +1230,14 @@ class TextLayer(
             val hasZigZag = transformTypes.contains("Zig-Zag")
             val hasConvex = transformTypes.contains("Convex Upward")
             val hasConcave = transformTypes.contains("Concave Downward")
-            val hasCircle = transformTypes.contains("Circle")
             val hasFlag = transformTypes.contains("Flag")
             val hasDots = transformTypes.contains("Centered Double/Triple Dots")
 
-            if (hasCircle) {
-                // Circle transform applies to the whole text
-                val radius = fontSize * 2f * transformCircleRadiusMultiplier // Example radius, can be adjusted
-                tempText.setSpan(com.astral.typer.utils.CircleTextSpan(radius), 0, len, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-            } else {
-                for (i in 0 until len) {
-                    val c = tempText[i]
-                    if (c.isWhitespace()) continue
+            for (i in 0 until len) {
+                val c = tempText[i]
+                if (c.isWhitespace()) continue
 
-                    val progress = if (len > 1) i.toFloat() / (len - 1) else 0.5f
+                val progress = if (len > 1) i.toFloat() / (len - 1) else 0.5f
 
                     // Size transforms
                     if (hasB2S) {
@@ -1283,8 +1273,7 @@ class TextLayer(
                         tempText.removeSpan(posSpan)
                         tempText.setSpan(com.astral.typer.utils.PositionShiftSpan(posSpan.shiftX, combinedShiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                     } else if (shiftY != 0f) {
-                        tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(shiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    }
+                    tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(shiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
 

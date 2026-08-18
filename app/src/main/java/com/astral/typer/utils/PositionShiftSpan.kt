@@ -23,8 +23,8 @@ class PositionShiftSpan(var shiftX: Float, var shiftY: Float) : ReplacementSpan(
             fm.bottom = Math.max(fm.bottom, originalFm.bottom + shiftY.toInt())
         }
         val width = paint.measureText(text, start, end)
-        // Expand horizontal bounds based on shiftX (only expanding positive shift for layout width)
-        return (width + Math.max(0f, shiftX)).toInt()
+        // Return original width without expanding layout bounds to prevent shifting adjacent letters
+        return width.toInt()
     }
 
     override fun draw(
