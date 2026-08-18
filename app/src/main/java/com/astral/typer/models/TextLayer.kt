@@ -2990,6 +2990,26 @@ class TextLayer(
 
         val drawMain = { targetCanvas: Canvas ->
 
+            val spannableForBg = layout.text as? android.text.Spannable
+            val hasBg = spannableForBg?.getSpans(0, spannableForBg.length, android.text.style.BackgroundColorSpan::class.java)?.isNotEmpty() == true
+
+            if (!isDrawingStrokePass && !isDrawingShadowPass && !isDrawingClippingMask && hasBg) {
+                val prevColor = paint.color
+                val prevStyle = paint.style
+                val prevShader = paint.shader
+
+                paint.color = android.graphics.Color.TRANSPARENT
+                paint.style = android.graphics.Paint.Style.FILL
+                paint.shader = null
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
+
+                paint.color = prevColor
+                paint.style = prevStyle
+                paint.shader = prevShader
+            }
+
+
             val originalShader = paint.shader
             val originalColor = paint.color
             val originalStyle = paint.style
@@ -3085,7 +3105,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor!!)
                 paint.clearShadowLayer()
-                drawLayoutSafe(targetCanvas, isDrawingShadowPass)
+                drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             } else if (isDrawingShadowPass) {
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
@@ -3129,7 +3149,7 @@ class TextLayer(
                         }
 
                         paint.clearShadowLayer()
-                        drawLayoutSafe(fillCanvas, isDrawingShadowPass)
+                        drawLayoutSafe(fillCanvas, true)
                         drawTailPath(fillCanvas, paint)
 
                         val centerX = w / 2f
@@ -3294,7 +3314,7 @@ class TextLayer(
                             paint.color = modulateColor(color)
                         }
                         paint.clearShadowLayer()
-                        drawLayoutSafe(fillCanvas, isDrawingShadowPass)
+                        drawLayoutSafe(fillCanvas, true)
                     drawTailPath(fillCanvas, paint)
                     }
 
@@ -3331,7 +3351,7 @@ class TextLayer(
                                 paint.color = Color.WHITE
                                 paint.alpha = patternAlpha
                                 paint.xfermode = cachedPatternXfermode
-                                drawLayoutSafe(fillCanvas, isDrawingShadowPass)
+                                drawLayoutSafe(fillCanvas, true)
                                 drawTailPath(fillCanvas, paint)
 
                                 // Restore
