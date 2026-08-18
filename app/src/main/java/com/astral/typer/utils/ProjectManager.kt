@@ -243,7 +243,6 @@ object ProjectManager {
         val transformTypes: Set<String>? = null,
         val transformSizeMultiplier: Float? = null,
         val transformAngleMultiplier: Float? = null,
-        val transformCircleRadiusMultiplier: Float? = null,
         val transformDotsMultiplier: Float? = null
     )
 
@@ -575,7 +574,6 @@ object ProjectManager {
                         transformTypes = layer.transformTypes,
                         transformSizeMultiplier = layer.transformSizeMultiplier,
                         transformAngleMultiplier = layer.transformAngleMultiplier,
-                        transformCircleRadiusMultiplier = layer.transformCircleRadiusMultiplier,
                         transformDotsMultiplier = layer.transformDotsMultiplier
                     ))
 
@@ -1236,7 +1234,6 @@ object ProjectManager {
             model.transformTypes?.let { layer.transformTypes = it.toMutableSet() }
             model.transformSizeMultiplier?.let { layer.transformSizeMultiplier = it }
             model.transformAngleMultiplier?.let { layer.transformAngleMultiplier = it }
-            model.transformCircleRadiusMultiplier?.let { layer.transformCircleRadiusMultiplier = it }
             model.transformDotsMultiplier?.let { layer.transformDotsMultiplier = it }
             model.fontSize?.let { layer.fontSize = it }
             layer.fontPath = model.fontPath

@@ -241,7 +241,6 @@ object StyleManager {
         val transformTypes: Set<String>? = null,
         val transformSizeMultiplier: Float? = null,
         val transformAngleMultiplier: Float? = null,
-        val transformCircleRadiusMultiplier: Float? = null,
         val transformDotsMultiplier: Float? = null,
         val chromaticAngle: Float? = 0f,
         val shadowThickness: Float? = 0f,
@@ -305,7 +304,7 @@ object StyleManager {
             l.halftoneType, l.halftoneAlpha, l.halftoneRange,
             l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
             l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType, l.transformTypes, l.transformSizeMultiplier, l.transformAngleMultiplier, l.transformCircleRadiusMultiplier, l.transformDotsMultiplier, l.chromaticAngle, l.shadowThickness,
+            l.caseType, l.transformTypes, l.transformSizeMultiplier, l.transformAngleMultiplier, l.transformDotsMultiplier, l.chromaticAngle, l.shadowThickness,
             l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint,
             l.tailOffsetX, l.tailOffsetY, l.tailThickness, l.tailSeed,
             l.glitchAmount, l.glitchDistance, l.glitchDirection
@@ -318,7 +317,6 @@ object StyleManager {
         m.transformTypes?.let { l.transformTypes = it.toMutableSet() }
         m.transformSizeMultiplier?.let { l.transformSizeMultiplier = it }
         m.transformAngleMultiplier?.let { l.transformAngleMultiplier = it }
-        m.transformCircleRadiusMultiplier?.let { l.transformCircleRadiusMultiplier = it }
         m.transformDotsMultiplier?.let { l.transformDotsMultiplier = it }
         l.name = m.name ?: "Style"
 
