@@ -566,6 +566,7 @@ class ShapeLayer(
 
             val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
             if (hasStrokes) {
+                    val holeLayerId = canvas.saveLayer(null, null)
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
@@ -582,17 +583,14 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            val r = android.graphics.Color.red(tripleStrokeColor).toFloat()
-                            val g = android.graphics.Color.green(tripleStrokeColor).toFloat()
-                            val b = android.graphics.Color.blue(tripleStrokeColor).toFloat()
+                            color = tripleStrokeColor
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                0f, 0f, 0f, 0f, r,
-                                0f, 0f, 0f, 0f, g,
-                                0f, 0f, 0f, 0f, b,
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
                                 0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                            alpha = android.graphics.Color.alpha(tripleStrokeColor)
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
@@ -617,17 +615,14 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            val r = android.graphics.Color.red(doubleStrokeColor).toFloat()
-                            val g = android.graphics.Color.green(doubleStrokeColor).toFloat()
-                            val b = android.graphics.Color.blue(doubleStrokeColor).toFloat()
+                            color = doubleStrokeColor
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                0f, 0f, 0f, 0f, r,
-                                0f, 0f, 0f, 0f, g,
-                                0f, 0f, 0f, 0f, b,
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
                                 0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                            alpha = android.graphics.Color.alpha(doubleStrokeColor)
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
@@ -652,17 +647,20 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            val r = android.graphics.Color.red(strokeColor).toFloat()
-                            val g = android.graphics.Color.green(strokeColor).toFloat()
-                            val b = android.graphics.Color.blue(strokeColor).toFloat()
+                            if (isGradient && isGradientStroke) {
+                                this.shader = getGradientShader(getWidth(), getHeight())
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = strokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                0f, 0f, 0f, 0f, r,
-                                0f, 0f, 0f, 0f, g,
-                                0f, 0f, 0f, 0f, b,
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
                                 0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                            alpha = android.graphics.Color.alpha(strokeColor)
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
@@ -670,6 +668,31 @@ class ShapeLayer(
                         canvas.restore()
                     }
                 }
+                // Punch hole
+                val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+                    val maxAlpha = if (silhouetteColor != null) {
+                        android.graphics.Color.alpha(silhouetteColor!!).toFloat().coerceAtLeast(1f)
+                    } else if (isGradient) {
+                        255f
+                    } else {
+                        android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    }
+                    val alphaMultiplier = 255f / maxAlpha
+                    val cm = android.graphics.ColorMatrix(floatArrayOf(
+                        1f, 0f, 0f, 0f, 0f,
+                        0f, 1f, 0f, 0f, 0f,
+                        0f, 0f, 1f, 0f, 0f,
+                        0f, 0f, 0f, alphaMultiplier, 0f
+                    ))
+                    colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                }
+                canvas.save()
+                canvas.scale(1f / qualityScale, 1f / qualityScale)
+                canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
+                canvas.restore()
+                canvas.restoreToCount(holeLayerId)
             } else {
                 stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
                 stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
@@ -731,6 +754,7 @@ class ShapeLayer(
 
             val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
             if (hasStrokes) {
+                    val holeLayerId = canvas.saveLayer(null, null)
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
@@ -747,17 +771,14 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            val r = android.graphics.Color.red(tripleStrokeColor).toFloat()
-                            val g = android.graphics.Color.green(tripleStrokeColor).toFloat()
-                            val b = android.graphics.Color.blue(tripleStrokeColor).toFloat()
+                            color = tripleStrokeColor
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                0f, 0f, 0f, 0f, r,
-                                0f, 0f, 0f, 0f, g,
-                                0f, 0f, 0f, 0f, b,
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
                                 0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                            alpha = android.graphics.Color.alpha(tripleStrokeColor)
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
@@ -782,17 +803,14 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            val r = android.graphics.Color.red(doubleStrokeColor).toFloat()
-                            val g = android.graphics.Color.green(doubleStrokeColor).toFloat()
-                            val b = android.graphics.Color.blue(doubleStrokeColor).toFloat()
+                            color = doubleStrokeColor
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                0f, 0f, 0f, 0f, r,
-                                0f, 0f, 0f, 0f, g,
-                                0f, 0f, 0f, 0f, b,
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
                                 0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                            alpha = android.graphics.Color.alpha(doubleStrokeColor)
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
@@ -817,17 +835,20 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            val r = android.graphics.Color.red(strokeColor).toFloat()
-                            val g = android.graphics.Color.green(strokeColor).toFloat()
-                            val b = android.graphics.Color.blue(strokeColor).toFloat()
+                            if (isGradient && isGradientStroke) {
+                                this.shader = getGradientShader(getWidth(), getHeight())
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = strokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                0f, 0f, 0f, 0f, r,
-                                0f, 0f, 0f, 0f, g,
-                                0f, 0f, 0f, 0f, b,
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
                                 0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                            alpha = android.graphics.Color.alpha(strokeColor)
                         }
                         canvas.save()
                         canvas.scale(1f / qualityScale, 1f / qualityScale)
@@ -835,6 +856,31 @@ class ShapeLayer(
                         canvas.restore()
                     }
                 }
+                // Punch hole
+                val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+                    val maxAlpha = if (silhouetteColor != null) {
+                        android.graphics.Color.alpha(silhouetteColor!!).toFloat().coerceAtLeast(1f)
+                    } else if (isGradient) {
+                        255f
+                    } else {
+                        android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    }
+                    val alphaMultiplier = 255f / maxAlpha
+                    val cm = android.graphics.ColorMatrix(floatArrayOf(
+                        1f, 0f, 0f, 0f, 0f,
+                        0f, 1f, 0f, 0f, 0f,
+                        0f, 0f, 1f, 0f, 0f,
+                        0f, 0f, 0f, alphaMultiplier, 0f
+                    ))
+                    colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                }
+                canvas.save()
+                canvas.scale(1f / qualityScale, 1f / qualityScale)
+                canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
+                canvas.restore()
+                canvas.restoreToCount(holeLayerId)
             } else {
                 stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
                 stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
