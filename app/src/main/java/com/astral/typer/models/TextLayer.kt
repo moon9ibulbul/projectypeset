@@ -1678,7 +1678,10 @@ class TextLayer(
         val prevShadowColor = shadowColor
 
         if (hasTransform) {
-            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
+            val hasHighlight = (cachedLayout?.text as? android.text.Spannable)?.let {
+                it.getSpans(0, it.length, android.text.style.BackgroundColorSpan::class.java).isNotEmpty()
+            } ?: false
+            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
         try {
@@ -2970,7 +2973,43 @@ class TextLayer(
             }
         }
 
+
+        fun drawLayoutSafe(canvas: android.graphics.Canvas, suppressBg: Boolean) {
+            val spannable = layout.text as? android.text.Spannable
+            val bgSpans = spannable?.getSpans(0, spannable.length, android.text.style.BackgroundColorSpan::class.java)
+
+            if (suppressBg && bgSpans != null && bgSpans.isNotEmpty()) {
+                val spanData = bgSpans.map { it to Pair(spannable.getSpanStart(it), spannable.getSpanEnd(it)) }
+                bgSpans.forEach { spannable.removeSpan(it) }
+                layout.draw(canvas)
+                spanData.forEach { spannable.setSpan(it.first, it.second.first, it.second.second, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) }
+            } else {
+                layout.draw(canvas)
+            }
+        }
+
         val drawMain = { targetCanvas: Canvas ->
+
+            val spannableForBg = layout.text as? android.text.Spannable
+            val hasBg = spannableForBg?.getSpans(0, spannableForBg.length, android.text.style.BackgroundColorSpan::class.java)?.isNotEmpty() == true
+
+            if (!isDrawingStrokePass && !isDrawingShadowPass && !isDrawingClippingMask && hasBg) {
+                val prevColor = paint.color
+                val prevStyle = paint.style
+                val prevShader = paint.shader
+
+                paint.color = android.graphics.Color.TRANSPARENT
+                paint.style = android.graphics.Paint.Style.FILL
+                paint.shader = null
+                paint.clearShadowLayer()
+                layout.draw(targetCanvas)
+
+                paint.color = prevColor
+                paint.style = prevStyle
+                paint.shader = prevShader
+            }
+
+
             val originalShader = paint.shader
             val originalColor = paint.color
             val originalStyle = paint.style
@@ -3008,7 +3047,7 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                layout.draw(targetCanvas)
+                drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             }
 
@@ -3027,7 +3066,7 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                layout.draw(targetCanvas)
+                drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             }
 
@@ -3054,7 +3093,7 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                layout.draw(targetCanvas)
+                drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             }
 
@@ -3066,13 +3105,13 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor!!)
                 paint.clearShadowLayer()
-                layout.draw(targetCanvas)
+                drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             } else if (isDrawingShadowPass) {
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
                 paint.color = modulateColor(shadowColor)
                 paint.clearShadowLayer()
-                layout.draw(targetCanvas)
+                drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             } else {
                 val drawFillContent = { fillCanvas: Canvas ->
@@ -3110,7 +3149,7 @@ class TextLayer(
                         }
 
                         paint.clearShadowLayer()
-                        layout.draw(fillCanvas)
+                        drawLayoutSafe(fillCanvas, true)
                         drawTailPath(fillCanvas, paint)
 
                         val centerX = w / 2f
@@ -3275,7 +3314,7 @@ class TextLayer(
                             paint.color = modulateColor(color)
                         }
                         paint.clearShadowLayer()
-                        layout.draw(fillCanvas)
+                        drawLayoutSafe(fillCanvas, true)
                     drawTailPath(fillCanvas, paint)
                     }
 
@@ -3312,7 +3351,7 @@ class TextLayer(
                                 paint.color = Color.WHITE
                                 paint.alpha = patternAlpha
                                 paint.xfermode = cachedPatternXfermode
-                                layout.draw(fillCanvas)
+                                drawLayoutSafe(fillCanvas, true)
                                 drawTailPath(fillCanvas, paint)
 
                                 // Restore
@@ -3429,7 +3468,7 @@ class TextLayer(
                             drawMain(canvas)
                             isDrawingShadowPass = false
                         } else {
-                            layout.draw(canvas)
+                            drawLayoutSafe(canvas, true)
                             drawTailPath(canvas, paint)
                         }
                     }
@@ -3464,20 +3503,20 @@ class TextLayer(
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
                         paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
-                        layout.draw(targetCanvas)
+                        drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
                         // Draw fill
                         paint.style = Paint.Style.FILL
                         paint.pathEffect = null
-                        layout.draw(targetCanvas)
+                        drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
                         paint.style = shadowStyle
                         paint.strokeWidth = shadowStrokeWidth
                         paint.pathEffect = null
                     } else {
-                        layout.draw(targetCanvas)
+                        drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
                     }
                     targetCanvas.restore()
@@ -3500,13 +3539,13 @@ class TextLayer(
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
                         paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
-                        layout.draw(targetCanvas)
+                        drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
                         // Draw fill
                         paint.style = Paint.Style.FILL
                         paint.pathEffect = null
-                        layout.draw(targetCanvas)
+                        drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
                         targetCanvas.restore()
@@ -3519,7 +3558,7 @@ class TextLayer(
                         paint.pathEffect = null
                     } else {
                         paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
-                        layout.draw(targetCanvas)
+                        drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
                         paint.clearShadowLayer()
                     }
