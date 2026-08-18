@@ -1226,6 +1226,11 @@ class TextLayer(
 
         // Apply Transforms to a temporary SpannableStringBuilder
         val tempText = SpannableStringBuilder(text)
+        // Strip out BackgroundColorSpans because we manually render them in drawMain
+        val bgSpans = tempText.getSpans(0, tempText.length, android.text.style.BackgroundColorSpan::class.java)
+        for (span in bgSpans) {
+            tempText.removeSpan(span)
+        }
         val len = tempText.length
 
         if (len > 0) {
@@ -1946,7 +1951,7 @@ class TextLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -1978,7 +1983,7 @@ class TextLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2022,7 +2027,7 @@ class TextLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2036,7 +2041,13 @@ class TextLayer(
                 val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     isFilterBitmap = true
                     xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                    val maxAlpha = if (isGradient) 255f else android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    val maxAlpha = if (silhouetteColor != null) {
+                        android.graphics.Color.alpha(silhouetteColor!!).toFloat().coerceAtLeast(1f)
+                    } else if (isGradient) {
+                        255f
+                    } else {
+                        android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    }
                     val alphaMultiplier = 255f / maxAlpha
                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                         1f, 0f, 0f, 0f, 0f,
@@ -2360,7 +2371,7 @@ class TextLayer(
                 if (i in start until end) {
                     val copiedSpan = when (span) {
                         is android.text.style.ForegroundColorSpan -> android.text.style.ForegroundColorSpan(span.foregroundColor)
-                        is android.text.style.BackgroundColorSpan -> android.text.style.BackgroundColorSpan(span.backgroundColor)
+                        // Ignore BackgroundColorSpan so it doesn't cause bounding box wrapping in individual chars during warped strokes
                         is android.text.style.StyleSpan -> android.text.style.StyleSpan(span.style)
                         is android.text.style.UnderlineSpan -> android.text.style.UnderlineSpan()
                         is android.text.style.StrikethroughSpan -> android.text.style.StrikethroughSpan()
@@ -2487,7 +2498,7 @@ class TextLayer(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f, -250f
+                                        0f, 0f, 0f, 1f, 0f
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2522,7 +2533,7 @@ class TextLayer(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f, -250f
+                                        0f, 0f, 0f, 1f, 0f
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2569,7 +2580,7 @@ class TextLayer(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f, -250f
+                                        0f, 0f, 0f, 1f, 0f
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2742,7 +2753,7 @@ class TextLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2774,7 +2785,7 @@ class TextLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2818,7 +2829,7 @@ class TextLayer(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 1f, 0f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2832,7 +2843,13 @@ class TextLayer(
                 val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     isFilterBitmap = true
                     xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                    val maxAlpha = if (isGradient) 255f else android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    val maxAlpha = if (silhouetteColor != null) {
+                        android.graphics.Color.alpha(silhouetteColor!!).toFloat().coerceAtLeast(1f)
+                    } else if (isGradient) {
+                        255f
+                    } else {
+                        android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    }
                     val alphaMultiplier = 255f / maxAlpha
                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                         1f, 0f, 0f, 0f, 0f,
@@ -2971,6 +2988,35 @@ class TextLayer(
         }
 
         val drawMain = { targetCanvas: Canvas ->
+            // Manually draw BackgroundColorSpan highlights (if not stroke/shadow pass)
+            if (!isDrawingClippingMask && !isDrawingStrokePass && !isDrawingShadowPass) {
+                val bgSpans = text.getSpans(0, text.length, android.text.style.BackgroundColorSpan::class.java)
+                if (bgSpans.isNotEmpty()) {
+                    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+                    for (span in bgSpans) {
+                        bgPaint.color = span.backgroundColor
+                        val start = text.getSpanStart(span)
+                        val end = text.getSpanEnd(span)
+                        val activeLayout = cachedLayout ?: layout
+                        if (activeLayout != null) {
+                            for (line in 0 until activeLayout.lineCount) {
+                                val lineStart = activeLayout.getLineStart(line)
+                                val lineEnd = activeLayout.getLineEnd(line)
+                                if (start < lineEnd && end > lineStart) {
+                                    val drawStart = Math.max(start, lineStart)
+                                    val drawEnd = Math.min(end, lineEnd)
+                                    val xStart = activeLayout.getPrimaryHorizontal(drawStart)
+                                    val xEnd = activeLayout.getPrimaryHorizontal(drawEnd)
+                                    val yTop = activeLayout.getLineTop(line).toFloat()
+                                    val yBottom = activeLayout.getLineBottom(line).toFloat()
+                                    targetCanvas.drawRect(Math.min(xStart, xEnd), yTop, Math.max(xStart, xEnd), yBottom, bgPaint)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             val originalShader = paint.shader
             val originalColor = paint.color
             val originalStyle = paint.style
