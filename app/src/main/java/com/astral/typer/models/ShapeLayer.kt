@@ -672,11 +672,19 @@ class ShapeLayer(
                 val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     isFilterBitmap = true
                     xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+                    val maxAlpha = if (silhouetteColor != null) {
+                        android.graphics.Color.alpha(silhouetteColor!!).toFloat().coerceAtLeast(1f)
+                    } else if (isGradient) {
+                        255f
+                    } else {
+                        android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    }
+                    val alphaMultiplier = 255f / maxAlpha
                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                         1f, 0f, 0f, 0f, 0f,
                         0f, 1f, 0f, 0f, 0f,
                         0f, 0f, 1f, 0f, 0f,
-                        0f, 0f, 0f, 100f, -250f
+                        0f, 0f, 0f, alphaMultiplier, 0f
                     ))
                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                 }
@@ -852,11 +860,19 @@ class ShapeLayer(
                 val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     isFilterBitmap = true
                     xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+                    val maxAlpha = if (silhouetteColor != null) {
+                        android.graphics.Color.alpha(silhouetteColor!!).toFloat().coerceAtLeast(1f)
+                    } else if (isGradient) {
+                        255f
+                    } else {
+                        android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
+                    }
+                    val alphaMultiplier = 255f / maxAlpha
                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                         1f, 0f, 0f, 0f, 0f,
                         0f, 1f, 0f, 0f, 0f,
                         0f, 0f, 1f, 0f, 0f,
-                        0f, 0f, 0f, 100f, -250f
+                        0f, 0f, 0f, alphaMultiplier, 0f
                     ))
                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                 }
