@@ -1670,7 +1670,7 @@ class TextLayer(
             it == TextEffectType.NEON ||
             it == TextEffectType.DROP_SHADOW
         }
-        val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
+        val applyEffectsAfterTransform = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
 
         val prevShadowRadius = shadowRadius
         val prevShadowDx = shadowDx
@@ -1685,7 +1685,7 @@ class TextLayer(
         }
 
         try {
-            if (useHardwareTransformEffects) {
+            if (applyEffectsAfterTransform) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarpActive) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
