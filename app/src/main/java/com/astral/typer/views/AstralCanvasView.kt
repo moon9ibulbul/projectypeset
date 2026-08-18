@@ -43,7 +43,7 @@ class AstralCanvasView @JvmOverloads constructor(
         private set
     var canvasHeight = 1080
         private set
-    private var canvasColor = Color.WHITE
+    var canvasColor = Color.WHITE
     // private var canvasBitmap: android.graphics.Bitmap? = null // Removed
 
     // Drawing Tools

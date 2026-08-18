@@ -1,0 +1,23 @@
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -200,6 +200,20 @@
+         // Use findViewById to ensure we get the View, avoiding Binding vs View ambiguity
+         sidebarBinding = com.astral.typer.databinding.LayoutSidebarSaveBinding.bind(binding.root.findViewById(R.id.saveSidebar))
+
++        if (com.astral.typer.utils.TempCanvasState.hasState()) {
++            canvasView = AstralCanvasView(this)
++            binding.canvasContainer.addView(canvasView)
++            canvasView.initCanvas(com.astral.typer.utils.TempCanvasState.width, com.astral.typer.utils.TempCanvasState.height, com.astral.typer.utils.TempCanvasState.color)
++            com.astral.typer.utils.TempCanvasState.background?.let { canvasView.setBackgroundImage(it) }
++            com.astral.typer.utils.TempCanvasState.layers?.let { canvasView.setLayers(it) }
++            com.astral.typer.utils.TempCanvasState.clear()
++            inpaintManager = InpaintManager(this)
++            bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this)
++            setupCanvasListeners()
++            setupBottomMenu()
++            checkTyperAvailability()
++            return
++        }
++
+         // Setup Canvas
+         // Check if loading a project

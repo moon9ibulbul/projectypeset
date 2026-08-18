@@ -1,0 +1,33 @@
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -67,6 +67,7 @@
+     private var activeEditText: EditText? = null
+     private val MENU_HEIGHT_DP = 180
+     private var currentMenuType: String? = null
++    private var currentThemeName: String = ""
+
+     private var currentProjectName: String? = null
+     private var parentFolderName: String? = null
+@@ -176,6 +177,7 @@
+             )
+         }
+         ThemeHelper.applyTheme(this)
++        currentThemeName = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
+         super.onCreate(savedInstanceState)
+
+         // Clear Undo history from previous sessions if any
+@@ -370,6 +372,14 @@
+          canvasView.setLayers(restoredLayers)
+     }
+
++    override fun onResume() {
++        super.onResume()
++        val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
++        if (prefsTheme != currentThemeName) {
++            currentThemeName = prefsTheme
++        }
++    }
++
+     override fun onPause() {
+         super.onPause()
+         // Auto Save

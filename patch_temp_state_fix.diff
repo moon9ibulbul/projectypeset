@@ -1,0 +1,52 @@
+--- app/src/main/java/com/astral/typer/utils/TempCanvasState.kt
++++ app/src/main/java/com/astral/typer/utils/TempCanvasState.kt
+@@ -8,11 +8,15 @@
+     var width: Int = 1080
+     var height: Int = 1080
+     var color: Int = -1
++    var projectName: String? = null
++    var parentFolder: String? = null
+
+     fun hasState(): Boolean = layers != null
+
+     fun clear() {
+         layers = null
+         background = null
++        projectName = null
++        parentFolder = null
+     }
+ }
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -211,10 +211,11 @@
+             bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this)
+             setupCanvasListeners()
+             setupBottomMenu()
+             checkTyperAvailability()
+-            return
+-        }
+-
++
++            currentProjectName = com.astral.typer.utils.TempCanvasState.projectName
++            parentFolderName = com.astral.typer.utils.TempCanvasState.parentFolder
++        } else {
+         // Setup Canvas
+         // Check if loading a project
+         val projectPath = intent.getStringExtra("PROJECT_PATH")
+@@ -300,6 +301,7 @@
+                 }
+             }
+         }
++        }
+
+         // Initialize InpaintManager
+         inpaintManager = InpaintManager(this)
+@@ -398,6 +400,8 @@
+             com.astral.typer.utils.TempCanvasState.width = canvasView.canvasWidth
+             com.astral.typer.utils.TempCanvasState.height = canvasView.canvasHeight
+             com.astral.typer.utils.TempCanvasState.color = canvasView.canvasColor
++            com.astral.typer.utils.TempCanvasState.projectName = currentProjectName
++            com.astral.typer.utils.TempCanvasState.parentFolder = parentFolderName
+             recreate()
+         }
+     }
