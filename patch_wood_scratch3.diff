@@ -1,0 +1,15 @@
+--- app/src/main/java/com/astral/typer/EditorActivity.kt
++++ app/src/main/java/com/astral/typer/EditorActivity.kt
+@@ -2566,8 +2566,11 @@
+         if (isEffectActive(TextEffectType.WOOD_SCRATCH)) {
+-                // Slider: Intensity (0 to 100%)
++                // Slider: Intensity (0 to 200%)
+                 val currentIntensity = stylableLayer.woodScratchIntensity
+-                val s1 = createSlider("Intensity: ${(currentIntensity * 100).toInt()}%", (currentIntensity * 100).toInt(), 100) { }
++                val s1 = createSlider("Intensity: ${(currentIntensity * 100).toInt()}%", (currentIntensity * 100).toInt(), 200) { p ->
++                    stylableLayer.woodScratchIntensity = p / 100f
++                    canvasView.invalidate()
++                }
+                 val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                 s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                     override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {

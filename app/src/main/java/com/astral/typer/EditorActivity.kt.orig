@@ -212,10 +212,9 @@ class EditorActivity : AppCompatActivity() {
             setupCanvasListeners()
             setupBottomMenu()
             checkTyperAvailability()
+            return
+        }
 
-            currentProjectName = com.astral.typer.utils.TempCanvasState.projectName
-            parentFolderName = com.astral.typer.utils.TempCanvasState.parentFolder
-        } else {
         // Setup Canvas
         // Check if loading a project
         val projectPath = intent.getStringExtra("PROJECT_PATH")
@@ -314,7 +313,6 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
         }
-        }
 
         // Initialize InpaintManager
         inpaintManager = InpaintManager(this)
@@ -398,8 +396,6 @@ class EditorActivity : AppCompatActivity() {
             com.astral.typer.utils.TempCanvasState.width = canvasView.canvasWidth
             com.astral.typer.utils.TempCanvasState.height = canvasView.canvasHeight
             com.astral.typer.utils.TempCanvasState.color = canvasView.canvasColor
-            com.astral.typer.utils.TempCanvasState.projectName = currentProjectName
-            com.astral.typer.utils.TempCanvasState.parentFolder = parentFolderName
             recreate()
             currentThemeName = prefsTheme
         }

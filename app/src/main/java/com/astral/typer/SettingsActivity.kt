@@ -531,10 +531,6 @@ class SettingsActivity : AppCompatActivity() {
                 appPrefs.edit().putString("app_theme", newTheme).apply()
                 dialog.dismiss()
 
-                // Restart app to apply theme
-                val intent = packageManager.getLaunchIntentForPackage(packageName)
-                intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                intent?.let { startActivity(it) }
                 finish()
             }
 
@@ -742,10 +738,6 @@ class SettingsActivity : AppCompatActivity() {
             // SharedPrefs might need reload. Process restart is safest.
             Toast.makeText(this, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()
 
-            // Give time for Toast then restart
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
-            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            intent?.let { startActivity(it) }
             finish()
 
         } catch (e: Exception) {
