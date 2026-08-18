@@ -6667,26 +6667,28 @@ class EditorActivity : AppCompatActivity() {
             val start = et.selectionStart
             val end = et.selectionEnd
 
-            // Get existing shift
-            val existingSpans = et.editableText.getSpans(start, end, com.astral.typer.utils.PositionShiftSpan::class.java)
-            var currentDx = 0f
-            var currentDy = 0f
+            for (i in start until end) {
+                // Get existing shift for this character
+                val existingSpans = et.editableText.getSpans(i, i + 1, com.astral.typer.utils.PositionShiftSpan::class.java)
+                var currentDx = 0f
+                var currentDy = 0f
 
-            if (existingSpans.isNotEmpty()) {
-                val span = existingSpans.first()
-                currentDx = span.shiftX
-                currentDy = span.shiftY
-                et.editableText.removeSpan(span)
-            }
+                if (existingSpans.isNotEmpty()) {
+                    val span = existingSpans.first()
+                    currentDx = span.shiftX
+                    currentDy = span.shiftY
+                    et.editableText.removeSpan(span)
+                }
 
-            val newDx = currentDx + dx
-            val newDy = currentDy + dy
+                val newDx = currentDx + dx
+                val newDy = currentDy + dy
 
-            if (newDx != 0f || newDy != 0f) {
-                et.editableText.setSpan(
-                    com.astral.typer.utils.PositionShiftSpan(newDx, newDy),
-                    start, end, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
+                if (newDx != 0f || newDy != 0f) {
+                    et.editableText.setSpan(
+                        com.astral.typer.utils.PositionShiftSpan(newDx, newDy),
+                        i, i + 1, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
             }
 
             layer.text = android.text.SpannableStringBuilder(et.editableText)
@@ -6707,7 +6709,6 @@ class EditorActivity : AppCompatActivity() {
             "Zig-Zag",
             "Convex Upward",
             "Concave Downward",
-            "Circle",
             "Flag",
             "Centered Double/Triple Dots"
         )
@@ -6725,42 +6726,36 @@ class EditorActivity : AppCompatActivity() {
             val hasZigZag = layer.transformTypes.contains("Zig-Zag")
             val hasConvex = layer.transformTypes.contains("Convex Upward")
             val hasConcave = layer.transformTypes.contains("Concave Downward")
-            val hasCircle = layer.transformTypes.contains("Circle")
             val hasFlag = layer.transformTypes.contains("Flag")
             val hasDots = layer.transformTypes.contains("Centered Double/Triple Dots")
 
             // Bigger to Smaller
-            val b2sDisabled = hasS2B || hasCircle
+            val b2sDisabled = hasS2B
             checkBoxes["Bigger to Smaller"]?.isEnabled = !b2sDisabled
             checkBoxes["Bigger to Smaller"]?.alpha = if (b2sDisabled) 0.5f else 1.0f
 
             // Smaller to Bigger
-            val s2bDisabled = hasB2S || hasCircle
+            val s2bDisabled = hasB2S
             checkBoxes["Smaller to Bigger"]?.isEnabled = !s2bDisabled
             checkBoxes["Smaller to Bigger"]?.alpha = if (s2bDisabled) 0.5f else 1.0f
 
             // Zig-Zag
-            val zigZagDisabled = hasCircle || hasFlag
+            val zigZagDisabled = hasFlag
             checkBoxes["Zig-Zag"]?.isEnabled = !zigZagDisabled
             checkBoxes["Zig-Zag"]?.alpha = if (zigZagDisabled) 0.5f else 1.0f
 
             // Convex Upward
-            val convexDisabled = hasConcave || hasCircle || hasZigZag || hasFlag
+            val convexDisabled = hasConcave || hasZigZag || hasFlag
             checkBoxes["Convex Upward"]?.isEnabled = !convexDisabled
             checkBoxes["Convex Upward"]?.alpha = if (convexDisabled) 0.5f else 1.0f
 
             // Concave Downward
-            val concaveDisabled = hasConvex || hasCircle || hasZigZag || hasFlag
+            val concaveDisabled = hasConvex || hasZigZag || hasFlag
             checkBoxes["Concave Downward"]?.isEnabled = !concaveDisabled
             checkBoxes["Concave Downward"]?.alpha = if (concaveDisabled) 0.5f else 1.0f
 
-            // Circle
-            val circleDisabled = hasB2S || hasS2B || hasZigZag || hasConvex || hasConcave || hasFlag
-            checkBoxes["Circle"]?.isEnabled = !circleDisabled
-            checkBoxes["Circle"]?.alpha = if (circleDisabled) 0.5f else 1.0f
-
             // Flag
-            val flagDisabled = hasZigZag || hasCircle
+            val flagDisabled = hasZigZag
             checkBoxes["Flag"]?.isEnabled = !flagDisabled
             checkBoxes["Flag"]?.alpha = if (flagDisabled) 0.5f else 1.0f
 
