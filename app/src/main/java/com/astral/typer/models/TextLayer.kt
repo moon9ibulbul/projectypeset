@@ -1654,23 +1654,7 @@ class TextLayer(
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
-        val hasHardwareShaderEffect = activeEffects.any {
-            it == TextEffectType.FIERY ||
-            it == TextEffectType.WAVY ||
-            it == TextEffectType.PARTICLE_DISSOLVE ||
-            it == TextEffectType.MOTION_BLUR ||
-            it == TextEffectType.RADIAL_BLUR ||
-            it == TextEffectType.HALFTONE ||
-            it == TextEffectType.TEXT_DECAY ||
-            it == TextEffectType.TWIST ||
-            it == TextEffectType.BULGE_PINCH ||
-            it == TextEffectType.REFLECTION ||
-            it == TextEffectType.ZOOM_BLUR ||
-            it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON ||
-            it == TextEffectType.DROP_SHADOW
-        }
-        val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
+        val applyEffectsAfterTransform = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
 
         val prevShadowRadius = shadowRadius
         val prevShadowDx = shadowDx
@@ -1685,7 +1669,7 @@ class TextLayer(
         }
 
         try {
-            if (useHardwareTransformEffects) {
+            if (applyEffectsAfterTransform) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarpActive) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)

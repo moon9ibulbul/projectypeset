@@ -437,29 +437,13 @@ class ShapeLayer(
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
-        val hasHardwareShaderEffect = activeEffects.any {
-            it == TextEffectType.FIERY ||
-            it == TextEffectType.WAVY ||
-            it == TextEffectType.PARTICLE_DISSOLVE ||
-            it == TextEffectType.MOTION_BLUR ||
-            it == TextEffectType.RADIAL_BLUR ||
-            it == TextEffectType.HALFTONE ||
-            it == TextEffectType.TEXT_DECAY ||
-            it == TextEffectType.TWIST ||
-            it == TextEffectType.BULGE_PINCH ||
-            it == TextEffectType.REFLECTION ||
-            it == TextEffectType.ZOOM_BLUR ||
-            it == TextEffectType.GAUSSIAN_BLUR ||
-            it == TextEffectType.NEON ||
-            it == TextEffectType.DROP_SHADOW
-        }
-        val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
+        val applyEffectsAfterTransform = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
 
         if (hasTransform) {
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
         }
         try {
-            if (useHardwareTransformEffects) {
+            if (applyEffectsAfterTransform) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarp && warpMesh != null) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
