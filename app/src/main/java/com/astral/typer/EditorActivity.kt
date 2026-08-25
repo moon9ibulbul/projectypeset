@@ -4395,11 +4395,11 @@ class EditorActivity : AppCompatActivity() {
         folderChipRow.addView(btnAddFolder)
 
         val savedAll = com.astral.typer.utils.StyleManager.getSavedStyles()
-        val filteredStyles = when (selectedStyleFolderId) {
+        val filteredStyles = (when (selectedStyleFolderId) {
             "ALL" -> savedAll
             "UNASSIGNED" -> savedAll.filter { it.folderId.isNullOrEmpty() }
             else -> savedAll.filter { it.folderId == selectedStyleFolderId }
-        }
+        }).toMutableList()
 
         if (filteredStyles.isEmpty()) {
             container.addView(TextView(this).apply {
@@ -4505,6 +4505,8 @@ class EditorActivity : AppCompatActivity() {
                             val globalToIndex = allStyles.indexOf(toStyle)
                             if (globalFromIndex != -1 && globalToIndex != -1) {
                                 com.astral.typer.utils.StyleManager.moveStyle(this@EditorActivity, globalFromIndex, globalToIndex)
+                                val movedStyle = filteredStyles.removeAt(fromPos)
+                                filteredStyles.add(toPos, movedStyle)
                                 rv.adapter?.notifyItemMoved(fromPos, toPos)
                                 return true
                             }
