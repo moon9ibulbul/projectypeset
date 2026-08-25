@@ -15,17 +15,23 @@ import com.astral.typer.models.TextLayer
 import com.astral.typer.models.TextEffectType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.util.UUID
 
 object StyleManager {
     private val savedStyles = mutableListOf<StyleModel>()
+    private val savedFolders = mutableListOf<StyleFolder>()
     var clipboardStyle: StyleModel? = null
 
     private const val PREFS_NAME = "style_prefs"
     private const val KEY_STYLES = "saved_styles"
+    private const val KEY_FOLDERS = "saved_style_folders"
 
     fun init(context: Context) {
         if (savedStyles.isEmpty()) {
             loadStyles(context)
+        }
+        if (savedFolders.isEmpty()) {
+            loadFolders(context)
         }
     }
 
@@ -33,11 +39,10 @@ object StyleManager {
         clipboardStyle = toModel(layer)
     }
 
-    fun saveStyle(context: Context, layer: TextLayer) {
+    fun saveStyle(context: Context, layer: TextLayer, folderId: String? = null, customName: String? = null) {
         val model = toModel(layer)
-        // Ensure generic preview name/text if needed?
-        // The original code reset text to "Abc".
-        val genericModel = model.copy(name = model.name)
+        val styleName = if (!customName.isNullOrBlank()) customName else model.name
+        val genericModel = model.copy(name = styleName, folderId = folderId)
 
         savedStyles.add(genericModel)
         persistStyles(context)
@@ -47,10 +52,70 @@ object StyleManager {
         return savedStyles
     }
 
+    fun getFolders(): List<StyleFolder> {
+        return savedFolders
+    }
+
+    fun addFolder(context: Context, name: String): StyleFolder {
+        val folder = StyleFolder(name = name)
+        savedFolders.add(folder)
+        persistFolders(context)
+        return folder
+    }
+
+    fun renameFolder(context: Context, id: String, newName: String) {
+        val index = savedFolders.indexOfFirst { it.id == id }
+        if (index != -1) {
+            savedFolders[index] = savedFolders[index].copy(name = newName)
+            persistFolders(context)
+        }
+    }
+
+    fun deleteFolder(context: Context, id: String) {
+        savedFolders.removeAll { it.id == id }
+        var modified = false
+        for (i in savedStyles.indices) {
+            if (savedStyles[i].folderId == id) {
+                savedStyles[i] = savedStyles[i].copy(folderId = null)
+                modified = true
+            }
+        }
+        persistFolders(context)
+        if (modified) {
+            persistStyles(context)
+        }
+    }
+
+    fun assignStyleToFolder(context: Context, index: Int, folderId: String?) {
+        if (index in 0 until savedStyles.size) {
+            savedStyles[index] = savedStyles[index].copy(folderId = folderId)
+            persistStyles(context)
+        }
+    }
+
+    fun assignStyleToFolderByStyle(context: Context, style: StyleModel, folderId: String?) {
+        val index = savedStyles.indexOf(style)
+        if (index != -1) {
+            assignStyleToFolder(context, index, folderId)
+        } else {
+            val altIndex = savedStyles.indexOfFirst { it == style }
+            if (altIndex != -1) {
+                assignStyleToFolder(context, altIndex, folderId)
+            }
+        }
+    }
+
     fun deleteStyle(context: Context, index: Int) {
         if (index in 0 until savedStyles.size) {
             savedStyles.removeAt(index)
             persistStyles(context)
+        }
+    }
+
+    fun deleteStyleByModel(context: Context, style: StyleModel) {
+        val index = savedStyles.indexOf(style)
+        if (index != -1) {
+            deleteStyle(context, index)
         }
     }
 
@@ -66,6 +131,13 @@ object StyleManager {
         if (index in 0 until savedStyles.size) {
             savedStyles[index] = savedStyles[index].copy(name = newName)
             persistStyles(context)
+        }
+    }
+
+    fun renameStyleByModel(context: Context, style: StyleModel, newName: String) {
+        val index = savedStyles.indexOf(style)
+        if (index != -1) {
+            renameStyle(context, index, newName)
         }
     }
 
@@ -90,8 +162,35 @@ object StyleManager {
         }
     }
 
+    private fun persistFolders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = Gson().toJson(savedFolders)
+        prefs.edit().putString(KEY_FOLDERS, json).apply()
+    }
+
+    private fun loadFolders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_FOLDERS, null)
+        if (json != null) {
+            try {
+                val type = object : TypeToken<List<StyleFolder>>() {}.type
+                val list: List<StyleFolder> = Gson().fromJson(json, type)
+                savedFolders.clear()
+                savedFolders.addAll(list)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    data class StyleFolder(
+        val id: String = UUID.randomUUID().toString(),
+        val name: String
+    )
+
     data class StyleModel(
         val name: String? = "Style",
+        val folderId: String? = null,
         val color: Int,
         val fontSize: Float,
         val fontPath: String?,

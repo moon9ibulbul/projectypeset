@@ -78,8 +78,9 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var inpaintManager: InpaintManager
     private lateinit var bubbleProcessor: com.astral.typer.utils.BubbleDetectorProcessor
 
-    // Style Rearrange
+    // Style Rearrange & Folder Selection
     private var isStyleRearrangeMode = false
+    private var selectedStyleFolderId: String? = "ALL" // "ALL", "UNASSIGNED", or folder.id
 
     // Typer
     private var typerAdapter: TyperTextAdapter? = null
@@ -939,17 +940,63 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun saveCurrentStyle(layer: TextLayer) {
-        val input = EditText(this)
-        input.hint = "Enter Style Name"
+        val dialogView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(20), dpToPx(16), dpToPx(20), dpToPx(16))
+        }
 
-        // Actually StyleManager doesn't support naming yet, just list.
-        // And user didn't ask for it.
-        // But we need to call StyleManager.saveStyle(context, layer).
+        val nameInput = EditText(this).apply {
+            hint = "Style Name"
+            setText(layer.name)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            setHintTextColor(Color.GRAY)
+        }
+        dialogView.addView(nameInput)
 
-        StyleManager.saveStyle(this, layer)
-        Toast.makeText(this, "Style Saved", Toast.LENGTH_SHORT).show()
-        // Do not hide, just refresh directly
-        showStyleMenu()
+        val folders = StyleManager.getFolders()
+        val folderNames = mutableListOf("None (Unassigned)")
+        folderNames.addAll(folders.map { it.name })
+
+        val spinner = android.widget.Spinner(this).apply {
+            val adapter = android.widget.ArrayAdapter(
+                this@EditorActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                folderNames
+            )
+            setAdapter(adapter)
+            // Preselect currently filtered folder if a specific folder is active
+            if (selectedStyleFolderId != "ALL" && selectedStyleFolderId != "UNASSIGNED") {
+                val folderIndex = folders.indexOfFirst { it.id == selectedStyleFolderId }
+                if (folderIndex != -1) {
+                    setSelection(folderIndex + 1)
+                }
+            }
+        }
+
+        val spinnerLabel = TextView(this).apply {
+            text = "Select Folder:"
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+            setPadding(0, dpToPx(12), 0, dpToPx(4))
+        }
+        dialogView.addView(spinnerLabel)
+        dialogView.addView(spinner)
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Save Current Style")
+            .setView(dialogView)
+            .setPositiveButton("Save") { _, _ ->
+                val customName = nameInput.text.toString().trim()
+                val selectedPos = spinner.selectedItemPosition
+                val folderId = if (selectedPos > 0 && selectedPos - 1 < folders.size) {
+                    folders[selectedPos - 1].id
+                } else null
+
+                StyleManager.saveStyle(this, layer, folderId = folderId, customName = customName)
+                Toast.makeText(this, "Style Saved", Toast.LENGTH_SHORT).show()
+                showStyleMenu()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showEffectMenu() {
@@ -4214,13 +4261,152 @@ class EditorActivity : AppCompatActivity() {
         }
         buttonRow.addView(btnRearrange)
 
-        val saved = com.astral.typer.utils.StyleManager.getSavedStyles()
-        if (saved.isEmpty()) {
+        // Folder Chip Bar Row
+        val folders = StyleManager.getFolders()
+        val folderScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(dpToPx(16), 0, dpToPx(16), dpToPx(8))
+            }
+        }
+        val folderChipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        folderScroll.addView(folderChipRow)
+        container.addView(folderScroll)
+
+        // Helper to create themed chips
+        fun createFolderChip(title: String, isSelected: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)? = null): TextView {
+            return TextView(this).apply {
+                text = title
+                setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+                textSize = 13f
+                val activeBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)
+                val activeTextColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)
+                val inactiveBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appSurfaceColor)
+                val borderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)
+
+                setTextColor(activeTextColor)
+                background = GradientDrawable().apply {
+                    setColor(if (isSelected) activeBgColor else inactiveBgColor)
+                    setStroke(dpToPx(1), if (isSelected) activeTextColor else borderColor)
+                    cornerRadius = dpToPx(16).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, dpToPx(8), 0)
+                }
+                setOnClickListener { onClick() }
+                if (onLongClick != null) {
+                    setOnLongClickListener {
+                        onLongClick()
+                        true
+                    }
+                }
+            }
+        }
+
+        // "All" chip
+        folderChipRow.addView(createFolderChip("All", selectedStyleFolderId == "ALL", onClick = {
+            selectedStyleFolderId = "ALL"
+            showStyleMenu()
+        }))
+
+        // "Unassigned" chip
+        folderChipRow.addView(createFolderChip("Unassigned", selectedStyleFolderId == "UNASSIGNED", onClick = {
+            selectedStyleFolderId = "UNASSIGNED"
+            showStyleMenu()
+        }))
+
+        // Folder Chips
+        folders.forEach { folder ->
+            val chip = createFolderChip(folder.name, selectedStyleFolderId == folder.id, onClick = {
+                selectedStyleFolderId = folder.id
+                showStyleMenu()
+            }, onLongClick = {
+                val popup = android.widget.PopupMenu(this, folderChipRow)
+                popup.menu.add("Rename Folder")
+                popup.menu.add("Delete Folder")
+                popup.setOnMenuItemClickListener { menuItem ->
+                    when (menuItem.title) {
+                        "Rename Folder" -> {
+                            val input = EditText(this)
+                            input.setText(folder.name)
+                            android.app.AlertDialog.Builder(this)
+                                .setTitle("Rename Folder")
+                                .setView(input)
+                                .setPositiveButton("OK") { _, _ ->
+                                    val newName = input.text.toString().trim()
+                                    if (newName.isNotBlank()) {
+                                        StyleManager.renameFolder(this, folder.id, newName)
+                                        showStyleMenu()
+                                    }
+                                }
+                                .setNegativeButton("Cancel", null)
+                                .show()
+                            true
+                        }
+                        "Delete Folder" -> {
+                            android.app.AlertDialog.Builder(this)
+                                .setTitle("Delete Folder")
+                                .setMessage("Are you sure you want to delete folder '${folder.name}'? Styles inside will become Unassigned.")
+                                .setPositiveButton("Delete") { _, _ ->
+                                    if (selectedStyleFolderId == folder.id) {
+                                        selectedStyleFolderId = "ALL"
+                                    }
+                                    StyleManager.deleteFolder(this, folder.id)
+                                    showStyleMenu()
+                                }
+                                .setNegativeButton("Cancel", null)
+                                .show()
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                popup.show()
+            })
+            folderChipRow.addView(chip)
+        }
+
+        // "+ Add Folder" button chip
+        val btnAddFolder = createFolderChip("+ Folder", false, onClick = {
+            val input = EditText(this).apply { hint = "Folder Name" }
+            android.app.AlertDialog.Builder(this)
+                .setTitle("New Folder")
+                .setView(input)
+                .setPositiveButton("Create") { _, _ ->
+                    val folderName = input.text.toString().trim()
+                    if (folderName.isNotBlank()) {
+                        val newFolder = StyleManager.addFolder(this, folderName)
+                        selectedStyleFolderId = newFolder.id
+                        showStyleMenu()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        })
+        folderChipRow.addView(btnAddFolder)
+
+        val savedAll = com.astral.typer.utils.StyleManager.getSavedStyles()
+        val filteredStyles = when (selectedStyleFolderId) {
+            "ALL" -> savedAll
+            "UNASSIGNED" -> savedAll.filter { it.folderId.isNullOrEmpty() }
+            else -> savedAll.filter { it.folderId == selectedStyleFolderId }
+        }
+
+        if (filteredStyles.isEmpty()) {
             container.addView(TextView(this).apply {
-                text = "No Saved Styles"
+                text = if (savedAll.isEmpty()) "No Saved Styles" else "No Styles in this folder"
                 setTextColor(Color.GRAY)
                 gravity = Gravity.CENTER
-                setPadding(0, 32, 0, 0)
+                setPadding(0, 32, 0, 32)
             })
         } else {
             val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
@@ -4229,20 +4415,40 @@ class EditorActivity : AppCompatActivity() {
             }
             container.addView(recyclerView)
 
-            val adapter = StyleAdapter(this, lifecycleScope, saved,
+            val adapter = StyleAdapter(this, lifecycleScope, filteredStyles,
                 onApply = { style ->
                     if (!isStyleRearrangeMode && layer != null) {
                         applyStyleToLayer(layer, style)
                         Toast.makeText(this, "Style Applied", Toast.LENGTH_SHORT).show()
                     }
                 },
-                onLongClick = { view, index, style ->
+                onLongClick = { view, _, style ->
                     if (!isStyleRearrangeMode) {
                         val popup = android.widget.PopupMenu(this, view)
+                        popup.menu.add("Move to Folder")
                         popup.menu.add("Rename")
                         popup.menu.add("Delete")
                         popup.setOnMenuItemClickListener { item ->
                             when(item.title) {
+                                "Move to Folder" -> {
+                                    val currentFolders = StyleManager.getFolders()
+                                    val options = mutableListOf("None (Unassigned)")
+                                    options.addAll(currentFolders.map { it.name })
+
+                                    android.app.AlertDialog.Builder(this)
+                                        .setTitle("Move to Folder")
+                                        .setItems(options.toTypedArray()) { _, which ->
+                                            val targetFolderId = if (which > 0 && which - 1 < currentFolders.size) {
+                                                currentFolders[which - 1].id
+                                            } else null
+
+                                            StyleManager.assignStyleToFolderByStyle(this, style, targetFolderId)
+                                            showStyleMenu()
+                                        }
+                                        .setNegativeButton("Cancel", null)
+                                        .show()
+                                    true
+                                }
                                 "Rename" -> {
                                     val input = EditText(this)
                                     input.setText(style.name ?: "")
@@ -4252,7 +4458,7 @@ class EditorActivity : AppCompatActivity() {
                                         .setPositiveButton("OK") { _, _ ->
                                             val newName = input.text.toString()
                                             if (newName.isNotBlank()) {
-                                                StyleManager.renameStyle(this, index, newName)
+                                                StyleManager.renameStyleByModel(this, style, newName)
                                                 showStyleMenu() // Refresh
                                             }
                                         }
@@ -4261,7 +4467,7 @@ class EditorActivity : AppCompatActivity() {
                                     true
                                 }
                                 "Delete" -> {
-                                    StyleManager.deleteStyle(this, index)
+                                    StyleManager.deleteStyleByModel(this, style)
                                     showStyleMenu() // Refresh
                                     true
                                 }
@@ -4291,9 +4497,19 @@ class EditorActivity : AppCompatActivity() {
                         if (fromPos == androidx.recyclerview.widget.RecyclerView.NO_POSITION || toPos == androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
                             return false
                         }
-                        com.astral.typer.utils.StyleManager.moveStyle(this@EditorActivity, fromPos, toPos)
-                        rv.adapter?.notifyItemMoved(fromPos, toPos)
-                        return true
+                        val fromStyle = filteredStyles.getOrNull(fromPos)
+                        val toStyle = filteredStyles.getOrNull(toPos)
+                        val allStyles = com.astral.typer.utils.StyleManager.getSavedStyles()
+                        if (fromStyle != null && toStyle != null) {
+                            val globalFromIndex = allStyles.indexOf(fromStyle)
+                            val globalToIndex = allStyles.indexOf(toStyle)
+                            if (globalFromIndex != -1 && globalToIndex != -1) {
+                                com.astral.typer.utils.StyleManager.moveStyle(this@EditorActivity, globalFromIndex, globalToIndex)
+                                rv.adapter?.notifyItemMoved(fromPos, toPos)
+                                return true
+                            }
+                        }
+                        return false
                     }
 
                     override fun onSwiped(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, direction: Int) {}
