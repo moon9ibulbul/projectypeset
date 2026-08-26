@@ -4210,97 +4210,53 @@ class EditorActivity : AppCompatActivity() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() as? TextLayer
 
-        // Button row
-        val buttonRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
-            }
-        }
-        container.addView(buttonRow)
-
-        if (layer != null) {
-            val btnSaveStyle = android.widget.Button(this).apply {
-                text = "Save Current Style"
-                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                background = GradientDrawable().apply {
-                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
-                    cornerRadius = dpToPx(8).toFloat()
-                }
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    setMargins(0, 0, dpToPx(8), 0)
-                }
-                setOnClickListener {
-                    saveCurrentStyle(layer)
-                }
-            }
-            buttonRow.addView(btnSaveStyle)
-        }
-
-        val btnRearrange = android.widget.Button(this).apply {
-            text = if (isStyleRearrangeMode) "Done" else "Rearrange"
-            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            background = GradientDrawable().apply {
-                setColor(if (isStyleRearrangeMode) 0xFF4CAF50.toInt() else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                if(!isStyleRearrangeMode) setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)) // Green when active, otherwise gray
-                cornerRadius = dpToPx(8).toFloat()
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                if (layer != null) 0 else ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                if (layer != null) 1f else 0f
-            )
-            setOnClickListener {
-                isStyleRearrangeMode = !isStyleRearrangeMode
-                showStyleMenu() // Refresh Style Menu to update UI and Toggle modes
-            }
-        }
-        buttonRow.addView(btnRearrange)
-
-        // Folder Chip Bar Row
+        // Unified Horizontal Control & Folder Bar
         val folders = StyleManager.getFolders()
-        val folderScroll = HorizontalScrollView(this).apply {
+        val topScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(dpToPx(16), 0, dpToPx(16), dpToPx(8))
+                setMargins(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(6))
             }
         }
-        val folderChipRow = LinearLayout(this).apply {
+        val topRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        folderScroll.addView(folderChipRow)
-        container.addView(folderScroll)
+        topScroll.addView(topRow)
+        container.addView(topScroll)
 
         // Helper to create themed chips
-        fun createFolderChip(title: String, isSelected: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)? = null): TextView {
+        fun createFolderChip(
+            title: String,
+            isSelected: Boolean,
+            isActionBtn: Boolean = false,
+            actionBgColor: Int? = null,
+            onClick: () -> Unit,
+            onLongClick: (() -> Unit)? = null
+        ): TextView {
             return TextView(this).apply {
                 text = title
                 setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
-                textSize = 13f
-                val activeBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)
+                textSize = 12.5f
+                val activeBgColor = actionBgColor ?: com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)
                 val activeTextColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)
                 val inactiveBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appSurfaceColor)
                 val borderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)
 
                 setTextColor(activeTextColor)
                 background = GradientDrawable().apply {
-                    setColor(if (isSelected) activeBgColor else inactiveBgColor)
-                    setStroke(dpToPx(1), if (isSelected) activeTextColor else borderColor)
+                    setColor(if (isSelected || isActionBtn) activeBgColor else inactiveBgColor)
+                    setStroke(dpToPx(1), if (isSelected || isActionBtn) activeTextColor else borderColor)
                     cornerRadius = dpToPx(16).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    setMargins(0, 0, dpToPx(8), 0)
+                    setMargins(0, 0, dpToPx(6), 0)
                 }
                 setOnClickListener { onClick() }
                 if (onLongClick != null) {
@@ -4312,14 +4268,33 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
+        // 1. Action: Save Style (if layer selected)
+        if (layer != null) {
+            topRow.addView(createFolderChip("+ Save", isSelected = false, isActionBtn = true, onClick = {
+                saveCurrentStyle(layer)
+            }))
+        }
+
+        // 2. Action: Rearrange / Done
+        topRow.addView(createFolderChip(
+            title = if (isStyleRearrangeMode) "Done" else "Rearrange",
+            isSelected = isStyleRearrangeMode,
+            isActionBtn = isStyleRearrangeMode,
+            actionBgColor = if (isStyleRearrangeMode) 0xFF4CAF50.toInt() else null,
+            onClick = {
+                isStyleRearrangeMode = !isStyleRearrangeMode
+                showStyleMenu()
+            }
+        ))
+
         // "All" chip
-        folderChipRow.addView(createFolderChip("All", selectedStyleFolderId == "ALL", onClick = {
+        topRow.addView(createFolderChip("All", selectedStyleFolderId == "ALL", onClick = {
             selectedStyleFolderId = "ALL"
             showStyleMenu()
         }))
 
         // "Unassigned" chip
-        folderChipRow.addView(createFolderChip("Unassigned", selectedStyleFolderId == "UNASSIGNED", onClick = {
+        topRow.addView(createFolderChip("Unassigned", selectedStyleFolderId == "UNASSIGNED", onClick = {
             selectedStyleFolderId = "UNASSIGNED"
             showStyleMenu()
         }))
@@ -4330,7 +4305,7 @@ class EditorActivity : AppCompatActivity() {
                 selectedStyleFolderId = folder.id
                 showStyleMenu()
             }, onLongClick = {
-                val popup = android.widget.PopupMenu(this, folderChipRow)
+                val popup = android.widget.PopupMenu(this, topRow)
                 popup.menu.add("Rename Folder")
                 popup.menu.add("Delete Folder")
                 popup.setOnMenuItemClickListener { menuItem ->
@@ -4372,7 +4347,7 @@ class EditorActivity : AppCompatActivity() {
                 }
                 popup.show()
             })
-            folderChipRow.addView(chip)
+            topRow.addView(chip)
         }
 
         // "+ Add Folder" button chip
@@ -4392,7 +4367,7 @@ class EditorActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         })
-        folderChipRow.addView(btnAddFolder)
+        topRow.addView(btnAddFolder)
 
         val savedAll = com.astral.typer.utils.StyleManager.getSavedStyles()
         val filteredStyles = (when (selectedStyleFolderId) {
@@ -4406,12 +4381,22 @@ class EditorActivity : AppCompatActivity() {
                 text = if (savedAll.isEmpty()) "No Saved Styles" else "No Styles in this folder"
                 setTextColor(Color.GRAY)
                 gravity = Gravity.CENTER
-                setPadding(0, 32, 0, 32)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                )
             })
         } else {
             val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
                 layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@EditorActivity, 3)
-                setPadding(8, 8, 8, 8)
+                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                clipToPadding = false
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                )
             }
             container.addView(recyclerView)
 
