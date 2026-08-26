@@ -734,6 +734,11 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // Reload StyleManager in-memory styles and folders if imported
+            if (cbStyle.isChecked) {
+                com.astral.typer.utils.StyleManager.reload(this)
+            }
+
             // Restart App? Or just toast.
             // SharedPrefs might need reload. Process restart is safest.
             Toast.makeText(this, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()

@@ -15,29 +15,39 @@ import com.astral.typer.models.TextLayer
 import com.astral.typer.models.TextEffectType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.util.UUID
 
 object StyleManager {
     private val savedStyles = mutableListOf<StyleModel>()
+    private val savedFolders = mutableListOf<StyleFolder>()
     var clipboardStyle: StyleModel? = null
 
     private const val PREFS_NAME = "style_prefs"
     private const val KEY_STYLES = "saved_styles"
+    private const val KEY_FOLDERS = "saved_style_folders"
 
     fun init(context: Context) {
         if (savedStyles.isEmpty()) {
             loadStyles(context)
         }
+        if (savedFolders.isEmpty()) {
+            loadFolders(context)
+        }
+    }
+
+    fun reload(context: Context) {
+        loadStyles(context)
+        loadFolders(context)
     }
 
     fun copyStyle(layer: TextLayer) {
         clipboardStyle = toModel(layer)
     }
 
-    fun saveStyle(context: Context, layer: TextLayer) {
+    fun saveStyle(context: Context, layer: TextLayer, folderId: String? = null, customName: String? = null) {
         val model = toModel(layer)
-        // Ensure generic preview name/text if needed?
-        // The original code reset text to "Abc".
-        val genericModel = model.copy(name = model.name)
+        val styleName = if (!customName.isNullOrBlank()) customName else model.name
+        val genericModel = model.copy(name = styleName, folderId = folderId)
 
         savedStyles.add(genericModel)
         persistStyles(context)
@@ -47,10 +57,70 @@ object StyleManager {
         return savedStyles
     }
 
+    fun getFolders(): List<StyleFolder> {
+        return savedFolders
+    }
+
+    fun addFolder(context: Context, name: String): StyleFolder {
+        val folder = StyleFolder(name = name)
+        savedFolders.add(folder)
+        persistFolders(context)
+        return folder
+    }
+
+    fun renameFolder(context: Context, id: String, newName: String) {
+        val index = savedFolders.indexOfFirst { it.id == id }
+        if (index != -1) {
+            savedFolders[index] = savedFolders[index].copy(name = newName)
+            persistFolders(context)
+        }
+    }
+
+    fun deleteFolder(context: Context, id: String) {
+        savedFolders.removeAll { it.id == id }
+        var modified = false
+        for (i in savedStyles.indices) {
+            if (savedStyles[i].folderId == id) {
+                savedStyles[i] = savedStyles[i].copy(folderId = null)
+                modified = true
+            }
+        }
+        persistFolders(context)
+        if (modified) {
+            persistStyles(context)
+        }
+    }
+
+    fun assignStyleToFolder(context: Context, index: Int, folderId: String?) {
+        if (index in 0 until savedStyles.size) {
+            savedStyles[index] = savedStyles[index].copy(folderId = folderId)
+            persistStyles(context)
+        }
+    }
+
+    fun assignStyleToFolderByStyle(context: Context, style: StyleModel, folderId: String?) {
+        val index = savedStyles.indexOf(style)
+        if (index != -1) {
+            assignStyleToFolder(context, index, folderId)
+        } else {
+            val altIndex = savedStyles.indexOfFirst { it == style }
+            if (altIndex != -1) {
+                assignStyleToFolder(context, altIndex, folderId)
+            }
+        }
+    }
+
     fun deleteStyle(context: Context, index: Int) {
         if (index in 0 until savedStyles.size) {
             savedStyles.removeAt(index)
             persistStyles(context)
+        }
+    }
+
+    fun deleteStyleByModel(context: Context, style: StyleModel) {
+        val index = savedStyles.indexOf(style)
+        if (index != -1) {
+            deleteStyle(context, index)
         }
     }
 
@@ -66,6 +136,13 @@ object StyleManager {
         if (index in 0 until savedStyles.size) {
             savedStyles[index] = savedStyles[index].copy(name = newName)
             persistStyles(context)
+        }
+    }
+
+    fun renameStyleByModel(context: Context, style: StyleModel, newName: String) {
+        val index = savedStyles.indexOf(style)
+        if (index != -1) {
+            renameStyle(context, index, newName)
         }
     }
 
@@ -90,8 +167,35 @@ object StyleManager {
         }
     }
 
+    private fun persistFolders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = Gson().toJson(savedFolders)
+        prefs.edit().putString(KEY_FOLDERS, json).apply()
+    }
+
+    private fun loadFolders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_FOLDERS, null)
+        if (json != null) {
+            try {
+                val type = object : TypeToken<List<StyleFolder>>() {}.type
+                val list: List<StyleFolder> = Gson().fromJson(json, type)
+                savedFolders.clear()
+                savedFolders.addAll(list)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    data class StyleFolder(
+        val id: String = UUID.randomUUID().toString(),
+        val name: String
+    )
+
     data class StyleModel(
         val name: String? = "Style",
+        val folderId: String? = null,
         val color: Int,
         val fontSize: Float,
         val fontPath: String?,
@@ -265,49 +369,145 @@ object StyleManager {
         val isStrike = l.text.getSpans(0, l.text.length, StrikethroughSpan::class.java).isNotEmpty()
 
         return StyleModel(
-            l.name,
-            l.color, l.fontSize, l.fontPath, l.opacity,
-            l.shadowColor, l.shadowRadius, l.shadowDx, l.shadowDy,
-            l.strokeColor, l.strokeWidth, l.doubleStrokeColor, l.doubleStrokeWidth,
-            l.tripleStrokeColor, l.tripleStrokeWidth,
-            l.isRoughStroke,
-            l.roughStrokeRoughness,
-            l.isGradient, l.gradientStartColor, l.gradientEndColor, l.gradientAngle,
-            l.hasMiddleColor, l.gradientMiddleColor,
-            l.gradientStartPos, l.gradientMiddlePos, l.gradientEndPos,
-            l.gradientStrength,
-            l.isGradientText, l.isGradientStroke, l.isGradientShadow,
-            l.letterSpacing, l.lineSpacing,
-            l.isMotionShadow, l.motionShadowAngle, l.motionShadowDistance,
-            l.motionShadowThickness,
-            l.blendMode, l.isOpacityGradient, l.opacityStart, l.opacityEnd, l.opacityAngle,
-            l.textAlign.ordinal, l.isJustified,
-            isBold, isItalic, isUnderline, isStrike,
-            l.radialBlurInnerRadius, l.radialBlurMotionStrength,
-            l.radialBlurCenterX, l.radialBlurCenterY,
-            l.decayIntensity, l.decayFadingLevel,
-            l.woodScratchIntensity, l.woodScratchColor,
-            l.twistAngle, l.twistOffsetX, l.twistOffsetY, l.twistRadius,
-            l.bulgeCenterX, l.bulgeCenterY, l.bulgeRadius, l.bulgeStrength,
-            l.reflectionAlphaStart, l.reflectionAlphaEnd, l.reflectionAmplitudeStart, l.reflectionAmplitudeEnd, l.reflectionBoundary, l.reflectionMirror, l.reflectionTime, l.reflectionWavelengthStart, l.reflectionWavelengthEnd,
-            l.zoomBlurCenterX, l.zoomBlurCenterY, l.zoomBlurInnerRadius, l.zoomBlurRadius, l.zoomBlurStrength,
-            l.speedLineType, l.speedLineWidth, l.speedLineHeight, l.speedLineCount, l.speedLineThickness, l.speedLineLength, l.speedLineAdditional, l.speedLineColor, l.speedLineAngle,
-            l.isPerspective, l.perspectivePoints,
-            l.isWarp, l.warpRows, l.warpCols, l.warpMesh,
-            l.currentEffect.name, l.secondaryEffect.name, l.tertiaryEffect.name,
-            l.wavyIntensity, l.wavyFrequency,
-            l.fieryColor, l.fieryIntensity,
-            l.neonRadius, l.neonColor,
-            l.neonAlpha, l.neonInnerStrength, l.neonOuterStrength,
-            l.neonKnockout, l.neonQuality,
-            l.halftoneDotSize, l.halftoneDotColor, l.halftoneThreshold,
-            l.halftoneType, l.halftoneAlpha, l.halftoneRange,
-            l.halftoneDensity, l.halftoneFadingIntensity, l.halftoneShape,
-            l.patternName, l.patternColor, l.patternAlpha, l.patternScale, l.patternRotation,
-            l.caseType, l.transformTypes, l.transformSizeMultiplier, l.transformAngleMultiplier, l.transformDotsMultiplier, l.chromaticAngle, l.shadowThickness,
-            l.tailLength, l.tailWavyIntensity, l.tailAngle, l.tailArrowPoint,
-            l.tailOffsetX, l.tailOffsetY, l.tailThickness, l.tailSeed,
-            l.glitchAmount, l.glitchDistance, l.glitchDirection
+            name = l.name,
+            folderId = null,
+            color = l.color,
+            fontSize = l.fontSize,
+            fontPath = l.fontPath,
+            opacity = l.opacity,
+            shadowColor = l.shadowColor,
+            shadowRadius = l.shadowRadius,
+            shadowDx = l.shadowDx,
+            shadowDy = l.shadowDy,
+            strokeColor = l.strokeColor,
+            strokeWidth = l.strokeWidth,
+            doubleStrokeColor = l.doubleStrokeColor,
+            doubleStrokeWidth = l.doubleStrokeWidth,
+            tripleStrokeColor = l.tripleStrokeColor,
+            tripleStrokeWidth = l.tripleStrokeWidth,
+            isRoughStroke = l.isRoughStroke,
+            roughStrokeRoughness = l.roughStrokeRoughness,
+            isGradient = l.isGradient,
+            gradientStart = l.gradientStartColor,
+            gradientEnd = l.gradientEndColor,
+            gradientAngle = l.gradientAngle,
+            hasMiddleColor = l.hasMiddleColor,
+            gradientMiddleColor = l.gradientMiddleColor,
+            gradientStartPos = l.gradientStartPos,
+            gradientMiddlePos = l.gradientMiddlePos,
+            gradientEndPos = l.gradientEndPos,
+            gradientStrength = l.gradientStrength,
+            isGradientText = l.isGradientText,
+            isGradientStroke = l.isGradientStroke,
+            isGradientShadow = l.isGradientShadow,
+            letterSpacing = l.letterSpacing,
+            lineSpacing = l.lineSpacing,
+            isMotionShadow = l.isMotionShadow,
+            motionAngle = l.motionShadowAngle,
+            motionDist = l.motionShadowDistance,
+            motionThickness = l.motionShadowThickness,
+            blendMode = l.blendMode,
+            isOpacityGradient = l.isOpacityGradient,
+            opacityStart = l.opacityStart,
+            opacityEnd = l.opacityEnd,
+            opacityAngle = l.opacityAngle,
+            textAlign = l.textAlign.ordinal,
+            isJustified = l.isJustified,
+            isBold = isBold,
+            isItalic = isItalic,
+            isUnderline = isUnderline,
+            isStrike = isStrike,
+            radialBlurInnerRadius = l.radialBlurInnerRadius,
+            radialBlurMotionStrength = l.radialBlurMotionStrength,
+            radialBlurCenterX = l.radialBlurCenterX,
+            radialBlurCenterY = l.radialBlurCenterY,
+            decayIntensity = l.decayIntensity,
+            decayFadingLevel = l.decayFadingLevel,
+            woodScratchIntensity = l.woodScratchIntensity,
+            woodScratchColor = l.woodScratchColor,
+            twistAngle = l.twistAngle,
+            twistOffsetX = l.twistOffsetX,
+            twistOffsetY = l.twistOffsetY,
+            twistRadius = l.twistRadius,
+            bulgeCenterX = l.bulgeCenterX,
+            bulgeCenterY = l.bulgeCenterY,
+            bulgeRadius = l.bulgeRadius,
+            bulgeStrength = l.bulgeStrength,
+            reflectionAlphaStart = l.reflectionAlphaStart,
+            reflectionAlphaEnd = l.reflectionAlphaEnd,
+            reflectionAmplitudeStart = l.reflectionAmplitudeStart,
+            reflectionAmplitudeEnd = l.reflectionAmplitudeEnd,
+            reflectionBoundary = l.reflectionBoundary,
+            reflectionMirror = l.reflectionMirror,
+            reflectionTime = l.reflectionTime,
+            reflectionWavelengthStart = l.reflectionWavelengthStart,
+            reflectionWavelengthEnd = l.reflectionWavelengthEnd,
+            zoomBlurCenterX = l.zoomBlurCenterX,
+            zoomBlurCenterY = l.zoomBlurCenterY,
+            zoomBlurInnerRadius = l.zoomBlurInnerRadius,
+            zoomBlurRadius = l.zoomBlurRadius,
+            zoomBlurStrength = l.zoomBlurStrength,
+            speedLineType = l.speedLineType,
+            speedLineWidth = l.speedLineWidth,
+            speedLineHeight = l.speedLineHeight,
+            speedLineCount = l.speedLineCount,
+            speedLineThickness = l.speedLineThickness,
+            speedLineLength = l.speedLineLength,
+            speedLineAdditional = l.speedLineAdditional,
+            speedLineColor = l.speedLineColor,
+            speedLineAngle = l.speedLineAngle,
+            isPerspective = l.isPerspective,
+            perspectivePoints = l.perspectivePoints,
+            isWarp = l.isWarp,
+            warpRows = l.warpRows,
+            warpCols = l.warpCols,
+            warpMesh = l.warpMesh,
+            currentEffect = l.currentEffect.name,
+            secondaryEffect = l.secondaryEffect.name,
+            tertiaryEffect = l.tertiaryEffect.name,
+            wavyIntensity = l.wavyIntensity,
+            wavyFrequency = l.wavyFrequency,
+            fieryColor = l.fieryColor,
+            fieryIntensity = l.fieryIntensity,
+            neonRadius = l.neonRadius,
+            neonColor = l.neonColor,
+            neonAlpha = l.neonAlpha,
+            neonInnerStrength = l.neonInnerStrength,
+            neonOuterStrength = l.neonOuterStrength,
+            neonKnockout = l.neonKnockout,
+            neonQuality = l.neonQuality,
+            halftoneDotSize = l.halftoneDotSize,
+            halftoneDotColor = l.halftoneDotColor,
+            halftoneThreshold = l.halftoneThreshold,
+            halftoneType = l.halftoneType,
+            halftoneAlpha = l.halftoneAlpha,
+            halftoneRange = l.halftoneRange,
+            halftoneDensity = l.halftoneDensity,
+            halftoneFadingIntensity = l.halftoneFadingIntensity,
+            halftoneShape = l.halftoneShape,
+            patternName = l.patternName,
+            patternColor = l.patternColor,
+            patternAlpha = l.patternAlpha,
+            patternScale = l.patternScale,
+            patternRotation = l.patternRotation,
+            caseType = l.caseType,
+            transformTypes = l.transformTypes,
+            transformSizeMultiplier = l.transformSizeMultiplier,
+            transformAngleMultiplier = l.transformAngleMultiplier,
+            transformDotsMultiplier = l.transformDotsMultiplier,
+            chromaticAngle = l.chromaticAngle,
+            shadowThickness = l.shadowThickness,
+            tailLength = l.tailLength,
+            tailWavyIntensity = l.tailWavyIntensity,
+            tailAngle = l.tailAngle,
+            tailArrowPoint = l.tailArrowPoint,
+            tailOffsetX = l.tailOffsetX,
+            tailOffsetY = l.tailOffsetY,
+            tailThickness = l.tailThickness,
+            tailSeed = l.tailSeed,
+            glitchAmount = l.glitchAmount,
+            glitchDistance = l.glitchDistance,
+            glitchDirection = l.glitchDirection
         )
     }
 
