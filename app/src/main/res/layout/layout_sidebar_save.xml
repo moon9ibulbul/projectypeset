@@ -113,13 +113,41 @@
                     android:textColor="?attr/appTextColorPrimary"
                     android:layout_marginBottom="8dp"/>
 
-                <SeekBar
-                    android:id="@+id/seekBarRawOpacity"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:max="255"
-                    android:progress="255"
-                    android:layout_marginBottom="16dp"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:id="@+id/btnMinusRawOpacity"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="−"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+
+                    <SeekBar
+                        android:id="@+id/seekBarRawOpacity"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="255"
+                        android:progress="255"/>
+
+                    <TextView
+                        android:id="@+id/btnPlusRawOpacity"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="+"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+                </LinearLayout>
 
             </LinearLayout>
 
@@ -242,13 +270,41 @@
                     android:textColor="?attr/appTextColorPrimary"
                     android:layout_marginBottom="8dp"/>
 
-                <SeekBar
-                    android:id="@+id/seekBarQuality"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:max="100"
-                    android:progress="100"
-                    android:layout_marginBottom="16dp"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:id="@+id/btnMinusQuality"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="−"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+
+                    <SeekBar
+                        android:id="@+id/seekBarQuality"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:progress="100"/>
+
+                    <TextView
+                        android:id="@+id/btnPlusQuality"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="+"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+                </LinearLayout>
             </LinearLayout>
 
             <Button

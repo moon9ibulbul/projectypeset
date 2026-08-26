@@ -426,6 +426,10 @@ object ProjectManager {
                     for (ls in letterSpacings) {
                         spanModels.add(SpanModel("LETTER_SPACING", spanStr.getSpanStart(ls), spanStr.getSpanEnd(ls), ls.spacing.toString()))
                     }
+                    val positionShifts = spanStr.getSpans(0, spanStr.length, PositionShiftSpan::class.java)
+                    for (ps in positionShifts) {
+                        spanModels.add(SpanModel("POSITION_SHIFT", spanStr.getSpanStart(ps), spanStr.getSpanEnd(ps), "${ps.shiftX},${ps.shiftY}"))
+                    }
 
                     layerModels.add(LayerModel(
                         type = "TEXT",
@@ -1220,6 +1224,18 @@ object ProjectManager {
                                  span.value?.let { lsStr ->
                                      try {
                                          sb.setSpan(LetterSpacingSpan(lsStr.toFloat()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                     } catch (e: Exception) {}
+                                 }
+                             }
+                             "POSITION_SHIFT" -> {
+                                 span.value?.let { shiftVal ->
+                                     try {
+                                         val parts = shiftVal.split(",")
+                                         if (parts.size == 2) {
+                                             val sx = parts[0].toFloat()
+                                             val sy = parts[1].toFloat()
+                                             sb.setSpan(PositionShiftSpan(sx, sy), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                         }
                                      } catch (e: Exception) {}
                                  }
                              }

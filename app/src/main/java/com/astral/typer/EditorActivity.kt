@@ -178,7 +178,7 @@ class EditorActivity : AppCompatActivity() {
             )
         }
         ThemeHelper.applyTheme(this)
-        currentThemeName = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
+        currentThemeName = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Light Grey") ?: "Light Grey"
         super.onCreate(savedInstanceState)
 
         // Clear Undo history from previous sessions if any
@@ -392,7 +392,7 @@ class EditorActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
+        val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Light Grey") ?: "Light Grey"
         if (prefsTheme != currentThemeName) {
             com.astral.typer.utils.TempCanvasState.layers = canvasView.getLayers().toList()
             com.astral.typer.utils.TempCanvasState.background = canvasView.getBackgroundImage()
@@ -3251,6 +3251,12 @@ class EditorActivity : AppCompatActivity() {
             sidebarBinding.spinnerExportScale.adapter = scaleAdapter
         }
 
+        sidebarBinding.btnMinusQuality?.setOnClickListener {
+            if (sidebarBinding.seekBarQuality.progress > 0) sidebarBinding.seekBarQuality.progress -= 1
+        }
+        sidebarBinding.btnPlusQuality?.setOnClickListener {
+            if (sidebarBinding.seekBarQuality.progress < sidebarBinding.seekBarQuality.max) sidebarBinding.seekBarQuality.progress += 1
+        }
         sidebarBinding.seekBarQuality.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                 sidebarBinding.tvQualityLabel.text = "Quality: $p%"
@@ -3294,6 +3300,12 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.seekBarRawOpacity.progress = canvasView.rawPanelOpacity
         sidebarBinding.tvRawOpacityLabel.text = "RAW Opacity: ${(canvasView.rawPanelOpacity / 2.55f).toInt()}%"
 
+        sidebarBinding.btnMinusRawOpacity?.setOnClickListener {
+            if (sidebarBinding.seekBarRawOpacity.progress > 0) sidebarBinding.seekBarRawOpacity.progress -= 1
+        }
+        sidebarBinding.btnPlusRawOpacity?.setOnClickListener {
+            if (sidebarBinding.seekBarRawOpacity.progress < sidebarBinding.seekBarRawOpacity.max) sidebarBinding.seekBarRawOpacity.progress += 1
+        }
         sidebarBinding.seekBarRawOpacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                 canvasView.rawPanelOpacity = p
@@ -3769,8 +3781,30 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
         }
+        val btnMinusSize = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (sbSize.progress > 0) sbSize.progress -= 1 }
+        }
+        val btnPlusSize = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (sbSize.progress < sbSize.max) sbSize.progress += 1 }
+        }
         sizeLayout.addView(tvSize)
+        sizeLayout.addView(btnMinusSize)
         sizeLayout.addView(sbSize)
+        sizeLayout.addView(btnPlusSize)
         toolbar.addView(sizeLayout)
 
         // 1.5. Expand / Reduce Slider (Only visible for Magic Wand)
@@ -3802,8 +3836,30 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
         }
+        val btnMinusExpand = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (sbExpand.progress > 0) sbExpand.progress -= 1 }
+        }
+        val btnPlusExpand = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (sbExpand.progress < sbExpand.max) sbExpand.progress += 1 }
+        }
         expandLayout.addView(tvExpand)
+        expandLayout.addView(btnMinusExpand)
         expandLayout.addView(sbExpand)
+        expandLayout.addView(btnPlusExpand)
         toolbar.addView(expandLayout)
 
         // 2. Button Container
@@ -6370,8 +6426,30 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+        val btnMinusSize = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (sizeSliderBar!!.progress > 0) sizeSliderBar!!.progress -= 1 }
+        }
+        val btnPlusSize = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (sizeSliderBar!!.progress < sizeSliderBar!!.max) sizeSliderBar!!.progress += 1 }
+        }
         sizeContainer.addView(sizeLabel)
+        sizeContainer.addView(btnMinusSize)
         sizeContainer.addView(sizeSliderBar)
+        sizeContainer.addView(btnPlusSize)
         mainLayout.addView(sizeContainer)
 
         // 3. Hardness Slider
@@ -6402,8 +6480,30 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+        val btnMinusHardness = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (hardnessSliderBar!!.progress > 0) hardnessSliderBar!!.progress -= 1 }
+        }
+        val btnPlusHardness = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (hardnessSliderBar!!.progress < hardnessSliderBar!!.max) hardnessSliderBar!!.progress += 1 }
+        }
         hardnessContainer.addView(hardnessLabel)
+        hardnessContainer.addView(btnMinusHardness)
         hardnessContainer.addView(hardnessSliderBar)
+        hardnessContainer.addView(btnPlusHardness)
         mainLayout.addView(hardnessContainer)
 
         // 4. Opacity Slider
@@ -6434,8 +6534,30 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+        val btnMinusOpacity = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (opacitySliderBar!!.progress > 0) opacitySliderBar!!.progress -= 1 }
+        }
+        val btnPlusOpacity = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (opacitySliderBar!!.progress < opacitySliderBar!!.max) opacitySliderBar!!.progress += 1 }
+        }
         opacityContainer.addView(opacityLabel)
+        opacityContainer.addView(btnMinusOpacity)
         opacityContainer.addView(opacitySliderBar)
+        opacityContainer.addView(btnPlusOpacity)
         mainLayout.addView(opacityContainer)
 
         // 5. Slow Tracking Slider
@@ -6466,8 +6588,30 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+        val btnMinusSlowTracking = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (slowTrackingSliderBar!!.progress > 0) slowTrackingSliderBar!!.progress -= 1 }
+        }
+        val btnPlusSlowTracking = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (slowTrackingSliderBar!!.progress < slowTrackingSliderBar!!.max) slowTrackingSliderBar!!.progress += 1 }
+        }
         slowTrackingContainer.addView(slowTrackingLabel)
+        slowTrackingContainer.addView(btnMinusSlowTracking)
         slowTrackingContainer.addView(slowTrackingSliderBar)
+        slowTrackingContainer.addView(btnPlusSlowTracking)
         mainLayout.addView(slowTrackingContainer)
 
         scroll.addView(mainLayout)
@@ -7372,18 +7516,64 @@ class EditorActivity : AppCompatActivity() {
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             tag = "SLIDER_LABEL"
         }
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+
+        val btnMinus = TextView(this).apply {
+            text = "−"
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(32)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            tag = "SLIDER_MINUS"
+        }
+
         val sb = SeekBar(this).apply {
             this.max = max
             progress = initial
             tag = "SLIDER_BAR"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) { onChange(p) }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
         }
+
+        val btnPlus = TextView(this).apply {
+            text = "+"
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(32)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            tag = "SLIDER_PLUS"
+        }
+
+        btnMinus.setOnClickListener {
+            if (sb.progress > 0) {
+                sb.progress -= 1
+            }
+        }
+
+        btnPlus.setOnClickListener {
+            if (sb.progress < sb.max) {
+                sb.progress += 1
+            }
+        }
+
+        row.addView(btnMinus)
+        row.addView(sb)
+        row.addView(btnPlus)
+
         wrap.addView(tv)
-        wrap.addView(sb)
+        wrap.addView(row)
         return wrap
     }
 
@@ -7585,51 +7775,22 @@ class EditorActivity : AppCompatActivity() {
             ))
 
             // Angle
-            val angleLabel = TextView(this@EditorActivity).apply {
-                text = "Blur Angle: ${currentMShadowAngle}°"
-                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            var angleSlider: View? = null
+            angleSlider = createSlider("Blur Angle: ${currentMShadowAngle}°", currentMShadowAngle, 360) { p ->
+                stylableLayer.motionShadowAngle = p
+                angleSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Blur Angle: $p°"
+                canvasView.invalidate()
             }
-            layout.addView(angleLabel)
-
-            val sbAngle = SeekBar(this@EditorActivity).apply {
-                max = 360
-                progress = currentMShadowAngle
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        stylableLayer.motionShadowAngle = p
-                        angleLabel.text = "Blur Angle: $p°"
-                        canvasView.invalidate()
-                    }
-
-                    override fun onStartTrackingTouch(s: SeekBar?) {}
-                    override fun onStopTrackingTouch(s: SeekBar?) {}
-                })
-            }
-            layout.addView(sbAngle)
+            layout.addView(angleSlider)
 
             // Distance
-            val distLabel = TextView(this@EditorActivity).apply {
-                text = "Blur Distance: ${currentMShadowDist.toInt()}"
-                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                setPadding(0, 16, 0, 0)
+            var distSlider: View? = null
+            distSlider = createSlider("Blur Distance: ${currentMShadowDist.toInt()}", currentMShadowDist.toInt(), 200) { p ->
+                stylableLayer.motionShadowDistance = p.toFloat()
+                distSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Blur Distance: $p"
+                canvasView.invalidate()
             }
-            layout.addView(distLabel)
-
-            val sbDist = SeekBar(this@EditorActivity).apply {
-                max = 200
-                progress = currentMShadowDist.toInt()
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        stylableLayer.motionShadowDistance = p.toFloat()
-                        distLabel.text = "Blur Distance: $p"
-                        canvasView.invalidate()
-                    }
-
-                    override fun onStartTrackingTouch(s: SeekBar?) {}
-                    override fun onStopTrackingTouch(s: SeekBar?) {}
-                })
-            }
-            layout.addView(sbDist)
+            layout.addView(distSlider)
 
             // Thickness
             layout.addView(createSlider("Thickness", stylableLayer.motionShadowThickness.toInt(), 20) {
