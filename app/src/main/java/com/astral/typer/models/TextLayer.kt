@@ -573,6 +573,7 @@ class TextLayer(
         result = 31 * result + gradientStartPos.hashCode()
         result = 31 * result + gradientMiddlePos.hashCode()
         result = 31 * result + gradientEndPos.hashCode()
+        result = 31 * result + gradientStrength.hashCode()
         result = 31 * result + isGradientText.hashCode()
         result = 31 * result + isGradientStroke.hashCode()
         result = 31 * result + isGradientShadow.hashCode()

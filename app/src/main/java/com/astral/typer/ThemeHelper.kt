@@ -7,7 +7,7 @@ object ThemeHelper {
 
     fun applyTheme(activity: Activity) {
         val prefs = activity.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val themeName = prefs.getString("app_theme", "Dark Grey")
+        val themeName = prefs.getString("app_theme", "Light Grey")
 
         when (themeName) {
             "Dark Grey" -> activity.setTheme(R.style.Theme_AstralTyper)
@@ -17,7 +17,7 @@ object ThemeHelper {
             "Cream" -> activity.setTheme(R.style.Theme_AstralTyper_Cream)
             "Sunset" -> activity.setTheme(R.style.Theme_AstralTyper_Sunset)
             "Pink" -> activity.setTheme(R.style.Theme_AstralTyper_Pink)
-            else -> activity.setTheme(R.style.Theme_AstralTyper)
+            else -> activity.setTheme(R.style.Theme_AstralTyper_LightGrey)
         }
     }
 }

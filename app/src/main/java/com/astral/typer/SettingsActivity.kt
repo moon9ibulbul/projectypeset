@@ -123,6 +123,12 @@ class SettingsActivity : AppCompatActivity() {
         sbWatermarkOpacity.progress = watermarkOpacity
         tvWatermarkOpacity.text = "Watermark Opacity: ${(watermarkOpacity / 2.55f).toInt()}%"
 
+        findViewById<android.view.View>(R.id.btnMinusWatermarkOpacity)?.setOnClickListener {
+            if (sbWatermarkOpacity.progress > 0) sbWatermarkOpacity.progress -= 1
+        }
+        findViewById<android.view.View>(R.id.btnPlusWatermarkOpacity)?.setOnClickListener {
+            if (sbWatermarkOpacity.progress < sbWatermarkOpacity.max) sbWatermarkOpacity.progress += 1
+        }
         sbWatermarkOpacity.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                 tvWatermarkOpacity.text = "Watermark Opacity: ${(progress / 2.55f).toInt()}%"
@@ -159,6 +165,12 @@ class SettingsActivity : AppCompatActivity() {
         sbWatermarkScale.progress = watermarkScaleFactor
         tvWatermarkScale.text = "Watermark Scale Factor: ${watermarkScaleFactor}%"
 
+        findViewById<android.view.View>(R.id.btnMinusWatermarkScale)?.setOnClickListener {
+            if (sbWatermarkScale.progress > 0) sbWatermarkScale.progress -= 1
+        }
+        findViewById<android.view.View>(R.id.btnPlusWatermarkScale)?.setOnClickListener {
+            if (sbWatermarkScale.progress < sbWatermarkScale.max) sbWatermarkScale.progress += 1
+        }
         sbWatermarkScale.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                 val clampedProgress = progress.coerceAtLeast(1)
@@ -200,6 +212,12 @@ class SettingsActivity : AppCompatActivity() {
         sbPdfQuality.progress = pdfQuality
         tvPdfQuality.text = getString(R.string.pdf_quality, pdfQuality)
 
+        findViewById<android.view.View>(R.id.btnMinusPdfQuality)?.setOnClickListener {
+            if (sbPdfQuality.progress > 0) sbPdfQuality.progress -= 1
+        }
+        findViewById<android.view.View>(R.id.btnPlusPdfQuality)?.setOnClickListener {
+            if (sbPdfQuality.progress < sbPdfQuality.max) sbPdfQuality.progress += 1
+        }
         sbPdfQuality.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                 tvPdfQuality.text = getString(R.string.pdf_quality, progress)
@@ -274,6 +292,12 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putString("inpaint_mask_shape", shape).apply()
         }
 
+        findViewById<android.view.View>(R.id.btnMinusInpaintPadding)?.setOnClickListener {
+            if (sbInpaintMaskPadding.progress > 0) sbInpaintMaskPadding.progress -= 1
+        }
+        findViewById<android.view.View>(R.id.btnPlusInpaintPadding)?.setOnClickListener {
+            if (sbInpaintMaskPadding.progress < sbInpaintMaskPadding.max) sbInpaintMaskPadding.progress += 1
+        }
         sbInpaintMaskPadding.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                 val actualPadding = progress - 20
@@ -498,7 +522,7 @@ class SettingsActivity : AppCompatActivity() {
 
             val rgThemes = dialogView.findViewById<android.widget.RadioGroup>(R.id.rgThemes)
             val appPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-            val currentTheme = appPrefs.getString("app_theme", "Dark Grey")
+            val currentTheme = appPrefs.getString("app_theme", "Light Grey")
 
             when (currentTheme) {
                 "Dark Grey" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeDarkGrey).isChecked = true
@@ -508,7 +532,7 @@ class SettingsActivity : AppCompatActivity() {
                 "Cream" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeCream).isChecked = true
                 "Sunset" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeSunset).isChecked = true
                 "Pink" -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemePink).isChecked = true
-                else -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeDarkGrey).isChecked = true
+                else -> dialogView.findViewById<android.widget.RadioButton>(R.id.rbThemeLightGrey).isChecked = true
             }
 
             dialogView.findViewById<Button>(R.id.btnCancelTheme).setOnClickListener {
@@ -525,7 +549,7 @@ class SettingsActivity : AppCompatActivity() {
                     R.id.rbThemeCream -> "Cream"
                     R.id.rbThemeSunset -> "Sunset"
                     R.id.rbThemePink -> "Pink"
-                    else -> "Dark Grey"
+                    else -> "Light Grey"
                 }
 
                 appPrefs.edit().putString("app_theme", newTheme).apply()

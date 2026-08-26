@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
         ThemeHelper.applyTheme(this)
-        currentThemeName = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
+        currentThemeName = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Light Grey") ?: "Light Grey"
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -246,7 +246,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Dark Grey") ?: "Dark Grey"
+        val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Light Grey") ?: "Light Grey"
         if (prefsTheme != currentThemeName) {
             recreate()
             return

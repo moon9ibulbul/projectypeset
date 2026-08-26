@@ -394,12 +394,40 @@
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="4dp"/>
 
-            <SeekBar
-                android:id="@+id/sbInpaintMaskPadding"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="40"
-                android:progress="20"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/btnMinusInpaintPadding"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:text="−"
+                    android:textSize="16sp"
+                    android:gravity="center"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+
+                <SeekBar
+                    android:id="@+id/sbInpaintMaskPadding"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="40"
+                    android:progress="20"/>
+
+                <TextView
+                    android:id="@+id/btnPlusInpaintPadding"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:text="+"
+                    android:textSize="16sp"
+                    android:gravity="center"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -451,13 +479,41 @@
                 android:textColor="?attr/appTextColorPrimary"
                 android:layout_marginBottom="8dp"/>
 
-            <SeekBar
-                android:id="@+id/sbWatermarkOpacity"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="255"
-                android:progress="255"
-                android:layout_marginBottom="16dp"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:id="@+id/btnMinusWatermarkOpacity"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:text="−"
+                    android:textSize="16sp"
+                    android:gravity="center"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+
+                <SeekBar
+                    android:id="@+id/sbWatermarkOpacity"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="255"
+                    android:progress="255"/>
+
+                <TextView
+                    android:id="@+id/btnPlusWatermarkOpacity"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:text="+"
+                    android:textSize="16sp"
+                    android:gravity="center"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+            </LinearLayout>
 
             <CheckBox
                 android:id="@+id/cbAutoWatermark"
@@ -489,13 +545,41 @@
                     android:text="Watermark Scale Factor: 25%"
                     android:textColor="?attr/appTextColorPrimary"/>
 
-                <SeekBar
-                    android:id="@+id/sbWatermarkScale"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:max="100"
-                    android:progress="25"
-                    android:layout_marginTop="4dp"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/btnMinusWatermarkScale"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="−"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+
+                    <SeekBar
+                        android:id="@+id/sbWatermarkScale"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:progress="25"/>
+
+                    <TextView
+                        android:id="@+id/btnPlusWatermarkScale"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="+"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -553,12 +637,40 @@
                 android:textSize="12sp"
                 android:layout_marginBottom="8dp"/>
 
-            <SeekBar
-                android:id="@+id/sbPdfQuality"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="100"
-                android:progress="80"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/btnMinusPdfQuality"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:text="−"
+                    android:textSize="16sp"
+                    android:gravity="center"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+
+                <SeekBar
+                    android:id="@+id/sbPdfQuality"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progress="80"/>
+
+                <TextView
+                    android:id="@+id/btnPlusPdfQuality"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:text="+"
+                    android:textSize="16sp"
+                    android:gravity="center"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- About / Donate -->
