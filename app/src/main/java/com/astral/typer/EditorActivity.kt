@@ -4077,6 +4077,9 @@ class EditorActivity : AppCompatActivity() {
 
     // --- LAYERS MENU ---
     private fun showLayerMenu() {
+        val selected = canvasView.getSelectedLayer()
+        canvasView.getLayers().forEach { it.isSelected = (it == selected) }
+
         val popupView = layoutInflater.inflate(R.layout.popup_layers, null)
         val popupWindow = android.widget.PopupWindow(popupView, dpToPx(300), dpToPx(400), true)
         popupWindow.elevation = 20f
