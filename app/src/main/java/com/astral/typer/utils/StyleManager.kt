@@ -705,10 +705,10 @@ object StyleManager {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // Draw transparent checkerboard background pattern so any text color (black, white, etc.) is clearly visible
+        // Draw neutral mid-grey checkerboard background pattern so white text/stroke and black text are both clearly visible
         val tileSize = 15
-        val paintLight = android.graphics.Paint().apply { color = 0xFFFFFFFF.toInt() }
-        val paintDark = android.graphics.Paint().apply { color = 0xFFCCCCCC.toInt() }
+        val paintLight = android.graphics.Paint().apply { color = 0xFFB8B8B8.toInt() }
+        val paintDark = android.graphics.Paint().apply { color = 0xFF787878.toInt() }
 
         for (y in 0 until h step tileSize) {
             for (x in 0 until w step tileSize) {
