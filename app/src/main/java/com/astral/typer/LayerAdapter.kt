@@ -107,13 +107,14 @@ class LayerAdapter(
         }
 
         // Highlight selection
+        val context = holder.itemView.context
+        val dp8 = (8 * context.resources.displayMetrics.density).toInt()
         if (layer.isSelected) {
-            val context = holder.itemView.context
             val strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
             val rRadius = (4 * context.resources.displayMetrics.density)
             val drawable = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.parseColor("#444444"))
-                setStroke(strokeWidth, Color.parseColor("#BB86FC"))
+                setColor(Color.parseColor("#202196F3"))
+                setStroke(strokeWidth, Color.parseColor("#2196F3"))
                 cornerRadius = rRadius
             }
             holder.container.background = drawable
@@ -121,6 +122,7 @@ class LayerAdapter(
             holder.container.background = null
             holder.container.setBackgroundColor(Color.TRANSPARENT)
         }
+        holder.container.setPadding(dp8, dp8, dp8, dp8)
 
         holder.btnVisible.alpha = if (layer.isVisible) 1.0f else 0.5f
         holder.btnLock.alpha = if (layer.isLocked) 1.0f else 0.5f

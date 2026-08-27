@@ -791,6 +791,7 @@ class AstralCanvasView @JvmOverloads constructor(
         layers.clear()
         layers.addAll(newLayers)
         selectedLayer = null
+        layers.forEach { it.isSelected = false }
         invalidate()
     }
 
@@ -1222,10 +1223,13 @@ class AstralCanvasView @JvmOverloads constructor(
     fun selectLayer(layer: Layer?) {
         if (selectedLayer != layer) {
             selectedLayer = layer
+            layers.forEach { it.isSelected = (it == layer) }
             onLayerSelectedListener?.onLayerSelected(layer)
             isPerspectiveMode = false
             exitCutMode()
             invalidate()
+        } else {
+            layers.forEach { it.isSelected = (it == layer) }
         }
     }
 
