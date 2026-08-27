@@ -6,6 +6,7 @@ import com.astral.typer.models.Layer
 object TempCanvasState {
     var layers: List<Layer>? = null
     var background: Bitmap? = null
+    var isBackgroundModified: Boolean = true
     var width: Int = 1080
     var height: Int = 1080
     var color: Int = -1
@@ -17,6 +18,7 @@ object TempCanvasState {
     fun clear() {
         layers = null
         background = null
+        isBackgroundModified = true
         projectName = null
         parentFolder = null
     }

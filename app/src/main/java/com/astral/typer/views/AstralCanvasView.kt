@@ -38,6 +38,8 @@ class AstralCanvasView @JvmOverloads constructor(
     private val backgroundTiles = mutableListOf<ImageTile>()
     private val TILE_SIZE = 1024
 
+    var isBackgroundModified: Boolean = false
+
     // Canvas Configuration
     var canvasWidth = 1080
         private set
@@ -777,6 +779,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 tileCanvas.drawBitmap(source, drawX, drawY, paint)
             }
         }
+        isBackgroundModified = true
         invalidate()
     }
 
@@ -1343,6 +1346,7 @@ class AstralCanvasView @JvmOverloads constructor(
             tile.bitmap.recycle()
         }
         backgroundTiles.clear()
+        isBackgroundModified = false
 
         for (tile in rawPanelTiles) {
             tile.bitmap.recycle()
@@ -1381,6 +1385,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
         backgroundTiles.clear()
         backgroundTiles.addAll(createTilesFromBitmap(bitmap))
+        isBackgroundModified = true
         invalidate()
     }
 
