@@ -2061,9 +2061,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
         val stylableLayer = layer as? com.astral.typer.models.StylableLayer
         val isWarpActive = stylableLayer?.isWarp ?: false
-        val isPerspectiveActive = stylableLayer?.isPerspective ?: false
 
-        if (isWarpActive && isWarpToolActive && stylableLayer != null) {
+        if (isWarpActive && (isWarpToolActive || isPerspectiveMode) && stylableLayer != null) {
             val mesh = stylableLayer.warpMesh
             val rows = stylableLayer.warpRows
             val cols = stylableLayer.warpCols
@@ -2110,30 +2109,6 @@ class AstralCanvasView @JvmOverloads constructor(
             return
         }
 
-        if (isPerspectiveActive && stylableLayer != null) {
-            val pts = stylableLayer.perspectivePoints
-            if (pts != null) {
-                val viewScale = getCurrentViewScale()
-                paint.style = Paint.Style.STROKE
-                paint.color = Color.CYAN
-                paint.strokeWidth = 2f / viewScale
-                val path = Path()
-                path.moveTo(pts[0], pts[1]); path.lineTo(pts[2], pts[3]); path.lineTo(pts[4], pts[5]); path.lineTo(pts[6], pts[7]); path.close()
-                canvas.drawPath(path, paint)
-
-                if (isPerspectiveMode) {
-                    val handleRadius = 20f / (((abs(layer.scaleX) + abs(layer.scaleY)) / 2f) * viewScale)
-                    handlePaint.color = Color.CYAN
-                    canvas.drawCircle(pts[0], pts[1], handleRadius, handlePaint)
-                    canvas.drawCircle(pts[2], pts[3], handleRadius, handlePaint)
-                    canvas.drawCircle(pts[4], pts[5], handleRadius, handlePaint)
-                    canvas.drawCircle(pts[6], pts[7], handleRadius, handlePaint)
-                    canvas.restore()
-                    return
-                }
-            }
-        }
-
         val halfW = layer.getWidth() / 2f
         val halfH = layer.getHeight() / 2f
 
@@ -2142,7 +2117,7 @@ class AstralCanvasView @JvmOverloads constructor(
         val localIconScale = geometry.scale
         val avgScale = (abs(layer.scaleX) + abs(layer.scaleY)) / 2f
 
-        val isSpecialMode = (stylableLayer != null && (stylableLayer.isPerspective && isPerspectiveMode || stylableLayer.isWarp && isWarpToolActive))
+        val isSpecialMode = (stylableLayer != null && (stylableLayer.isWarp && (isWarpToolActive || isPerspectiveMode)))
 
         if (!isSpecialMode) {
             paint.style = Paint.Style.STROKE
@@ -2720,29 +2695,18 @@ class AstralCanvasView @JvmOverloads constructor(
 
                     val stylableLayer = layer as? com.astral.typer.models.StylableLayer
                     val isWarpActive = stylableLayer?.isWarp ?: false
-                    val isPerspectiveActive = stylableLayer?.isPerspective ?: false
 
-                    if (isWarpActive && isWarpToolActive && stylableLayer != null) {
+                    if (isWarpActive && (isWarpToolActive || isPerspectiveMode) && stylableLayer != null) {
                          val mesh = stylableLayer.warpMesh
                          if (mesh != null) {
-                             val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
+                             val viewScale = getCurrentViewScale()
+                             val hitRadius = 40f / (((abs(layer.scaleX) + abs(layer.scaleY))/2f) * viewScale)
                              var bestIdx = -1; var minD = Float.MAX_VALUE
                              for (i in 0 until (mesh.size / 2)) {
                                  val d = getDistance(lx, ly, mesh[i*2], mesh[i*2+1])
                                  if (d < hitRadius && d < minD) { minD = d; bestIdx = i }
                              }
                              if (bestIdx != -1) { warpPointIndex = bestIdx; currentMode = Mode.WARP_DRAG; return true }
-                         }
-                    }
-
-                    if (isPerspectiveMode && isPerspectiveActive && stylableLayer != null) {
-                         val pts = stylableLayer.perspectivePoints
-                         if (pts != null) {
-                             val hitRadius = 40f / ((layer.scaleX + layer.scaleY)/2f)
-                             if (getDistance(lx, ly, pts[0], pts[1]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TL; return true }
-                             if (getDistance(lx, ly, pts[2], pts[3]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_TR; return true }
-                             if (getDistance(lx, ly, pts[4], pts[5]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BR; return true }
-                             if (getDistance(lx, ly, pts[6], pts[7]) < hitRadius) { currentMode = Mode.PERSPECTIVE_DRAG_BL; return true }
                          }
                     }
 
@@ -2964,34 +2928,6 @@ class AstralCanvasView @JvmOverloads constructor(
                         return true
                     }
 
-                    val stylableLayer = layer as? com.astral.typer.models.StylableLayer
-                    val isPerspectiveActive = stylableLayer?.isPerspective ?: false
-                    if (isPerspectiveMode && isPerspectiveActive && stylableLayer != null) {
-                         val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
-                         globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
-                         val pts = stylableLayer.perspectivePoints
-                         if (pts != null) {
-                             val lx = localPoint[0]; val ly = localPoint[1]
-
-                         when(currentMode) {
-                             Mode.PERSPECTIVE_DRAG_TL -> { pts[0] = lx; pts[1] = ly }
-                             Mode.PERSPECTIVE_DRAG_TR -> { pts[2] = lx; pts[3] = ly }
-                             Mode.PERSPECTIVE_DRAG_BR -> { pts[4] = lx; pts[5] = ly }
-                             Mode.PERSPECTIVE_DRAG_BL -> { pts[6] = lx; pts[7] = ly }
-                             Mode.DRAG_LAYER -> {
-                                 val dx = cx - lastTouchX
-                                 val dy = cy - lastTouchY
-                                 layer.x += dx
-                                 layer.y += dy
-                                 lastTouchX = cx
-                                 lastTouchY = cy
-                             }
-                             else -> {}
-                         }
-                         }
-                         invalidate()
-                         return true
-                    }
 
                     when (currentMode) {
                         Mode.DRAG_LAYER -> {

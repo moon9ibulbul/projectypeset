@@ -154,9 +154,61 @@ class TextLayer(
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
 
-    // Perspective
-    override var isPerspective: Boolean = false
-    override var perspectivePoints: FloatArray? = null
+    // Perspective (backed by 1x1 Warp mesh)
+    override var isPerspective: Boolean
+        get() = isWarp && warpRows == 1 && warpCols == 1
+        set(value) {
+            if (value) {
+                isWarp = true
+                if (warpMesh == null) {
+                    warpRows = 1
+                    warpCols = 1
+                    val w = getWidth()
+                    val h = getHeight()
+                    warpMesh = floatArrayOf(
+                        -w/2f, -h/2f,
+                        w/2f, -h/2f,
+                        -w/2f, h/2f,
+                        w/2f, h/2f
+                    )
+                }
+            } else {
+                if (isWarp && warpRows == 1 && warpCols == 1) {
+                    isWarp = false
+                    warpMesh = null
+                }
+            }
+        }
+
+    override var perspectivePoints: FloatArray?
+        get() {
+            val mesh = warpMesh ?: return null
+            if (mesh.size < 8) return null
+            return floatArrayOf(
+                mesh[0], mesh[1], // TL
+                mesh[2], mesh[3], // TR
+                mesh[6], mesh[7], // BR
+                mesh[4], mesh[5]  // BL
+            )
+        }
+        set(value) {
+            if (value != null && value.size >= 8) {
+                isWarp = true
+                warpRows = 1
+                warpCols = 1
+                warpMesh = floatArrayOf(
+                    value[0], value[1], // TL
+                    value[2], value[3], // TR
+                    value[6], value[7], // BL
+                    value[4], value[5]  // BR
+                )
+            } else if (value == null) {
+                if (isWarp && warpRows == 1 && warpCols == 1) {
+                    isWarp = false
+                    warpMesh = null
+                }
+            }
+        }
 
     // Warp
     override var isWarp: Boolean = false
@@ -748,7 +800,7 @@ class TextLayer(
 
             // Apply Erase Mask (with scale since clean content is qualityScale-scaled)
             val isWarpActive = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())
-            val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
+            val hasTransform = isWarpActive
             if (!hasTransform) {
                 if (eraseMask != null) {
                     val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -1617,22 +1669,6 @@ class TextLayer(
             }
             b.inset(-50f, -50f)
             b
-        } else if (isPerspective && perspectivePoints != null) {
-            val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
-            val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
-            val b = RectF()
-            val pts = floatArrayOf(
-                -w / 2f, -h / 2f,
-                w / 2f, -h / 2f,
-                w / 2f, -h / 2f + ch,
-                -w / 2f, -h / 2f + ch
-            )
-            matrix.mapPoints(pts)
-            for (i in 0 until 4) {
-                if (i == 0) b.set(pts[i * 2], pts[i * 2 + 1], pts[i * 2], pts[i * 2 + 1]) else b.union(pts[i * 2], pts[i * 2 + 1])
-            }
-            b.inset(-pad - 50f, -pad - 50f)
-            b
         } else {
             RectF(-w / 2f - pad, -h / 2f - pad, w / 2f + pad, h / 2f + pad)
         }
@@ -1652,7 +1688,7 @@ class TextLayer(
             }
         }
 
-        val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
+        val hasTransform = isWarpActive
         val hasHardwareShaderEffect = activeEffects.any {
             it == TextEffectType.FIERY ||
             it == TextEffectType.WAVY ||
@@ -1693,8 +1729,6 @@ class TextLayer(
                         } else {
                             drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
                         }
-                    } else if (isPerspective && perspectivePoints != null) {
-                        drawPerspective(targetCanvas, layout, w, h, ch, skipEffects = true, bounds = bounds)
                     }
                 }
 
@@ -1716,8 +1750,6 @@ class TextLayer(
                     } else {
                         drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
                     }
-                } else if (isPerspective && perspectivePoints != null) {
-                     drawPerspective(canvas, layout, w, h, ch, skipEffects = false, bounds = bounds)
                 } else {
                  val pad = calculatePadding()
                  val hasErase = eraseMask != null || activeErasePath != null
@@ -4076,7 +4108,7 @@ class TextLayer(
                 }
                 TextEffectType.WAVY -> {
                     var useRenderEffect = false
-                    val isTransformed = isWarp || isPerspective
+                    val isTransformed = isWarp
                     if (!isTransformed && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("WavyNode")
@@ -4776,7 +4808,7 @@ class TextLayer(
 
         val pad = calculatePadding()
         val isWarpActive = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())
-        val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
+        val hasTransform = isWarpActive
         if (!hasTransform) {
             // Apply Erase Mask
             if (eraseMask != null) {

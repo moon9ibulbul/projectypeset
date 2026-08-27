@@ -67,9 +67,61 @@ class ShapeLayer(
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
 
-    // Perspective
-    override var isPerspective: Boolean = false
-    override var perspectivePoints: FloatArray? = null
+    // Perspective (backed by 1x1 Warp mesh)
+    override var isPerspective: Boolean
+        get() = isWarp && warpRows == 1 && warpCols == 1
+        set(value) {
+            if (value) {
+                isWarp = true
+                if (warpMesh == null) {
+                    warpRows = 1
+                    warpCols = 1
+                    val w = getWidth()
+                    val h = getHeight()
+                    warpMesh = floatArrayOf(
+                        -w/2f, -h/2f,
+                        w/2f, -h/2f,
+                        -w/2f, h/2f,
+                        w/2f, h/2f
+                    )
+                }
+            } else {
+                if (isWarp && warpRows == 1 && warpCols == 1) {
+                    isWarp = false
+                    warpMesh = null
+                }
+            }
+        }
+
+    override var perspectivePoints: FloatArray?
+        get() {
+            val mesh = warpMesh ?: return null
+            if (mesh.size < 8) return null
+            return floatArrayOf(
+                mesh[0], mesh[1], // TL
+                mesh[2], mesh[3], // TR
+                mesh[6], mesh[7], // BR
+                mesh[4], mesh[5]  // BL
+            )
+        }
+        set(value) {
+            if (value != null && value.size >= 8) {
+                isWarp = true
+                warpRows = 1
+                warpCols = 1
+                warpMesh = floatArrayOf(
+                    value[0], value[1], // TL
+                    value[2], value[3], // TR
+                    value[6], value[7], // BL
+                    value[4], value[5]  // BR
+                )
+            } else if (value == null) {
+                if (isWarp && warpRows == 1 && warpCols == 1) {
+                    isWarp = false
+                    warpMesh = null
+                }
+            }
+        }
 
     // Warp
     override var isWarp: Boolean = false
@@ -410,22 +462,6 @@ class ShapeLayer(
             }
             b.inset(-pad - 50f, -pad - 50f)
             b
-        } else if (isPerspective && perspectivePoints != null) {
-            val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
-            val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
-            val b = RectF()
-            val pts = floatArrayOf(
-                -w / 2f, -h / 2f,
-                w / 2f, -h / 2f,
-                w / 2f, h / 2f,
-                -w / 2f, h / 2f
-            )
-            matrix.mapPoints(pts)
-            for (i in 0 until 4) {
-                if (i == 0) b.set(pts[i * 2], pts[i * 2 + 1], pts[i * 2], pts[i * 2 + 1]) else b.union(pts[i * 2], pts[i * 2 + 1])
-            }
-            b.inset(-pad - 50f, -pad - 50f)
-            b
         } else {
             RectF(-w / 2f - pad, -h / 2f - pad, w / 2f + pad, h / 2f + pad)
         }
@@ -445,7 +481,7 @@ class ShapeLayer(
             }
         }
 
-        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        val hasTransform = (isWarp && warpMesh != null)
         val hasHardwareShaderEffect = activeEffects.any {
             it == TextEffectType.FIERY ||
             it == TextEffectType.WAVY ||
@@ -473,8 +509,6 @@ class ShapeLayer(
                     if (isWarp && warpMesh != null) {
                         val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                         drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true, bounds = bounds)
-                    } else if (isPerspective && perspectivePoints != null) {
-                        drawPerspective(targetCanvas, w, h, skipEffects = true, bounds = bounds)
                     }
                 }
 
@@ -492,8 +526,6 @@ class ShapeLayer(
                 if (isWarp && warpMesh != null) {
                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                     drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false, bounds = bounds)
-                } else if (isPerspective && perspectivePoints != null) {
-                     drawPerspective(canvas, w, h, skipEffects = false, bounds = bounds)
                 } else {
                      canvas.translate(dx, dy)
                      drawContent(canvas, w, h, skipEffects = false)
@@ -1340,7 +1372,7 @@ class ShapeLayer(
             drawBase(canvas)
         }
 
-        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        val hasTransform = (isWarp && warpMesh != null)
         if (!hasTransform) {
             val pad = calculatePadding()
             if (eraseMask != null) {
