@@ -705,8 +705,24 @@ object StyleManager {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // Draw dark gray background
-        canvas.drawColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appBackgroundColor))
+        // Draw transparent checkerboard background pattern so any text color (black, white, etc.) is clearly visible
+        val tileSize = 15
+        val paintLight = android.graphics.Paint().apply { color = 0xFFFFFFFF.toInt() }
+        val paintDark = android.graphics.Paint().apply { color = 0xFFCCCCCC.toInt() }
+
+        for (y in 0 until h step tileSize) {
+            for (x in 0 until w step tileSize) {
+                val isDarkSquare = ((x / tileSize) + (y / tileSize)) % 2 == 0
+                val paint = if (isDarkSquare) paintDark else paintLight
+                canvas.drawRect(
+                    x.toFloat(),
+                    y.toFloat(),
+                    (x + tileSize).coerceAtMost(w).toFloat(),
+                    (y + tileSize).coerceAtMost(h).toFloat(),
+                    paint
+                )
+            }
+        }
 
         val previewLayer = fromModel(context, model)
         previewLayer.text = SpannableStringBuilder("Abc")
