@@ -205,7 +205,10 @@ class EditorActivity : AppCompatActivity() {
             canvasView = AstralCanvasView(this)
             binding.canvasContainer.addView(canvasView)
             canvasView.initCanvas(com.astral.typer.utils.TempCanvasState.width, com.astral.typer.utils.TempCanvasState.height, com.astral.typer.utils.TempCanvasState.color)
-            com.astral.typer.utils.TempCanvasState.background?.let { canvasView.setBackgroundImage(it) }
+            com.astral.typer.utils.TempCanvasState.background?.let {
+                canvasView.setBackgroundImage(it)
+                canvasView.isBackgroundModified = com.astral.typer.utils.TempCanvasState.isBackgroundModified
+            }
             com.astral.typer.utils.TempCanvasState.layers?.let { canvasView.setLayers(it) }
             com.astral.typer.utils.TempCanvasState.clear()
             inpaintManager = InpaintManager(this)
@@ -360,10 +363,13 @@ class EditorActivity : AppCompatActivity() {
          // Restore background
          if (images.containsKey("images/background.png")) {
              canvasView.setBackgroundImage(images["images/background.png"]!!)
+             canvasView.isBackgroundModified = false
          } else if (images.containsKey("background.png")) {
              canvasView.setBackgroundImage(images["background.png"]!!)
+             canvasView.isBackgroundModified = false
          } else if (images.containsKey("background")) {
              canvasView.setBackgroundImage(images["background"]!!)
+             canvasView.isBackgroundModified = false
          }
 
          // Restore layers
@@ -396,6 +402,7 @@ class EditorActivity : AppCompatActivity() {
         if (prefsTheme != currentThemeName) {
             com.astral.typer.utils.TempCanvasState.layers = canvasView.getLayers().toList()
             com.astral.typer.utils.TempCanvasState.background = canvasView.getBackgroundImage()
+            com.astral.typer.utils.TempCanvasState.isBackgroundModified = canvasView.isBackgroundModified
             com.astral.typer.utils.TempCanvasState.width = canvasView.canvasWidth
             com.astral.typer.utils.TempCanvasState.height = canvasView.canvasHeight
             com.astral.typer.utils.TempCanvasState.color = canvasView.canvasColor
@@ -415,7 +422,8 @@ class EditorActivity : AppCompatActivity() {
 
         // Capture data on Main Thread
         val layersToSave = canvasView.getLayers().toMutableList()
-        val bgBitmap = canvasView.getBackgroundImage()
+        val sourceProject = currentProjectName
+        val bgBitmap = if (canvasView.isBackgroundModified) canvasView.getBackgroundImage() else null
         val bmp = canvasView.renderToBitmap()
         val w = bmp.width
         val h = bmp.height
@@ -431,7 +439,7 @@ class EditorActivity : AppCompatActivity() {
 
             lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
                 try {
-                    ProjectManager.saveProject(
+                    val success = ProjectManager.saveProject(
                         this@EditorActivity,
                         layersToSave,
                         w,
@@ -440,8 +448,14 @@ class EditorActivity : AppCompatActivity() {
                         bgBitmap,
                         "autosave",
                         thumbnail,
-                        parentFolderName
+                        parentFolderName,
+                        sourceProjectName = sourceProject
                     )
+                    if (success) {
+                        withContext(Dispatchers.Main) {
+                            canvasView.isBackgroundModified = false
+                        }
+                    }
                 } finally {
                     ProjectManager.isSaving = false
                     // Recycle temporary bitmaps
@@ -3528,7 +3542,14 @@ class EditorActivity : AppCompatActivity() {
 
         // Capture Data on Main Thread
         val layersToSave = canvasView.getLayers().toMutableList()
-        val bgBitmap = canvasView.getBackgroundImage()
+        val sourceProject = currentProjectName
+        // If saving under a new name or background was modified, force capture background bitmap
+        val isSaveAs = (!sourceProject.isNullOrEmpty() && sourceProject != name)
+        val bgBitmap = if (canvasView.isBackgroundModified || isSaveAs || sourceProject.isNullOrEmpty()) {
+            canvasView.getBackgroundImage()
+        } else {
+            null
+        }
         val bmp = canvasView.renderToBitmap()
         val w = bmp.width
         val h = bmp.height
@@ -3551,7 +3572,8 @@ class EditorActivity : AppCompatActivity() {
                     bgBitmap,
                     name,
                     thumbnail,
-                    parentFolderName
+                    parentFolderName,
+                    sourceProjectName = sourceProject
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -3565,6 +3587,7 @@ class EditorActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 binding.loadingOverlay.visibility = View.GONE
                 if (success) {
+                    canvasView.isBackgroundModified = false
                     currentProjectName = name
                     Toast.makeText(this@EditorActivity, "Project Saved", Toast.LENGTH_SHORT).show()
                     binding.saveSidebar.root.visibility = View.GONE

@@ -337,7 +337,8 @@ object ProjectManager {
         bgBitmap: Bitmap?,
         projectName: String,
         thumbnail: Bitmap? = null,
-        subFolder: String? = null
+        subFolder: String? = null,
+        sourceProjectName: String? = null
     ): Boolean {
         try {
             val tempDir = File(context.cacheDir, "temp_save")
@@ -347,8 +348,20 @@ object ProjectManager {
             val imagesDir = File(tempDir, "images")
             if (!imagesDir.mkdirs() && !imagesDir.exists()) return false
 
+            var targetProjectName = projectName.trim()
+            if (targetProjectName == "autosave") {
+                targetProjectName = "autosave_${System.currentTimeMillis()}"
+            }
+
             if (bgBitmap != null) {
                 saveBitmap(bgBitmap, File(imagesDir, "background.png"))
+            } else {
+                // Background was not modified. Preserve existing background.png if available from source or target project.
+                val lookupName = if (!sourceProjectName.isNullOrEmpty()) sourceProjectName else targetProjectName
+                val existingBg = findExistingBackgroundFile(context, lookupName, subFolder)
+                if (existingBg != null && existingBg.exists()) {
+                    existingBg.copyTo(File(imagesDir, "background.png"), overwrite = true)
+                }
             }
 
             if (thumbnail != null) {
@@ -805,6 +818,28 @@ object ProjectManager {
             e.printStackTrace()
             return false
         }
+    }
+
+    private fun findExistingBackgroundFile(context: Context, cleanName: String, subFolder: String?): File? {
+        val publicFolder = getPublicProjectFile(cleanName, subFolder)
+        val publicBg = File(publicFolder, "images/background.png")
+        if (publicBg.exists()) return publicBg
+
+        val privateFolder = getPrivateProjectFile(context, cleanName, subFolder)
+        val privateBg = File(privateFolder, "images/background.png")
+        if (privateBg.exists()) return privateBg
+
+        // If lookup failed and cleanName is an autosave, check latest existing autosave project folder
+        if (cleanName.startsWith("autosave_")) {
+            val recentAutosaves = getRecentProjects(context).filter { it.name.startsWith("autosave_") }
+                .sortedByDescending { it.lastModified() }
+            for (autosaveFolder in recentAutosaves) {
+                val bgFile = File(autosaveFolder, "images/background.png")
+                if (bgFile.exists()) return bgFile
+            }
+        }
+
+        return null
     }
 
     private fun finalizeSave(context: Context, tempDir: File, projectName: String, subFolder: String? = null): Boolean {
