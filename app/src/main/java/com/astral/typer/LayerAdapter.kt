@@ -112,8 +112,8 @@ class LayerAdapter(
             val strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
             val rRadius = (4 * context.resources.displayMetrics.density)
             val drawable = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.parseColor("#444444"))
-                setStroke(strokeWidth, Color.parseColor("#BB86FC"))
+                setColor(Color.parseColor("#202196F3"))
+                setStroke(strokeWidth, Color.parseColor("#2196F3"))
                 cornerRadius = rRadius
             }
             holder.container.background = drawable
