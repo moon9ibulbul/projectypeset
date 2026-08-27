@@ -33,7 +33,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Support Share/Open with images, projects (.atd), and fonts (.ttf, .otf, .zip) -->
+            <!-- Support Share/Open with images, projects (.atd), fonts (.ttf, .otf, .zip), and PDF (.pdf) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.SEND" />
@@ -42,6 +42,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/x-pdf" />
                 <data android:mimeType="application/octet-stream" />
                 <data android:mimeType="application/zip" />
                 <data android:mimeType="application/x-zip-compressed" />
@@ -63,6 +65,7 @@
                 <data android:pathPattern=".*\\.atd" />
                 <data android:pathPattern=".*\\.ttf" />
                 <data android:pathPattern=".*\\.otf" />
+                <data android:pathPattern=".*\\.pdf" />
             </intent-filter>
         </activity>
         <activity
