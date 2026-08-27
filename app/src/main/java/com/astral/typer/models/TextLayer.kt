@@ -1643,6 +1643,15 @@ class TextLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
+        if (activeEffects.contains(TextEffectType.HALFTONE) && activeEffects.contains(TextEffectType.DROP_SHADOW)) {
+            val hIndex = activeEffects.indexOf(TextEffectType.HALFTONE)
+            val dIndex = activeEffects.indexOf(TextEffectType.DROP_SHADOW)
+            if (dIndex < hIndex) {
+                activeEffects[dIndex] = TextEffectType.HALFTONE
+                activeEffects[hIndex] = TextEffectType.DROP_SHADOW
+            }
+        }
+
         val hasTransform = isWarpActive || (isPerspective && perspectivePoints != null)
         val hasHardwareShaderEffect = activeEffects.any {
             it == TextEffectType.FIERY ||
@@ -3600,6 +3609,15 @@ class TextLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
+        if (activeEffects.contains(TextEffectType.HALFTONE) && activeEffects.contains(TextEffectType.DROP_SHADOW)) {
+            val hIndex = activeEffects.indexOf(TextEffectType.HALFTONE)
+            val dIndex = activeEffects.indexOf(TextEffectType.DROP_SHADOW)
+            if (dIndex < hIndex) {
+                activeEffects[dIndex] = TextEffectType.HALFTONE
+                activeEffects[hIndex] = TextEffectType.DROP_SHADOW
+            }
+        }
+
         val hasEffects = activeEffects.isNotEmpty() && !skipEffects
         if (hasEffects) {
             fun renderChain(index: Int, targetCanvas: Canvas) {
@@ -4442,12 +4460,19 @@ class TextLayer(
                                             }
                                         }
                                         if (insideShape) {
-                                            val finalAlpha = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
-                                            val outA = (finalAlpha * 255f).toInt()
-                                            val outR = (r * finalAlpha).toInt()
-                                            val outG = (g * finalAlpha).toInt()
-                                            val outB = (b * finalAlpha).toInt()
-                                            outPixels[y * bmpW + x] = (outA shl 24) or (outR shl 16) or (outG shl 8) or outB
+                                            val dotA = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                            val origR = Color.red(originalPixel)
+                                            val origG = Color.green(originalPixel)
+                                            val origB = Color.blue(originalPixel)
+
+                                            val blendedR = (origR * (1f - dotA) + r * dotA).toInt().coerceIn(0, 255)
+                                            val blendedG = (origG * (1f - dotA) + g * dotA).toInt().coerceIn(0, 255)
+                                            val blendedB = (origB * (1f - dotA) + b * dotA).toInt().coerceIn(0, 255)
+                                            val outA = (originalAlpha * 255f).toInt().coerceIn(0, 255)
+
+                                            outPixels[y * bmpW + x] = (outA shl 24) or (blendedR shl 16) or (blendedG shl 8) or blendedB
+                                        } else {
+                                            outPixels[y * bmpW + x] = originalPixel
                                         }
                                     } else { // "OUTER"
                                         val range = halftoneRange
@@ -4471,7 +4496,7 @@ class TextLayer(
                                                 if (sx in 0 until bmpW && sy in 0 until bmpH) {
                                                     val samplePixel = pixels[sy * bmpW + sx]
                                                     val sampleAlpha = (samplePixel ushr 24) / 255f
-                                                    if (sampleAlpha > 0f) {
+                                                    if (sampleAlpha >= 0.5f) {
                                                         if (stepDist < minDist) {
                                                             minDist = stepDist
                                                         }
@@ -5073,9 +5098,10 @@ class TextLayer(
                     }
 
                     if (insideShape) {
-                        return half4(dotColor * alpha * original.a, alpha * original.a);
+                        half4 shadowDot = half4(dotColor * alpha * original.a, alpha * original.a);
+                        return mix(original, shadowDot, alpha);
                     }
-                    return half4(0.0);
+                    return original;
                 } else {
                     // OUTER Halftone
                     if (range <= 0.0) {
@@ -5095,7 +5121,7 @@ class TextLayer(
                             float stepDist = (float(s) / float(STEP_COUNT)) * range;
                             float2 sampleCoord = coord - dir * stepDist;
                             float sampleAlpha = content.eval(sampleCoord).a;
-                            if (sampleAlpha > 0.0) {
+                            if (sampleAlpha >= 0.5) {
                                 min_dist = min(min_dist, stepDist);
                                 max_alpha = max(max_alpha, sampleAlpha);
                             }
