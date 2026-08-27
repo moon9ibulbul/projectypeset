@@ -45,13 +45,16 @@ class MainActivity : AppCompatActivity() {
     // Open Project (.atd) picker
     private val openProjectLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
-            // Need to copy file to cache to open? Or just read from stream?
-            // ProjectManager.loadProject expects a File.
-            // Copy uri content to temp file in background
+            val fileName = getFileName(it)
+            val safeName = if (fileName.isNotBlank()) {
+                if (fileName.endsWith(".atd", ignoreCase = true)) fileName else "$fileName.atd"
+            } else {
+                "project.atd"
+            }
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val inputStream = contentResolver.openInputStream(it)
-                    val tempFile = File(cacheDir, "temp_open.atd")
+                    val tempFile = File(cacheDir, safeName)
                     tempFile.outputStream().use { out ->
                         inputStream?.copyTo(out)
                     }
@@ -223,10 +226,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openProjectFromUri(uri: Uri) {
+        val fileName = getFileName(uri)
+        val safeName = if (fileName.isNotBlank()) {
+            if (fileName.endsWith(".atd", ignoreCase = true)) fileName else "$fileName.atd"
+        } else {
+            "project.atd"
+        }
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val inputStream = contentResolver.openInputStream(uri)
-                val tempFile = File(cacheDir, "temp_open_intent.atd")
+                val tempFile = File(cacheDir, safeName)
                 tempFile.outputStream().use { out ->
                     inputStream?.copyTo(out)
                 }
