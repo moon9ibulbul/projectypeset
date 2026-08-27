@@ -2685,6 +2685,73 @@ object ProjectManager {
         return inSampleSize
     }
 
+    fun importPdfContent(context: Context, pdfUri: android.net.Uri, pdfName: String, onProgress: (Int, Int) -> Unit): Boolean {
+        var document: com.tom_roush.pdfbox.pdmodel.PDDocument? = null
+        val tempPdfFile = File(context.cacheDir, "temp_import.pdf")
+        try {
+            context.contentResolver.openInputStream(pdfUri)?.use { input ->
+                tempPdfFile.outputStream().use { out ->
+                    input.copyTo(out)
+                }
+            } ?: return false
+
+            document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(tempPdfFile)
+            val totalPages = document.numberOfPages
+            if (totalPages <= 0) return false
+
+            val renderer = com.tom_roush.pdfbox.rendering.PDFRenderer(document)
+
+            var uniquePdfName = pdfName
+            val privateRoot = context.getExternalFilesDir("Projects")
+            val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+
+            var targetFolder = File(privateRoot, uniquePdfName)
+            var publicFolder = File(publicRoot, uniquePdfName)
+            var counter = 1
+            while ((targetFolder.exists() && targetFolder.list()?.isNotEmpty() == true) ||
+                   (publicFolder.exists() && publicFolder.list()?.isNotEmpty() == true)) {
+                uniquePdfName = "${pdfName}_$counter"
+                targetFolder = File(privateRoot, uniquePdfName)
+                publicFolder = File(publicRoot, uniquePdfName)
+                counter++
+            }
+            targetFolder.mkdirs()
+
+            val digits = if (totalPages >= 100) 3 else 2
+            val tempImgDir = File(context.cacheDir, "pdf_extracted_temp")
+            if (tempImgDir.exists()) tempImgDir.deleteRecursively()
+            tempImgDir.mkdirs()
+
+            try {
+                for (i in 0 until totalPages) {
+                    val pageBmp = renderer.renderImage(i, 1.0f)
+                    val projName = String.format("%0${digits}d", i + 1)
+                    val imgFile = File(tempImgDir, "$projName.png")
+                    saveBitmap(pageBmp, imgFile)
+                    pageBmp.recycle()
+
+                    saveProjectWithImageFile(context, imgFile, projName, uniquePdfName)
+                    imgFile.delete()
+                    onProgress(i + 1, totalPages)
+                }
+            } finally {
+                tempImgDir.deleteRecursively()
+            }
+
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        } finally {
+            try {
+                document?.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            if (tempPdfFile.exists()) tempPdfFile.delete()
+        }
+    }
+
     fun importZipContent(context: Context, zipUri: android.net.Uri, zipName: String, onProgress: (Int, Int) -> Unit): Boolean {
         val tempDir = File(context.cacheDir, "import_zip_temp")
         if (tempDir.exists()) tempDir.deleteRecursively()

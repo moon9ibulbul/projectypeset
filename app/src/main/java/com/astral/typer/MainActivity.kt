@@ -140,6 +140,9 @@ class MainActivity : AppCompatActivity() {
                     mimeType == "font/ttf" || mimeType == "font/otf" -> {
                 importFontFromUri(uri)
             }
+            fileName.endsWith(".pdf") || mimeType == "application/pdf" -> {
+                importPdfFromUri(uri)
+            }
             fileName.endsWith(".zip") || mimeType == "application/zip" || mimeType == "application/x-zip-compressed" -> {
                 importZipFromUri(uri)
             }
@@ -149,6 +152,38 @@ class MainActivity : AppCompatActivity() {
                     openEditorWithImage(uri)
                 } else {
                     Toast.makeText(this, "Unsupported file type", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun importPdfFromUri(uri: Uri) {
+        val fileName = getFileName(uri).replace(".pdf", "", ignoreCase = true)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val success = ProjectManager.importPdfContent(this@MainActivity, uri, fileName) { current, total ->
+                runOnUiThread {
+                    progressBar.max = total
+                    progressBar.progress = current
+                    tvStatus.text = "Importing $current/$total..."
+                }
+            }
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                if (success) {
+                    Toast.makeText(this@MainActivity, "Imported $fileName successfully", Toast.LENGTH_SHORT).show()
+                    setupRecentProjects()
+                } else {
+                    Toast.makeText(this@MainActivity, "Failed to import PDF", Toast.LENGTH_SHORT).show()
                 }
             }
         }
