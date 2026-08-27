@@ -178,8 +178,60 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
 
-    override var isPerspective: Boolean = false
-    override var perspectivePoints: FloatArray? = null
+    override var isPerspective: Boolean
+        get() = isWarp && warpRows == 1 && warpCols == 1
+        set(value) {
+            if (value) {
+                isWarp = true
+                if (warpMesh == null) {
+                    warpRows = 1
+                    warpCols = 1
+                    val w = getWidth()
+                    val h = getHeight()
+                    warpMesh = floatArrayOf(
+                        -w/2f, -h/2f,
+                        w/2f, -h/2f,
+                        -w/2f, h/2f,
+                        w/2f, h/2f
+                    )
+                }
+            } else {
+                if (isWarp && warpRows == 1 && warpCols == 1) {
+                    isWarp = false
+                    warpMesh = null
+                }
+            }
+        }
+
+    override var perspectivePoints: FloatArray?
+        get() {
+            val mesh = warpMesh ?: return null
+            if (mesh.size < 8) return null
+            return floatArrayOf(
+                mesh[0], mesh[1], // TL
+                mesh[2], mesh[3], // TR
+                mesh[6], mesh[7], // BR
+                mesh[4], mesh[5]  // BL
+            )
+        }
+        set(value) {
+            if (value != null && value.size >= 8) {
+                isWarp = true
+                warpRows = 1
+                warpCols = 1
+                warpMesh = floatArrayOf(
+                    value[0], value[1], // TL
+                    value[2], value[3], // TR
+                    value[6], value[7], // BL
+                    value[4], value[5]  // BR
+                )
+            } else if (value == null) {
+                if (isWarp && warpRows == 1 && warpCols == 1) {
+                    isWarp = false
+                    warpMesh = null
+                }
+            }
+        }
     override var isWarp: Boolean = false
     override var warpRows: Int = 2
     override var warpCols: Int = 2

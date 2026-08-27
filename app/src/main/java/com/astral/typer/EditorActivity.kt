@@ -4063,18 +4063,9 @@ class EditorActivity : AppCompatActivity() {
             // Only set layer.isPerspective = true when entering.
             // DO NOT set it to false on exit, to persist the effect.
             if (enabled) {
-                layer.isPerspective = true
-                // If enabled, initialize points if null
-                if (layer.perspectivePoints == null) {
-                    // Initialize to current corners relative to center
-                    val w = (layer as Layer).getWidth()
-                    val h = layer.getHeight()
-                    layer.perspectivePoints = floatArrayOf(
-                        -w/2f, -h/2f, // TL
-                        w/2f, -h/2f,  // TR
-                        w/2f, h/2f,   // BR
-                        -w/2f, h/2f   // BL
-                    )
+                layer.isWarp = true
+                if (layer.warpMesh == null) {
+                    initWarpMesh(layer as Layer, 1, 1)
                 }
             }
 
@@ -9081,9 +9072,7 @@ class EditorActivity : AppCompatActivity() {
             setOnClickListener {
                 val stylable = canvasView.getSelectedLayer() as? StylableLayer ?: return@setOnClickListener
                 val layer = stylable as Layer
-                val w = layer.getWidth(); val h = layer.getHeight()
-                val pts = floatArrayOf(-w/2f, -h/2f, w/2f, -h/2f, w/2f, h/2f, -w/2f, h/2f)
-                stylable.perspectivePoints = pts
+                initWarpMesh(layer, 1, 1, forceReset = true)
                 canvasView.invalidate()
                 Toast.makeText(this@EditorActivity, "Perspective Reset", Toast.LENGTH_SHORT).show()
             }
