@@ -414,6 +414,10 @@ class ShapeLayer(
     }
 
     override fun draw(canvas: Canvas) {
+        draw(canvas, false)
+    }
+
+    override fun draw(canvas: Canvas, skipEffects: Boolean) {
         if (!isVisible) return
         ensureShapeLoaded()
         if (svg == null) return
@@ -525,10 +529,10 @@ class ShapeLayer(
             } else {
                 if (isWarp && warpMesh != null) {
                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = false, bounds = bounds)
+                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds)
                 } else {
                      canvas.translate(dx, dy)
-                     drawContent(canvas, w, h, skipEffects = false)
+                     drawContent(canvas, w, h, skipEffects = skipEffects)
                 }
             }
         } finally {

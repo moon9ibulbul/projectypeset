@@ -1966,37 +1966,61 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun drawChain(canvas: Canvas, layersList: List<Layer>, index: Int): Int {
+    private fun drawChain(canvas: Canvas, layersList: List<Layer>, index: Int, viewport: RectF? = null, skipEffects: Boolean = false): Int {
         val layer = layersList[index]
         val nextIndex = index + 1
         val hasClippedChildren = nextIndex < layersList.size && layersList[nextIndex].isClipped && layersList[nextIndex].isVisible
 
+        val isVisibleInViewport = viewport == null || RectF.intersects(layer.getCanvasBounds(), viewport)
+
         if (hasClippedChildren) {
+            if (!isVisibleInViewport) {
+                // If base layer is outside viewport, check if any clipped children are visible
+                var scan = nextIndex
+                var hasVisibleChild = false
+                while (scan < layersList.size && layersList[scan].isClipped) {
+                    if (layersList[scan].isVisible && (viewport == null || RectF.intersects(layersList[scan].getCanvasBounds(), viewport))) {
+                        hasVisibleChild = true
+                        break
+                    }
+                    scan++
+                }
+                if (!hasVisibleChild) {
+                    var endScan = nextIndex
+                    while (endScan < layersList.size && layersList[endScan].isClipped) {
+                        endScan++
+                    }
+                    return endScan
+                }
+            }
+
             // First, draw the base layer normally (with strokes, shadows, fill, etc.)
             val saveNormal = canvas.saveLayer(null, null)
             layer.isDrawingClippingMask = false
-            layer.draw(canvas)
+            layer.draw(canvas, skipEffects)
             canvas.restoreToCount(saveNormal)
 
             // Now draw the clipping mask and clipped layers on top of it
             val saveCount = canvas.saveLayer(null, null)
             layer.isDrawingClippingMask = true
-            layer.draw(canvas)
+            layer.draw(canvas, skipEffects)
             layer.isDrawingClippingMask = false
 
             val clipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
             }
             canvas.saveLayer(null, clipPaint)
-            val finalIndex = drawChain(canvas, layersList, nextIndex)
+            val finalIndex = drawChain(canvas, layersList, nextIndex, viewport, skipEffects)
             canvas.restore()
             canvas.restoreToCount(saveCount)
             return finalIndex
         } else {
-            val saveCount = canvas.saveLayer(null, null)
-            layer.isDrawingClippingMask = false
-            layer.draw(canvas)
-            canvas.restoreToCount(saveCount)
+            if (isVisibleInViewport) {
+                val saveCount = canvas.saveLayer(null, null)
+                layer.isDrawingClippingMask = false
+                layer.draw(canvas, skipEffects)
+                canvas.restoreToCount(saveCount)
+            }
 
             if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
                 var scan = nextIndex
@@ -2009,7 +2033,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    private fun drawLayers(canvas: Canvas, layersList: List<Layer>) {
+    private fun drawLayers(canvas: Canvas, layersList: List<Layer>, viewport: RectF? = null, skipEffects: Boolean = false) {
         var i = 0
         while (i < layersList.size) {
             val layer = layersList[i]
@@ -2020,12 +2044,21 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
                 continue
             }
-            i = drawChain(canvas, layersList, i)
+            i = drawChain(canvas, layersList, i, viewport, skipEffects)
         }
     }
 
     private fun drawScene(canvas: Canvas) {
-        drawLayers(canvas, layers)
+        val visibleViewport = RectF(0f, 0f, width.toFloat(), height.toFloat())
+        val inverse = Matrix()
+        viewMatrix.invert(inverse)
+        inverse.mapRect(visibleViewport)
+
+        val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val disableFastInteraction = prefs.getBoolean("disable_fast_interaction", false)
+        val isFastInteraction = !disableFastInteraction && currentMode == Mode.PAN_ZOOM
+
+        drawLayers(canvas, layers, visibleViewport, isFastInteraction)
     }
 
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {
