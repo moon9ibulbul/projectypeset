@@ -1253,7 +1253,6 @@ class TextLayer(
         textPaint.textSize = fontSize
         textPaint.color = color
         textPaint.typeface = typeface
-        textPaint.alpha = 255
         textPaint.letterSpacing = letterSpacing
 
         if (shadowRadius > 0 && !isMotionShadow) {
