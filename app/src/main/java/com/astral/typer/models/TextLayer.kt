@@ -1984,12 +1984,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = tripleStrokeColor or 0xFF000000.toInt()
-                            val k = Color.alpha(tripleStrokeColor) / 255f
+                            alpha = Color.alpha(tripleStrokeColor)
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f * k, -250f * k
+                                0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2017,12 +2017,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = doubleStrokeColor or 0xFF000000.toInt()
-                            val k = Color.alpha(doubleStrokeColor) / 255f
+                            alpha = Color.alpha(doubleStrokeColor)
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f * k, -250f * k
+                                0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2060,13 +2060,13 @@ class TextLayer(
                             } else {
                                 this.shader = null
                                 color = strokeColor or 0xFF000000.toInt()
+                                alpha = Color.alpha(strokeColor)
                             }
-                            val k = if (isGradient && isGradientStroke) 1f else Color.alpha(strokeColor) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f * k, -250f * k
+                                0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2094,7 +2094,7 @@ class TextLayer(
 
             val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isFilterBitmap = true
-                if (hasStrokes && !isGradient) {
+                if (!isGradient) {
                     alpha = Color.alpha(color)
                 }
             }
@@ -2524,12 +2524,12 @@ class TextLayer(
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
                                     color = tripleStrokeColor or 0xFF000000.toInt()
-                                    val k = Color.alpha(tripleStrokeColor) / 255f
+                                    alpha = Color.alpha(tripleStrokeColor)
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f * k, -250f * k
+                                        0f, 0f, 0f, 100f, -250f
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2560,12 +2560,12 @@ class TextLayer(
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
                                     color = doubleStrokeColor or 0xFF000000.toInt()
-                                    val k = Color.alpha(doubleStrokeColor) / 255f
+                                    alpha = Color.alpha(doubleStrokeColor)
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f * k, -250f * k
+                                        0f, 0f, 0f, 100f, -250f
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2606,13 +2606,13 @@ class TextLayer(
                                     } else {
                                         this.shader = null
                                         color = strokeColor or 0xFF000000.toInt()
+                                        alpha = Color.alpha(strokeColor)
                                     }
-                                    val k = if (isGradient && isGradientStroke) 1f else Color.alpha(strokeColor) / 255f
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f * k, -250f * k
+                                        0f, 0f, 0f, 100f, -250f
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2640,7 +2640,7 @@ class TextLayer(
 
                     val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
-                        if (hasStrokes && !isGradient) {
+                        if (!isGradient) {
                             alpha = Color.alpha(color)
                         }
                     }
@@ -2778,12 +2778,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = tripleStrokeColor or 0xFF000000.toInt()
-                            val k = Color.alpha(tripleStrokeColor) / 255f
+                            alpha = Color.alpha(tripleStrokeColor)
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f * k, -250f * k
+                                0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2811,12 +2811,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = doubleStrokeColor or 0xFF000000.toInt()
-                            val k = Color.alpha(doubleStrokeColor) / 255f
+                            alpha = Color.alpha(doubleStrokeColor)
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f * k, -250f * k
+                                0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2854,13 +2854,13 @@ class TextLayer(
                             } else {
                                 this.shader = null
                                 color = strokeColor or 0xFF000000.toInt()
+                                alpha = Color.alpha(strokeColor)
                             }
-                            val k = if (isGradient && isGradientStroke) 1f else Color.alpha(strokeColor) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f * k, -250f * k
+                                0f, 0f, 0f, 100f, -250f
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2888,7 +2888,7 @@ class TextLayer(
 
             val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isFilterBitmap = true
-                if (hasStrokes && !isGradient) {
+                if (!isGradient) {
                     alpha = Color.alpha(color)
                 }
             }
