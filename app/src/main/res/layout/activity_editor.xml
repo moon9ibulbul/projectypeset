@@ -146,40 +146,117 @@
             android:layout_height="wrap_content"
             android:background="?attr/appSurfaceColor"
             android:orientation="horizontal"
-            android:padding="16dp"
+            android:paddingVertical="6dp"
+            android:paddingHorizontal="8dp"
             android:gravity="center_vertical">
 
-            <Button
+            <LinearLayout
                 android:id="@+id/btnInsertText"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="Text"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="?attr/appTextColorPrimary"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:paddingVertical="4dp"
+                android:paddingHorizontal="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_menu_text"
+                    app:tint="?attr/appIconTint" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Text"
+                    android:textSize="10sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:singleLine="true" />
+            </LinearLayout>
 
-            <Button
+            <LinearLayout
                 android:id="@+id/btnInsertImage"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="Image"
-                 style="@style/Widget.MaterialComponents.Button.TextButton"
-                 android:textColor="?attr/appTextColorPrimary"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:paddingVertical="4dp"
+                android:paddingHorizontal="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_menu_image"
+                    app:tint="?attr/appIconTint" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Image"
+                    android:textSize="10sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:singleLine="true" />
+            </LinearLayout>
 
-            <Button
+            <LinearLayout
                 android:id="@+id/btnInsertShape"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="Shape"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="?attr/appTextColorPrimary"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:paddingVertical="4dp"
+                android:paddingHorizontal="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_crop_square"
+                    app:tint="?attr/appIconTint" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Shape"
+                    android:textSize="10sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:singleLine="true" />
+            </LinearLayout>
 
-            <Button
+            <LinearLayout
                 android:id="@+id/btnInsertBrush"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="Brush"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:textColor="?attr/appTextColorPrimary"/>
+                android:orientation="vertical"
+                android:gravity="center"
+                android:paddingVertical="4dp"
+                android:paddingHorizontal="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_brush"
+                    app:tint="?attr/appIconTint" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Brush"
+                    android:textSize="10sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:singleLine="true" />
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -196,151 +273,478 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="16dp">
+                android:paddingVertical="6dp"
+                android:paddingHorizontal="8dp"
+                android:gravity="center_vertical">
 
-                <Button
+                <LinearLayout
                     android:id="@+id/btnPropQuickEdit"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Quick Edit"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_pencil"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Quick Edit"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                <Button
+                <LinearLayout
                     android:id="@+id/btnPropStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/style"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_palette"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/style"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                <Button
+                <LinearLayout
                     android:id="@+id/btnPropFont"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/font"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_font"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/font"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                 <Button
+                <LinearLayout
                     android:id="@+id/btnPropFormat"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/format"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_format"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/format"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                 <Button
+                <LinearLayout
                     android:id="@+id/btnPropColor"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/color"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_color"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/color"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                 <Button
+                <LinearLayout
                     android:id="@+id/btnPropBrush"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Brush"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_brush"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Brush"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                 <Button
+                <LinearLayout
                     android:id="@+id/btnPropSpacing"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Spacing"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_spacing"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Spacing"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropStroke"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/stroke"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_stroke"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/stroke"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropDoubleStroke"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Double Stroke"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_double_stroke"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Double Stroke"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropShadow"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/shadow"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_shadow"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/shadow"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropGradation"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/gradation"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_gradation"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/gradation"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                 <Button
+                <LinearLayout
                     android:id="@+id/btnPropEffect"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Effect"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_magic_wand"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Effect"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropTexture"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Texture"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_texture"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Texture"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropOpacity"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Opacity"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_opacity"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Opacity"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropErase"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Erase"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_eraser"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Erase"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropPerspective"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Perspective"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_perspective"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Perspective"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropWarp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Warp"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_warp"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Warp"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
 
-                  <Button
+                <LinearLayout
                     android:id="@+id/btnPropPuppetWarp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Puppet Warp"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="?attr/appTextColorPrimary"/>
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingVertical="4dp"
+                    android:paddingHorizontal="10dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_menu_puppet_warp"
+                        app:tint="?attr/appIconTint" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Puppet Warp"
+                        android:textSize="10sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true" />
+                </LinearLayout>
+
             </LinearLayout>
         </HorizontalScrollView>
 
