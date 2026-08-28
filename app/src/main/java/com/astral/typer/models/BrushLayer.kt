@@ -13,6 +13,8 @@ import android.graphics.RadialGradient
 import android.graphics.Shader
 import com.astral.typer.TyperApplication
 
+class BrushTile(val tileX: Int, val tileY: Int, var bitmap: Bitmap, var canvas: Canvas)
+
 class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), StylableLayer {
 
     init {
@@ -21,8 +23,128 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         y = canvasHeight / 2f
     }
 
-    var bitmap: Bitmap = Bitmap.createBitmap(canvasWidth.coerceAtLeast(1), canvasHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-    internal var drawCanvas: Canvas = Canvas(bitmap)
+    private val TILE_SIZE = 1024
+    val tiles = HashMap<Pair<Int, Int>, BrushTile>()
+
+    private var dummyBitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    internal var drawCanvas: Canvas = Canvas(dummyBitmap)
+
+    var bitmap: Bitmap
+        get() = getCompositeBitmap()
+        set(value) {
+            initTilesFromBitmap(value)
+        }
+
+    fun getCompositeBitmap(): Bitmap {
+        try {
+            val bmp = Bitmap.createBitmap(canvasWidth.coerceAtLeast(1), canvasHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            for ((key, tile) in tiles) {
+                if (!tile.bitmap.isRecycled) {
+                    c.drawBitmap(tile.bitmap, (key.first * TILE_SIZE).toFloat(), (key.second * TILE_SIZE).toFloat(), null)
+                }
+            }
+            return bmp
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("BrushLayer", "OOM generating composite bitmap", e)
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
+    }
+
+    fun initTilesFromBitmap(source: Bitmap) {
+        recycleTiles()
+        val w = source.width
+        val h = source.height
+        for (y in 0 until h step TILE_SIZE) {
+            for (x in 0 until w step TILE_SIZE) {
+                val tileW = minOf(TILE_SIZE, w - x)
+                val tileH = minOf(TILE_SIZE, h - y)
+                val tileBitmap = Bitmap.createBitmap(source, x, y, tileW, tileH)
+                if (!isTileEmpty(tileBitmap)) {
+                    val tx = x / TILE_SIZE
+                    val ty = y / TILE_SIZE
+                    val tileCanvas = Canvas(tileBitmap)
+                    tiles[Pair(tx, ty)] = BrushTile(tx, ty, tileBitmap, tileCanvas)
+                } else {
+                    tileBitmap.recycle()
+                }
+            }
+        }
+    }
+
+    private fun isTileEmpty(bitmap: Bitmap): Boolean {
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        for (pixel in pixels) {
+            if (pixel != 0) return false
+        }
+        return true
+    }
+
+    fun recycleTiles() {
+        for (tile in tiles.values) {
+            if (!tile.bitmap.isRecycled) {
+                tile.bitmap.recycle()
+            }
+        }
+        tiles.clear()
+    }
+
+    private fun getOrCreateTile(tx: Int, ty: Int): BrushTile {
+        val key = Pair(tx, ty)
+        var tile = tiles[key]
+        if (tile == null || tile.bitmap.isRecycled) {
+            val tileW = minOf(TILE_SIZE, canvasWidth - tx * TILE_SIZE).coerceAtLeast(1)
+            val tileH = minOf(TILE_SIZE, canvasHeight - ty * TILE_SIZE).coerceAtLeast(1)
+            val bmp = Bitmap.createBitmap(tileW, tileH, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            tile = BrushTile(tx, ty, bmp, c)
+            tiles[key] = tile
+        }
+        return tile
+    }
+
+    fun getPixel(x: Int, y: Int): Int {
+        if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight) return 0
+        val tx = x / TILE_SIZE
+        val ty = y / TILE_SIZE
+        val tile = tiles[Pair(tx, ty)] ?: return 0
+        if (tile.bitmap.isRecycled) return 0
+        val lx = x - tx * TILE_SIZE
+        val ly = y - ty * TILE_SIZE
+        if (lx < 0 || lx >= tile.bitmap.width || ly < 0 || ly >= tile.bitmap.height) return 0
+        return tile.bitmap.getPixel(lx, ly)
+    }
+
+    private fun drawDabCircle(
+        x: Float,
+        y: Float,
+        radius: Float,
+        scaleY: Float,
+        ellipticalDabAngle: Float,
+        paint: Paint
+    ) {
+        val r = radius * maxOf(1f, scaleY) + 5f
+        val minTx = kotlin.math.floor((x - r) / TILE_SIZE).toInt().coerceAtLeast(0)
+        val maxTx = kotlin.math.floor((x + r) / TILE_SIZE).toInt().coerceAtMost((canvasWidth - 1) / TILE_SIZE)
+        val minTy = kotlin.math.floor((y - r) / TILE_SIZE).toInt().coerceAtLeast(0)
+        val maxTy = kotlin.math.floor((y + r) / TILE_SIZE).toInt().coerceAtMost((canvasHeight - 1) / TILE_SIZE)
+
+        for (tx in minTx..maxTx) {
+            for (ty in minTy..maxTy) {
+                val tile = getOrCreateTile(tx, ty)
+                val tileCanvas = tile.canvas
+                tileCanvas.save()
+                tileCanvas.translate(x - tx * TILE_SIZE, y - ty * TILE_SIZE)
+                tileCanvas.rotate(ellipticalDabAngle)
+                tileCanvas.scale(1f, scaleY)
+                tileCanvas.drawCircle(0f, 0f, radius, paint)
+                tileCanvas.restore()
+            }
+        }
+    }
 
     // Brush State Properties
     var brushName: String = "pencil"
@@ -499,9 +621,14 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             tailSeed = this@BrushLayer.tailSeed
             tailThickness = this@BrushLayer.tailThickness
         }
-        // Deep copy drawing bitmap
-        copy.bitmap = this.bitmap.copy(this.bitmap.config, true)
-        copy.drawCanvas = Canvas(copy.bitmap)
+        // Deep copy drawing tiles
+        for ((key, tile) in this.tiles) {
+            if (!tile.bitmap.isRecycled) {
+                val tileCopyBmp = tile.bitmap.copy(tile.bitmap.config, true)
+                val tileCopyCanvas = Canvas(tileCopyBmp)
+                copy.tiles[key] = BrushTile(tile.tileX, tile.tileY, tileCopyBmp, tileCopyCanvas)
+            }
+        }
 
         // Deep copy erase mask
         if (this.eraseMask != null) {
@@ -513,6 +640,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     }
 
     override fun draw(canvas: Canvas) {
+        draw(canvas, false)
+    }
+
+    override fun draw(canvas: Canvas, skipEffects: Boolean) {
         if (!isVisible) return
 
         canvas.save()
@@ -543,7 +674,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         if (eraseMask != null || activeErasePath != null) {
             // Draw to a temp layer to apply non-destructive erase masking
             val saveCount = canvas.saveLayer(dx, dy, dx + w, dy + h, null)
-            canvas.drawBitmap(bitmap, dx, dy, layerPaint)
+            drawTiles(canvas, dx, dy, layerPaint)
 
             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
@@ -571,10 +702,20 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             }
             canvas.restoreToCount(saveCount)
         } else {
-            canvas.drawBitmap(bitmap, dx, dy, layerPaint)
+            drawTiles(canvas, dx, dy, layerPaint)
         }
 
         canvas.restore()
+    }
+
+    private fun drawTiles(canvas: Canvas, offsetX: Float, offsetY: Float, paint: Paint) {
+        for ((key, tile) in tiles) {
+            if (!tile.bitmap.isRecycled) {
+                val tileLeft = offsetX + key.first * TILE_SIZE
+                val tileTop = offsetY + key.second * TILE_SIZE
+                canvas.drawBitmap(tile.bitmap, tileLeft, tileTop, paint)
+            }
+        }
     }
 
     // Touch Stroke Processing
@@ -1183,7 +1324,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             var sampledA = 0f
 
             if (px >= 0 && px < canvasWidth && py >= 0 && py < canvasHeight) {
-                val sampledColor = bitmap.getPixel(px, py)
+                val sampledColor = getPixel(px, py)
                 sampledR = Color.red(sampledColor) / 255f
                 sampledG = Color.green(sampledColor) / 255f
                 sampledB = Color.blue(sampledColor) / 255f
@@ -1360,12 +1501,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 paint.color = Color.BLACK
             }
 
-            drawCanvas.save()
-            drawCanvas.translate(x, y)
-            drawCanvas.rotate(ellipticalDabAngle)
-            drawCanvas.scale(1f, scaleY)
-            drawCanvas.drawCircle(0f, 0f, radius, paint)
-            drawCanvas.restore()
+            drawDabCircle(x, y, radius, scaleY, ellipticalDabAngle, paint)
         } else if (eraserTargetAlpha < 1.0f && smudgeValue > 0f) {
             // Blending / smudge brush with transparency - 2-pass drawing
             // Pass 1: Erase pass (DST_OUT) with the base dab alpha profile
@@ -1382,12 +1518,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 paintErase.color = Color.BLACK
             }
 
-            drawCanvas.save()
-            drawCanvas.translate(x, y)
-            drawCanvas.rotate(ellipticalDabAngle)
-            drawCanvas.scale(1f, scaleY)
-            drawCanvas.drawCircle(0f, 0f, radius, paintErase)
-            drawCanvas.restore()
+            drawDabCircle(x, y, radius, scaleY, ellipticalDabAngle, paintErase)
 
             // Pass 2: Add pass (ADD) with finalColor and scaled alpha
             val paintAdd = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1403,12 +1534,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 paintAdd.color = finalColor
             }
 
-            drawCanvas.save()
-            drawCanvas.translate(x, y)
-            drawCanvas.rotate(ellipticalDabAngle)
-            drawCanvas.scale(1f, scaleY)
-            drawCanvas.drawCircle(0f, 0f, radius, paintAdd)
-            drawCanvas.restore()
+            drawDabCircle(x, y, radius, scaleY, ellipticalDabAngle, paintAdd)
         } else {
             // Standard paint brush - 1-pass drawing
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1423,12 +1549,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 paint.color = finalColor
             }
 
-            drawCanvas.save()
-            drawCanvas.translate(x, y)
-            drawCanvas.rotate(ellipticalDabAngle)
-            drawCanvas.scale(1f, scaleY)
-            drawCanvas.drawCircle(0f, 0f, radius, paint)
-            drawCanvas.restore()
+            drawDabCircle(x, y, radius, scaleY, ellipticalDabAngle, paint)
         }
 
         return true
@@ -1647,14 +1768,17 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         canvasWidth *= 2
         canvasHeight *= 2
 
-        val w = bitmap.width
-        val h = bitmap.height
-        if (w > 0 && h > 0) {
-            val scaledBmp = Bitmap.createScaledBitmap(bitmap, w * 2, h * 2, true)
-            if (scaledBmp != bitmap) {
-                bitmap.recycle()
-                bitmap = scaledBmp
-                drawCanvas = Canvas(bitmap)
+        val oldTiles = HashMap(tiles)
+        tiles.clear()
+        for ((key, tile) in oldTiles) {
+            if (!tile.bitmap.isRecycled) {
+                val w = tile.bitmap.width
+                val h = tile.bitmap.height
+                val scaled = Bitmap.createScaledBitmap(tile.bitmap, w * 2, h * 2, true)
+                val newKey = Pair(key.first * 2, key.second * 2)
+                val newCanvas = Canvas(scaled)
+                tiles[newKey] = BrushTile(newKey.first, newKey.second, scaled, newCanvas)
+                tile.bitmap.recycle()
             }
         }
 

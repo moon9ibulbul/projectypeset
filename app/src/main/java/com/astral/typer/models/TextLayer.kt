@@ -1609,6 +1609,10 @@ class TextLayer(
     }
 
     override fun draw(canvas: Canvas) {
+        draw(canvas, false)
+    }
+
+    override fun draw(canvas: Canvas, skipEffects: Boolean) {
         if (!isVisible) return
         ensureLayout()
         val layout = cachedLayout ?: return
@@ -1843,11 +1847,11 @@ class TextLayer(
                          canvas.save()
                          canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
                          canvas.translate(dx, dy)
-                         drawContent(canvas, layout, w, h, skipEffects = false)
+                         drawContent(canvas, layout, w, h, skipEffects = skipEffects)
                          canvas.restore()
                      } else {
                          canvas.translate(dx, dy)
-                         drawContent(canvas, layout, w, h, skipEffects = false)
+                         drawContent(canvas, layout, w, h, skipEffects = skipEffects)
                      }
                  }
             }

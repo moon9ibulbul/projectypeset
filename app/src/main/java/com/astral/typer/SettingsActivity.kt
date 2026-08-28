@@ -93,6 +93,12 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("disable_snap_to_center", isChecked).apply()
         }
 
+        val cbDisableFastInteraction = findViewById<CheckBox>(R.id.cbDisableFastInteraction)
+        cbDisableFastInteraction.isChecked = settingsPrefs.getBoolean("disable_fast_interaction", false)
+        cbDisableFastInteraction.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("disable_fast_interaction", isChecked).apply()
+        }
+
         val cbLamaNnapi = findViewById<CheckBox>(R.id.cbLamaNnapi)
         cbLamaNnapi.isChecked = settingsPrefs.getBoolean("enable_lama_nnapi", false)
         cbLamaNnapi.setOnCheckedChangeListener { _, isChecked ->
