@@ -305,7 +305,7 @@ abstract class Layer {
     }
 
     // Draw the content of the layer
-    open fun draw(canvas: Canvas, skipEffects: Boolean = false) {
+    open fun draw(canvas: Canvas, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
         draw(canvas)
     }
 

@@ -414,10 +414,10 @@ class ShapeLayer(
     }
 
     override fun draw(canvas: Canvas) {
-        draw(canvas, false)
+        draw(canvas, false, 1.0f)
     }
 
-    override fun draw(canvas: Canvas, skipEffects: Boolean) {
+    override fun draw(canvas: Canvas, skipEffects: Boolean, viewScale: Float) {
         if (!isVisible) return
         ensureShapeLoaded()
         if (svg == null) return
@@ -476,6 +476,10 @@ class ShapeLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
+        if (viewScale < 0.2f) {
+            activeEffects.removeAll { it == TextEffectType.HALFTONE || it == TextEffectType.TEXT_DECAY || it == TextEffectType.WOOD_SCRATCH }
+        }
+
         if (activeEffects.contains(TextEffectType.HALFTONE) && activeEffects.contains(TextEffectType.DROP_SHADOW)) {
             val hIndex = activeEffects.indexOf(TextEffectType.HALFTONE)
             val dIndex = activeEffects.indexOf(TextEffectType.DROP_SHADOW)
@@ -507,12 +511,14 @@ class ShapeLayer(
         if (hasTransform) {
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
         }
+        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
+
         try {
             if (useHardwareTransformEffects) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarp && warpMesh != null) {
-                        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                        drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true, bounds = bounds)
+                        drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true, bounds = bounds, viewScale = viewScale)
                     }
                 }
 
@@ -528,11 +534,10 @@ class ShapeLayer(
                 renderChain(activeEffects.size - 1, canvas)
             } else {
                 if (isWarp && warpMesh != null) {
-                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds)
+                    drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds, viewScale = viewScale)
                 } else {
                      canvas.translate(dx, dy)
-                     drawContent(canvas, w, h, skipEffects = skipEffects)
+                     drawContent(canvas, w, h, skipEffects = skipEffects, viewScale = viewScale)
                 }
             }
         } finally {
@@ -751,7 +756,7 @@ class ShapeLayer(
         }
     }
 
-    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF) {
+    private fun drawWarped(canvas: Canvas, w: Float, h: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF, viewScale: Float = 1.0f) {
         val pad = calculatePadding()
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
@@ -761,7 +766,7 @@ class ShapeLayer(
             val c = Canvas(bitmap)
             c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
-            drawContent(c, w, h, skipEffects = skipEffects)
+            drawContent(c, w, h, skipEffects = skipEffects, viewScale = viewScale)
 
             val meshW = 20
             val meshH = 20
@@ -940,7 +945,7 @@ class ShapeLayer(
         }
     }
 
-    private fun drawContent(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false) {
+    private fun drawContent(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
         val gradientShader = getGradientShader(w, h)
         silhouetteColor = null
         var isDrawingShadowPass = false
@@ -1211,7 +1216,7 @@ class ShapeLayer(
                     }
                 }
 
-                val hasWoodScratch = !skipEffects && (currentEffect == TextEffectType.WOOD_SCRATCH || secondaryEffect == TextEffectType.WOOD_SCRATCH || tertiaryEffect == TextEffectType.WOOD_SCRATCH)
+                val hasWoodScratch = !skipEffects && viewScale >= 0.2f && (currentEffect == TextEffectType.WOOD_SCRATCH || secondaryEffect == TextEffectType.WOOD_SCRATCH || tertiaryEffect == TextEffectType.WOOD_SCRATCH)
                 if (hasWoodScratch) {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -2302,7 +2307,7 @@ class ShapeLayer(
         srcBmp.recycle(); noise1.recycle(); noise2.recycle(); noise3.recycle()
     }
 
-    private fun renderSvgManipulated(canvas: Canvas, fill: Int?, stroke: Int?, strokeW: Float = 0f, fillShader: Shader? = null, strokeShader: Shader? = null) {
+    private fun renderSvgManipulated(canvas: Canvas, fill: Int?, stroke: Int?, strokeW: Float = 0f, fillShader: Shader? = null, strokeShader: Shader? = null, viewScale: Float = 1.0f) {
         if (svgString == null) return
 
         var manipulated = svgString!!
@@ -2353,7 +2358,7 @@ class ShapeLayer(
             val alphaToUse = if (fill != null) Color.alpha(fill) else if (stroke != null) Color.alpha(stroke) else 255
             val layerPaint = if (alphaToUse < 255) Paint(Paint.ANTI_ALIAS_FLAG).apply { alpha = alphaToUse } else null
 
-            val targetCanvas = if (isRoughStroke) RoughCanvas(canvas, true, roughStrokeRoughness) else canvas
+            val targetCanvas = if (isRoughStroke && viewScale >= 0.2f) RoughCanvas(canvas, true, roughStrokeRoughness) else canvas
 
             if (fillShader != null || strokeShader != null) {
                 // If shader is present, we render to a layer and apply shader via SRC_IN

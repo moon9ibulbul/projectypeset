@@ -762,7 +762,7 @@ class TextLayer(
         return result
     }
 
-    private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false): Bitmap {
+    private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
         // 1. Ensure cleanContentCache is valid
         val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
         val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
@@ -775,7 +775,7 @@ class TextLayer(
             val c = Canvas(newClean)
             c.scale(qualityScale, qualityScale)
             c.translate(pad, pad)
-            drawCleanContent(c, layout, w, ch, skipEffects = skipEffects)
+            drawCleanContent(c, layout, w, ch, skipEffects = skipEffects, viewScale = viewScale)
             cleanContentCache = newClean
             cleanContentHash = cleanHash
             erasedContentHash = -1 // force update erased content
@@ -1609,10 +1609,10 @@ class TextLayer(
     }
 
     override fun draw(canvas: Canvas) {
-        draw(canvas, false)
+        draw(canvas, false, 1.0f)
     }
 
-    override fun draw(canvas: Canvas, skipEffects: Boolean) {
+    override fun draw(canvas: Canvas, skipEffects: Boolean, viewScale: Float) {
         if (!isVisible) return
         ensureLayout()
         val layout = cachedLayout ?: return
@@ -1683,6 +1683,10 @@ class TextLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
+        if (viewScale < 0.2f) {
+            activeEffects.removeAll { it == TextEffectType.HALFTONE || it == TextEffectType.TEXT_DECAY || it == TextEffectType.WOOD_SCRATCH }
+        }
+
         if (activeEffects.contains(TextEffectType.HALFTONE) && activeEffects.contains(TextEffectType.DROP_SHADOW)) {
             val hIndex = activeEffects.indexOf(TextEffectType.HALFTONE)
             val dIndex = activeEffects.indexOf(TextEffectType.DROP_SHADOW)
@@ -1723,15 +1727,17 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
+        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
+
         try {
             if (useHardwareTransformEffects) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarpActive) {
-                        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                         if (_warpMesh != null) {
-                            drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true, bounds = bounds)
+                            drawWarped(targetCanvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = true, bounds = bounds, viewScale = viewScale)
                         } else {
-                            drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true)
+                            drawCharacterByCharacter(targetCanvas, layout, w, h, ch, qualityScale, skipEffects = true, viewScale = viewScale)
                         }
                     }
                 }
@@ -1748,17 +1754,15 @@ class TextLayer(
                 renderChain(activeEffects.size - 1, canvas)
             } else {
                 if (isWarpActive) {
-                    val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                     if (_warpMesh != null) {
-                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false, bounds = bounds)
+                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false, bounds = bounds, viewScale = viewScale)
                     } else {
-                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false)
+                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false, viewScale = viewScale)
                     }
                 } else {
                  val pad = calculatePadding()
                  val hasErase = eraseMask != null || activeErasePath != null
                  if (hasErase) {
-                     val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
                      val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
                      val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
                      if (bmpW > 0 && bmpH > 0) {
@@ -1774,7 +1778,7 @@ class TextLayer(
                              val c = Canvas(newClean)
                              c.scale(qualityScale, qualityScale)
                              c.translate(pad, pad)
-                             drawCleanContent(c, layout, w, ch, skipEffects = false)
+                             drawCleanContent(c, layout, w, ch, skipEffects = false, viewScale = viewScale)
                              cleanContentCache = newClean
                              cleanContentHash = cleanHash
                              erasedContentHash = -1 // force update erased content
@@ -1847,11 +1851,11 @@ class TextLayer(
                          canvas.save()
                          canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
                          canvas.translate(dx, dy)
-                         drawContent(canvas, layout, w, h, skipEffects = skipEffects)
+                         drawContent(canvas, layout, w, h, skipEffects = skipEffects, viewScale = viewScale)
                          canvas.restore()
                      } else {
                          canvas.translate(dx, dy)
-                         drawContent(canvas, layout, w, h, skipEffects = skipEffects)
+                         drawContent(canvas, layout, w, h, skipEffects = skipEffects, viewScale = viewScale)
                      }
                  }
             }
@@ -2367,7 +2371,7 @@ class TextLayer(
         }
     }
 
-    private fun drawCharacterByCharacter(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, qualityScale: Float, skipEffects: Boolean = false) {
+    private fun drawCharacterByCharacter(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, qualityScale: Float, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
         val fullText = text.toString()
         val pad = calculatePadding()
 
@@ -2655,7 +2659,7 @@ class TextLayer(
                 val prevPass = isDrawingStrokePass
                 isDrawingStrokePass = false
                 try {
-                    drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
+                    drawContent(canvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects, viewScale = viewScale)
                 } finally {
                     isDrawingStrokePass = prevPass
                 }
@@ -2664,7 +2668,7 @@ class TextLayer(
         }
     }
 
-    private fun getAssembledLetterWarpBitmapCached(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false): Bitmap {
+    private fun getAssembledLetterWarpBitmapCached(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
         val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
         var meshHash = 0
         for ((key, value) in letterWarpMeshes) {
@@ -2681,14 +2685,14 @@ class TextLayer(
             val canvas = Canvas(bmp)
             canvas.scale(qualityScale, qualityScale)
             canvas.translate(-bounds.renderLeft, -bounds.renderTop)
-            drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects)
+            drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects, viewScale = viewScale)
             assembledWarpBmpCache = bmp
             assembledWarpBmpHash = combinedHash
         }
         return assembledWarpBmpCache!!
     }
 
-    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF) {
+    private fun drawWarped(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, rows: Int, cols: Int, mesh: FloatArray, qualityScale: Float = 1.0f, skipEffects: Boolean = false, bounds: RectF, viewScale: Float = 1.0f) {
         val pad = calculatePadding()
         val isFreshBmp = letterWarpMeshes.isNotEmpty()
 
@@ -2710,9 +2714,9 @@ class TextLayer(
 
         if (bmpW > 0 && bmpH > 0) {
             val finalBmp = if (isFreshBmp) {
-                getAssembledLetterWarpBitmapCached(srcBounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
+                getAssembledLetterWarpBitmapCached(srcBounds, layout, w, h, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects, viewScale = viewScale)
             } else {
-                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects)
+                getErasedContentBitmap(layout, w, ch, pad, qualityScale, bmpW, bmpH, skipEffects = skipEffects, viewScale = viewScale)
             }
 
             val meshW = 20
@@ -2898,7 +2902,8 @@ class TextLayer(
         }
     }
 
-    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false) {
+    private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
+        val isRough = isRoughStroke && viewScale >= 0.2f
         val paint = layout.paint
         val fullW = getWidth()
         val fullH = getContentHeight()
@@ -3074,7 +3079,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) {
+                paint.pathEffect = if (isRough) {
                     android.graphics.ComposePathEffect(
                         // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
                         android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
@@ -3093,7 +3098,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) {
+                paint.pathEffect = if (isRough) {
                     android.graphics.ComposePathEffect(
                         // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
                         android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
@@ -3120,7 +3125,7 @@ class TextLayer(
                     paint.color = modulateColor(strokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRoughStroke) {
+                paint.pathEffect = if (isRough) {
                     android.graphics.ComposePathEffect(
                         // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
                         android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
@@ -3399,7 +3404,7 @@ class TextLayer(
                     }
                 }
 
-                val hasWoodScratch = !skipEffects && (currentEffect == TextEffectType.WOOD_SCRATCH || secondaryEffect == TextEffectType.WOOD_SCRATCH || tertiaryEffect == TextEffectType.WOOD_SCRATCH)
+                val hasWoodScratch = !skipEffects && viewScale >= 0.2f && (currentEffect == TextEffectType.WOOD_SCRATCH || secondaryEffect == TextEffectType.WOOD_SCRATCH || tertiaryEffect == TextEffectType.WOOD_SCRATCH)
                 if (hasWoodScratch) {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -3537,7 +3542,7 @@ class TextLayer(
                         // Draw stroke (thick part)
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
-                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
+                        paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                         drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
@@ -3573,7 +3578,7 @@ class TextLayer(
                         // Draw stroke (thick part)
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = shadowThickness
-                        paint.pathEffect = if (isRoughStroke) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
+                        paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
                         drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
@@ -4807,8 +4812,8 @@ class TextLayer(
             }
     }
 
-    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false) {
-        drawCleanContent(canvas, layout, w, h, charLeft, charTop, isCharByChar, skipEffects = skipEffects)
+    private fun drawContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
+        drawCleanContent(canvas, layout, w, h, charLeft, charTop, isCharByChar, skipEffects = skipEffects, viewScale = viewScale)
 
         val pad = calculatePadding()
         val isWarpActive = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())

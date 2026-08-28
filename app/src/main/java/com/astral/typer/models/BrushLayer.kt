@@ -640,10 +640,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     }
 
     override fun draw(canvas: Canvas) {
-        draw(canvas, false)
+        draw(canvas, false, 1.0f)
     }
 
-    override fun draw(canvas: Canvas, skipEffects: Boolean) {
+    override fun draw(canvas: Canvas, skipEffects: Boolean, viewScale: Float) {
         if (!isVisible) return
 
         canvas.save()
