@@ -288,6 +288,10 @@ class ImageLayer(
     }
 
     override fun draw(canvas: Canvas) {
+        draw(canvas, false, 1.0f)
+    }
+
+    override fun draw(canvas: Canvas, skipEffects: Boolean, viewScale: Float) {
         if (!isVisible) return
 
         canvas.save()
@@ -340,7 +344,8 @@ class ImageLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         if (isWarp && warpMesh != null) {
-            val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+            val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+            val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
             drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale)
         } else {
              canvas.translate(dx, dy)

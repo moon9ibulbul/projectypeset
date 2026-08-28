@@ -99,6 +99,12 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("disable_fast_interaction", isChecked).apply()
         }
 
+        val cbDisableLOD = findViewById<CheckBox>(R.id.cbDisableLOD)
+        cbDisableLOD.isChecked = settingsPrefs.getBoolean("disable_lod_scaling", false)
+        cbDisableLOD.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("disable_lod_scaling", isChecked).apply()
+        }
+
         val cbLamaNnapi = findViewById<CheckBox>(R.id.cbLamaNnapi)
         cbLamaNnapi.isChecked = settingsPrefs.getBoolean("enable_lama_nnapi", false)
         cbLamaNnapi.setOnCheckedChangeListener { _, isChecked ->

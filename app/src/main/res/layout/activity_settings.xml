@@ -98,6 +98,14 @@
             android:textColor="?attr/appTextColorPrimary"
             android:checked="false"/>
 
+        <CheckBox
+            android:id="@+id/cbDisableLOD"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Disable Level of Detail &amp; Quality Scaling"
+            android:textColor="?attr/appTextColorPrimary"
+            android:checked="false"/>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
