@@ -143,7 +143,7 @@ class MainActivity : AppCompatActivity() {
                     mimeType == "font/ttf" || mimeType == "font/otf" -> {
                 importFontFromUri(uri)
             }
-            fileName.endsWith(".pdf") || mimeType == "application/pdf" -> {
+            fileName.endsWith(".pdf") || mimeType == "application/pdf" || mimeType == "application/x-pdf" -> {
                 importPdfFromUri(uri)
             }
             fileName.endsWith(".zip") || mimeType == "application/zip" || mimeType == "application/x-zip-compressed" -> {
