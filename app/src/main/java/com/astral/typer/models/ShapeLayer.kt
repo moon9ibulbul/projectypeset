@@ -2300,7 +2300,7 @@ class ShapeLayer(
         var manipulated = svgString!!
 
         var effectiveFill = fill
-        if (isDrawingStrokePass && effectiveFill != null) {
+        if ((isDrawingStrokePass || isWarpActive) && effectiveFill != null) {
             effectiveFill = effectiveFill or 0xFF000000.toInt()
         }
 
@@ -2436,7 +2436,7 @@ class ShapeLayer(
         var startC = gradientStartColor
         var midC = gradientMiddleColor
         var endC = gradientEndColor
-        if (isDrawingStrokePass) {
+        if (isDrawingStrokePass || isWarpActive) {
             startC = startC or 0xFF000000.toInt()
             midC = midC or 0xFF000000.toInt()
             endC = endC or 0xFF000000.toInt()

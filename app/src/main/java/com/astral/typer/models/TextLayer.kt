@@ -1450,7 +1450,7 @@ class TextLayer(
         var startC = gradientStartColor
         var midC = gradientMiddleColor
         var endC = gradientEndColor
-        if (isDrawingStrokePass) {
+        if (isDrawingStrokePass || isWarpActive) {
             startC = startC or 0xFF000000.toInt()
             midC = midC or 0xFF000000.toInt()
             endC = endC or 0xFF000000.toInt()
@@ -3069,7 +3069,7 @@ class TextLayer(
             val iterationAlpha = originalAlpha / 255f
 
             fun modulateColor(c: Int, ignoreOriginalAlpha: Boolean = false): Int {
-                if (isDrawingStrokePass) return c or 0xFF000000.toInt()
+                if (isDrawingStrokePass || isWarpActive) return c or 0xFF000000.toInt()
                 if (!isDrawingShadowPass) return c
                 val baseAlpha = if (ignoreOriginalAlpha) 1.0f else (Color.alpha(c) / 255f)
                 val a = (baseAlpha * iterationAlpha * 255).toInt().coerceIn(0, 255)
