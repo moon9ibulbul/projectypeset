@@ -160,7 +160,44 @@ class AstralCanvasView @JvmOverloads constructor(
             invalidate()
         }
 
+    fun removeInpaintMaskAt(x: Float, y: Float): Boolean {
+        if (inpaintOps.isEmpty()) return false
+        val region = android.graphics.Region()
+        val clipRegion = android.graphics.Region(0, 0, canvasWidth, canvasHeight)
+
+        for (i in inpaintOps.indices.reversed()) {
+            val (path, tool) = inpaintOps[i]
+            // We consider mask ops that draw filled shapes (LASSO, MAGIC_WAND, etc.) or strokes
+            region.setPath(path, clipRegion)
+            var isHit = false
+            if (region.contains(x.toInt(), y.toInt())) {
+                isHit = true
+            } else if (tool == InpaintTool.BRUSH || tool == InpaintTool.ERASER) {
+                // Check if near stroke path
+                val bounds = RectF()
+                path.computeBounds(bounds, true)
+                bounds.inset(-brushSize / 2f, -brushSize / 2f)
+                if (bounds.contains(x, y)) {
+                    isHit = true
+                }
+            }
+            if (isHit) {
+                val removed = inpaintOps.removeAt(i)
+                redoOps.add(removed)
+                invalidate()
+                return true
+            }
+        }
+        return false
+    }
+
     fun performMagicWand(startX: Int, startY: Int) {
+        if (currentInpaintTool == InpaintTool.MAGIC_WAND_ERASER) {
+            if (removeInpaintMaskAt(startX.toFloat(), startY.toFloat())) {
+                return
+            }
+        }
+
         if (backgroundTiles.isEmpty()) return
 
         val originalW = canvasWidth
