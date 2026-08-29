@@ -2427,8 +2427,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
              if (event.actionMasked == MotionEvent.ACTION_UP) {
                  val color = getPixelColor(cx, cy)
-                 onColorPickedListener?.invoke(color)
                  setEyedropperMode(false)
+                 onColorPickedListener?.invoke(color)
              }
              return true
         }
