@@ -501,6 +501,9 @@ class TextLayer(
     @Transient var morphedBmpCache: Bitmap? = null
     @Transient var morphedBmpHash: Int = 0
 
+    @Transient var solidMorphedBmpCache: Bitmap? = null
+    @Transient var solidMorphedBmpHash: Int = 0
+
     @Transient var stroke1BmpCache: Bitmap? = null
     @Transient var stroke1BmpHash: Int = 0
     @Transient val stroke1Offset = IntArray(2)
@@ -516,6 +519,9 @@ class TextLayer(
     @Transient val morphedCharBmpCache = mutableMapOf<Int, Bitmap>()
     @Transient val morphedCharBmpHash = mutableMapOf<Int, Int>()
 
+    @Transient val solidMorphedCharBmpCache = mutableMapOf<Int, Bitmap>()
+    @Transient val solidMorphedCharBmpHash = mutableMapOf<Int, Int>()
+
     @Transient val stroke1CharBmpCache = mutableMapOf<Int, Bitmap>()
     @Transient val stroke1CharBmpHash = mutableMapOf<Int, Int>()
     @Transient val stroke1CharOffset = mutableMapOf<Int, IntArray>()
@@ -530,11 +536,13 @@ class TextLayer(
 
     fun recycleMorphedCaches() {
         morphedBmpCache?.recycle(); morphedBmpCache = null; morphedBmpHash = 0
+        solidMorphedBmpCache?.recycle(); solidMorphedBmpCache = null; solidMorphedBmpHash = 0
         stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
         stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
         stroke3BmpCache?.recycle(); stroke3BmpCache = null; stroke3BmpHash = 0
 
         morphedCharBmpCache.values.forEach { it.recycle() }; morphedCharBmpCache.clear(); morphedCharBmpHash.clear()
+        solidMorphedCharBmpCache.values.forEach { it.recycle() }; solidMorphedCharBmpCache.clear(); solidMorphedCharBmpHash.clear()
         stroke1CharBmpCache.values.forEach { it.recycle() }; stroke1CharBmpCache.clear(); stroke1CharBmpHash.clear(); stroke1CharOffset.clear()
         stroke2CharBmpCache.values.forEach { it.recycle() }; stroke2CharBmpCache.clear(); stroke2CharBmpHash.clear(); stroke2CharOffset.clear()
         stroke3CharBmpCache.values.forEach { it.recycle() }; stroke3CharBmpCache.clear(); stroke3CharBmpHash.clear(); stroke3CharOffset.clear()
@@ -1923,7 +1931,7 @@ class TextLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false, bounds: RectF) {
+    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false, bounds: RectF, viewScale: Float = 1.0f) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
@@ -1959,9 +1967,62 @@ class TextLayer(
                 tempCanvas.restore()
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
+
+                val solidFinalBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val solidC = Canvas(solidFinalBmp)
+                solidC.scale(qualityScale, qualityScale)
+                solidC.translate(pad, pad)
+                val prevSilhouette = silhouetteColor
+                silhouetteColor = Color.BLACK
+                try {
+                    drawCleanContent(solidC, layout, w, ch, skipEffects = skipEffects, viewScale = viewScale)
+                } finally {
+                    silhouetteColor = prevSilhouette
+                }
+                if (eraseMask != null) {
+                    val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                    }
+                    solidC.drawBitmap(eraseMask!!, null, RectF(0f, 0f, bmpW.toFloat(), bmpH.toFloat()), maskPaint)
+                }
+                if (activeErasePath != null) {
+                    val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        style = Paint.Style.STROKE
+                        strokeWidth = activeEraseSize * qualityScale
+                        alpha = activeEraseOpacity
+                        strokeCap = Paint.Cap.ROUND
+                        strokeJoin = Paint.Join.ROUND
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                        if (activeEraseHardness < 100) {
+                            val radius = (activeEraseSize * qualityScale) / 2f
+                            val blur = radius * (1f - (activeEraseHardness / 100f))
+                            if (blur > 0.5f) {
+                                maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                            }
+                        }
+                    }
+                    solidC.save()
+                    solidC.scale(qualityScale, qualityScale)
+                    solidC.drawPath(activeErasePath!!, p)
+                    solidC.restore()
+                }
+
+                val solidMorphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
+                val tempCanvasSolid = Canvas(solidMorphedBmp)
+                tempCanvasSolid.scale(qualityScale, qualityScale)
+                tempCanvasSolid.translate(-bounds.left, -bounds.top)
+                tempCanvasSolid.save()
+                tempCanvasSolid.concat(matrix)
+                tempCanvasSolid.drawBitmap(solidFinalBmp, null, destRect, tempPaint)
+                tempCanvasSolid.restore()
+                solidFinalBmp.recycle()
+                solidMorphedBmpCache = solidMorphedBmp
+                solidMorphedBmpHash = shapeHash
             }
 
             val morphedBmp = morphedBmpCache!!
+            val solidMorphedBmp = solidMorphedBmpCache ?: morphedBmp
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
             val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
@@ -1976,7 +2037,7 @@ class TextLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke3BmpCache = morphedBmp.extractAlpha(blurPaint, stroke3Offset)
+                        stroke3BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke3Offset)
                         stroke3BmpHash = stroke3Hash
                     }
                     val blurredAlphaBmp = stroke3BmpCache
@@ -1984,11 +2045,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = tripleStrokeColor
+                            val alphaRatio = android.graphics.Color.alpha(tripleStrokeColor) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2008,7 +2070,7 @@ class TextLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke2BmpCache = morphedBmp.extractAlpha(blurPaint, stroke2Offset)
+                        stroke2BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke2Offset)
                         stroke2BmpHash = stroke2Hash
                     }
                     val blurredAlphaBmp = stroke2BmpCache
@@ -2016,11 +2078,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = doubleStrokeColor
+                            val alphaRatio = android.graphics.Color.alpha(doubleStrokeColor) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2040,18 +2103,18 @@ class TextLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke1BmpCache = morphedBmp.extractAlpha(blurPaint, stroke1Offset)
+                        stroke1BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke1Offset)
                         stroke1BmpHash = stroke1Hash
                     }
                     val blurredAlphaBmp = stroke1BmpCache
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokeCol = if (isGradient && isGradientStroke) Color.WHITE else strokeColor
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke) {
                                 val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
-                                    // We might need to translate differently depending on context, but let's use global coords
                                     sh.setLocalMatrix(mat)
                                 }
                                 this.shader = sh
@@ -2060,11 +2123,12 @@ class TextLayer(
                                 this.shader = null
                                 color = strokeColor
                             }
+                            val alphaRatio = android.graphics.Color.alpha(strokeCol) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2497,9 +2561,38 @@ class TextLayer(
                         }
                         morphedCharBmpCache[i] = morphedBmp
                         morphedCharBmpHash[i] = charHash
+
+                        val solidTempBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val solidTempCanvas = Canvas(solidTempBmp)
+                        solidTempCanvas.scale(qualityScale, qualityScale)
+                        solidTempCanvas.save()
+                        solidTempCanvas.translate(pad, pad)
+                        val prevSilhouette = silhouetteColor
+                        silhouetteColor = Color.BLACK
+                        try {
+                            drawContent(solidTempCanvas, charLayout, charW, charH, left, yTop, isCharByChar = true, skipEffects = skipEffects)
+                        } finally {
+                            silhouetteColor = prevSilhouette
+                        }
+                        solidTempCanvas.restore()
+
+                        solidMorphedCharBmpCache[i]?.recycle()
+                        val solidMorphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
+                        val solidMorphedCanvas = Canvas(solidMorphedBmp)
+                        solidMorphedCanvas.scale(qualityScale, qualityScale)
+                        solidMorphedCanvas.translate(-charWarpedBounds.left, -charWarpedBounds.top)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            solidMorphedCanvas.drawBitmapMesh(solidTempBmp, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
+                        } else {
+                            solidMorphedCanvas.drawBitmapMesh(solidTempBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
+                        }
+                        solidTempBmp.recycle()
+                        solidMorphedCharBmpCache[i] = solidMorphedBmp
+                        solidMorphedCharBmpHash[i] = charHash
                     }
 
                     val morphedBmp = morphedCharBmpCache[i]!!
+                    val solidMorphedBmp = solidMorphedCharBmpCache[i] ?: morphedBmp
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
                     val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
@@ -2515,7 +2608,7 @@ class TextLayer(
                                     maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                                 }
                                 val offset = IntArray(2)
-                                stroke3CharBmpCache[i] = morphedBmp.extractAlpha(blurPaint, offset)!!
+                                stroke3CharBmpCache[i] = solidMorphedBmp.extractAlpha(blurPaint, offset)!!
                                 stroke3CharOffset[i] = offset
                                 stroke3CharBmpHash[i] = stroke3Hash
                             }
@@ -2525,11 +2618,12 @@ class TextLayer(
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
                                     color = tripleStrokeColor
+                                    val alphaRatio = android.graphics.Color.alpha(tripleStrokeColor) / 255f
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f, -250f
+                                        0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2550,7 +2644,7 @@ class TextLayer(
                                     maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                                 }
                                 val offset = IntArray(2)
-                                stroke2CharBmpCache[i] = morphedBmp.extractAlpha(blurPaint, offset)!!
+                                stroke2CharBmpCache[i] = solidMorphedBmp.extractAlpha(blurPaint, offset)!!
                                 stroke2CharOffset[i] = offset
                                 stroke2CharBmpHash[i] = stroke2Hash
                             }
@@ -2560,11 +2654,12 @@ class TextLayer(
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
                                     color = doubleStrokeColor
+                                    val alphaRatio = android.graphics.Color.alpha(doubleStrokeColor) / 255f
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f, -250f
+                                        0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2585,20 +2680,20 @@ class TextLayer(
                                     maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                                 }
                                 val offset = IntArray(2)
-                                stroke1CharBmpCache[i] = morphedBmp.extractAlpha(blurPaint, offset)!!
+                                stroke1CharBmpCache[i] = solidMorphedBmp.extractAlpha(blurPaint, offset)!!
                                 stroke1CharOffset[i] = offset
                                 stroke1CharBmpHash[i] = stroke1Hash
                             }
                             val blurredAlphaBmp = stroke1CharBmpCache[i]
                             val offset = stroke1CharOffset[i]
                             if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled && offset != null) {
+                                val strokeCol = if (isGradient && isGradientStroke) Color.WHITE else strokeColor
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
                                     if (isGradient && isGradientStroke) {
                                         val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                         if (sh != null) {
                                             val mat = android.graphics.Matrix()
-                                            // We might need to translate differently depending on context, but let's use global coords
                                             sh.setLocalMatrix(mat)
                                         }
                                         this.shader = sh
@@ -2607,11 +2702,12 @@ class TextLayer(
                                         this.shader = null
                                         color = strokeColor
                                     }
+                                    val alphaRatio = android.graphics.Color.alpha(strokeCol) / 255f
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
                                         0f, 0f, 1f, 0f, 0f,
-                                        0f, 0f, 0f, 100f, -250f
+                                        0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                                     ))
                                     colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                                 }
@@ -2621,27 +2717,14 @@ class TextLayer(
                                 canvas.restore()
                             }
                         }
-                    // Punch hole (only punch hole if fill color is not fully transparent, or if gradient is enabled)
-                    val fillAlpha = if (isGradient) 255 else android.graphics.Color.alpha(color)
-                    if (fillAlpha > 0) {
-                        val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            isFilterBitmap = true
-                            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                            val maxAlpha = fillAlpha.toFloat().coerceAtLeast(1f)
-                            val alphaMultiplier = 255f / maxAlpha
-                            val cm = android.graphics.ColorMatrix(floatArrayOf(
-                                1f, 0f, 0f, 0f, 0f,
-                                0f, 1f, 0f, 0f, 0f,
-                                0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, alphaMultiplier, 0f
-                            ))
-                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                        }
-                        canvas.save()
-                        canvas.scale(1f / qualityScale, 1f / qualityScale)
-                        canvas.drawBitmap(morphedBmp, charWarpedBounds.left * qualityScale, charWarpedBounds.top * qualityScale, erasePaint)
-                        canvas.restore()
+                    val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
                     }
+                    canvas.save()
+                    canvas.scale(1f / qualityScale, 1f / qualityScale)
+                    canvas.drawBitmap(solidMorphedBmp, charWarpedBounds.left * qualityScale, charWarpedBounds.top * qualityScale, erasePaint)
+                    canvas.restore()
                     canvas.restoreToCount(holeLayerId)
                 } else {
                         stroke1CharBmpCache[i]?.recycle(); stroke1CharBmpCache.remove(i); stroke1CharBmpHash.remove(i); stroke1CharOffset.remove(i)
@@ -2758,9 +2841,35 @@ class TextLayer(
                 }
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
+
+                val solidFinalBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val solidC = Canvas(solidFinalBmp)
+                solidC.scale(qualityScale, qualityScale)
+                solidC.translate(-srcBounds.renderLeft, -srcBounds.renderTop)
+                val prevSilhouette = silhouetteColor
+                silhouetteColor = Color.BLACK
+                try {
+                    drawCharacterByCharacter(solidC, layout, w, h, ch, qualityScale, skipEffects = skipEffects, viewScale = viewScale)
+                } finally {
+                    silhouetteColor = prevSilhouette
+                }
+
+                val solidMorphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
+                val tempCanvasSolid = Canvas(solidMorphedBmp)
+                tempCanvasSolid.scale(qualityScale, qualityScale)
+                tempCanvasSolid.translate(-bounds.left, -bounds.top)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    tempCanvasSolid.drawBitmapMesh(solidFinalBmp, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
+                } else {
+                    tempCanvasSolid.drawBitmapMesh(solidFinalBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
+                }
+                solidFinalBmp.recycle()
+                solidMorphedBmpCache = solidMorphedBmp
+                solidMorphedBmpHash = shapeHash
             }
 
             val morphedBmp = morphedBmpCache!!
+            val solidMorphedBmp = solidMorphedBmpCache ?: morphedBmp
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
             val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && !isFreshBmp && isDrawingStrokePass
@@ -2775,7 +2884,7 @@ class TextLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke3BmpCache = morphedBmp.extractAlpha(blurPaint, stroke3Offset)
+                        stroke3BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke3Offset)
                         stroke3BmpHash = stroke3Hash
                     }
                     val blurredAlphaBmp = stroke3BmpCache
@@ -2783,11 +2892,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = tripleStrokeColor
+                            val alphaRatio = android.graphics.Color.alpha(tripleStrokeColor) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2807,7 +2917,7 @@ class TextLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke2BmpCache = morphedBmp.extractAlpha(blurPaint, stroke2Offset)
+                        stroke2BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke2Offset)
                         stroke2BmpHash = stroke2Hash
                     }
                     val blurredAlphaBmp = stroke2BmpCache
@@ -2815,11 +2925,12 @@ class TextLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             color = doubleStrokeColor
+                            val alphaRatio = android.graphics.Color.alpha(doubleStrokeColor) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2839,18 +2950,18 @@ class TextLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke1BmpCache = morphedBmp.extractAlpha(blurPaint, stroke1Offset)
+                        stroke1BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke1Offset)
                         stroke1BmpHash = stroke1Hash
                     }
                     val blurredAlphaBmp = stroke1BmpCache
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
+                        val strokeCol = if (isGradient && isGradientStroke) Color.WHITE else strokeColor
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke) {
                                 val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
-                                    // We might need to translate differently depending on context, but let's use global coords
                                     sh.setLocalMatrix(mat)
                                 }
                                 this.shader = sh
@@ -2859,11 +2970,12 @@ class TextLayer(
                                 this.shader = null
                                 color = strokeColor
                             }
+                            val alphaRatio = android.graphics.Color.alpha(strokeCol) / 255f
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
                                 0f, 0f, 1f, 0f, 0f,
-                                0f, 0f, 0f, 100f, -250f
+                                0f, 0f, 0f, 100f * alphaRatio, -250f * alphaRatio
                             ))
                             colorFilter = android.graphics.ColorMatrixColorFilter(cm)
                         }
@@ -2873,27 +2985,14 @@ class TextLayer(
                         canvas.restore()
                     }
                 }
-                // Punch hole (only punch hole if fill color is not fully transparent, or if gradient is enabled)
-                val fillAlpha = if (isGradient) 255 else android.graphics.Color.alpha(color)
-                if (fillAlpha > 0) {
-                    val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        isFilterBitmap = true
-                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                        val maxAlpha = fillAlpha.toFloat().coerceAtLeast(1f)
-                        val alphaMultiplier = 255f / maxAlpha
-                        val cm = android.graphics.ColorMatrix(floatArrayOf(
-                            1f, 0f, 0f, 0f, 0f,
-                            0f, 1f, 0f, 0f, 0f,
-                            0f, 0f, 1f, 0f, 0f,
-                            0f, 0f, 0f, alphaMultiplier, 0f
-                        ))
-                        colorFilter = android.graphics.ColorMatrixColorFilter(cm)
-                    }
-                    canvas.save()
-                    canvas.scale(1f / qualityScale, 1f / qualityScale)
-                    canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
-                    canvas.restore()
+                val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
                 }
+                canvas.save()
+                canvas.scale(1f / qualityScale, 1f / qualityScale)
+                canvas.drawBitmap(solidMorphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
+                canvas.restore()
                 canvas.restoreToCount(holeLayerId)
             } else {
                 stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
