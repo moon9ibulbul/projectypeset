@@ -5204,7 +5204,7 @@ class EditorActivity : AppCompatActivity() {
                         et.editableText.setSpan(StyleSpan(sStyle), actualEnd, sEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                     // If removing target style from BOLD_ITALIC inside selection, preserve the remaining style
-                    if (allHaveTargetStyle && otherStyle != null) {
+                    if (otherStyle != null) {
                         val intersectStart = maxOf(sStart, actualStart)
                         val intersectEnd = minOf(sEnd, actualEnd)
                         if (intersectStart < intersectEnd) {
@@ -5278,8 +5278,20 @@ class EditorActivity : AppCompatActivity() {
 
         val layer = canvasView.getSelectedLayer() as? TextLayer
         if (layer != null) {
+            val len = et.editableText.length
+            if (len > 0) {
+                val spans = et.editableText.getSpans(0, len, StyleSpan::class.java)
+                layer.isBold = spans.any { (it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC) && et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len } || layer.typeface.isBold
+                layer.isItalic = spans.any { (it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC) && et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len } || layer.typeface.isItalic
+                layer.isUnderline = et.editableText.getSpans(0, len, UnderlineSpan::class.java).any { et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len }
+                layer.isStrikethrough = et.editableText.getSpans(0, len, StrikethroughSpan::class.java).any { et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len }
+            } else {
+                layer.isBold = false
+                layer.isItalic = false
+                layer.isUnderline = false
+                layer.isStrikethrough = false
+            }
             layer.text = SpannableStringBuilder(et.editableText)
-            layer.syncFlagsFromSpans()
             canvasView.invalidate()
         }
     }
