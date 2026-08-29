@@ -985,6 +985,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     private var currentMode = Mode.NONE
+    private var previousMode = Mode.NONE
 
     private var gradationStart: PointF? = null
     private var gradationEnd: PointF? = null
@@ -1057,7 +1058,15 @@ class AstralCanvasView @JvmOverloads constructor(
     var onColorPickedListener: ((Int) -> Unit)? = null
 
     fun setEyedropperMode(enabled: Boolean) {
-        currentMode = if (enabled) Mode.EYEDROPPER else Mode.NONE
+        if (enabled) {
+            if (currentMode != Mode.EYEDROPPER) {
+                previousMode = currentMode
+            }
+            currentMode = Mode.EYEDROPPER
+        } else {
+            currentMode = previousMode
+            previousMode = Mode.NONE
+        }
         invalidate()
     }
 
@@ -2418,8 +2427,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
              if (event.actionMasked == MotionEvent.ACTION_UP) {
                  val color = getPixelColor(cx, cy)
-                 onColorPickedListener?.invoke(color)
                  setEyedropperMode(false)
+                 onColorPickedListener?.invoke(color)
              }
              return true
         }
