@@ -449,18 +449,106 @@ class RecentActivity : AppCompatActivity() {
         }
 
         if (uris.isNotEmpty()) {
-            val intent = Intent().apply {
-                if (uris.size == 1) {
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_STREAM, uris[0])
-                } else {
-                    action = Intent.ACTION_SEND_MULTIPLE
-                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            val options = arrayOf("Share to App", "Save to Device (Downloads/AstralTyper)")
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Export / Share")
+                .setItems(options) { _, which ->
+                    if (which == 0) {
+                        val intent = Intent().apply {
+                            if (uris.size == 1) {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_STREAM, uris[0])
+                            } else {
+                                action = Intent.ACTION_SEND_MULTIPLE
+                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                            }
+                            type = "application/zip"
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        startActivity(Intent.createChooser(intent, "Share Projects"))
+                    } else {
+                        saveProjectsToDownloads(files)
+                    }
                 }
-                type = "application/zip"
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun saveProjectsToDownloads(files: List<File>) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var savedCount = 0
+            val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            val targetDir = File(downloadsDir, "AstralTyper")
+            if (!targetDir.exists()) {
+                targetDir.mkdirs()
             }
-            startActivity(Intent.createChooser(intent, "Share Projects"))
+
+            for (file in files) {
+                try {
+                    val isProjectFolder = file.isDirectory && ProjectManager.isProjectDirectory(this@RecentActivity, file)
+                    val outFileName = if (isProjectFolder) {
+                        "${file.name}.atd"
+                    } else if (file.isDirectory) {
+                        "${file.name}.zip"
+                    } else {
+                        file.name
+                    }
+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val resolver = contentResolver
+                        val contentValues = android.content.ContentValues().apply {
+                            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, outFileName)
+                            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, if (outFileName.endsWith(".atd")) "application/x-atd" else "application/zip")
+                            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "${android.os.Environment.DIRECTORY_DOWNLOADS}/AstralTyper")
+                        }
+                        val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                        if (uri != null) {
+                            var success = false
+                            if (file.isDirectory) {
+                                val tempZip = File(cacheDir, outFileName)
+                                if (ProjectManager.zipProjectFolder(file, tempZip)) {
+                                    resolver.openOutputStream(uri)?.use { os ->
+                                        tempZip.inputStream().use { isStream ->
+                                            isStream.copyTo(os)
+                                        }
+                                    }
+                                    tempZip.delete()
+                                    success = true
+                                }
+                            } else {
+                                resolver.openOutputStream(uri)?.use { os ->
+                                    file.inputStream().use { isStream ->
+                                        isStream.copyTo(os)
+                                    }
+                                }
+                                success = true
+                            }
+                            if (success) savedCount++
+                        }
+                    } else {
+                        val destFile = File(targetDir, outFileName)
+                        var success = false
+                        if (file.isDirectory) {
+                            success = ProjectManager.zipProjectFolder(file, destFile)
+                        } else {
+                            file.copyTo(destFile, overwrite = true)
+                            success = true
+                        }
+                        if (success) savedCount++
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                if (savedCount > 0) {
+                    Toast.makeText(this@RecentActivity, "Saved $savedCount file(s) to Downloads/AstralTyper", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@RecentActivity, "Failed to save to Downloads/AstralTyper", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 

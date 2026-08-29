@@ -733,6 +733,15 @@ class EditorActivity : AppCompatActivity() {
                             imm.showSoftInput(et, InputMethodManager.SHOW_IMPLICIT)
                         }
                     }, 300)
+                } else if (layer is ImageLayer) {
+                    val layerUnscaledWidth = layer.getWidth()
+                    if (layerUnscaledWidth > 0f) {
+                        val targetScale = canvasView.canvasWidth.toFloat() / layerUnscaledWidth
+                        layer.scaleX = targetScale
+                        layer.scaleY = targetScale
+                        layer.x = canvasView.canvasWidth / 2f
+                        canvasView.invalidate()
+                    }
                 }
             }
         }
@@ -5153,16 +5162,78 @@ class EditorActivity : AppCompatActivity() {
 
         // Toggle Logic for StyleSpan, UnderlineSpan, StrikethroughSpan
         if (span is StyleSpan) {
-            val existing = et.editableText.getSpans(actualStart, actualEnd, StyleSpan::class.java)
-            var found = false
-            for (s in existing) {
-                if (s.style == span.style) {
-                    et.editableText.removeSpan(s)
-                    found = true
+            val targetStyle = span.style
+            val existingSpans = et.editableText.getSpans(actualStart, actualEnd, StyleSpan::class.java)
+            // Check if ALL characters in the selection currently have the target style active
+            var allHaveTargetStyle = (actualStart < actualEnd)
+            for (i in actualStart until actualEnd) {
+                val charSpans = et.editableText.getSpans(i, i + 1, StyleSpan::class.java)
+                val hasStyle = charSpans.any {
+                    if (targetStyle == Typeface.BOLD) (it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC)
+                    else if (targetStyle == Typeface.ITALIC) (it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC)
+                    else it.style == targetStyle
+                }
+                if (!hasStyle) {
+                    allHaveTargetStyle = false
+                    break
                 }
             }
-            if (!found) {
-                et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+            // Remove/adjust existing style spans overlapping with actualStart..actualEnd
+            for (s in existingSpans) {
+                val sStart = et.editableText.getSpanStart(s)
+                val sEnd = et.editableText.getSpanEnd(s)
+                val sStyle = s.style
+
+                val affectsTarget = if (targetStyle == Typeface.BOLD) (sStyle == Typeface.BOLD || sStyle == Typeface.BOLD_ITALIC)
+                else if (targetStyle == Typeface.ITALIC) (sStyle == Typeface.ITALIC || sStyle == Typeface.BOLD_ITALIC)
+                else sStyle == targetStyle
+
+                if (affectsTarget) {
+                    et.editableText.removeSpan(s)
+                    val otherStyle = if (sStyle == Typeface.BOLD_ITALIC) {
+                        if (targetStyle == Typeface.BOLD) Typeface.ITALIC else Typeface.BOLD
+                    } else null
+
+                    // Restore preceding part of span if outside selection
+                    if (sStart < actualStart) {
+                        et.editableText.setSpan(StyleSpan(sStyle), sStart, actualStart, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                    // Restore succeeding part of span if outside selection
+                    if (sEnd > actualEnd) {
+                        et.editableText.setSpan(StyleSpan(sStyle), actualEnd, sEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                    // If removing target style from BOLD_ITALIC inside selection, preserve the remaining style
+                    if (otherStyle != null) {
+                        val intersectStart = maxOf(sStart, actualStart)
+                        val intersectEnd = minOf(sEnd, actualEnd)
+                        if (intersectStart < intersectEnd) {
+                            et.editableText.setSpan(StyleSpan(otherStyle), intersectStart, intersectEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
+                    }
+                }
+            }
+
+            if (!allHaveTargetStyle) {
+                // If turning on targetStyle, merge with existing complementary style if present
+                var i = actualStart
+                while (i < actualEnd) {
+                    val charSpans = et.editableText.getSpans(i, i + 1, StyleSpan::class.java)
+                    val compStyle = if (targetStyle == Typeface.BOLD) Typeface.ITALIC else Typeface.BOLD
+                    val hasComp = charSpans.any { it.style == compStyle || it.style == Typeface.BOLD_ITALIC }
+
+                    var subEnd = i + 1
+                    while (subEnd < actualEnd) {
+                        val nextSpans = et.editableText.getSpans(subEnd, subEnd + 1, StyleSpan::class.java)
+                        val nextHasComp = nextSpans.any { it.style == compStyle || it.style == Typeface.BOLD_ITALIC }
+                        if (nextHasComp != hasComp) break
+                        subEnd++
+                    }
+
+                    val styleToApply = if (hasComp) Typeface.BOLD_ITALIC else targetStyle
+                    et.editableText.setSpan(StyleSpan(styleToApply), i, subEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    i = subEnd
+                }
             }
         } else if (span is UnderlineSpan) {
             val existing = et.editableText.getSpans(actualStart, actualEnd, UnderlineSpan::class.java)
@@ -5207,6 +5278,19 @@ class EditorActivity : AppCompatActivity() {
 
         val layer = canvasView.getSelectedLayer() as? TextLayer
         if (layer != null) {
+            val len = et.editableText.length
+            if (len > 0) {
+                val spans = et.editableText.getSpans(0, len, StyleSpan::class.java)
+                layer.isBold = spans.any { (it.style == Typeface.BOLD || it.style == Typeface.BOLD_ITALIC) && et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len } || layer.typeface.isBold
+                layer.isItalic = spans.any { (it.style == Typeface.ITALIC || it.style == Typeface.BOLD_ITALIC) && et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len } || layer.typeface.isItalic
+                layer.isUnderline = et.editableText.getSpans(0, len, UnderlineSpan::class.java).any { et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len }
+                layer.isStrikethrough = et.editableText.getSpans(0, len, StrikethroughSpan::class.java).any { et.editableText.getSpanStart(it) == 0 && et.editableText.getSpanEnd(it) == len }
+            } else {
+                layer.isBold = false
+                layer.isItalic = false
+                layer.isUnderline = false
+                layer.isStrikethrough = false
+            }
             layer.text = SpannableStringBuilder(et.editableText)
             canvasView.invalidate()
         }
@@ -5300,22 +5384,12 @@ class EditorActivity : AppCompatActivity() {
 
         // 3. Bold Toggle
         addIcon(R.drawable.ic_format_bold) {
-            val et = activeEditText
-            val hasSelection = et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd
-            if (!hasSelection) {
-                layer.isBold = !layer.isBold
-            }
             applySpanToSelection(StyleSpan(Typeface.BOLD))
             canvasView.invalidate()
         }
 
         // 4. Italic Toggle
         addIcon(R.drawable.ic_format_italic) {
-            val et = activeEditText
-            val hasSelection = et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd
-            if (!hasSelection) {
-                layer.isItalic = !layer.isItalic
-            }
             applySpanToSelection(StyleSpan(Typeface.ITALIC))
             canvasView.invalidate()
         }
@@ -6863,16 +6937,6 @@ class EditorActivity : AppCompatActivity() {
                     1f
                 )
                 setOnClickListener {
-                    val et = activeEditText
-                    val hasSelection = et != null && et.selectionStart != -1 && et.selectionEnd != -1 && et.selectionStart != et.selectionEnd
-                    if (!hasSelection) {
-                        when (type) {
-                            "B" -> layer.isBold = !layer.isBold
-                            "I" -> layer.isItalic = !layer.isItalic
-                            "U" -> layer.isUnderline = !layer.isUnderline
-                            "S" -> layer.isStrikethrough = !layer.isStrikethrough
-                        }
-                    }
                     applySpanToSelection(spanProvider())
                     updateStyleButtons()
                 }
