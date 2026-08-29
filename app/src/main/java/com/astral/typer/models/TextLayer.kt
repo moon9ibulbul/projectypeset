@@ -2621,24 +2621,27 @@ class TextLayer(
                                 canvas.restore()
                             }
                         }
-                    // Punch hole
-                    val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        isFilterBitmap = true
-                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                        val maxAlpha = if (isGradient) 255f else android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
-                        val alphaMultiplier = 255f / maxAlpha
-                        val cm = android.graphics.ColorMatrix(floatArrayOf(
-                            1f, 0f, 0f, 0f, 0f,
-                            0f, 1f, 0f, 0f, 0f,
-                            0f, 0f, 1f, 0f, 0f,
-                            0f, 0f, 0f, alphaMultiplier, 0f
-                        ))
-                        colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                    // Punch hole (only punch hole if fill color is not fully transparent, or if gradient is enabled)
+                    val fillAlpha = if (isGradient) 255 else android.graphics.Color.alpha(color)
+                    if (fillAlpha > 0) {
+                        val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+                            val maxAlpha = fillAlpha.toFloat().coerceAtLeast(1f)
+                            val alphaMultiplier = 255f / maxAlpha
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
+                                0f, 0f, 0f, alphaMultiplier, 0f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        }
+                        canvas.save()
+                        canvas.scale(1f / qualityScale, 1f / qualityScale)
+                        canvas.drawBitmap(morphedBmp, charWarpedBounds.left * qualityScale, charWarpedBounds.top * qualityScale, erasePaint)
+                        canvas.restore()
                     }
-                    canvas.save()
-                    canvas.scale(1f / qualityScale, 1f / qualityScale)
-                    canvas.drawBitmap(morphedBmp, charWarpedBounds.left * qualityScale, charWarpedBounds.top * qualityScale, erasePaint)
-                    canvas.restore()
                     canvas.restoreToCount(holeLayerId)
                 } else {
                         stroke1CharBmpCache[i]?.recycle(); stroke1CharBmpCache.remove(i); stroke1CharBmpHash.remove(i); stroke1CharOffset.remove(i)
@@ -2870,24 +2873,27 @@ class TextLayer(
                         canvas.restore()
                     }
                 }
-                // Punch hole
-                val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    isFilterBitmap = true
-                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                    val maxAlpha = if (isGradient) 255f else android.graphics.Color.alpha(color).toFloat().coerceAtLeast(1f)
-                    val alphaMultiplier = 255f / maxAlpha
-                    val cm = android.graphics.ColorMatrix(floatArrayOf(
-                        1f, 0f, 0f, 0f, 0f,
-                        0f, 1f, 0f, 0f, 0f,
-                        0f, 0f, 1f, 0f, 0f,
-                        0f, 0f, 0f, alphaMultiplier, 0f
-                    ))
-                    colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                // Punch hole (only punch hole if fill color is not fully transparent, or if gradient is enabled)
+                val fillAlpha = if (isGradient) 255 else android.graphics.Color.alpha(color)
+                if (fillAlpha > 0) {
+                    val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+                        val maxAlpha = fillAlpha.toFloat().coerceAtLeast(1f)
+                        val alphaMultiplier = 255f / maxAlpha
+                        val cm = android.graphics.ColorMatrix(floatArrayOf(
+                            1f, 0f, 0f, 0f, 0f,
+                            0f, 1f, 0f, 0f, 0f,
+                            0f, 0f, 1f, 0f, 0f,
+                            0f, 0f, 0f, alphaMultiplier, 0f
+                        ))
+                        colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                    }
+                    canvas.save()
+                    canvas.scale(1f / qualityScale, 1f / qualityScale)
+                    canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
+                    canvas.restore()
                 }
-                canvas.save()
-                canvas.scale(1f / qualityScale, 1f / qualityScale)
-                canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
-                canvas.restore()
                 canvas.restoreToCount(holeLayerId)
             } else {
                 stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
