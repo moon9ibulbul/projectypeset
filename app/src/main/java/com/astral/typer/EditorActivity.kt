@@ -896,7 +896,11 @@ class EditorActivity : AppCompatActivity() {
         binding.btnSave.setOnClickListener { showSaveSidebar() }
 
         binding.btnCut.setOnClickListener {
-            enterCutMode()
+            if (canvasView.isCutModeActive() || btnApplyCut != null) {
+                exitCutModeUI()
+            } else {
+                enterCutMode()
+            }
         }
 
         binding.btnEraser.setOnClickListener {
@@ -4734,6 +4738,37 @@ class EditorActivity : AppCompatActivity() {
         }
 
         binding.btnPropPuppetWarp.visibility = if (layer is TextLayer) View.VISIBLE else View.GONE
+
+        val propInnerLayout = binding.menuProperties.getChildAt(0) as? LinearLayout
+        if (layer is com.astral.typer.models.BrushLayer || layer is ImageLayer) {
+            binding.menuProperties.isFillViewport = true
+            propInnerLayout?.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            for (i in 0 until (propInnerLayout?.childCount ?: 0)) {
+                val child = propInnerLayout?.getChildAt(i)
+                child?.layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            }
+        } else {
+            binding.menuProperties.isFillViewport = false
+            propInnerLayout?.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            for (i in 0 until (propInnerLayout?.childCount ?: 0)) {
+                val child = propInnerLayout?.getChildAt(i)
+                child?.layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    0f
+                )
+            }
+        }
     }
 
     private fun dpToPx(dp: Int): Int {
