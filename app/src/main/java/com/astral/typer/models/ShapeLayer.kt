@@ -581,7 +581,7 @@ class ShapeLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false, bounds: RectF) {
+    private fun drawPerspective(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false, bounds: RectF, viewScale: Float = 1.0f) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
@@ -594,7 +594,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke, isGradientShadow).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke, isGradientShadow).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -789,7 +789,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, isRoughStroke, roughStrokeRoughness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)

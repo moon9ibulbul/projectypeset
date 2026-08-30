@@ -587,7 +587,7 @@ class TextLayer(
         return hashResult
     }
 
-    fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float, skipEffects: Boolean): Int {
+    fun calculateCleanContentHash(w: Float, ch: Float, pad: Float, qualityScale: Float, skipEffects: Boolean, viewScale: Float = 1.0f): Int {
         var result = text.toString().hashCode()
         result = 31 * result + getSpansHash()
         result = 31 * result + transformTypes.hashCode()
@@ -599,6 +599,7 @@ class TextLayer(
         result = 31 * result + pad.hashCode()
         result = 31 * result + qualityScale.hashCode()
         result = 31 * result + skipEffects.hashCode()
+        result = 31 * result + (viewScale >= 0.2f).hashCode()
         result = 31 * result + color
         result = 31 * result + fontSize.hashCode()
         result = 31 * result + (fontPath?.hashCode() ?: 0)
@@ -764,7 +765,7 @@ class TextLayer(
 
     private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
         // 1. Ensure cleanContentCache is valid
-        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
+        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects, viewScale = viewScale)
         val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
                 cleanContentCache!!.width == bmpW && cleanContentCache!!.height == bmpH &&
                 cleanContentHash == cleanHash
@@ -1767,7 +1768,7 @@ class TextLayer(
                      val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
                      if (bmpW > 0 && bmpH > 0) {
                          // 1. Ensure cleanContentCache is valid
-                         val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = false)
+                         val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = false, viewScale = viewScale)
                          val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
                                  cleanContentCache!!.width == bmpW && cleanContentCache!!.height == bmpH &&
                                  cleanContentHash == cleanHash
@@ -2481,7 +2482,7 @@ class TextLayer(
                         }
                     }
 
-                    val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
+                    val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects, viewScale = viewScale)
                     val charHash = listOf(cleanHash, i, charW, charH, mesh.contentHashCode(), qualityScale).hashCode()
                     if (morphedCharBmpCache[i] == null || morphedCharBmpCache[i]!!.isRecycled || morphedCharBmpCache[i]!!.width != targetBmpW || morphedCharBmpCache[i]!!.height != targetBmpH || morphedCharBmpHash[i] != charHash) {
                         morphedCharBmpCache[i]?.recycle()
@@ -2672,7 +2673,7 @@ class TextLayer(
     }
 
     private fun getAssembledLetterWarpBitmapCached(bounds: RenderBounds, layout: StaticLayout, w: Float, h: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
-        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects)
+        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects, viewScale = viewScale)
         var meshHash = 0
         for ((key, value) in letterWarpMeshes) {
             meshHash = 31 * meshHash + key

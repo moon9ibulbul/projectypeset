@@ -2416,6 +2416,10 @@ class AstralCanvasView @JvmOverloads constructor(
             }
             scaleDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                currentMode = Mode.NONE
+                invalidate()
+            }
             return true
         }
 
@@ -2433,6 +2437,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 gestureDetector.onTouchEvent(event)
                 if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                     currentMode = Mode.NONE
+                    invalidate()
                 }
                 return true
             }
@@ -2569,6 +2574,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
                 if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                     currentMode = Mode.INPAINT
+                    invalidate()
                 }
                 return true
             }
@@ -2611,7 +2617,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
-                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) currentMode = Mode.GRADATION
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.GRADATION
+                    invalidate()
+                }
                 return true
             }
 
@@ -2661,6 +2670,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 gestureDetector.onTouchEvent(event)
                 if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                     currentMode = Mode.ERASE_LAYER
+                    invalidate()
                 }
                 return true
             }
@@ -2702,7 +2712,10 @@ class AstralCanvasView @JvmOverloads constructor(
             val stylable = layer as com.astral.typer.models.StylableLayer
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 currentMode = Mode.PAN_ZOOM; scaleDetector.onTouchEvent(event); gestureDetector.onTouchEvent(event)
-                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) currentMode = Mode.ERASE_LAYER
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.ERASE_LAYER
+                    invalidate()
+                }
                 return true
             }
             val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
@@ -3182,7 +3195,9 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                      }
                      currentMode = Mode.TYPER
+                     invalidate()
                 } else {
+                     val wasPanZoom = (currentMode == Mode.PAN_ZOOM)
                      // If we are in Mode.NONE and haven't moved, it was a tap on empty space.
                      if (currentMode == Mode.NONE && !hasMoved) {
                          if (!preventDeselection) {
@@ -3190,6 +3205,9 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                      }
                      currentMode = Mode.NONE
+                     if (wasPanZoom) {
+                         invalidate()
+                     }
                 }
             }
         }
