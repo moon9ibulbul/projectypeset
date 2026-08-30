@@ -267,6 +267,7 @@
             android:layout_height="wrap_content"
             android:background="?attr/appSurfaceColor"
             android:scrollbars="none"
+            android:fillViewport="true"
             android:visibility="gone">
 
             <LinearLayout
@@ -284,7 +285,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -310,7 +311,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -336,7 +337,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -362,7 +363,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -388,7 +389,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -414,7 +415,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -440,7 +441,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -466,7 +467,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -492,7 +493,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -518,7 +519,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -544,7 +545,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -570,7 +571,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -596,7 +597,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -622,7 +623,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -648,7 +649,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -674,7 +675,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -700,7 +701,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">
@@ -726,7 +727,7 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:paddingVertical="4dp"
-                    android:paddingHorizontal="10dp"
+                    android:paddingHorizontal="13dp"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackgroundBorderless">

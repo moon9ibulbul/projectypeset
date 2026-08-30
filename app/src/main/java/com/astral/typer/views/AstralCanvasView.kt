@@ -619,6 +619,8 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun isCutModeActive(): Boolean = cutPoints != null
+
     fun applyCut() {
         val layer = selectedLayer as? ImageLayer ?: return
         val pts = cutPoints ?: return
@@ -3158,6 +3160,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_UP -> {
+                if (cutPoints != null) {
+                    currentMode = Mode.NONE
+                    return true
+                }
                 if (currentMode == Mode.DRAG_LAYER) {
                     // Trigger edit mode if tapped on an already selected layer (and not moved)
                     if (!hasMoved && wasSelectedInitially && selectedLayer != null) {
