@@ -249,6 +249,11 @@ class ImageLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Spike
+    override var spikeIntensity: Float = 0.5f
+    override var spikeMaxLength: Float = 30f
+    override var spikeSeed: Long = System.currentTimeMillis()
+
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f
@@ -717,6 +722,11 @@ class ImageLayer(
         newLayer.tailSeed = this.tailSeed
         newLayer.tailThickness = this.tailThickness
 
+        // Spike
+        newLayer.spikeIntensity = this.spikeIntensity
+        newLayer.spikeMaxLength = this.spikeMaxLength
+        newLayer.spikeSeed = this.spikeSeed
+
         if (this.eraseMask != null) {
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
         }
@@ -765,6 +775,7 @@ class ImageLayer(
         // Super Resolution Effect Scaling
         woodScratchIntensity *= 2f
         tailLength *= 2f
+        spikeMaxLength *= 2f
         tailThickness *= 2f
         tailOffsetX *= 2f
         tailOffsetY *= 2f

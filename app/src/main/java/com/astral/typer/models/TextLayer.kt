@@ -441,6 +441,14 @@ class TextLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Spike
+    override var spikeIntensity: Float = 0.5f
+    override var spikeMaxLength: Float = 30f
+    override var spikeSeed: Long = System.currentTimeMillis()
+
+    @Transient private var spikePathCache: android.graphics.Path? = null
+    @Transient private var spikePathHash: Int = 0
+
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f
@@ -718,6 +726,11 @@ class TextLayer(
         result = 31 * result + tailOffsetY.hashCode()
         result = 31 * result + tailSeed.hashCode()
         result = 31 * result + tailThickness.hashCode()
+
+        // Spike
+        result = 31 * result + spikeIntensity.hashCode()
+        result = 31 * result + spikeMaxLength.hashCode()
+        result = 31 * result + spikeSeed.hashCode()
 
         // Twist
         result = 31 * result + twistAngle.hashCode()
@@ -1075,6 +1088,11 @@ class TextLayer(
         newLayer.tailSeed = this.tailSeed
         newLayer.tailThickness = this.tailThickness
 
+        // Spike
+        newLayer.spikeIntensity = this.spikeIntensity
+        newLayer.spikeMaxLength = this.spikeMaxLength
+        newLayer.spikeSeed = this.spikeSeed
+
         newLayer.x = this.x
         newLayer.y = this.y
         newLayer.rotation = this.rotation
@@ -1239,6 +1257,9 @@ class TextLayer(
                     val extY = tailLength * Math.abs(Math.sin(rad)).toFloat()
                     val expansion = Math.max(extX, extY) + tailWavyIntensity * 5f + 30f
                     effectExpansion = Math.max(effectExpansion, expansion)
+                }
+                TextEffectType.SPIKE -> {
+                    effectExpansion = Math.max(effectExpansion, spikeMaxLength + 20f)
                 }
                 else -> {}
             }
@@ -1680,9 +1701,9 @@ class TextLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL && currentEffect != TextEffectType.SPIKE) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL && secondaryEffect != TextEffectType.SPIKE) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL && tertiaryEffect != TextEffectType.SPIKE) activeEffects.add(tertiaryEffect)
 
         if (viewScale < 0.2f) {
             activeEffects.removeAll { it == TextEffectType.HALFTONE || it == TextEffectType.TEXT_DECAY || it == TextEffectType.WOOD_SCRATCH }
@@ -2909,6 +2930,110 @@ class TextLayer(
         }
     }
 
+    private fun getSpikePath(layout: android.text.Layout, paint: android.graphics.Paint): android.graphics.Path? {
+        val isSpikeActive = currentEffect == TextEffectType.SPIKE || secondaryEffect == TextEffectType.SPIKE || tertiaryEffect == TextEffectType.SPIKE
+        if (!isSpikeActive || spikeIntensity <= 0f || spikeMaxLength <= 0f) return null
+
+        val currentHash = listOf(
+            layout.text.toString(),
+            fontSize,
+            spikeIntensity,
+            spikeMaxLength,
+            spikeSeed,
+            layout.width
+        ).hashCode()
+
+        if (spikePathCache != null && spikePathHash == currentHash) {
+            return spikePathCache
+        }
+
+        val spikePath = android.graphics.Path()
+        val textPaint = android.graphics.Paint(paint).apply {
+            textSize = fontSize
+            typeface = layout.paint.typeface
+        }
+
+        val tempPath = android.graphics.Path()
+        val random = java.util.Random(spikeSeed)
+
+        for (line in 0 until layout.lineCount) {
+            val lineStart = layout.getLineStart(line)
+            val lineEnd = layout.getLineEnd(line)
+            if (lineStart >= lineEnd) continue
+            val lineText = layout.text.substring(lineStart, lineEnd)
+            if (lineText.isBlank()) continue
+
+            val lineLeft = layout.getLineLeft(line)
+            val lineBaseline = layout.getLineBaseline(line).toFloat()
+
+            tempPath.reset()
+            textPaint.getTextPath(lineText, 0, lineText.length, lineLeft, lineBaseline, tempPath)
+            if (tempPath.isEmpty) continue
+
+            val pm = android.graphics.PathMeasure(tempPath, false)
+            val pos = FloatArray(2)
+            val tan = FloatArray(2)
+
+            val lineBounds = android.graphics.RectF()
+            tempPath.computeBounds(lineBounds, true)
+            val cx = lineBounds.centerX()
+            val cy = lineBounds.centerY()
+
+            do {
+                val contourLen = pm.length
+                if (contourLen < 5f) continue
+
+                val numSpikes = (contourLen / 20f * spikeIntensity * 2.5f).toInt().coerceIn(1, 400)
+                for (i in 0 until numSpikes) {
+                    val d = random.nextFloat() * contourLen
+                    if (!pm.getPosTan(d, pos, tan)) continue
+
+                    val px = pos[0]
+                    val py = pos[1]
+                    val tx = tan[0]
+                    val ty = tan[1]
+
+                    var nx = -ty
+                    var ny = tx
+
+                    val dirX = px - cx
+                    val dirY = py - cy
+                    if (nx * dirX + ny * dirY < 0) {
+                        nx = -nx
+                        ny = -ny
+                    }
+
+                    val h = (0.15f + random.nextFloat() * 0.85f) * spikeMaxLength
+                    val baseW = (2f + random.nextFloat() * 4f) * (fontSize / 40f).coerceAtLeast(0.5f)
+
+                    val angleJitter = (random.nextFloat() - 0.5f) * 0.3f
+                    val tipNx = nx + tx * angleJitter
+                    val tipNy = ny + ty * angleJitter
+                    val tipLen = Math.hypot(tipNx.toDouble(), tipNy.toDouble()).toFloat().coerceAtLeast(0.001f)
+                    val normTipX = tipNx / tipLen
+                    val normTipY = tipNy / tipLen
+
+                    val tipX = px + normTipX * h
+                    val tipY = py + normTipY * h
+
+                    val b1x = px - tx * (baseW / 2f)
+                    val b1y = py - ty * (baseW / 2f)
+                    val b2x = px + tx * (baseW / 2f)
+                    val b2y = py + ty * (baseW / 2f)
+
+                    spikePath.moveTo(b1x, b1y)
+                    spikePath.lineTo(tipX, tipY)
+                    spikePath.lineTo(b2x, b2y)
+                    spikePath.close()
+                }
+            } while (pm.nextContour())
+        }
+
+        spikePathCache = spikePath
+        spikePathHash = currentHash
+        return spikePath
+    }
+
     private fun drawCleanContent(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, charLeft: Float = 0f, charTop: Float = 0f, isCharByChar: Boolean = false, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
         val isRough = isRoughStroke && viewScale >= 0.2f
         val paint = layout.paint
@@ -3004,6 +3129,8 @@ class TextLayer(
             } else null
         } else null
 
+        val spikePathToDraw = getSpikePath(layout, paint)
+
         val drawTailPath = { targetCanvas: Canvas, drawPaint: Paint ->
             if (tailPath != null) {
                 val oldStyle = drawPaint.style
@@ -3017,6 +3144,9 @@ class TextLayer(
                 targetCanvas.drawPath(tailPath, drawPaint)
                 drawPaint.style = oldStyle
                 drawPaint.strokeWidth = oldWidth
+            }
+            if (spikePathToDraw != null && !spikePathToDraw.isEmpty) {
+                targetCanvas.drawPath(spikePathToDraw, drawPaint)
             }
         }
 
@@ -3653,9 +3783,9 @@ class TextLayer(
 
         // Setup effects chain
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL && currentEffect != TextEffectType.SPIKE) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL && secondaryEffect != TextEffectType.SPIKE) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL && tertiaryEffect != TextEffectType.SPIKE) activeEffects.add(tertiaryEffect)
 
         if (activeEffects.contains(TextEffectType.HALFTONE) && activeEffects.contains(TextEffectType.DROP_SHADOW)) {
             val hIndex = activeEffects.indexOf(TextEffectType.HALFTONE)
@@ -5861,6 +5991,7 @@ class TextLayer(
         // Super Resolution Effect Scaling
         woodScratchIntensity *= 2f
         tailLength *= 2f
+        spikeMaxLength *= 2f
         tailThickness *= 2f
         tailOffsetX *= 2f
         tailOffsetY *= 2f

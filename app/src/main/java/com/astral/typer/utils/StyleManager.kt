@@ -356,6 +356,9 @@ object StyleManager {
         val tailOffsetY: Float? = 0f,
         val tailThickness: Float? = 10f,
         val tailSeed: Long? = 0L,
+        val spikeIntensity: Float? = 0.5f,
+        val spikeMaxLength: Float? = 30f,
+        val spikeSeed: Long? = 0L,
         val glitchAmount: Float? = 20f,
         val glitchDistance: Float? = 15f,
         val glitchDirection: Float? = 0f
@@ -505,6 +508,9 @@ object StyleManager {
             tailOffsetY = l.tailOffsetY,
             tailThickness = l.tailThickness,
             tailSeed = l.tailSeed,
+            spikeIntensity = l.spikeIntensity,
+            spikeMaxLength = l.spikeMaxLength,
+            spikeSeed = l.spikeSeed,
             glitchAmount = l.glitchAmount,
             glitchDistance = l.glitchDistance,
             glitchDirection = l.glitchDirection
@@ -678,6 +684,11 @@ object StyleManager {
         m.tailOffsetY?.let { l.tailOffsetY = it }
         m.tailThickness?.let { l.tailThickness = it }
         m.tailSeed?.let { l.tailSeed = it }
+
+        // Spike Restore
+        m.spikeIntensity?.let { l.spikeIntensity = it }
+        m.spikeMaxLength?.let { l.spikeMaxLength = it }
+        m.spikeSeed?.let { l.spikeSeed = it }
 
         // Glitch Restore
         m.glitchAmount?.let { l.glitchAmount = it }

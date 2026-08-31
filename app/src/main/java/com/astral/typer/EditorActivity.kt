@@ -1188,6 +1188,10 @@ class EditorActivity : AppCompatActivity() {
             if (effect == TextEffectType.WOOD_SCRATCH) {
                 if (stylableLayer.woodScratchIntensity == 0f) stylableLayer.woodScratchIntensity = 0.5f
             }
+            if (effect == TextEffectType.SPIKE) {
+                if (stylableLayer.spikeIntensity == 0f) stylableLayer.spikeIntensity = 0.5f
+                if (stylableLayer.spikeMaxLength == 0f) stylableLayer.spikeMaxLength = 30f
+            }
             if (effect == TextEffectType.MOTION_BLUR) {
                 if (stylableLayer.motionBlurKernelSize == 0) stylableLayer.motionBlurKernelSize = 5
                 if (stylableLayer.motionBlurVelocityX == 0f && stylableLayer.motionBlurVelocityY == 0f) {
@@ -1259,6 +1263,7 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Speed Line", TextEffectType.SPEED_LINE)
         addEffectCard("Wood Scratch", TextEffectType.WOOD_SCRATCH)
         addEffectCard("Text Tail", TextEffectType.TEXT_TAIL)
+        addEffectCard("Spike", TextEffectType.SPIKE)
 
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
@@ -2734,6 +2739,57 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
                 settingsLayout.addView(btnScratchSeed)
+        }
+
+        if (isEffectActive(TextEffectType.SPIKE)) {
+                // Slider: Spike Intensity (1 to 100)
+                val currentIntensity = (stylableLayer.spikeIntensity * 100f).toInt().coerceIn(1, 100)
+                val s1 = createSlider("Spike Intensity: $currentIntensity%", currentIntensity, 100) { }
+                val tv1 = s1.findViewWithTag<TextView>("SLIDER_LABEL")
+                s1.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.spikeIntensity = p / 100f
+                        tv1?.text = "Spike Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s1)
+
+                // Slider: Max Length (1 to 100)
+                val currentLength = stylableLayer.spikeMaxLength.toInt().coerceIn(1, 100)
+                val s2 = createSlider("Max Length: $currentLength px", currentLength, 100) { }
+                val tv2 = s2.findViewWithTag<TextView>("SLIDER_LABEL")
+                s2.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.spikeMaxLength = p.toFloat()
+                        tv2?.text = "Max Length: ${p}px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s2)
+
+                // Button: Randomize Seed
+                val btnSpikeSeed = android.widget.Button(this).apply {
+                    text = "Randomize Seed"
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    background = GradientDrawable().apply {
+                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                        setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                        cornerRadius = dpToPx(8).toFloat()
+                    }
+                    setOnClickListener {
+                        stylableLayer.spikeSeed = java.util.Random().nextLong()
+                        canvasView.invalidate()
+                    }
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        setMargins(0, dpToPx(16), 0, 0)
+                    }
+                }
+                settingsLayout.addView(btnSpikeSeed)
         }
 
         if (isEffectActive(TextEffectType.TEXT_TAIL)) {
@@ -4237,6 +4293,11 @@ class EditorActivity : AppCompatActivity() {
         layer.tailWavyIntensity = style.tailWavyIntensity ?: 0f
         layer.tailAngle = style.tailAngle ?: 0f
         layer.tailArrowPoint = style.tailArrowPoint ?: false
+
+        // Spike properties
+        layer.spikeIntensity = style.spikeIntensity ?: 0.5f
+        layer.spikeMaxLength = style.spikeMaxLength ?: 30f
+        layer.spikeSeed = style.spikeSeed ?: 0L
 
         // Formatting & caseType assignment
         layer.caseType = style.caseType ?: "NORMAL"

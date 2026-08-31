@@ -194,6 +194,11 @@ interface StylableLayer {
     var tailSeed: Long
     var tailThickness: Float
 
+    // Spike
+    var spikeIntensity: Float
+    var spikeMaxLength: Float
+    var spikeSeed: Long
+
     // Erase
     var eraseMask: Bitmap?
     val erasePaths: MutableList<ErasePathData>

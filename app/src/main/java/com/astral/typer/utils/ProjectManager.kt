@@ -234,6 +234,11 @@ object ProjectManager {
         val tailThickness: Float? = null,
         val tailSeed: Long? = null,
 
+        // Spike
+        val spikeIntensity: Float? = null,
+        val spikeMaxLength: Float? = null,
+        val spikeSeed: Long? = null,
+
         val isOval: Boolean? = null,
         val fixedHeight: Float? = null,
         val isGlobalGradient: Boolean? = null,
@@ -582,6 +587,11 @@ object ProjectManager {
                         tailThickness = layer.tailThickness,
                         tailSeed = layer.tailSeed,
 
+                        // Spike
+                        spikeIntensity = layer.spikeIntensity,
+                        spikeMaxLength = layer.spikeMaxLength,
+                        spikeSeed = layer.spikeSeed,
+
                         isOval = layer.isOval,
                         fixedHeight = layer.fixedHeight,
                         isGlobalGradient = layer.isGlobalGradient,
@@ -723,6 +733,11 @@ object ProjectManager {
                         tailOffsetY = layer.tailOffsetY,
                         tailThickness = layer.tailThickness,
                         tailSeed = layer.tailSeed,
+
+                        // Spike
+                        spikeIntensity = layer.spikeIntensity,
+                        spikeMaxLength = layer.spikeMaxLength,
+                        spikeSeed = layer.spikeSeed,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,
                         motionBlurOffset = layer.motionBlurOffset,
@@ -1509,6 +1524,11 @@ object ProjectManager {
             model.tailThickness?.let { layer.tailThickness = it }
             model.tailSeed?.let { layer.tailSeed = it }
 
+            // Spike
+            model.spikeIntensity?.let { layer.spikeIntensity = it }
+            model.spikeMaxLength?.let { layer.spikeMaxLength = it }
+            model.spikeSeed?.let { layer.spikeSeed = it }
+
             model.isOval?.let { layer.isOval = it }
             model.fixedHeight?.let { layer.fixedHeight = it }
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -1694,6 +1714,11 @@ object ProjectManager {
             model.tailOffsetY?.let { layer.tailOffsetY = it }
             model.tailThickness?.let { layer.tailThickness = it }
             model.tailSeed?.let { layer.tailSeed = it }
+
+            // Spike
+            model.spikeIntensity?.let { layer.spikeIntensity = it }
+            model.spikeMaxLength?.let { layer.spikeMaxLength = it }
+            model.spikeSeed?.let { layer.spikeSeed = it }
 
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
             if (model.globalP1X != null && model.globalP1Y != null) {

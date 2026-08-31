@@ -480,6 +480,11 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Spike
+    override var spikeIntensity: Float = 0.5f
+    override var spikeMaxLength: Float = 30f
+    override var spikeSeed: Long = System.currentTimeMillis()
+
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f
@@ -620,6 +625,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             tailOffsetY = this@BrushLayer.tailOffsetY
             tailSeed = this@BrushLayer.tailSeed
             tailThickness = this@BrushLayer.tailThickness
+
+            spikeIntensity = this@BrushLayer.spikeIntensity
+            spikeMaxLength = this@BrushLayer.spikeMaxLength
+            spikeSeed = this@BrushLayer.spikeSeed
         }
         // Deep copy drawing tiles
         for ((key, tile) in this.tiles) {
@@ -1811,6 +1820,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         // Super Resolution Effect Scaling
         woodScratchIntensity *= 2f
         tailLength *= 2f
+        spikeMaxLength *= 2f
         tailThickness *= 2f
         tailOffsetX *= 2f
         tailOffsetY *= 2f
