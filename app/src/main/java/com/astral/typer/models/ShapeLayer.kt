@@ -313,14 +313,6 @@ class ShapeLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
-    // Spike
-    override var spikeIntensity: Float = 0.5f
-    override var spikeMaxLength: Float = 30f
-    override var spikeSeed: Long = System.currentTimeMillis()
-
-    @Transient private var spikePathCache: Path? = null
-    @Transient private var spikePathHash: Int = 0
-
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f
@@ -480,9 +472,9 @@ class ShapeLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         val activeEffects = mutableListOf<TextEffectType>()
-        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL && currentEffect != TextEffectType.SPIKE) activeEffects.add(currentEffect)
-        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL && secondaryEffect != TextEffectType.SPIKE) activeEffects.add(secondaryEffect)
-        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL && tertiaryEffect != TextEffectType.SPIKE) activeEffects.add(tertiaryEffect)
+        if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
+        if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
+        if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
         if (viewScale < 0.2f) {
             activeEffects.removeAll { it == TextEffectType.HALFTONE || it == TextEffectType.TEXT_DECAY || it == TextEffectType.WOOD_SCRATCH }
@@ -959,109 +951,10 @@ class ShapeLayer(
         }
     }
 
-    private fun getSpikePath(w: Float, h: Float): Path? {
-        val isSpikeActive = currentEffect == TextEffectType.SPIKE || secondaryEffect == TextEffectType.SPIKE || tertiaryEffect == TextEffectType.SPIKE
-        if (!isSpikeActive || spikeIntensity <= 0f || spikeMaxLength <= 0f) return null
-
-        val currentHash = listOf(
-            w, h,
-            spikeIntensity,
-            spikeMaxLength,
-            spikeSeed
-        ).hashCode()
-
-        if (spikePathCache != null && spikePathHash == currentHash) {
-            return spikePathCache
-        }
-
-        val spikePath = Path()
-        val tempPath = Path()
-        val halfW = w / 2f
-        val halfH = h / 2f
-        tempPath.addRect(-halfW, -halfH, halfW, halfH, Path.Direction.CW)
-
-        val pm = android.graphics.PathMeasure(tempPath, false)
-        val pos = FloatArray(2)
-        val tan = FloatArray(2)
-        val random = java.util.Random(spikeSeed)
-
-        val contourLen = pm.length
-        if (contourLen >= 5f) {
-            val numSpikes = (contourLen / 20f * spikeIntensity * 2.5f).toInt().coerceIn(1, 400)
-            for (i in 0 until numSpikes) {
-                val d = random.nextFloat() * contourLen
-                if (!pm.getPosTan(d, pos, tan)) continue
-
-                val px = pos[0]
-                val py = pos[1]
-                val tx = tan[0]
-                val ty = tan[1]
-
-                var nx = -ty
-                var ny = tx
-
-                if (nx * px + ny * py < 0) {
-                    nx = -nx
-                    ny = -ny
-                }
-
-                val spikeH = (0.15f + random.nextFloat() * 0.85f) * spikeMaxLength
-                val baseW = (2f + random.nextFloat() * 4f).coerceAtLeast(0.5f)
-
-                val angleJitter = (random.nextFloat() - 0.5f) * 0.3f
-                val tipNx = nx + tx * angleJitter
-                val tipNy = ny + ty * angleJitter
-                val tipLen = Math.hypot(tipNx.toDouble(), tipNy.toDouble()).toFloat().coerceAtLeast(0.001f)
-                val normTipX = tipNx / tipLen
-                val normTipY = tipNy / tipLen
-
-                val tipX = px + normTipX * spikeH
-                val tipY = py + normTipY * spikeH
-
-                val b1x = px - tx * (baseW / 2f)
-                val b1y = py - ty * (baseW / 2f)
-                val b2x = px + tx * (baseW / 2f)
-                val b2y = py + ty * (baseW / 2f)
-
-                spikePath.moveTo(b1x, b1y)
-                spikePath.lineTo(tipX, tipY)
-                spikePath.lineTo(b2x, b2y)
-                spikePath.close()
-            }
-        }
-
-        spikePathCache = spikePath
-        spikePathHash = currentHash
-        return spikePath
-    }
-
     private fun drawContent(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
         val gradientShader = getGradientShader(w, h)
         silhouetteColor = null
         var isDrawingShadowPass = false
-
-        val spikePathToDraw = getSpikePath(w, h)
-        val drawSpikes = { targetCanvas: Canvas, strokeColor: Int?, strokeW: Float, fillColor: Int?, fillShader: Shader?, strokeShader: Shader? ->
-            if (spikePathToDraw != null && !spikePathToDraw.isEmpty) {
-                val p = Paint(Paint.ANTI_ALIAS_FLAG)
-                if (strokeColor != null || strokeShader != null) {
-                    p.style = Paint.Style.STROKE
-                    p.strokeWidth = strokeW
-                    p.color = strokeColor ?: Color.WHITE
-                    p.shader = strokeShader
-                    p.strokeJoin = Paint.Join.ROUND
-                    p.strokeCap = Paint.Cap.ROUND
-                    targetCanvas.drawPath(spikePathToDraw, p)
-                }
-                if (fillColor != null || fillShader != null) {
-                    p.style = Paint.Style.FILL
-                    p.strokeWidth = 0f
-                    p.color = fillColor ?: Color.WHITE
-                    p.shader = fillShader
-                    targetCanvas.drawPath(spikePathToDraw, p)
-                }
-            }
-        }
 
         val drawMain = { targetCanvas: Canvas ->
             commonPaint.reset()
@@ -1071,14 +964,12 @@ class ShapeLayer(
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 val colorToUse = (silhouetteColor ?: tripleStrokeColor)
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2)
-                drawSpikes(targetCanvas, colorToUse, strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2, null, null, null)
             }
 
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 val colorToUse = (silhouetteColor ?: doubleStrokeColor)
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2)
-                drawSpikes(targetCanvas, colorToUse, strokeWidthToUse + doubleStrokeWidthToUse * 2, null, null, null)
             }
 
             // 2. Stroke
@@ -1086,18 +977,15 @@ class ShapeLayer(
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke) Color.WHITE else strokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke) gradientShader else null
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse, strokeShader = shaderToUse)
-                drawSpikes(targetCanvas, colorToUse, strokeWidthToUse, null, null, shaderToUse)
             }
 
             // 3. Fill
             if (silhouetteColor != null) {
                 renderSvgManipulated(targetCanvas, fill = silhouetteColor!!, stroke = null)
-                drawSpikes(targetCanvas, null, 0f, silhouetteColor!!, null, null)
             } else if (isDrawingShadowPass) {
                 val colorToUse = shadowColor
                 val shaderToUse = if (isGradient && isGradientShadow) gradientShader else null
                 renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = shaderToUse)
-                drawSpikes(targetCanvas, null, 0f, colorToUse, shaderToUse, null)
             } else {
                 val drawFillContent = { fillCanvas: Canvas ->
                     val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
@@ -1116,7 +1004,6 @@ class ShapeLayer(
 
                         val colorToUse = if (fillShaderToUse != null) Color.WHITE else color
                         renderSvgManipulated(fillCanvas, fill = colorToUse, stroke = null, fillShader = fillShaderToUse)
-                        drawSpikes(fillCanvas, null, 0f, colorToUse, fillShaderToUse, null)
 
                         // 4. Built-in Pattern Overlay
                         if (patternName != null) {
@@ -2548,9 +2435,6 @@ class ShapeLayer(
                 TextEffectType.TEXT_TAIL -> {
                     effectExpansion = Math.max(effectExpansion, tailLength + tailWavyIntensity * 5f + 20f)
                 }
-                TextEffectType.SPIKE -> {
-                    effectExpansion = Math.max(effectExpansion, spikeMaxLength + 20f)
-                }
                 else -> {}
             }
         }
@@ -2774,7 +2658,6 @@ class ShapeLayer(
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
         newLayer.decaySeed = decaySeed; newLayer.woodScratchSeed = woodScratchSeed
         newLayer.woodScratchIntensity = woodScratchIntensity; newLayer.woodScratchColor = woodScratchColor
-        newLayer.spikeIntensity = spikeIntensity; newLayer.spikeMaxLength = spikeMaxLength; newLayer.spikeSeed = spikeSeed
 
         // Twist
         newLayer.twistAngle = twistAngle
@@ -2896,7 +2779,6 @@ class ShapeLayer(
         // Super Resolution Effect Scaling
         woodScratchIntensity *= 2f
         tailLength *= 2f
-        spikeMaxLength *= 2f
         tailThickness *= 2f
         tailOffsetX *= 2f
         tailOffsetY *= 2f
