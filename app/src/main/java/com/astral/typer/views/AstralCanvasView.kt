@@ -1126,9 +1126,42 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight) return Color.WHITE
-        val bmp = renderToBitmap()
-        val pixel = bmp.getPixel(x.toInt(), y.toInt())
-        return pixel
+
+        val px = x.toInt()
+        val py = y.toInt()
+
+        try {
+            val pixelBmp = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(pixelBmp)
+
+            canvas.translate(-px.toFloat(), -py.toFloat())
+
+            // Draw Background Color
+            val bgPaint = Paint().apply {
+                color = canvasColor
+                style = Paint.Style.FILL
+            }
+            canvas.drawRect(px.toFloat(), py.toFloat(), px + 1f, py + 1f, bgPaint)
+
+            val sampleViewport = RectF(px.toFloat(), py.toFloat(), px + 1f, py + 1f)
+
+            // Draw Background Tiles with Frustum Culling
+            val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            for (tile in backgroundTiles) {
+                if (RectF.intersects(tile.rect, sampleViewport)) {
+                    canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+                }
+            }
+
+            // Draw Layers with Frustum Culling
+            drawLayers(canvas, layers, sampleViewport, skipEffects = false, viewScale = 1.0f)
+
+            val pixel = pixelBmp.getPixel(0, 0)
+            pixelBmp.recycle()
+            return pixel
+        } catch (e: Throwable) {
+            return Color.WHITE
+        }
     }
 
     private var lastTouchX = 0f
@@ -1974,26 +2007,43 @@ class AstralCanvasView @JvmOverloads constructor(
              paint.style = Paint.Style.FILL
              canvas.drawRect(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat(), paint)
 
-             // Draw Tiles in Eyedropper
+             // Compute canvas space viewport for magnifying box (boxSize / zoomLevel = 50 canvas units around eyedropper point)
+             val magHalfSize = (boxSize / 2f) / zoomLevel
+             val magViewport = RectF(
+                 eyedropperX - magHalfSize,
+                 eyedropperY - magHalfSize,
+                 eyedropperX + magHalfSize,
+                 eyedropperY + magHalfSize
+             )
+
+             // Draw Tiles in Eyedropper with Frustum Culling
              val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
              for (tile in backgroundTiles) {
-                 canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+                 if (RectF.intersects(tile.rect, magViewport)) {
+                     canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, tilePaint)
+                 }
              }
 
-             drawLayers(canvas, layers)
+             // Draw Layers in Eyedropper with Frustum Culling and Fast Interaction Mode (skipEffects = true)
+             drawLayers(canvas, layers, magViewport, skipEffects = true)
 
              // Draw RAW Panel in Magnifying Glass
              if (rawPanelTiles.isNotEmpty()) {
                  val rawPaint = Paint(Paint.ANTI_ALIAS_FLAG)
                  rawPaint.alpha = rawPanelOpacity
 
+                 val rawViewport = RectF(magViewport)
+
                  canvas.save()
                  if (rawPanelMode == RawPanelMode.BESIDE) {
                      canvas.translate(canvasWidth.toFloat(), 0f)
+                     rawViewport.offset(-canvasWidth.toFloat(), 0f)
                  }
 
                  for (tile in rawPanelTiles) {
-                     canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, rawPaint)
+                     if (RectF.intersects(tile.rect, rawViewport)) {
+                         canvas.drawBitmap(tile.bitmap, tile.rect.left, tile.rect.top, rawPaint)
+                     }
                  }
                  canvas.restore()
              }
