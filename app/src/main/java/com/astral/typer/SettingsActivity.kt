@@ -28,6 +28,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var cbStyle: CheckBox
     private lateinit var cbFavorite: CheckBox
     private lateinit var cbMyFont: CheckBox
+    private lateinit var cbWarpPreset: CheckBox
     private lateinit var cbAutosave: CheckBox
 
     // Watermark Views
@@ -79,6 +80,7 @@ class SettingsActivity : AppCompatActivity() {
         cbStyle = findViewById(R.id.cbStyle)
         cbFavorite = findViewById(R.id.cbFavorite)
         cbMyFont = findViewById(R.id.cbMyFont)
+        cbWarpPreset = findViewById(R.id.cbWarpPreset)
         cbAutosave = findViewById(R.id.cbAutosave)
 
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
@@ -582,7 +584,7 @@ class SettingsActivity : AppCompatActivity() {
 
         // Data Logic
         btnExport.setOnClickListener {
-            if (!cbStyle.isChecked && !cbFavorite.isChecked && !cbMyFont.isChecked) {
+            if (!cbStyle.isChecked && !cbFavorite.isChecked && !cbMyFont.isChecked && !cbWarpPreset.isChecked) {
                 Toast.makeText(this, "Select at least one item to export", Toast.LENGTH_SHORT).show()
             } else {
                 exportLauncher.launch("AstralTyper_Backup.zip")
@@ -703,6 +705,11 @@ class SettingsActivity : AppCompatActivity() {
                         }
                     }
                 }
+
+                // 4. Custom Warp Presets (SharedPrefs)
+                if (cbWarpPreset.isChecked) {
+                    addFileToZip(File(dataDir, "shared_prefs/warp_preset_prefs.xml"), "shared_prefs/warp_preset_prefs.xml", zipOut)
+                }
             }
 
             // Write temp file to Uri
@@ -753,6 +760,8 @@ class SettingsActivity : AppCompatActivity() {
                              targetFile = File(dataDir, filePath)
                         } else if (filePath.contains("font_prefs.xml") && cbFavorite.isChecked) {
                              targetFile = File(dataDir, filePath)
+                        } else if (filePath.contains("warp_preset_prefs.xml") && cbWarpPreset.isChecked) {
+                             targetFile = File(dataDir, filePath)
                         }
                     } else if (filePath.startsWith("files/fonts/") && cbMyFont.isChecked) {
                         targetFile = File(filesDir, "fonts/${File(filePath).name}")
@@ -770,9 +779,12 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
-            // Reload StyleManager in-memory styles and folders if imported
+            // Reload StyleManager and WarpPresetManager in-memory data if imported
             if (cbStyle.isChecked) {
                 com.astral.typer.utils.StyleManager.reload(this)
+            }
+            if (cbWarpPreset.isChecked) {
+                com.astral.typer.utils.WarpPresetManager.reload(this)
             }
 
             // Restart App? Or just toast.
