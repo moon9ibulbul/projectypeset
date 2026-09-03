@@ -4458,8 +4458,8 @@ class EditorActivity : AppCompatActivity() {
         val savedAll = com.astral.typer.utils.StyleManager.getSavedStyles()
         val filteredStyles = (when (selectedStyleFolderId) {
             "ALL" -> savedAll
-            "UNASSIGNED" -> savedAll.filter { it.folderId.isNullOrEmpty() }
-            else -> savedAll.filter { it.folderId == selectedStyleFolderId }
+            "UNASSIGNED" -> savedAll.filter { it.getStyleFolderIds().isEmpty() }
+            else -> savedAll.filter { it.getStyleFolderIds().contains(selectedStyleFolderId) }
         }).toMutableList()
 
         if (filteredStyles.isEmpty()) {
@@ -4503,21 +4503,33 @@ class EditorActivity : AppCompatActivity() {
                             when(item.title) {
                                 "Move to Folder" -> {
                                     val currentFolders = StyleManager.getFolders()
-                                    val options = mutableListOf("None (Unassigned)")
-                                    options.addAll(currentFolders.map { it.name })
-
-                                    android.app.AlertDialog.Builder(this)
-                                        .setTitle("Move to Folder")
-                                        .setItems(options.toTypedArray()) { _, which ->
-                                            val targetFolderId = if (which > 0 && which - 1 < currentFolders.size) {
-                                                currentFolders[which - 1].id
-                                            } else null
-
-                                            StyleManager.assignStyleToFolderByStyle(this, style, targetFolderId)
-                                            showStyleMenu()
+                                    if (currentFolders.isEmpty()) {
+                                        Toast.makeText(this, "No folders created yet", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val folderNames = currentFolders.map { it.name }.toTypedArray()
+                                        val currentAssignedIds = style.getStyleFolderIds().toSet()
+                                        val checkedItems = BooleanArray(currentFolders.size) { i ->
+                                            currentAssignedIds.contains(currentFolders[i].id)
                                         }
-                                        .setNegativeButton("Cancel", null)
-                                        .show()
+
+                                        android.app.AlertDialog.Builder(this)
+                                            .setTitle("Move to Folder")
+                                            .setMultiChoiceItems(folderNames, checkedItems) { _, which, isChecked ->
+                                                checkedItems[which] = isChecked
+                                            }
+                                            .setPositiveButton("OK") { _, _ ->
+                                                val selectedFolderIds = mutableListOf<String>()
+                                                for (i in currentFolders.indices) {
+                                                    if (checkedItems[i]) {
+                                                        selectedFolderIds.add(currentFolders[i].id)
+                                                    }
+                                                }
+                                                StyleManager.assignStyleToFoldersByStyle(this, style, selectedFolderIds)
+                                                showStyleMenu()
+                                            }
+                                            .setNegativeButton("Cancel", null)
+                                            .show()
+                                    }
                                     true
                                 }
                                 "Rename" -> {
