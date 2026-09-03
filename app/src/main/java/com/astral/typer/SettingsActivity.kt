@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -73,6 +74,38 @@ class SettingsActivity : AppCompatActivity() {
         ThemeHelper.applyTheme(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+
+        // Setup Expandable Sections
+        setupExpandableSection(
+            findViewById(R.id.headerAppearance),
+            findViewById(R.id.contentAppearance),
+            findViewById(R.id.ivAppearanceArrow)
+        )
+        setupExpandableSection(
+            findViewById(R.id.headerDataFont),
+            findViewById(R.id.contentDataFont),
+            findViewById(R.id.ivDataFontArrow)
+        )
+        setupExpandableSection(
+            findViewById(R.id.headerWatermark),
+            findViewById(R.id.contentWatermark),
+            findViewById(R.id.ivWatermarkArrow)
+        )
+        val headerAiModels = findViewById<android.view.View>(R.id.headerAiModels)
+        val contentAiModels = findViewById<android.view.View>(R.id.contentAiModels)
+        val ivAiModelsArrow = findViewById<ImageView>(R.id.ivAiModelsArrow)
+        setupExpandableSection(headerAiModels, contentAiModels, ivAiModelsArrow)
+
+        setupExpandableSection(
+            findViewById(R.id.headerPdfExport),
+            findViewById(R.id.contentPdfExport),
+            findViewById(R.id.ivPdfExportArrow)
+        )
+        setupExpandableSection(
+            findViewById(R.id.headerOther),
+            findViewById(R.id.contentOther),
+            findViewById(R.id.ivOtherArrow)
+        )
 
         // Bind Views
         tvCacheSize = findViewById(R.id.tvCacheSize)
@@ -521,6 +554,8 @@ class SettingsActivity : AppCompatActivity() {
 
         // Handle auto-download from intent extra
         if (intent.getBooleanExtra("AUTO_DOWNLOAD", false)) {
+            contentAiModels.visibility = android.view.View.VISIBLE
+            ivAiModelsArrow.rotation = 180f
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
@@ -611,6 +646,18 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupExpandableSection(
+        header: android.view.View,
+        content: android.view.View,
+        arrow: ImageView
+    ) {
+        header.setOnClickListener {
+            val isExpanded = content.visibility == android.view.View.VISIBLE
+            content.visibility = if (isExpanded) android.view.View.GONE else android.view.View.VISIBLE
+            arrow.animate().rotation(if (isExpanded) 0f else 180f).setDuration(200).start()
+        }
+    }
+
     private fun updateCacheSize() {
         val sizeBytes = calculateSize(cacheDir)
         val sizeMb = sizeBytes / (1024.0 * 1024.0)
@@ -673,21 +720,6 @@ class SettingsActivity : AppCompatActivity() {
             ZipOutputStream(FileOutputStream(tempFile)).use { zipOut ->
                 // 1. Styles (SharedPrefs)
                 if (cbStyle.isChecked) {
-                    val styleFile = File(dataDir, "shared_prefs/style_prefs.xml") // Check exact name used in StyleManager
-                    // Looking at memory/StyleManager, it likely uses shared prefs.
-                    // Let's verify name later. Assuming "style_prefs" based on context or "StyleManager"
-                    // Actually, StyleManager usually uses a JSON file or specific pref.
-                    // Reading memory: "Style menu displays real-time generated Bitmap thumbnails...".
-                    // Let's assume standard prefs for now, but I might need to verify the file name.
-                    // If it's pure shared prefs, the file is usually `package_name_preferences.xml` or specific name.
-
-                    // Actually, let's look for "style_prefs.xml" or try to find it.
-                    // Safer: Export ALL shared prefs related to app? No, user selected "Style".
-                    // I'll check `StyleManager.kt` via `read_file` if needed.
-                    // For now, I'll assume a standard name or implement a helper.
-
-                    // Let's grab the known file paths.
-                    // `StyleManager.kt` usually saves to `style_prefs`.
                     addFileToZip(File(dataDir, "shared_prefs/style_prefs.xml"), "shared_prefs/style_prefs.xml", zipOut)
                 }
 
@@ -750,12 +782,6 @@ class SettingsActivity : AppCompatActivity() {
                     var targetFile: File? = null
 
                     if (filePath.startsWith("shared_prefs/")) {
-                        // Determine target based on checkboxes?
-                        // Or just restore if present in zip?
-                        // User clicked Import, implies restore all in zip.
-                        // But we should respect the checkbox logic? usually import restores everything in the backup.
-                        // Let's restore everything found in zip that matches our categories.
-
                         if (filePath.contains("style_prefs.xml") && cbStyle.isChecked) {
                              targetFile = File(dataDir, filePath)
                         } else if (filePath.contains("font_prefs.xml") && cbFavorite.isChecked) {
@@ -787,8 +813,6 @@ class SettingsActivity : AppCompatActivity() {
                 com.astral.typer.utils.WarpPresetManager.reload(this)
             }
 
-            // Restart App? Or just toast.
-            // SharedPrefs might need reload. Process restart is safest.
             Toast.makeText(this, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()
 
             finish()
