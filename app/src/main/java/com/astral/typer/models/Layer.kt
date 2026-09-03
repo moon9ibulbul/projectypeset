@@ -133,6 +133,7 @@ interface StylableLayer {
     var particleDissolveAngle: Float
     var multiGradientColors: IntArray
     var multiGradientAngle: Float
+    var multiGradientPositions: FloatArray?
     var radialBlurInnerRadius: Float
     var radialBlurMotionStrength: Float
     var radialBlurCenterX: Float

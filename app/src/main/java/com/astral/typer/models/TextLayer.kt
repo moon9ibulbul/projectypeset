@@ -377,6 +377,7 @@ class TextLayer(
     // Multi Gradient
     override var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt()) // Classic Rainbow
     override var multiGradientAngle: Float = 0f
+    override var multiGradientPositions: FloatArray? = null
 
     // Radial Blur
     override var radialBlurInnerRadius: Float = 0f
@@ -691,6 +692,7 @@ class TextLayer(
         result = 31 * result + chromaticAngle.hashCode()
         result = 31 * result + multiGradientColors.contentHashCode()
         result = 31 * result + multiGradientAngle.hashCode()
+        result = 31 * result + (multiGradientPositions?.contentHashCode() ?: 0)
         result = 31 * result + particleSize.hashCode()
         result = 31 * result + particleSpread.hashCode()
         result = 31 * result + particleDissolveAngle.hashCode()
@@ -1014,6 +1016,7 @@ class TextLayer(
 
         newLayer.multiGradientColors = this.multiGradientColors.clone()
         newLayer.multiGradientAngle = this.multiGradientAngle
+        newLayer.multiGradientPositions = this.multiGradientPositions?.clone()
 
         newLayer.radialBlurInnerRadius = this.radialBlurInnerRadius
         newLayer.radialBlurMotionStrength = this.radialBlurMotionStrength
@@ -1601,9 +1604,12 @@ class TextLayer(
         val x1 = cx + halfLen * cos
         val y1 = cy + halfLen * sin
 
-        // Distribute colors evenly
-        val positions = FloatArray(multiGradientColors.size) { i ->
-            i.toFloat() / (multiGradientColors.size - 1)
+        val positions = if (multiGradientPositions != null && multiGradientPositions!!.size == multiGradientColors.size) {
+            multiGradientPositions!!
+        } else {
+            FloatArray(multiGradientColors.size) { i ->
+                i.toFloat() / (multiGradientColors.size - 1)
+            }
         }
 
         return LinearGradient(x0, y0, x1, y1, multiGradientColors, positions, Shader.TileMode.CLAMP)

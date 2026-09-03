@@ -176,7 +176,7 @@ object ProjectManager {
         val fieryColor: Int? = null, val fieryIntensity: Float? = null,
         val wavyIntensity: Float? = null, val wavyFrequency: Float? = null,
         val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
-        val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null,
+        val multiGradientColors: List<Int>? = null, val multiGradientAngle: Float? = null, val multiGradientPositions: List<Float>? = null,
         val radialBlurInnerRadius: Float? = null, val radialBlurMotionStrength: Float? = null,
         val radialBlurCenterX: Float? = null, val radialBlurCenterY: Float? = null,
         val decayIntensity: Float? = null, val decayFadingLevel: Float? = null,
@@ -524,7 +524,7 @@ object ProjectManager {
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity,
                         wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
-                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
+                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle, multiGradientPositions = layer.multiGradientPositions?.toList(),
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
@@ -666,7 +666,7 @@ object ProjectManager {
                         chromaticAngle = layer.chromaticAngle,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
-                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle,
+                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle, multiGradientPositions = layer.multiGradientPositions?.toList(),
                         radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
                         radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
                         decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
@@ -1449,6 +1449,7 @@ object ProjectManager {
             model.particleDissolveAngle?.let { layer.particleDissolveAngle = it }
             model.multiGradientColors?.let { layer.multiGradientColors = it.toIntArray() }
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
+            model.multiGradientPositions?.let { layer.multiGradientPositions = it.toFloatArray() }
             model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.radialBlurCenterX?.let { layer.radialBlurCenterX = it }
@@ -1635,6 +1636,7 @@ object ProjectManager {
             model.particleDissolveAngle?.let { layer.particleDissolveAngle = it }
             model.multiGradientColors?.let { layer.multiGradientColors = it.toIntArray() }
             model.multiGradientAngle?.let { layer.multiGradientAngle = it }
+            model.multiGradientPositions?.let { layer.multiGradientPositions = it.toFloatArray() }
             model.radialBlurInnerRadius?.let { layer.radialBlurInnerRadius = it }
             model.radialBlurMotionStrength?.let { layer.radialBlurMotionStrength = it }
             model.radialBlurCenterX?.let { layer.radialBlurCenterX = it }

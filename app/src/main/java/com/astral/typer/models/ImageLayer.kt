@@ -189,6 +189,7 @@ class ImageLayer(
     override var particleDissolveAngle: Float = 0f
     override var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt())
     override var multiGradientAngle: Float = 0f
+    override var multiGradientPositions: FloatArray? = null
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
     override var radialBlurCenterX: Float = 0.5f

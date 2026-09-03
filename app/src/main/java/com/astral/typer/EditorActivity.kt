@@ -1715,7 +1715,9 @@ class EditorActivity : AppCompatActivity() {
                         }
                         setOnClickListener {
                             stylableLayer.multiGradientColors = p.colors
+                            stylableLayer.multiGradientPositions = null
                             canvasView.invalidate()
+                            showEffectMenu()
                         }
                     }
                     paletteContainer.addView(btn)
@@ -1723,6 +1725,367 @@ class EditorActivity : AppCompatActivity() {
 
                 settingsLayout.addView(TextView(this).apply { text = "Select Palette"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
                 settingsLayout.addView(scrollPalette)
+
+                // Custom Color Controls (Start Color, Middle Color, End Color & Dominance Sliders)
+                val currentColors = stylableLayer.multiGradientColors
+                val currentPositions = stylableLayer.multiGradientPositions
+
+                var customHasMid = true
+                var customStartColor = Color.RED
+                var customMidColor = Color.GREEN
+                var customEndColor = Color.BLUE
+                var customStartPos = 0.33f
+                var customMidPos = 0.33f
+                var customEndPos = 0.34f
+
+                if (currentPositions != null && (currentPositions.size == 5 || currentPositions.size == 4) && currentColors.size == currentPositions.size) {
+                    if (currentPositions.size == 5) {
+                        customHasMid = true
+                        customStartColor = currentColors[0]
+                        customMidColor = currentColors[2]
+                        customEndColor = currentColors[4]
+                        customStartPos = currentPositions[1] * 2f
+                        customMidPos = (currentPositions[2] - currentPositions[1] * 2f) * 2f
+                        customEndPos = (1.0f - currentPositions[3]) * 2f
+                    } else {
+                        customHasMid = false
+                        customStartColor = currentColors[0]
+                        customEndColor = currentColors[3]
+                        customStartPos = currentPositions[1] * 2f
+                        customMidPos = 0.0f
+                        customEndPos = (1.0f - currentPositions[2]) * 2f
+                    }
+                } else if (currentColors.isNotEmpty()) {
+                    customStartColor = currentColors.first()
+                    customEndColor = currentColors.last()
+                    if (currentColors.size > 2) {
+                        customHasMid = true
+                        customMidColor = currentColors[currentColors.size / 2]
+                    } else {
+                        customHasMid = false
+                    }
+                }
+
+                fun applyCustomMultiGradient(
+                    hasMid: Boolean,
+                    startCol: Int,
+                    midCol: Int,
+                    endCol: Int,
+                    pStartRaw: Float,
+                    pMidRaw: Float,
+                    pEndRaw: Float
+                ) {
+                    val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(hasMid, pStartRaw, pMidRaw, pEndRaw)
+                    val sStart = pStart / 2f
+                    val sMid = pStart + pMid / 2f
+                    val sEnd = 1.0f - pEnd / 2f
+                    val sorted = if (hasMid) {
+                        listOf(
+                            startCol to 0.0f,
+                            startCol to sStart,
+                            midCol to sMid,
+                            endCol to sEnd,
+                            endCol to 1.0f
+                        ).sortedBy { it.second }
+                    } else {
+                        listOf(
+                            startCol to 0.0f,
+                            startCol to sStart,
+                            endCol to sEnd,
+                            endCol to 1.0f
+                        ).sortedBy { it.second }
+                    }
+                    stylableLayer.multiGradientColors = sorted.map { it.first }.toIntArray()
+                    stylableLayer.multiGradientPositions = sorted.map { it.second.coerceIn(0f, 1f) }.toFloatArray()
+                    canvasView.invalidate()
+                }
+
+                // Middle Color Toggle
+                val middleColorToggleLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, 16, 0, 16)
+                }
+                val chkMiddleColor = android.widget.CheckBox(this).apply {
+                    setText("Middle Color")
+                    isChecked = customHasMid
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                    setOnCheckedChangeListener { _, b ->
+                        applyCustomMultiGradient(
+                            b,
+                            customStartColor,
+                            customMidColor,
+                            customEndColor,
+                            customStartPos,
+                            customMidPos,
+                            customEndPos
+                        )
+                        showEffectMenu()
+                    }
+                }
+                middleColorToggleLayout.addView(chkMiddleColor)
+                settingsLayout.addView(middleColorToggleLayout)
+
+                // Start Color
+                settingsLayout.addView(TextView(this).apply {
+                    text = "Start Color"
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                })
+                settingsLayout.addView(createColorScroll(customStartColor,
+                    { c ->
+                        applyCustomMultiGradient(
+                            customHasMid,
+                            c,
+                            customMidColor,
+                            customEndColor,
+                            customStartPos,
+                            customMidPos,
+                            customEndPos
+                        )
+                        showEffectMenu()
+                    },
+                    {
+                        showColorWheelDialogForProperty(customStartColor) { c ->
+                            applyCustomMultiGradient(
+                                customHasMid,
+                                c,
+                                customMidColor,
+                                customEndColor,
+                                customStartPos,
+                                customMidPos,
+                                customEndPos
+                            )
+                            showEffectMenu()
+                        }
+                    }
+                ))
+
+                val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(
+                    customHasMid,
+                    customStartPos,
+                    customMidPos,
+                    customEndPos
+                )
+
+                val initialStartProgress = (pStart * 100f).toInt().coerceIn(0, 100)
+                val startPosSlider = createSlider("Start Dominance: $initialStartProgress%", initialStartProgress, 100) { }
+
+                val initialMiddleProgress = (pMid * 100f).toInt().coerceIn(0, 100)
+                val middlePosSlider = if (customHasMid) {
+                    createSlider("Middle Dominance: $initialMiddleProgress%", initialMiddleProgress, 100) { }
+                } else {
+                    null
+                }
+
+                val initialEndProgress = (pEnd * 100f).toInt().coerceIn(0, 100)
+                val endPosSlider = createSlider("End Dominance: $initialEndProgress%", initialEndProgress, 100) { }
+
+                var isUpdatingSliders = false
+                val applyPortionChange = { changedIndex: Int, progress: Int, fromUser: Boolean ->
+                    if (fromUser && !isUpdatingSliders) {
+                        isUpdatingSliders = true
+                        val pNew = progress / 100f
+                        var newStart = pStart
+                        var newMid = pMid
+                        var newEnd = pEnd
+
+                        val (currStart, currMid, currEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(
+                            customHasMid,
+                            customStartPos,
+                            customMidPos,
+                            customEndPos
+                        )
+
+                        if (customHasMid) {
+                            val r = 1.0f - pNew
+                            when (changedIndex) {
+                                0 -> {
+                                    newStart = pNew
+                                    val otherSum = currMid + currEnd
+                                    if (otherSum > 0.001f) {
+                                        newMid = r * (currMid / otherSum)
+                                        newEnd = r * (currEnd / otherSum)
+                                    } else {
+                                        newMid = r / 2f
+                                        newEnd = r / 2f
+                                    }
+                                }
+                                1 -> {
+                                    newMid = pNew
+                                    val otherSum = currStart + currEnd
+                                    if (otherSum > 0.001f) {
+                                        newStart = r * (currStart / otherSum)
+                                        newEnd = r * (currEnd / otherSum)
+                                    } else {
+                                        newStart = r / 2f
+                                        newEnd = r / 2f
+                                    }
+                                }
+                                2 -> {
+                                    newEnd = pNew
+                                    val otherSum = currStart + currMid
+                                    if (otherSum > 0.001f) {
+                                        newStart = r * (currStart / otherSum)
+                                        newMid = r * (currMid / otherSum)
+                                    } else {
+                                        newStart = r / 2f
+                                        newMid = r / 2f
+                                    }
+                                }
+                            }
+                        } else {
+                            val r = 1.0f - pNew
+                            when (changedIndex) {
+                                0 -> {
+                                    newStart = pNew
+                                    newEnd = r
+                                }
+                                2 -> {
+                                    newEnd = pNew
+                                    newStart = r
+                                }
+                            }
+                        }
+
+                        val sum = if (customHasMid) newStart + newMid + newEnd else newStart + newEnd
+                        if (sum > 0f) {
+                            newStart /= sum
+                            if (customHasMid) newMid /= sum
+                            newEnd /= sum
+                        }
+
+                        customStartPos = newStart
+                        if (customHasMid) customMidPos = newMid
+                        customEndPos = newEnd
+
+                        applyCustomMultiGradient(
+                            customHasMid,
+                            customStartColor,
+                            customMidColor,
+                            customEndColor,
+                            newStart,
+                            newMid,
+                            newEnd
+                        )
+
+                        val startProgress = (newStart * 100f).toInt().coerceIn(0, 100)
+                        val midProgress = (newMid * 100f).toInt().coerceIn(0, 100)
+                        val endProgress = (newEnd * 100f).toInt().coerceIn(0, 100)
+
+                        startPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.progress = startProgress
+                        startPosSlider.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Start Dominance: $startProgress%"
+
+                        if (customHasMid) {
+                            middlePosSlider?.findViewWithTag<SeekBar>("SLIDER_BAR")?.progress = midProgress
+                            middlePosSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Middle Dominance: $midProgress%"
+                        }
+
+                        endPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.progress = endProgress
+                        endPosSlider.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "End Dominance: $endProgress%"
+
+                        isUpdatingSliders = false
+                    }
+                }
+
+                startPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        applyPortionChange(0, p, b)
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(startPosSlider)
+
+                if (customHasMid) {
+                    settingsLayout.addView(TextView(this).apply {
+                        text = "Middle Color"
+                        setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                        setPadding(0, 16, 0, 0)
+                    })
+                    settingsLayout.addView(createColorScroll(customMidColor,
+                        { c ->
+                            applyCustomMultiGradient(
+                                customHasMid,
+                                customStartColor,
+                                c,
+                                customEndColor,
+                                customStartPos,
+                                customMidPos,
+                                customEndPos
+                            )
+                            showEffectMenu()
+                        },
+                        {
+                            showColorWheelDialogForProperty(customMidColor) { c ->
+                                applyCustomMultiGradient(
+                                    customHasMid,
+                                    customStartColor,
+                                    c,
+                                    customEndColor,
+                                    customStartPos,
+                                    customMidPos,
+                                    customEndPos
+                                )
+                                showEffectMenu()
+                            }
+                        }
+                    ))
+
+                    middlePosSlider?.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                        override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                            applyPortionChange(1, p, b)
+                        }
+                        override fun onStartTrackingTouch(s: SeekBar?) {}
+                        override fun onStopTrackingTouch(s: SeekBar?) {}
+                    })
+                    if (middlePosSlider != null) {
+                        settingsLayout.addView(middlePosSlider)
+                    }
+                }
+
+                settingsLayout.addView(TextView(this).apply {
+                    text = "End Color"
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                    setPadding(0, 16, 0, 0)
+                })
+                settingsLayout.addView(createColorScroll(customEndColor,
+                    { c ->
+                        applyCustomMultiGradient(
+                            customHasMid,
+                            customStartColor,
+                            customMidColor,
+                            c,
+                            customStartPos,
+                            customMidPos,
+                            customEndPos
+                        )
+                        showEffectMenu()
+                    },
+                    {
+                        showColorWheelDialogForProperty(customEndColor) { c ->
+                            applyCustomMultiGradient(
+                                customHasMid,
+                                customStartColor,
+                                customMidColor,
+                                c,
+                                customStartPos,
+                                customMidPos,
+                                customEndPos
+                            )
+                            showEffectMenu()
+                        }
+                    }
+                ))
+
+                endPosSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        applyPortionChange(2, p, b)
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(endPosSlider)
 
                 val currentMGAngle = stylableLayer.multiGradientAngle
                 val s1 = createSlider("Angle: ${currentMGAngle.toInt()}°", currentMGAngle.toInt(), 360) {
