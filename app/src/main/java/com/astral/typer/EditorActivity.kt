@@ -9244,6 +9244,75 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
+        // Warp Presets Horizontal Selector
+        val horizontalScroll = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(0, 0, 0, 8)
+        }
+        val presetsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val cardBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBgColor)
+        val borderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBorderColor)
+        val textColorPrimary = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorPrimary)
+
+        com.astral.typer.utils.WarpPresetManager.presets.forEach { preset ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(dpToPx(4), 0, dpToPx(4), 0)
+                }
+                background = GradientDrawable().apply {
+                    setColor(cardBgColor)
+                    setStroke(dpToPx(1), borderColor)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+
+                val iv = android.widget.ImageView(this@EditorActivity).apply {
+                    val thumb = com.astral.typer.utils.WarpPresetManager.generateThumbnail(
+                        this@EditorActivity,
+                        preset,
+                        dpToPx(64),
+                        dpToPx(48)
+                    )
+                    setImageBitmap(thumb)
+                    scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                }
+                val tv = TextView(this@EditorActivity).apply {
+                    text = preset.name
+                    textSize = 11f
+                    setTextColor(textColorPrimary)
+                    gravity = Gravity.CENTER
+                    setPadding(0, dpToPx(4), 0, 0)
+                }
+
+                addView(iv)
+                addView(tv)
+
+                setOnClickListener {
+                    val w = layer.getWidth().toFloat()
+                    val h = layer.getHeight().toFloat()
+                    val res = preset.meshGenerator(w, h)
+                    stylableLayer.isWarp = true
+                    stylableLayer.warpRows = res.rows
+                    stylableLayer.warpCols = res.cols
+                    stylableLayer.warpMesh = res.mesh.clone()
+                    canvasView.invalidate()
+                    showWarpMenu()
+                }
+            }
+            presetsContainer.addView(card)
+        }
+        horizontalScroll.addView(presetsContainer)
+        layout.addView(horizontalScroll)
+
         // Row/Col Controls
         val row = LinearLayout(this).apply {
              orientation = LinearLayout.HORIZONTAL
