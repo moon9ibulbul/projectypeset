@@ -3298,23 +3298,57 @@ class EditorActivity : AppCompatActivity() {
 
                 // Intensity
                 val initialIntensity = ((5.0f - currentPatternScale) / 4.9f * 100).toInt().coerceIn(0, 100)
-                settingsLayout.addView(createSlider("Intensity: $initialIntensity%", initialIntensity, 100) {
+                val sIntensity = createSlider("Intensity: $initialIntensity%", initialIntensity, 100) {
                     val scale = 5.0f - (it / 100f * 4.9f)
                     stylableLayer.patternScale = scale
                     canvasView.invalidate()
+                }
+                val tvIntensity = sIntensity.findViewWithTag<TextView>("SLIDER_LABEL")
+                sIntensity.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        val scale = 5.0f - (p / 100f * 4.9f)
+                        stylableLayer.patternScale = scale
+                        tvIntensity?.text = "Intensity: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(sIntensity)
 
                 // Opacity
-                settingsLayout.addView(createSlider("Opacity: ${(currentPatternAlpha / 2.55f).toInt()}%", currentPatternAlpha, 255) {
+                val sOpacity = createSlider("Opacity: ${(currentPatternAlpha / 2.55f).toInt()}%", currentPatternAlpha, 255) {
                     stylableLayer.patternAlpha = it
                     canvasView.invalidate()
+                }
+                val tvOpacity = sOpacity.findViewWithTag<TextView>("SLIDER_LABEL")
+                sOpacity.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.patternAlpha = p
+                        tvOpacity?.text = "Opacity: ${(p / 2.55f).toInt()}%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(sOpacity)
 
                 // Rotation
-                settingsLayout.addView(createSlider("Rotation: ${currentPatternRotation.toInt()}°", currentPatternRotation.toInt(), 360) {
+                val sRotation = createSlider("Rotation: ${currentPatternRotation.toInt()}°", currentPatternRotation.toInt(), 360) {
                     stylableLayer.patternRotation = it.toFloat()
                     canvasView.invalidate()
+                }
+                val tvRotation = sRotation.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRotation.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.patternRotation = p.toFloat()
+                        tvRotation?.text = "Rotation: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                settingsLayout.addView(sRotation)
 
                 val btnClear = android.widget.Button(this).apply {
                     text = "Clear Pattern"
