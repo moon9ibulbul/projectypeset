@@ -217,7 +217,7 @@ class ShapeLayer(
     override var neonInnerStrength: Float = 0.0f
     override var neonOuterStrength: Float = 4.0f
     override var neonKnockout: Boolean = false
-    override var neonQuality: Float = 0.1f
+    override var neonQuality: Float = 1.0f
 
     // Glitch
     override var glitchIntensity: Float = 1.0f

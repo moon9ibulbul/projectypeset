@@ -402,7 +402,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var neonInnerStrength: Float = 0.0f
     override var neonOuterStrength: Float = 4.0f
     override var neonKnockout: Boolean = false
-    override var neonQuality: Float = 0.1f
+    override var neonQuality: Float = 1.0f
     override var glitchIntensity: Float = 0f
     override var glitchAmount: Float = 20f
     override var glitchDistance: Float = 15f

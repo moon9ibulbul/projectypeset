@@ -345,7 +345,7 @@ class TextLayer(
     override var neonInnerStrength: Float = 0.0f
     override var neonOuterStrength: Float = 4.0f
     override var neonKnockout: Boolean = false
-    override var neonQuality: Float = 0.1f
+    override var neonQuality: Float = 1.0f
 
     // Glitch
     override var glitchIntensity: Float = 1.0f
@@ -5622,12 +5622,13 @@ class TextLayer(
                 float PI = 3.14159265358979323846264;
 
                 // Constant limits are mandatory for AGSL/SkSL loop compatibility
-                const int ANGLE_STEPS = 12;
-                const int DIST_STEPS = 10;
+                const int ANGLE_STEPS = 16;
+                const int DIST_STEPS = 16;
 
                 float totalAlpha = 0.0;
-                // Quality scales the step size dynamically
-                float stepSize = max(0.1, (glowDistance / float(DIST_STEPS)) * max(0.1, quality));
+                // Quality scales step size dynamically so quality = 1.0 covers full glowDistance with high density
+                float clampedQuality = clamp(quality, 0.01, 1.0);
+                float stepSize = max(0.1, (glowDistance / float(DIST_STEPS)) * clampedQuality);
 
                 float maxPossibleAlpha = float(ANGLE_STEPS) * float(DIST_STEPS) * (float(DIST_STEPS) + 1.0) / 2.0;
 

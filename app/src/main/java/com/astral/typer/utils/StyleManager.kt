@@ -322,7 +322,7 @@ object StyleManager {
         val neonInnerStrength: Float = 0.0f,
         val neonOuterStrength: Float = 4.0f,
         val neonKnockout: Boolean = false,
-        val neonQuality: Float = 0.1f,
+        val neonQuality: Float = 1.0f,
 
         // Halftone Configuration
         val halftoneDotSize: Float? = 10f,
