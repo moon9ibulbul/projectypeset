@@ -249,6 +249,7 @@ class ShapeLayer(
     // Multi Gradient
     override var multiGradientColors: IntArray = intArrayOf(0xFFFF0000.toInt(), 0xFFFF7F00.toInt(), 0xFFFFFF00.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt(), 0xFF4B0082.toInt(), 0xFF9400D3.toInt())
     override var multiGradientAngle: Float = 0f
+    override var multiGradientPositions: FloatArray? = null
 
     // Radial Blur
     override var radialBlurInnerRadius: Float = 0f
@@ -2558,7 +2559,11 @@ class ShapeLayer(
             if (p > maxP) maxP = p
         }
         val halfLen = (maxP - minP) / 2f
-        val positions = FloatArray(multiGradientColors.size) { i -> i.toFloat() / (multiGradientColors.size - 1) }
+        val positions = if (multiGradientPositions != null && multiGradientPositions!!.size == multiGradientColors.size) {
+            multiGradientPositions!!
+        } else {
+            FloatArray(multiGradientColors.size) { i -> i.toFloat() / (multiGradientColors.size - 1) }
+        }
         return LinearGradient(cx - halfLen * cos, cy - halfLen * sin, cx + halfLen * cos, cy + halfLen * sin, multiGradientColors, positions, Shader.TileMode.CLAMP)
     }
 
@@ -2666,7 +2671,7 @@ class ShapeLayer(
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
-        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitchAmount = glitchAmount; newLayer.glitchDistance = glitchDistance; newLayer.glitchDirection = glitchDirection; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitchAmount = glitchAmount; newLayer.glitchDistance = glitchDistance; newLayer.glitchDirection = glitchDirection; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.multiGradientPositions = multiGradientPositions?.clone(); newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
         newLayer.decaySeed = decaySeed; newLayer.woodScratchSeed = woodScratchSeed
         newLayer.woodScratchIntensity = woodScratchIntensity; newLayer.woodScratchColor = woodScratchColor

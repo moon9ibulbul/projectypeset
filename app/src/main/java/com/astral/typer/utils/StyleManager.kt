@@ -372,6 +372,9 @@ object StyleManager {
         val transformAngleMultiplier: Float? = null,
         val transformDotsMultiplier: Float? = null,
         val chromaticAngle: Float? = 0f,
+        val multiGradientColors: List<Int>? = null,
+        val multiGradientAngle: Float? = null,
+        val multiGradientPositions: List<Float>? = null,
         val shadowThickness: Float? = 0f,
         val tailLength: Float? = 0f,
         val tailWavyIntensity: Float? = 0f,
@@ -531,6 +534,9 @@ object StyleManager {
             transformAngleMultiplier = l.transformAngleMultiplier,
             transformDotsMultiplier = l.transformDotsMultiplier,
             chromaticAngle = l.chromaticAngle,
+            multiGradientColors = l.multiGradientColors.toList(),
+            multiGradientAngle = l.multiGradientAngle,
+            multiGradientPositions = l.multiGradientPositions?.toList(),
             shadowThickness = l.shadowThickness,
             tailLength = l.tailLength,
             tailWavyIntensity = l.tailWavyIntensity,
@@ -686,6 +692,9 @@ object StyleManager {
         l.neonKnockout = m.neonKnockout
         l.neonQuality = m.neonQuality
         m.chromaticAngle?.let { l.chromaticAngle = it }
+        m.multiGradientColors?.let { l.multiGradientColors = it.toIntArray() }
+        m.multiGradientAngle?.let { l.multiGradientAngle = it }
+        m.multiGradientPositions?.let { l.multiGradientPositions = it.toFloatArray() }
 
         // Halftone Restore
         m.halftoneDotSize?.let { l.halftoneDotSize = it }

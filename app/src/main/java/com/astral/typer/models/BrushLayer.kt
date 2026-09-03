@@ -420,6 +420,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var particleDissolveAngle: Float = 0f
     override var multiGradientColors: IntArray = intArrayOf()
     override var multiGradientAngle: Float = 0f
+    override var multiGradientPositions: FloatArray? = null
     override var radialBlurInnerRadius: Float = 0f
     override var radialBlurMotionStrength: Float = 0f
     override var radialBlurCenterX: Float = 0.5f
