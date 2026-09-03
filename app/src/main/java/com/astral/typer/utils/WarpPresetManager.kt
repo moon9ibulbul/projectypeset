@@ -5,14 +5,52 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RectF
 import com.astral.typer.R
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.util.UUID
 
 data class WarpPreset(
     val id: String,
-    val name: String,
-    val meshGenerator: (w: Float, h: Float) -> WarpPresetResult
-)
+    var name: String,
+    val rows: Int = 2,
+    val cols: Int = 2,
+    val isCustom: Boolean = false,
+    val normalizedMesh: FloatArray? = null,
+    val meshGenerator: ((w: Float, h: Float) -> WarpPresetResult)? = null
+) {
+    fun generateMesh(w: Float, h: Float): WarpPresetResult {
+        if (meshGenerator != null) {
+            return meshGenerator.invoke(w, h)
+        }
+        val norm = normalizedMesh
+        if (norm != null) {
+            val count = (rows + 1) * (cols + 1)
+            val mesh = FloatArray(count * 2)
+            for (i in 0 until minOf(mesh.size, norm.size)) {
+                if (i % 2 == 0) {
+                    mesh[i] = norm[i] * w
+                } else {
+                    mesh[i] = norm[i] * h
+                }
+            }
+            return WarpPresetResult(rows, cols, mesh)
+        }
+        // Fallback default grid
+        val count = (rows + 1) * (cols + 1)
+        val mesh = FloatArray(count * 2)
+        var idx = 0
+        for (r in 0..rows) {
+            val v = r / rows.toFloat()
+            for (c in 0..cols) {
+                val u = c / cols.toFloat()
+                mesh[idx++] = -w / 2f + w * u
+                mesh[idx++] = -h / 2f + h * v
+            }
+        }
+        return WarpPresetResult(rows, cols, mesh)
+    }
+}
 
 data class WarpPresetResult(
     val rows: Int,
@@ -20,104 +58,218 @@ data class WarpPresetResult(
     val mesh: FloatArray
 )
 
+data class CustomWarpPresetModel(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val rows: Int,
+    val cols: Int,
+    val normalizedMesh: List<Float>
+)
+
 object WarpPresetManager {
 
-    val presets: List<WarpPreset> = listOf(
-        WarpPreset("reset", "Reset") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y -> Pair(x, y) }
-        },
-        WarpPreset("arc_up", "Arc Up") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+    private const val PREFS_NAME = "warp_preset_prefs"
+    private const val KEY_CUSTOM_PRESETS = "custom_warp_presets"
+
+    private val customPresets = mutableListOf<WarpPreset>()
+
+    val builtinPresets: List<WarpPreset> = listOf(
+        WarpPreset("reset", "Reset", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { _, _, x, y -> Pair(x, y) }
+        }),
+        WarpPreset("arc_up", "Arc Up", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { u, _, x, y ->
                 val dy = -h * 0.4f * (4f * u * (1f - u))
                 Pair(x, y + dy)
             }
-        },
-        WarpPreset("arc_down", "Arc Down") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("arc_down", "Arc Down", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { u, _, x, y ->
                 val dy = h * 0.4f * (4f * u * (1f - u))
                 Pair(x, y + dy)
             }
-        },
-        WarpPreset("arch", "Arch SFX") { w, h ->
+        }),
+        WarpPreset("arch", "Arch SFX", 2, 2, meshGenerator = { w, h ->
             createGridMesh(2, 2, w, h) { u, v, x, y ->
                 val topFactor = (1f - v)
                 val dy = -h * 0.45f * (4f * u * (1f - u)) * topFactor
                 Pair(x, y + dy)
             }
-        },
-        WarpPreset("bulge", "Bulge SFX") { w, h ->
+        }),
+        WarpPreset("bulge", "Bulge SFX", 2, 2, meshGenerator = { w, h ->
             createGridMesh(2, 2, w, h) { u, v, x, y ->
                 val du = u - 0.5f
                 val dv = v - 0.5f
-                val factor = 1f + 0.45f * (1f - 4f * (du * du + dv * dv)).coerceAtLeast(0f)
-                Pair(-w / 2f + w * (0.5f + du * factor), -h / 2f + h * (0.5f + dv * factor))
+                val dx = du * w * 0.5f * (1f - 4f * dv * dv)
+                val dy = dv * h * 0.5f * (1f - 4f * du * du)
+                Pair(x + dx, y + dy)
             }
-        },
-        WarpPreset("pinch", "Pinch SFX") { w, h ->
+        }),
+        WarpPreset("pinch", "Pinch SFX", 2, 2, meshGenerator = { w, h ->
             createGridMesh(2, 2, w, h) { u, v, x, y ->
                 val du = u - 0.5f
                 val dv = v - 0.5f
-                val factor = (1f - 0.35f * (1f - 4f * (du * du + dv * dv))).coerceAtLeast(0.2f)
-                Pair(-w / 2f + w * (0.5f + du * factor), -h / 2f + h * (0.5f + dv * factor))
+                val dx = -du * w * 0.4f * (1f - 4f * dv * dv)
+                val dy = -dv * h * 0.4f * (1f - 4f * du * du)
+                Pair(x + dx, y + dy)
             }
-        },
-        WarpPreset("wave", "Wave SFX") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
-                val dy = Math.sin(u * Math.PI * 2.0).toFloat() * h * 0.25f
+        }),
+        WarpPreset("wave", "Wave SFX", 2, 3, meshGenerator = { w, h ->
+            createGridMesh(2, 3, w, h) { u, _, x, y ->
+                val dy = Math.sin(u * Math.PI * 2.0).toFloat() * h * 0.3f
                 Pair(x, y + dy)
             }
-        },
-        WarpPreset("flag", "Flag SFX") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("flag", "Flag SFX", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { u, _, x, y ->
                 val dy = Math.sin(u * Math.PI * 1.5).toFloat() * h * 0.3f
                 Pair(x, y + dy)
             }
-        },
-        WarpPreset("tilt_left", "Tilt Left") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("tilt_left", "Tilt Left", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { u, _, x, y ->
                 val scale = 1.4f * (1f - u) + 0.6f * u
                 Pair(x, y * scale)
             }
-        },
-        WarpPreset("tilt_right", "Tilt Right") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("tilt_right", "Tilt Right", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { u, _, x, y ->
                 val scale = 0.6f * (1f - u) + 1.4f * u
                 Pair(x, y * scale)
             }
-        },
-        WarpPreset("cone_up", "Cone Up") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("cone_up", "Cone Up", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { _, v, x, y ->
                 val scale = 1.4f * (1f - v) + 0.6f * v
                 Pair(x * scale, y)
             }
-        },
-        WarpPreset("cone_down", "Cone Down") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("cone_down", "Cone Down", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { _, v, x, y ->
                 val scale = 0.6f * (1f - v) + 1.4f * v
                 Pair(x * scale, y)
             }
-        },
-        WarpPreset("fisheye", "Fisheye") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("fisheye", "Fisheye", 2, 2, meshGenerator = { w, h ->
+            createGridMesh(2, 2, w, h) { u, _, x, y ->
                 val du = u - 0.5f
                 val factor = 1f + 0.6f * (1f - 4f * du * du).coerceAtLeast(0f)
                 Pair(x, y * factor)
             }
-        },
-        WarpPreset("s_curve", "S-Curve") { w, h ->
-            createGridMesh(2, 2, w, h) { u, v, x, y ->
-                val dx = Math.sin(v * Math.PI * 2.0).toFloat() * w * 0.25f
+        }),
+        WarpPreset("s_curve", "S-Curve", 3, 2, meshGenerator = { w, h ->
+            createGridMesh(3, 2, w, h) { _, v, x, y ->
+                val dx = Math.sin(v * Math.PI * 2.0).toFloat() * w * 0.3f
                 Pair(x + dx, y)
             }
-        },
-        WarpPreset("tremble", "Tremble SFX") { w, h ->
-            createGridMesh(3, 3, w, h) { u, v, x, y ->
+        }),
+        WarpPreset("tremble", "Tremble SFX", 3, 3, meshGenerator = { w, h ->
+            createGridMesh(3, 3, w, h) { _, v, x, y ->
                 val rIndex = Math.round(v * 3f)
                 val dx = if (rIndex % 2 == 1) w * 0.15f else -w * 0.15f
                 Pair(x + dx, y)
             }
-        }
+        })
     )
+
+    val presets: List<WarpPreset>
+        get() = builtinPresets + customPresets
+
+    fun init(context: Context) {
+        loadCustomPresets(context)
+    }
+
+    fun reload(context: Context) {
+        loadCustomPresets(context)
+    }
+
+    private fun loadCustomPresets(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_CUSTOM_PRESETS, null)
+        customPresets.clear()
+        if (json != null) {
+            try {
+                val type = object : TypeToken<List<CustomWarpPresetModel>>() {}.type
+                val models: List<CustomWarpPresetModel> = Gson().fromJson(json, type)
+                for (model in models) {
+                    customPresets.add(
+                        WarpPreset(
+                            id = model.id,
+                            name = model.name,
+                            rows = model.rows,
+                            cols = model.cols,
+                            isCustom = true,
+                            normalizedMesh = model.normalizedMesh.toFloatArray()
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun saveCustomPresets(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val models = customPresets.map { preset ->
+            CustomWarpPresetModel(
+                id = preset.id,
+                name = preset.name,
+                rows = preset.rows,
+                cols = preset.cols,
+                normalizedMesh = preset.normalizedMesh?.toList() ?: emptyList()
+            )
+        }
+        val json = Gson().toJson(models)
+        prefs.edit().putString(KEY_CUSTOM_PRESETS, json).apply()
+    }
+
+    fun addCustomPreset(
+        context: Context,
+        name: String,
+        rows: Int,
+        cols: Int,
+        rawMesh: FloatArray,
+        width: Float,
+        height: Float
+    ): WarpPreset {
+        val w = if (width <= 0f) 1f else width
+        val h = if (height <= 0f) 1f else height
+        val normalized = FloatArray(rawMesh.size)
+        for (i in rawMesh.indices) {
+            if (i % 2 == 0) {
+                normalized[i] = rawMesh[i] / w
+            } else {
+                normalized[i] = rawMesh[i] / h
+            }
+        }
+        val newPreset = WarpPreset(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            rows = rows,
+            cols = cols,
+            isCustom = true,
+            normalizedMesh = normalized
+        )
+        customPresets.add(newPreset)
+        saveCustomPresets(context)
+        return newPreset
+    }
+
+    fun renamePreset(context: Context, id: String, newName: String) {
+        val preset = customPresets.find { it.id == id }
+        if (preset != null) {
+            preset.name = newName
+            saveCustomPresets(context)
+        }
+    }
+
+    fun deletePreset(context: Context, id: String) {
+        val removed = customPresets.removeAll { it.id == id }
+        if (removed) {
+            saveCustomPresets(context)
+        }
+    }
 
     private fun createGridMesh(
         rows: Int,
@@ -157,7 +309,7 @@ object WarpPresetManager {
 
         val gridW = widthPx * 0.65f
         val gridH = heightPx * 0.55f
-        val presetResult = preset.meshGenerator(gridW, gridH)
+        val presetResult = preset.generateMesh(gridW, gridH)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = strokeColor
