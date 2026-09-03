@@ -2052,7 +2052,7 @@ class TextLayer(
                                 val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
-                                    // We might need to translate differently depending on context, but let's use global coords
+                                    mat.setTranslate(-w / 2f, -ch / 2f)
                                     sh.setLocalMatrix(mat)
                                 }
                                 this.shader = sh
@@ -2599,7 +2599,7 @@ class TextLayer(
                                         val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                         if (sh != null) {
                                             val mat = android.graphics.Matrix()
-                                            // We might need to translate differently depending on context, but let's use global coords
+                                            mat.setTranslate(-w / 2f, -ch / 2f)
                                             sh.setLocalMatrix(mat)
                                         }
                                         this.shader = sh
@@ -2851,7 +2851,7 @@ class TextLayer(
                                 val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
-                                    // We might need to translate differently depending on context, but let's use global coords
+                                    mat.setTranslate(-w / 2f, -ch / 2f)
                                     sh.setLocalMatrix(mat)
                                 }
                                 this.shader = sh

@@ -698,7 +698,13 @@ class ShapeLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke) {
-                                this.shader = getGradientShader(getWidth(), getHeight())
+                                val sh = getGradientShader(getWidth(), getHeight())
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -h / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
                                 color = android.graphics.Color.WHITE
                             } else {
                                 this.shader = null
@@ -889,7 +895,13 @@ class ShapeLayer(
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke) {
-                                this.shader = getGradientShader(getWidth(), getHeight())
+                                val sh = getGradientShader(getWidth(), getHeight())
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -h / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
                                 color = android.graphics.Color.WHITE
                             } else {
                                 this.shader = null
