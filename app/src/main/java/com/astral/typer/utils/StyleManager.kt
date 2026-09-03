@@ -44,10 +44,21 @@ object StyleManager {
         clipboardStyle = toModel(layer)
     }
 
-    fun saveStyle(context: Context, layer: TextLayer, folderId: String? = null, customName: String? = null) {
+    fun saveStyle(
+        context: Context,
+        layer: TextLayer,
+        folderId: String? = null,
+        folderIds: List<String>? = null,
+        customName: String? = null
+    ) {
         val model = toModel(layer)
         val styleName = if (!customName.isNullOrBlank()) customName else model.name
-        val genericModel = model.copy(name = styleName, folderId = folderId)
+        val actualFolderIds = folderIds ?: if (folderId != null) listOf(folderId) else null
+        val genericModel = model.copy(
+            name = styleName,
+            folderId = folderId ?: actualFolderIds?.firstOrNull(),
+            folderIds = actualFolderIds
+        )
 
         savedStyles.add(genericModel)
         persistStyles(context)
@@ -80,8 +91,12 @@ object StyleManager {
         savedFolders.removeAll { it.id == id }
         var modified = false
         for (i in savedStyles.indices) {
-            if (savedStyles[i].folderId == id) {
-                savedStyles[i] = savedStyles[i].copy(folderId = null)
+            val style = savedStyles[i]
+            val currentFolderIds = style.getStyleFolderIds()
+            if (currentFolderIds.contains(id)) {
+                val updatedList = currentFolderIds.filter { it != id }
+                val newFolderId = if (style.folderId == id) updatedList.firstOrNull() else style.folderId
+                savedStyles[i] = style.copy(folderIds = updatedList, folderId = newFolderId)
                 modified = true
             }
         }
@@ -91,23 +106,32 @@ object StyleManager {
         }
     }
 
-    fun assignStyleToFolder(context: Context, index: Int, folderId: String?) {
+    fun assignStyleToFolders(context: Context, index: Int, folderIds: List<String>) {
         if (index in 0 until savedStyles.size) {
-            savedStyles[index] = savedStyles[index].copy(folderId = folderId)
+            val primaryFolderId = folderIds.firstOrNull()
+            savedStyles[index] = savedStyles[index].copy(folderIds = folderIds, folderId = primaryFolderId)
             persistStyles(context)
         }
     }
 
-    fun assignStyleToFolderByStyle(context: Context, style: StyleModel, folderId: String?) {
+    fun assignStyleToFoldersByStyle(context: Context, style: StyleModel, folderIds: List<String>) {
         val index = savedStyles.indexOf(style)
         if (index != -1) {
-            assignStyleToFolder(context, index, folderId)
+            assignStyleToFolders(context, index, folderIds)
         } else {
             val altIndex = savedStyles.indexOfFirst { it == style }
             if (altIndex != -1) {
-                assignStyleToFolder(context, altIndex, folderId)
+                assignStyleToFolders(context, altIndex, folderIds)
             }
         }
+    }
+
+    fun assignStyleToFolder(context: Context, index: Int, folderId: String?) {
+        assignStyleToFolders(context, index, if (folderId != null) listOf(folderId) else emptyList())
+    }
+
+    fun assignStyleToFolderByStyle(context: Context, style: StyleModel, folderId: String?) {
+        assignStyleToFoldersByStyle(context, style, if (folderId != null) listOf(folderId) else emptyList())
     }
 
     fun deleteStyle(context: Context, index: Int) {
@@ -196,6 +220,7 @@ object StyleManager {
     data class StyleModel(
         val name: String? = "Style",
         val folderId: String? = null,
+        val folderIds: List<String>? = null,
         val color: Int,
         val fontSize: Float,
         val fontPath: String?,
@@ -359,7 +384,17 @@ object StyleManager {
         val glitchAmount: Float? = 20f,
         val glitchDistance: Float? = 15f,
         val glitchDirection: Float? = 0f
-    )
+    ) {
+        fun getStyleFolderIds(): List<String> {
+            if (!folderIds.isNullOrEmpty()) {
+                return folderIds
+            }
+            if (!folderId.isNullOrEmpty()) {
+                return listOf(folderId)
+            }
+            return emptyList()
+        }
+    }
 
     fun toModel(l: TextLayer): StyleModel {
         // Detect Formatting
