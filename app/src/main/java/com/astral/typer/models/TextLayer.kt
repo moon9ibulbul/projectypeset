@@ -1690,6 +1690,10 @@ class TextLayer(
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
 
+        if (halftoneType == "INNER") {
+            activeEffects.removeAll { it == TextEffectType.HALFTONE }
+        }
+
         if (viewScale < 0.2f) {
             activeEffects.removeAll { it == TextEffectType.HALFTONE || it == TextEffectType.TEXT_DECAY || it == TextEffectType.WOOD_SCRATCH }
         }
@@ -3417,6 +3421,136 @@ class TextLayer(
                     }
                 }
 
+                val hasInnerHalftone = !skipEffects && viewScale >= 0.2f && halftoneType == "INNER" &&
+                        (currentEffect == TextEffectType.HALFTONE || secondaryEffect == TextEffectType.HALFTONE || tertiaryEffect == TextEffectType.HALFTONE)
+
+                val drawInnerHalftoneContent = { hCanvas: Canvas ->
+                    if (hasInnerHalftone) {
+                        var useRenderEffect = false
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && hCanvas.isHardwareAccelerated) {
+                            try {
+                                val padVal = calculatePadding()
+                                val nodeW = (w + padVal * 2).toInt().coerceAtLeast(1)
+                                val nodeH = (h + padVal * 2).toInt().coerceAtLeast(1)
+
+                                val node = android.graphics.RenderNode("InnerHalftoneNode")
+                                node.setPosition(0, 0, nodeW, nodeH)
+
+                                val recordingCanvas = node.beginRecording()
+                                recordingCanvas.translate(padVal, padVal)
+                                drawFillContent(recordingCanvas)
+                                node.endRecording()
+
+                                val shader = android.graphics.RuntimeShader(HALFTONE_SHADER)
+                                shader.setFloatUniform("threshold", halftoneThreshold)
+                                val r = Color.red(halftoneDotColor) / 255f
+                                val g = Color.green(halftoneDotColor) / 255f
+                                val b = Color.blue(halftoneDotColor) / 255f
+                                shader.setFloatUniform("dotColor", r, g, b)
+                                shader.setFloatUniform("halftoneType", 0f)
+                                shader.setFloatUniform("alpha", halftoneAlpha)
+                                shader.setFloatUniform("range", halftoneRange)
+                                shader.setFloatUniform("density", halftoneDensity.coerceAtLeast(1f))
+                                shader.setFloatUniform("fadingIntensity", halftoneFadingIntensity)
+                                val shapeVal = when (halftoneShape) {
+                                    "SQUARE" -> 1f
+                                    "LINE" -> 2f
+                                    else -> 0f
+                                }
+                                shader.setFloatUniform("shapeType", shapeVal)
+
+                                node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                                hCanvas.save()
+                                hCanvas.translate(-padVal, -padVal)
+                                hCanvas.drawRenderNode(node)
+                                hCanvas.restore()
+                                useRenderEffect = true
+                            } catch (e: Exception) {}
+                        }
+
+                        if (!useRenderEffect) {
+                            val padVal = calculatePadding()
+                            val nodeW = (w + padVal * 2).toInt().coerceAtLeast(1)
+                            val nodeH = (h + padVal * 2).toInt().coerceAtLeast(1)
+                            val bmpW = nodeW
+                            val bmpH = nodeH
+                            if (bmpW > 0 && bmpH > 0) {
+                                val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                val srcCanvas = Canvas(srcBmp)
+                                srcCanvas.translate(padVal, padVal)
+                                drawFillContent(srcCanvas)
+
+                                val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                val pixels = IntArray(bmpW * bmpH)
+                                srcBmp.getPixels(pixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                                val outPixels = IntArray(bmpW * bmpH)
+
+                                val gridSpacing = Math.max(1f, 100f / halftoneDensity)
+                                val threshold = halftoneThreshold
+                                val r = Color.red(halftoneDotColor)
+                                val g = Color.green(halftoneDotColor)
+                                val b = Color.blue(halftoneDotColor)
+
+                                for (y in 0 until bmpH) {
+                                    for (x in 0 until bmpW) {
+                                        val cellX = Math.floor(x / gridSpacing.toDouble()).toFloat()
+                                        val cellY = Math.floor(y / gridSpacing.toDouble()).toFloat()
+                                        val centerX = (cellX + 0.5f) * gridSpacing
+                                        val centerY = (cellY + 0.5f) * gridSpacing
+                                        val dist = Math.hypot((x - centerX).toDouble(), (y - centerY).toDouble()).toFloat()
+
+                                        val originalPixel = pixels[y * bmpW + x]
+                                        val originalAlpha = (originalPixel ushr 24) / 255f
+
+                                        if (originalAlpha == 0f) continue
+                                        val radius = gridSpacing * 0.5f * threshold * originalAlpha
+                                        val insideShape = when (halftoneShape) {
+                                            "SQUARE" -> {
+                                                val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
+                                                sqDist < radius
+                                            }
+                                            "LINE" -> {
+                                                val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
+                                                lineDist < radius
+                                            }
+                                            else -> {
+                                                dist < radius
+                                            }
+                                        }
+                                        if (insideShape) {
+                                            val dotA = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                            val origR = Color.red(originalPixel)
+                                            val origG = Color.green(originalPixel)
+                                            val origB = Color.blue(originalPixel)
+
+                                            val blendedR = (origR * (1f - dotA) + r * dotA).toInt().coerceIn(0, 255)
+                                            val blendedG = (origG * (1f - dotA) + g * dotA).toInt().coerceIn(0, 255)
+                                            val blendedB = (origB * (1f - dotA) + b * dotA).toInt().coerceIn(0, 255)
+                                            val outA = (originalAlpha * 255f).toInt().coerceIn(0, 255)
+
+                                            outPixels[y * bmpW + x] = (outA shl 24) or (blendedR shl 16) or (blendedG shl 8) or blendedB
+                                        } else {
+                                            outPixels[y * bmpW + x] = originalPixel
+                                        }
+                                    }
+                                }
+
+                                outBmp.setPixels(outPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+                                hCanvas.save()
+                                hCanvas.translate(-padVal, -padVal)
+                                hCanvas.drawBitmap(outBmp, 0f, 0f, null)
+                                hCanvas.restore()
+                                srcBmp.recycle()
+                                outBmp.recycle()
+                            } else {
+                                drawFillContent(hCanvas)
+                            }
+                        }
+                    } else {
+                        drawFillContent(hCanvas)
+                    }
+                }
+
                 val hasWoodScratch = !skipEffects && viewScale >= 0.2f && (currentEffect == TextEffectType.WOOD_SCRATCH || secondaryEffect == TextEffectType.WOOD_SCRATCH || tertiaryEffect == TextEffectType.WOOD_SCRATCH)
                 if (hasWoodScratch) {
                     var useRenderEffect = false
@@ -3431,7 +3565,7 @@ class TextLayer(
 
                             val recordingCanvas = node.beginRecording()
                             recordingCanvas.translate(padVal, padVal)
-                            drawFillContent(recordingCanvas)
+                            drawInnerHalftoneContent(recordingCanvas)
                             node.endRecording()
 
                             val shader = android.graphics.RuntimeShader(WOOD_SCRATCH_SHADER)
@@ -3454,10 +3588,10 @@ class TextLayer(
                     }
                     if (!useRenderEffect) {
                         val padVal = calculatePadding()
-                        drawWoodScratchSoftware(targetCanvas, w, h, padVal, woodScratchIntensity, woodScratchSeed, woodScratchColor, drawFillContent)
+                        drawWoodScratchSoftware(targetCanvas, w, h, padVal, woodScratchIntensity, woodScratchSeed, woodScratchColor, drawInnerHalftoneContent)
                     }
                 } else {
-                    drawFillContent(targetCanvas)
+                    drawInnerHalftoneContent(targetCanvas)
                 }
             }
 
@@ -3662,6 +3796,10 @@ class TextLayer(
         if (currentEffect != TextEffectType.NONE && currentEffect != TextEffectType.MULTI_GRADIENT && currentEffect != TextEffectType.SPEED_LINE && currentEffect != TextEffectType.WOOD_SCRATCH && currentEffect != TextEffectType.TEXT_TAIL) activeEffects.add(currentEffect)
         if (secondaryEffect != TextEffectType.NONE && secondaryEffect != TextEffectType.MULTI_GRADIENT && secondaryEffect != TextEffectType.SPEED_LINE && secondaryEffect != TextEffectType.WOOD_SCRATCH && secondaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(secondaryEffect)
         if (tertiaryEffect != TextEffectType.NONE && tertiaryEffect != TextEffectType.MULTI_GRADIENT && tertiaryEffect != TextEffectType.SPEED_LINE && tertiaryEffect != TextEffectType.WOOD_SCRATCH && tertiaryEffect != TextEffectType.TEXT_TAIL) activeEffects.add(tertiaryEffect)
+
+        if (halftoneType == "INNER") {
+            activeEffects.removeAll { it == TextEffectType.HALFTONE }
+        }
 
         if (activeEffects.contains(TextEffectType.HALFTONE) && activeEffects.contains(TextEffectType.DROP_SHADOW)) {
             val hIndex = activeEffects.indexOf(TextEffectType.HALFTONE)
