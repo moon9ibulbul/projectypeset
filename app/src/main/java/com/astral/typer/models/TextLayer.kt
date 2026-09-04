@@ -1267,7 +1267,7 @@ class TextLayer(
         }
 
         // Texture Application (Legacy)
-        if (textureBitmap != null) {
+        if (textureBitmap != null && !isWarpActive) {
             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
             val matrix = Matrix()
             matrix.postTranslate(textureOffsetX, textureOffsetY)
@@ -1738,7 +1738,7 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
-        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val baseQualityScale = Math.max(1.5f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(4f)
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
 
         try {
@@ -1968,6 +1968,20 @@ class TextLayer(
                 val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
                 tempCanvas.drawBitmap(finalBmp, null, destRect, tempPaint)
                 tempCanvas.restore()
+
+                if (textureBitmap != null) {
+                    val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                    val mat = Matrix()
+                    mat.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
+                    shader.setLocalMatrix(mat)
+                    val texPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        this.shader = shader
+                        isFilterBitmap = true
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                    }
+                    tempCanvas.drawRect(bounds, texPaint)
+                }
+
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
             }
@@ -2506,6 +2520,20 @@ class TextLayer(
                         } else {
                             morphedCanvas.drawBitmapMesh(tempBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
                         }
+
+                        if (textureBitmap != null) {
+                            val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                            val mat = Matrix()
+                            mat.postTranslate(-w / 2f + left + textureOffsetX, -h / 2f + yTop + textureOffsetY)
+                            shader.setLocalMatrix(mat)
+                            val texPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                this.shader = shader
+                                isFilterBitmap = true
+                                xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                            }
+                            morphedCanvas.drawRect(charWarpedBounds, texPaint)
+                        }
+
                         morphedCharBmpCache[i] = morphedBmp
                         morphedCharBmpHash[i] = charHash
                     }
@@ -2767,6 +2795,20 @@ class TextLayer(
                 } else {
                     tempCanvas.drawBitmapMesh(finalBmp, meshW, meshH, paddedVerts, 0, null, 0, null)
                 }
+
+                if (textureBitmap != null) {
+                    val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                    val mat = Matrix()
+                    mat.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
+                    shader.setLocalMatrix(mat)
+                    val texPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        this.shader = shader
+                        isFilterBitmap = true
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                    }
+                    tempCanvas.drawRect(bounds, texPaint)
+                }
+
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
             }
@@ -3195,12 +3237,13 @@ class TextLayer(
                         } else if (isGradient && isGradientText) {
                             paint.shader = gradientShader
                             paint.color = Color.WHITE
-                        } else if (textureBitmap != null) {
+                        } else if (textureBitmap != null && !isWarpActive) {
                             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                             val matrix = Matrix()
                             matrix.postTranslate(textureOffsetX, textureOffsetY)
                             shader.setLocalMatrix(matrix)
                             paint.shader = shader
+                            paint.isFilterBitmap = true
                         } else {
                             paint.color = modulateColor(color)
                         }
@@ -3359,13 +3402,14 @@ class TextLayer(
                         } else if (isGradient && isGradientText) {
                             paint.shader = gradientShader
                             paint.color = Color.WHITE
-                        } else if (textureBitmap != null) {
+                        } else if (textureBitmap != null && !isWarpActive) {
                             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                             val matrix = Matrix()
                             matrix.postTranslate(textureOffsetX, textureOffsetY)
                             shader.setLocalMatrix(matrix)
                             paint.shader = shader
                             paint.color = Color.WHITE
+                            paint.isFilterBitmap = true
                         } else {
                             paint.shader = null
                             paint.color = modulateColor(color)
