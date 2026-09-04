@@ -1738,7 +1738,7 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
-        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val baseQualityScale = Math.max(1.5f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(4f)
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
 
         try {
@@ -3198,9 +3198,14 @@ class TextLayer(
                         } else if (textureBitmap != null) {
                             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                             val matrix = Matrix()
-                            matrix.postTranslate(textureOffsetX, textureOffsetY)
+                            if (isWarpActive) {
+                                matrix.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
+                            } else {
+                                matrix.postTranslate(textureOffsetX, textureOffsetY)
+                            }
                             shader.setLocalMatrix(matrix)
                             paint.shader = shader
+                            paint.isFilterBitmap = true
                         } else {
                             paint.color = modulateColor(color)
                         }
@@ -3362,10 +3367,15 @@ class TextLayer(
                         } else if (textureBitmap != null) {
                             val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                             val matrix = Matrix()
-                            matrix.postTranslate(textureOffsetX, textureOffsetY)
+                            if (isWarpActive) {
+                                matrix.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
+                            } else {
+                                matrix.postTranslate(textureOffsetX, textureOffsetY)
+                            }
                             shader.setLocalMatrix(matrix)
                             paint.shader = shader
                             paint.color = Color.WHITE
+                            paint.isFilterBitmap = true
                         } else {
                             paint.shader = null
                             paint.color = modulateColor(color)
