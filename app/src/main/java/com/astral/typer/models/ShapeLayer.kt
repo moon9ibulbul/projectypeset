@@ -612,6 +612,20 @@ class ShapeLayer(
                 tempCanvas.translate(-w / 2f, -h / 2f)
                 drawContent(tempCanvas, w, h, skipEffects = skipEffects)
                 tempCanvas.restore()
+
+                if (textureBitmap != null) {
+                    val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                    val mat = Matrix()
+                    mat.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
+                    shader.setLocalMatrix(mat)
+                    val texPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        this.shader = shader
+                        isFilterBitmap = true
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                    }
+                    tempCanvas.drawRect(bounds, texPaint)
+                }
+
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
             }
@@ -809,6 +823,20 @@ class ShapeLayer(
                 tempCanvas.translate(-bounds.left, -bounds.top)
                 val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
                 tempCanvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
+
+                if (textureBitmap != null) {
+                    val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                    val mat = Matrix()
+                    mat.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
+                    shader.setLocalMatrix(mat)
+                    val texPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        this.shader = shader
+                        isFilterBitmap = true
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                    }
+                    tempCanvas.drawRect(bounds, texPaint)
+                }
+
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
             }
@@ -1011,14 +1039,10 @@ class ShapeLayer(
                         val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                         val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
                                           else if (isGradient && isGradientText) gradientShader
-                                          else if (textureBitmap != null) {
+                                          else if (textureBitmap != null && !isWarpActive) {
                                               val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                                               val matrix = Matrix()
-                                              if (isWarpActive) {
-                                                  matrix.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
-                                              } else {
-                                                  matrix.postTranslate(textureOffsetX, textureOffsetY)
-                                              }
+                                              matrix.postTranslate(textureOffsetX, textureOffsetY)
                                               shader.setLocalMatrix(matrix)
                                               shader
                                           } else null
@@ -1195,14 +1219,10 @@ class ShapeLayer(
                         val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                         val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
                                           else if (isGradient && isGradientText) gradientShader
-                                          else if (textureBitmap != null) {
+                                          else if (textureBitmap != null && !isWarpActive) {
                                               val shader = android.graphics.BitmapShader(textureBitmap!!, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                                               val matrix = Matrix()
-                                              if (isWarpActive) {
-                                                  matrix.postTranslate(-w / 2f + textureOffsetX, -h / 2f + textureOffsetY)
-                                              } else {
-                                                  matrix.postTranslate(textureOffsetX, textureOffsetY)
-                                              }
+                                              matrix.postTranslate(textureOffsetX, textureOffsetY)
                                               shader.setLocalMatrix(matrix)
                                               shader
                                           } else null
