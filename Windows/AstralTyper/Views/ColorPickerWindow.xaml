@@ -1,0 +1,34 @@
+<Window x:Class="AstralTyper.Views.ColorPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Choose Color" Height="300" Width="360"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgDarkest}"
+        ResizeMode="NoResize">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Select Preset or Hex Color:" Foreground="{StaticResource FgPrimary}" FontWeight="Bold" Margin="0,0,0,10"/>
+
+        <!-- Color Palette Grid -->
+        <UniformGrid Grid.Row="1" Columns="6" Rows="4" x:Name="ColorPaletteGrid" Margin="0,0,0,15">
+            <!-- Dynamically populated buttons -->
+        </UniformGrid>
+
+        <StackPanel Grid.Row="2">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Hex Color:" Foreground="{StaticResource FgSecondary}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBox x:Name="TxtHexColor" Width="120" Text="#FFFFFF" VerticalAlignment="Center"/>
+                <Border x:Name="BorderPreview" Width="30" Height="24" Background="White" BorderBrush="Gray" BorderThickness="1" Margin="10,0,0,0"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="OK" Width="70" Click="BtnOk_Click" IsDefault="True"/>
+                <Button Content="Cancel" Width="70" Margin="10,0,0,0" Click="BtnCancel_Click" IsCancel="True"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>
