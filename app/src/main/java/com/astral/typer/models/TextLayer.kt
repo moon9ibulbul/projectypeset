@@ -3174,7 +3174,8 @@ class TextLayer(
                 val drawFillContent = { fillCanvas: Canvas ->
                     val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
                     if (hasSpeedLine) {
-                        val sc = fillCanvas.saveLayer(null, null)
+                        val slPad = calculatePadding()
+                        val sc = fillCanvas.saveLayer(-slPad, -slPad, w + slPad, h + slPad, null)
                         val prevColor = paint.color
                         val prevShader = paint.shader
                         val prevAlpha = paint.alpha
@@ -4268,8 +4269,7 @@ class TextLayer(
                 }
                 TextEffectType.WAVY -> {
                     var useRenderEffect = false
-                    val isTransformed = isWarp
-                    if (!isTransformed && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
                             val node = android.graphics.RenderNode("WavyNode")
                             node.setPosition(0, 0, nodeW, nodeH)
@@ -4333,7 +4333,8 @@ class TextLayer(
                             }
                             targetCanvas.save()
                             targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            targetCanvas.drawBitmapMesh(cachedWavyBitmap!!, meshW, meshH, verts, 0, null, 0, null)
+                            val meshPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+                            targetCanvas.drawBitmapMesh(cachedWavyBitmap!!, meshW, meshH, verts, 0, null, 0, meshPaint)
                             targetCanvas.restore()
                         } else {
                             drawInner(targetCanvas)

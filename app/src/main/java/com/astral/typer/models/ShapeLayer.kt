@@ -1007,7 +1007,8 @@ class ShapeLayer(
                 val drawFillContent = { fillCanvas: Canvas ->
                     val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
                     if (hasSpeedLine) {
-                        val sc = fillCanvas.saveLayer(null, null)
+                        val slPad = calculatePadding()
+                        val sc = fillCanvas.saveLayer(-slPad, -slPad, w + slPad, h + slPad, null)
                         val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                         val fillShaderToUse = if (hasMultiGradient) getMultiGradientShader(w, h)
                                           else if (isGradient && isGradientText) gradientShader
