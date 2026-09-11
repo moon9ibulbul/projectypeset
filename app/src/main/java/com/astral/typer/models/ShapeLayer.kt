@@ -2590,7 +2590,8 @@ class ShapeLayer(
                     val halfW = speedLineWidth / 2f
                     val halfH = speedLineHeight / 2f
                     val expansion = Math.max(halfW - getWidth() / 2f, halfH - getHeight() / 2f).coerceAtLeast(0f)
-                    effectExpansion = Math.max(effectExpansion, expansion)
+                    // Clamp Speed Line expansion so padding doesn't cause OutOfMemoryError on large canvases
+                    effectExpansion = Math.max(effectExpansion, expansion.coerceAtMost(2000f))
                 }
                 TextEffectType.TEXT_TAIL -> {
                     effectExpansion = Math.max(effectExpansion, tailLength + tailWavyIntensity * 5f + 20f)
