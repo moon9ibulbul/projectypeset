@@ -1264,6 +1264,19 @@ class EditorActivity : AppCompatActivity() {
         cardsScroll.addView(cardsLayout)
         mainLayout.addView(cardsScroll)
 
+        if (getEffect() != TextEffectType.NONE) {
+            val primaryEffect = getEffect()
+            cardsScroll.post {
+                for (i in 0 until cardsLayout.childCount) {
+                    val card = cardsLayout.getChildAt(i)
+                    if (card.tag == primaryEffect) {
+                        cardsScroll.smoothScrollTo(card.left, 0)
+                        break
+                    }
+                }
+            }
+        }
+
         // Settings Container for specific effects
         val settingsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -4884,11 +4897,24 @@ class EditorActivity : AppCompatActivity() {
             }
             container.addView(recyclerView)
 
-            val adapter = StyleAdapter(this, lifecycleScope, filteredStyles,
+            val activeStyleIndex = if (layer != null) {
+                filteredStyles.indexOfFirst { style ->
+                    style.color == layer.color &&
+                    style.fontSize == layer.fontSize &&
+                    style.fontPath == layer.fontPath &&
+                    style.strokeColor == layer.strokeColor &&
+                    style.strokeWidth == layer.strokeWidth &&
+                    style.doubleStrokeColor == layer.doubleStrokeColor &&
+                    style.doubleStrokeWidth == layer.doubleStrokeWidth
+                }
+            } else -1
+
+            val adapter = StyleAdapter(this, lifecycleScope, filteredStyles, activeStyleIndex,
                 onApply = { style ->
                     if (!isStyleRearrangeMode && layer != null) {
                         applyStyleToLayer(layer, style)
                         Toast.makeText(this, "Style Applied", Toast.LENGTH_SHORT).show()
+                        showStyleMenu()
                     }
                 },
                 onLongClick = { view, _, style ->
@@ -4962,6 +4988,12 @@ class EditorActivity : AppCompatActivity() {
                 isRearrangeMode = this@EditorActivity.isStyleRearrangeMode
             }
             recyclerView.adapter = adapter
+
+            if (activeStyleIndex != -1) {
+                recyclerView.post {
+                    recyclerView.scrollToPosition(activeStyleIndex)
+                }
+            }
 
             if (isStyleRearrangeMode) {
                 val itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
@@ -5930,6 +5962,7 @@ class EditorActivity : AppCompatActivity() {
                 if (btn.text == activeName) {
                     btn.setTextColor(Color.CYAN)
                     btn.alpha = 1.0f
+                    btn.post { tabsScroll.smoothScrollTo(btn.left, 0) }
                 } else {
                     btn.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                     btn.alpha = 0.6f
@@ -6080,12 +6113,28 @@ class EditorActivity : AppCompatActivity() {
 
                         val filtered = if (query.isEmpty()) fonts else fonts.filter { it.name.contains(query, ignoreCase = true) }
 
-                        val limit = 50
+                        val activeFontIndex = filtered.indexOfFirst { f ->
+                            if (!layer.fontPath.isNullOrEmpty()) {
+                                (f.isCustom && f.path == layer.fontPath) || (!f.isCustom && f.name == layer.fontPath)
+                            } else {
+                                f.typeface == layer.typeface
+                            }
+                        }
+
+                        val baseLimit = 50
+                        val limit = if (activeFontIndex >= baseLimit) activeFontIndex + 10 else baseLimit
                         var count = 0
+                        var activeFontView: View? = null
 
                         for (font in filtered) {
                             if (count >= limit && query.isEmpty()) break
                             count++
+
+                            val isActive = if (!layer.fontPath.isNullOrEmpty()) {
+                                (font.isCustom && font.path == layer.fontPath) || (!font.isCustom && font.name == layer.fontPath)
+                            } else {
+                                font.typeface == layer.typeface
+                            }
 
                             val itemLayout = LinearLayout(this).apply {
                                 orientation = LinearLayout.HORIZONTAL
@@ -6096,10 +6145,13 @@ class EditorActivity : AppCompatActivity() {
                                     ViewGroup.LayoutParams.WRAP_CONTENT
                                 ).apply { setMargins(0, 4, 0, 4) }
 
+                                val strokeColor = if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)
+                                val strokeWidth = if (isActive) dpToPx(2) else dpToPx(1)
+
                                 background = GradientDrawable().apply {
                                     setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
-                    cornerRadius = dpToPx(8).toFloat()
+                                    setStroke(strokeWidth, strokeColor)
+                                    cornerRadius = dpToPx(8).toFloat()
                                 }
 
                                 setOnClickListener {
@@ -6119,14 +6171,19 @@ class EditorActivity : AppCompatActivity() {
                                         layer.fontPath = if (font.isCustom) font.path else font.name // Save Identifier
                                         canvasView.invalidate()
                                     }
+                                    showFontPicker()
                                 }
+                            }
+
+                            if (isActive) {
+                                activeFontView = itemLayout
                             }
 
                             val tvName = TextView(this).apply {
                                 text = font.name
                                 typeface = font.typeface
                                 textSize = 16f
-                                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                                setTextColor(if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                 gravity = Gravity.CENTER_VERTICAL or Gravity.START
                                 maxLines = 1
                                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -6148,6 +6205,12 @@ class EditorActivity : AppCompatActivity() {
                             itemLayout.addView(tvName)
                             itemLayout.addView(btnStar)
                             list.addView(itemLayout)
+                        }
+
+                        if (activeFontView != null) {
+                            activeFontView.post {
+                                scroll.smoothScrollTo(0, activeFontView.top)
+                            }
                         }
 
                         if (filtered.size > limit && query.isEmpty()) {
@@ -6277,7 +6340,30 @@ class EditorActivity : AppCompatActivity() {
         container.addView(tabsScroll)
         container.addView(contentContainer)
 
-        loadTab("Standard")
+        // Find initial tab for current font
+        val allFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
+        val currentFontItem = allFonts.find { f ->
+            if (!layer.fontPath.isNullOrEmpty()) {
+                (f.isCustom && f.path == layer.fontPath) || (!f.isCustom && f.name == layer.fontPath)
+            } else {
+                f.typeface == layer.typeface
+            }
+        }
+
+        var defaultTab = "Standard"
+        if (currentFontItem != null) {
+            if (currentFontItem.isCustom) {
+                val fontPrefs = getSharedPreferences("font_prefs", Context.MODE_PRIVATE)
+                val fontId = currentFontItem.path ?: currentFontItem.name
+                val assigned = fontPrefs.getStringSet("font_categories_$fontId", emptySet()) ?: emptySet()
+                val matchedCategory = categories.firstOrNull { assigned.contains(it) }
+                defaultTab = matchedCategory ?: "My Font"
+            } else {
+                defaultTab = "Standard"
+            }
+        }
+
+        loadTab(defaultTab)
     }
 
     // --- COLOR MENU ---
@@ -6719,6 +6805,7 @@ class EditorActivity : AppCompatActivity() {
                 if (btn.tag == currentTab) {
                     btn.setTextColor(Color.YELLOW)
                     btn.setTypeface(null, Typeface.BOLD)
+                    btn.post { tabsScroll.smoothScrollTo(btn.left, 0) }
                 } else {
                     btn.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                     btn.setTypeface(null, Typeface.NORMAL)
@@ -6742,11 +6829,25 @@ class EditorActivity : AppCompatActivity() {
         val itemViews = mutableListOf<Pair<String, android.widget.RelativeLayout>>()
 
         fun selectBrushItem(selectedName: String) {
+            var selectedView: View? = null
             for ((name, itemView) in itemViews) {
                 if (name == selectedName) {
-                    itemView.setBackgroundColor(Color.parseColor("#666666"))
+                    itemView.background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(Color.parseColor("#666666"))
+                        setStroke(dpToPx(2), Color.CYAN)
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                    selectedView = itemView
                 } else {
-                    itemView.setBackgroundColor(Color.TRANSPARENT)
+                    itemView.background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(Color.TRANSPARENT)
+                        cornerRadius = dpToPx(4).toFloat()
+                    }
+                }
+            }
+            if (selectedView != null) {
+                selectedView.post {
+                    brushScroll.smoothScrollTo(selectedView.left, 0)
                 }
             }
         }

@@ -19,6 +19,7 @@ class StyleAdapter(
     private val context: Context,
     private val scope: CoroutineScope,
     private val styles: List<StyleModel>,
+    private val activeStyleIndex: Int = -1,
     private val onApply: (StyleModel) -> Unit,
     private val onLongClick: (View, Int, StyleModel) -> Unit
 ) : RecyclerView.Adapter<StyleAdapter.ViewHolder>() {
@@ -41,6 +42,18 @@ class StyleAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val style = styles[position]
         holder.tvName.text = (style.name ?: "").ifEmpty { "Style ${position + 1}" }
+
+        val cardView = holder.container as? com.google.android.material.card.MaterialCardView
+        val isActive = position == activeStyleIndex
+        if (cardView != null) {
+            if (isActive) {
+                cardView.strokeColor = android.graphics.Color.CYAN
+                cardView.strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
+            } else {
+                cardView.strokeColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, R.attr.appCardBorderColor)
+                cardView.strokeWidth = com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(context, R.attr.appCardBorderWidth).toInt()
+            }
+        }
 
         // Clear previous preview to avoid flickering
         holder.ivPreview.setImageBitmap(null)
