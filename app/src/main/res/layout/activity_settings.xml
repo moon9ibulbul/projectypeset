@@ -185,6 +185,16 @@
                 android:paddingTop="12dp">
 
                 <Button
+                    android:id="@+id/btnSfxStudio"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Open SFX Studio"
+                    android:backgroundTint="#00E5FF"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
                     android:id="@+id/btnFontManager"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -228,6 +238,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Custom Warp Presets"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:checked="true"/>
+
+                <CheckBox
+                    android:id="@+id/cbSfxPreset"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Custom SFX Presets"
                     android:textColor="?attr/appTextColorPrimary"
                     android:checked="true"/>
 

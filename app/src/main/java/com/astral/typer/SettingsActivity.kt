@@ -30,6 +30,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var cbFavorite: CheckBox
     private lateinit var cbMyFont: CheckBox
     private lateinit var cbWarpPreset: CheckBox
+    private lateinit var cbSfxPreset: CheckBox
     private lateinit var cbAutosave: CheckBox
 
     // Watermark Views
@@ -114,7 +115,13 @@ class SettingsActivity : AppCompatActivity() {
         cbFavorite = findViewById(R.id.cbFavorite)
         cbMyFont = findViewById(R.id.cbMyFont)
         cbWarpPreset = findViewById(R.id.cbWarpPreset)
+        cbSfxPreset = findViewById(R.id.cbSfxPreset)
         cbAutosave = findViewById(R.id.cbAutosave)
+
+        findViewById<Button>(R.id.btnSfxStudio).setOnClickListener {
+            val intent = Intent(this, SfxStudioActivity::class.java)
+            startActivity(intent)
+        }
 
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
         cbAutosave.isChecked = settingsPrefs.getBoolean("enable_autosave", false)
@@ -619,7 +626,7 @@ class SettingsActivity : AppCompatActivity() {
 
         // Data Logic
         btnExport.setOnClickListener {
-            if (!cbStyle.isChecked && !cbFavorite.isChecked && !cbMyFont.isChecked && !cbWarpPreset.isChecked) {
+            if (!cbStyle.isChecked && !cbFavorite.isChecked && !cbMyFont.isChecked && !cbWarpPreset.isChecked && !cbSfxPreset.isChecked) {
                 Toast.makeText(this, "Select at least one item to export", Toast.LENGTH_SHORT).show()
             } else {
                 exportLauncher.launch("AstralTyper_Backup.zip")
@@ -742,6 +749,11 @@ class SettingsActivity : AppCompatActivity() {
                 if (cbWarpPreset.isChecked) {
                     addFileToZip(File(dataDir, "shared_prefs/warp_preset_prefs.xml"), "shared_prefs/warp_preset_prefs.xml", zipOut)
                 }
+
+                // 5. Custom SFX Presets (SharedPrefs)
+                if (cbSfxPreset.isChecked) {
+                    addFileToZip(File(dataDir, "shared_prefs/sfx_preset_prefs.xml"), "shared_prefs/sfx_preset_prefs.xml", zipOut)
+                }
             }
 
             // Write temp file to Uri
@@ -788,6 +800,8 @@ class SettingsActivity : AppCompatActivity() {
                              targetFile = File(dataDir, filePath)
                         } else if (filePath.contains("warp_preset_prefs.xml") && cbWarpPreset.isChecked) {
                              targetFile = File(dataDir, filePath)
+                        } else if (filePath.contains("sfx_preset_prefs.xml") && cbSfxPreset.isChecked) {
+                             targetFile = File(dataDir, filePath)
                         }
                     } else if (filePath.startsWith("files/fonts/") && cbMyFont.isChecked) {
                         targetFile = File(filesDir, "fonts/${File(filePath).name}")
@@ -811,6 +825,9 @@ class SettingsActivity : AppCompatActivity() {
             }
             if (cbWarpPreset.isChecked) {
                 com.astral.typer.utils.WarpPresetManager.reload(this)
+            }
+            if (cbSfxPreset.isChecked) {
+                com.astral.typer.utils.SfxPresetManager.reload(this)
             }
 
             Toast.makeText(this, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()
