@@ -3173,9 +3173,11 @@ class TextLayer(
             } else {
                 val drawFillContent = { fillCanvas: Canvas ->
                     val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
+                    var speedLineSuccess = false
                     if (hasSpeedLine) {
-                        val slPad = calculatePadding()
-                        val sc = fillCanvas.saveLayer(-slPad, -slPad, w + slPad, h + slPad, null)
+                        try {
+                            val slMargin = 20f
+                            val sc = fillCanvas.saveLayer(-slMargin, -slMargin, w + slMargin, h + slMargin, null)
                         val prevColor = paint.color
                         val prevShader = paint.shader
                         val prevAlpha = paint.alpha
@@ -3343,7 +3345,13 @@ class TextLayer(
                         paint.color = prevColor
                         paint.shader = prevShader
                         paint.alpha = prevAlpha
-                    } else {
+                        speedLineSuccess = true
+                        } catch (e: Throwable) {
+                            speedLineSuccess = false
+                        }
+                    }
+
+                    if (!hasSpeedLine || !speedLineSuccess) {
                         val hasMultiGradient = currentEffect == TextEffectType.MULTI_GRADIENT || secondaryEffect == TextEffectType.MULTI_GRADIENT || tertiaryEffect == TextEffectType.MULTI_GRADIENT
                         if (hasMultiGradient) {
                             val mShader = if (isCharByChar) {
