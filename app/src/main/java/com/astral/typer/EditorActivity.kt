@@ -5974,7 +5974,7 @@ class EditorActivity : AppCompatActivity() {
             val fontPrefs = getSharedPreferences("font_prefs", MODE_PRIVATE)
             val orderBy = fontPrefs.getString("font_order_by", "Name") ?: "Name"
 
-            return when (orderBy) {
+            val sortedList = when (orderBy) {
                 "Latest Installed" -> {
                     fontsList.sortedWith(compareByDescending<com.astral.typer.utils.FontManager.FontItem> { item ->
                         if (item.path != null) {
@@ -5999,6 +5999,13 @@ class EditorActivity : AppCompatActivity() {
                 else -> { // "Name"
                     fontsList.sortedBy { it.name.lowercase() }
                 }
+            }
+
+            val defaultFont = sortedList.find { it.name.equals("Default", ignoreCase = true) }
+            return if (defaultFont != null) {
+                listOf(defaultFont) + sortedList.filter { !it.name.equals("Default", ignoreCase = true) }
+            } else {
+                sortedList
             }
         }
 

@@ -335,7 +335,7 @@ class FontActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("font_prefs", MODE_PRIVATE)
         val orderBy = prefs.getString("font_order_by", "Name") ?: "Name"
 
-        return when (orderBy) {
+        val sortedList = when (orderBy) {
             "Latest Installed" -> {
                 fonts.sortedWith(compareByDescending<FontManager.FontItem> { item ->
                     if (item.path != null) {
@@ -360,6 +360,13 @@ class FontActivity : AppCompatActivity() {
             else -> { // "Name"
                 fonts.sortedBy { it.name.lowercase() }
             }
+        }
+
+        val defaultFont = sortedList.find { it.name.equals("Default", ignoreCase = true) }
+        return if (defaultFont != null) {
+            listOf(defaultFont) + sortedList.filter { !it.name.equals("Default", ignoreCase = true) }
+        } else {
+            sortedList
         }
     }
 
