@@ -37,6 +37,7 @@ class SfxStudioActivity : AppCompatActivity() {
     private lateinit var etSfxText: EditText
     private lateinit var spinnerLetterSelect: Spinner
     private lateinit var btnAddVectorPoints: Button
+    private lateinit var btnRemoveVectorPoints: Button
     private lateinit var btnSelectFont: Button
 
     private var isUpdatingSpinner = false
@@ -59,6 +60,7 @@ class SfxStudioActivity : AppCompatActivity() {
         etSfxText = findViewById(R.id.etSfxText)
         spinnerLetterSelect = findViewById(R.id.spinnerLetterSelect)
         btnAddVectorPoints = findViewById(R.id.btnAddVectorPoints)
+        btnRemoveVectorPoints = findViewById(R.id.btnRemoveVectorPoints)
         btnSelectFont = findViewById(R.id.btnSelectFont)
 
         findViewById<ImageView>(R.id.btnBack).setOnClickListener {
@@ -118,6 +120,11 @@ class SfxStudioActivity : AppCompatActivity() {
         btnAddVectorPoints.setOnClickListener {
             sfxCanvasView.subdivideSelectedCharMesh()
             Toast.makeText(this, "Added vector control points", Toast.LENGTH_SHORT).show()
+        }
+
+        btnRemoveVectorPoints.setOnClickListener {
+            sfxCanvasView.reduceSelectedCharMesh()
+            Toast.makeText(this, "Reduced vector control points", Toast.LENGTH_SHORT).show()
         }
 
         btnSelectFont.setOnClickListener {

@@ -9896,7 +9896,7 @@ class EditorActivity : AppCompatActivity() {
         val presets = com.astral.typer.utils.SfxPresetManager.getPresets()
 
         if (presets.isEmpty()) {
-            Toast.makeText(this, "No SFX presets available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Preset SFX masih kosong. Buat preset di SFX Studio terlebih dahulu.", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -9910,10 +9910,11 @@ class EditorActivity : AppCompatActivity() {
 
         val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
             override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): androidx.recyclerview.widget.RecyclerView.ViewHolder {
+                val cardSize = dpToPx(95)
                 val frame = FrameLayout(this@EditorActivity).apply {
                     layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                        dpToPx(80)
+                        cardSize
                     ).apply {
                         setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
                     }
@@ -9942,11 +9943,12 @@ class EditorActivity : AppCompatActivity() {
                 val frame = holder.itemView as FrameLayout
                 val imageView = frame.getChildAt(0) as ImageView
 
+                val cardSize = dpToPx(90)
                 val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
                     this@EditorActivity,
                     preset,
-                    dpToPx(120),
-                    dpToPx(80)
+                    cardSize,
+                    cardSize
                 )
                 imageView.setImageBitmap(thumbnail)
 
