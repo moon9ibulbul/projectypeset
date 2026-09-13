@@ -1176,16 +1176,71 @@ class TextLayer(
 
     override fun getWidth(): Float {
         ensureLayout()
-        // If fixedHeight is set, we return boxWidth/fixedHeight for the container size
-        // But cachedLayout.width is the text flow width.
-        // We should return the visible bounding box width.
+        if (letterWarpMeshes.isNotEmpty()) {
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            for (mesh in letterWarpMeshes.values) {
+                for (i in 0 until mesh.size / 2) {
+                    val mx = mesh[i * 2]
+                    if (mx < minX) minX = mx
+                    if (mx > maxX) maxX = mx
+                }
+            }
+            if (minX != Float.MAX_VALUE) {
+                return (maxX - minX).coerceAtLeast(10f)
+            }
+        }
         return if (boxWidth != null && boxWidth!! > 0) boxWidth!! else (cachedLayout?.width?.toFloat() ?: 0f)
     }
 
     override fun getHeight(): Float {
         ensureLayout()
-        // Return fixedHeight if set, otherwise content height
+        if (letterWarpMeshes.isNotEmpty()) {
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+            for (mesh in letterWarpMeshes.values) {
+                for (i in 0 until mesh.size / 2) {
+                    val my = mesh[i * 2 + 1]
+                    if (my < minY) minY = my
+                    if (my > maxY) maxY = my
+                }
+            }
+            if (minY != Float.MAX_VALUE) {
+                return (maxY - minY).coerceAtLeast(10f)
+            }
+        }
         return if (fixedHeight != null && fixedHeight!! > 0) fixedHeight!! else (cachedLayout?.height?.toFloat() ?: 0f)
+    }
+
+    override fun getCanvasBounds(): RectF {
+        if (letterWarpMeshes.isNotEmpty()) {
+            val pad = calculatePadding()
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+            for (mesh in letterWarpMeshes.values) {
+                for (i in 0 until mesh.size / 2) {
+                    val mx = mesh[i * 2]
+                    val my = mesh[i * 2 + 1]
+                    if (mx < minX) minX = mx
+                    if (mx > maxX) maxX = mx
+                    if (my < minY) minY = my
+                    if (my > maxY) maxY = my
+                }
+            }
+            if (minX != Float.MAX_VALUE) {
+                val localRect = RectF(minX - pad, minY - pad, maxX + pad, maxY + pad)
+                val matrix = Matrix()
+                matrix.setTranslate(x, y)
+                matrix.preRotate(rotation)
+                matrix.preScale(scaleX, scaleY)
+                val bounds = RectF()
+                matrix.mapRect(bounds, localRect)
+                return bounds
+            }
+        }
+        return super.getCanvasBounds()
     }
 
     // Internal method to get actual content height (for scrolling/positioning if needed)
@@ -1739,7 +1794,7 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
-        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val baseQualityScale = Math.max(1.5f, Math.max(Math.abs(scaleX), Math.abs(scaleY)) * viewScale.coerceAtLeast(1f)).coerceIn(1.5f, 4.0f)
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
 
         try {

@@ -141,8 +141,21 @@ class SfxCanvasView @JvmOverloads constructor(
         if (selectedCharIndex < 0 || selectedCharIndex >= textStr.length) return
         val curRows = sfxLayer.letterWarpRows[selectedCharIndex] ?: 2
         val curCols = sfxLayer.letterWarpCols[selectedCharIndex] ?: 2
-        val newRows = (curRows + 1).coerceAtMost(5)
-        val newCols = (curCols + 1).coerceAtMost(5)
+        val newRows = (curRows + 1).coerceAtMost(6)
+        val newCols = (curCols + 1).coerceAtMost(6)
+
+        sfxLayer.initWarpMeshForTarget(selectedCharIndex, newRows, newCols, forceReset = false)
+        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+        invalidate()
+    }
+
+    fun reduceSelectedCharMesh() {
+        val textStr = sfxLayer.text.toString()
+        if (selectedCharIndex < 0 || selectedCharIndex >= textStr.length) return
+        val curRows = sfxLayer.letterWarpRows[selectedCharIndex] ?: 2
+        val curCols = sfxLayer.letterWarpCols[selectedCharIndex] ?: 2
+        val newRows = (curRows - 1).coerceAtLeast(1)
+        val newCols = (curCols - 1).coerceAtLeast(1)
 
         sfxLayer.initWarpMeshForTarget(selectedCharIndex, newRows, newCols, forceReset = false)
         sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
@@ -198,7 +211,7 @@ class SfxCanvasView @JvmOverloads constructor(
         canvas.drawRect(-canvasWidth / 2f, -canvasHeight / 2f, canvasWidth / 2f, canvasHeight / 2f, canvasBgPaint)
 
         // Render SFX Layer
-        sfxLayer.draw(canvas)
+        sfxLayer.draw(canvas, skipEffects = false, viewScale = totalScale)
 
         // Draw Handles in edit modes
         if (currentMode == Mode.VECTOR_EDIT) {
@@ -257,7 +270,12 @@ class SfxCanvasView @JvmOverloads constructor(
         val rows = sfxLayer.letterWarpRows[selectedCharIndex] ?: 2
         val cols = sfxLayer.letterWarpCols[selectedCharIndex] ?: 2
 
-        // 1. Draw Mesh Lines connecting grid points
+        val subtleLinePaint = Paint(linePaint).apply {
+            strokeWidth = 1.5f / getCalculatedTotalScale().coerceAtLeast(0.5f)
+            alpha = 140
+        }
+
+        // 1. Draw subtle guide lines between vector control nodes
         for (r in 0..rows) {
             for (c in 0..cols) {
                 val idx = (r * (cols + 1) + c) * 2
@@ -267,22 +285,22 @@ class SfxCanvasView @JvmOverloads constructor(
                 // Horizontal line to right neighbor
                 if (c < cols) {
                     val rightIdx = (r * (cols + 1) + (c + 1)) * 2
-                    canvas.drawLine(px, py, mesh[rightIdx], mesh[rightIdx + 1], linePaint)
+                    canvas.drawLine(px, py, mesh[rightIdx], mesh[rightIdx + 1], subtleLinePaint)
                 }
 
                 // Vertical line to bottom neighbor
                 if (r < rows) {
                     val bottomIdx = ((r + 1) * (cols + 1) + c) * 2
-                    canvas.drawLine(px, py, mesh[bottomIdx], mesh[bottomIdx + 1], linePaint)
+                    canvas.drawLine(px, py, mesh[bottomIdx], mesh[bottomIdx + 1], subtleLinePaint)
                 }
             }
         }
 
-        // 2. Draw Handle Dots
+        // 2. Draw Vector Node Anchors
         val pointCount = (rows + 1) * (cols + 1)
         val effectiveScale = getCalculatedTotalScale()
-        val handleRadius = 16f / effectiveScale.coerceAtLeast(0.5f)
-        val handleBorderRadius = 20f / effectiveScale.coerceAtLeast(0.5f)
+        val handleRadius = 14f / effectiveScale.coerceAtLeast(0.5f)
+        val handleBorderRadius = 18f / effectiveScale.coerceAtLeast(0.5f)
 
         for (i in 0 until pointCount) {
             val px = mesh[i * 2]
