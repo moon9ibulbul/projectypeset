@@ -9894,29 +9894,92 @@ class EditorActivity : AppCompatActivity() {
     private fun showSfxPresetPickerDialog() {
         com.astral.typer.utils.SfxPresetManager.init(this)
         val presets = com.astral.typer.utils.SfxPresetManager.getPresets()
-        val presetNames = presets.map { it.name }.toTypedArray()
 
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Insert SFX Preset")
-            .setItems(presetNames) { _, which ->
-                val selectedPreset = presets[which]
-                binding.saveSidebar.root.visibility = View.GONE
+        if (presets.isEmpty()) {
+            Toast.makeText(this, "No SFX presets available", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
-                val newLayer = com.astral.typer.models.TextLayer("BOOM!", android.graphics.Color.RED)
-                com.astral.typer.utils.SfxPresetManager.applyPresetToLayer(selectedPreset, newLayer, this)
+        var dialog: android.app.AlertDialog? = null
 
-                newLayer.x = canvasView.canvasWidth / 2f
-                newLayer.y = canvasView.canvasHeight / 2f
+        val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@EditorActivity, 3)
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            clipToPadding = false
+        }
 
-                canvasView.getLayers().add(newLayer)
-                canvasView.selectLayer(newLayer)
-                canvasView.invalidate()
-
-                Toast.makeText(this, "Inserted SFX Preset: ${selectedPreset.name}", Toast.LENGTH_SHORT).show()
+        val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+            override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): androidx.recyclerview.widget.RecyclerView.ViewHolder {
+                val frame = FrameLayout(this@EditorActivity).apply {
+                    layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        dpToPx(80)
+                    ).apply {
+                        setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                    }
+                    background = GradientDrawable().apply {
+                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appCardBgColor))
+                        setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appCardBorderColor))
+                        cornerRadius = dpToPx(8).toFloat()
+                    }
+                }
+                val imageView = ImageView(this@EditorActivity).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    ).apply {
+                        gravity = Gravity.CENTER
+                        setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                    }
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }
+                frame.addView(imageView)
+                return object : androidx.recyclerview.widget.RecyclerView.ViewHolder(frame) {}
             }
+
+            override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
+                val preset = presets[position]
+                val frame = holder.itemView as FrameLayout
+                val imageView = frame.getChildAt(0) as ImageView
+
+                val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
+                    this@EditorActivity,
+                    preset,
+                    dpToPx(120),
+                    dpToPx(80)
+                )
+                imageView.setImageBitmap(thumbnail)
+
+                frame.setOnClickListener {
+                    binding.saveSidebar.root.visibility = View.GONE
+
+                    com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+                    val newLayer = com.astral.typer.models.TextLayer(preset.text, Color.BLACK)
+                    com.astral.typer.utils.SfxPresetManager.applyPresetToLayer(preset, newLayer, this@EditorActivity)
+
+                    newLayer.x = canvasView.canvasWidth / 2f
+                    newLayer.y = canvasView.canvasHeight / 2f
+
+                    canvasView.getLayers().add(newLayer)
+                    canvasView.selectLayer(newLayer)
+                    canvasView.invalidate()
+
+                    dialog?.dismiss()
+                }
+            }
+
+            override fun getItemCount(): Int = presets.size
+        }
+
+        recyclerView.adapter = adapter
+
+        dialog = android.app.AlertDialog.Builder(this)
+            .setTitle("Insert SFX Preset")
+            .setView(recyclerView)
             .setNegativeButton("Cancel", null)
-            .show()
+            .create()
+
+        dialog.show()
     }
 
     private fun addWatermarkLayer(isAuto: Boolean) {

@@ -31,15 +31,13 @@ class SfxStudioActivity : AppCompatActivity() {
     private lateinit var tvModeIndicator: TextView
     private lateinit var rgMode: RadioGroup
     private lateinit var rbVectorMode: RadioButton
+    private lateinit var rbMoveRotateMode: RadioButton
     private lateinit var rbPanZoomMode: RadioButton
     private lateinit var btnResetAllPoints: Button
     private lateinit var etSfxText: EditText
     private lateinit var spinnerLetterSelect: Spinner
     private lateinit var btnAddVectorPoints: Button
     private lateinit var btnSelectFont: Button
-    private lateinit var btnChangeColor: Button
-    private lateinit var btnChangeStroke: Button
-    private lateinit var btnChangeSpike: Button
 
     private var isUpdatingSpinner = false
 
@@ -55,15 +53,13 @@ class SfxStudioActivity : AppCompatActivity() {
         tvModeIndicator = findViewById(R.id.tvModeIndicator)
         rgMode = findViewById(R.id.rgMode)
         rbVectorMode = findViewById(R.id.rbVectorMode)
+        rbMoveRotateMode = findViewById(R.id.rbMoveRotateMode)
         rbPanZoomMode = findViewById(R.id.rbPanZoomMode)
         btnResetAllPoints = findViewById(R.id.btnResetAllPoints)
         etSfxText = findViewById(R.id.etSfxText)
         spinnerLetterSelect = findViewById(R.id.spinnerLetterSelect)
         btnAddVectorPoints = findViewById(R.id.btnAddVectorPoints)
         btnSelectFont = findViewById(R.id.btnSelectFont)
-        btnChangeColor = findViewById(R.id.btnChangeColor)
-        btnChangeStroke = findViewById(R.id.btnChangeStroke)
-        btnChangeSpike = findViewById(R.id.btnChangeSpike)
 
         findViewById<ImageView>(R.id.btnBack).setOnClickListener {
             finish()
@@ -75,12 +71,19 @@ class SfxStudioActivity : AppCompatActivity() {
 
         // Mode Radio Group
         rgMode.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == R.id.rbVectorMode) {
-                sfxCanvasView.currentMode = SfxCanvasView.Mode.VECTOR_EDIT
-                tvModeIndicator.text = "Mode: Edit Vector Points"
-            } else {
-                sfxCanvasView.currentMode = SfxCanvasView.Mode.PAN_ZOOM
-                tvModeIndicator.text = "Mode: Pan & Zoom"
+            when (checkedId) {
+                R.id.rbVectorMode -> {
+                    sfxCanvasView.currentMode = SfxCanvasView.Mode.VECTOR_EDIT
+                    tvModeIndicator.text = "Mode: Edit Vector Points"
+                }
+                R.id.rbMoveRotateMode -> {
+                    sfxCanvasView.currentMode = SfxCanvasView.Mode.MOVE_ROTATE
+                    tvModeIndicator.text = "Mode: Move & Rotate Letter"
+                }
+                else -> {
+                    sfxCanvasView.currentMode = SfxCanvasView.Mode.PAN_ZOOM
+                    tvModeIndicator.text = "Mode: Pan & Zoom"
+                }
             }
         }
 
@@ -120,18 +123,6 @@ class SfxStudioActivity : AppCompatActivity() {
         btnSelectFont.setOnClickListener {
             showFontPickerDialog()
         }
-
-        btnChangeColor.setOnClickListener {
-            showColorPickerDialog()
-        }
-
-        btnChangeStroke.setOnClickListener {
-            showStrokeDialog()
-        }
-
-        btnChangeSpike.setOnClickListener {
-            showGlitchEffectDialog()
-        }
     }
 
     private fun updateLetterSpinner() {
@@ -161,95 +152,9 @@ class SfxStudioActivity : AppCompatActivity() {
             .setItems(fontNames) { _, which ->
                 val fontItem = allFonts[which]
                 sfxCanvasView.sfxLayer.typeface = fontItem.typeface
+                sfxCanvasView.sfxLayer.fontPath = if (fontItem.isCustom) fontItem.path else fontItem.name
                 sfxCanvasView.invalidate()
                 Toast.makeText(this, "Font applied: ${fontItem.name}", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showColorPickerDialog() {
-        ColorPickerHelper.showColorPickerDialog(this, sfxCanvasView.sfxLayer.color) { newColor ->
-            sfxCanvasView.sfxLayer.color = newColor
-            sfxCanvasView.invalidate()
-        }
-    }
-
-    private fun showStrokeDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_stroke_options, null, false)
-        val sbStrokeWidth = dialogView.findViewById<SeekBar>(R.id.sbStrokeWidth)
-        val sbDoubleWidth = dialogView.findViewById<SeekBar>(R.id.sbDoubleWidth)
-        val btnStrokeColor = dialogView.findViewById<Button>(R.id.btnStrokeColor)
-        val btnDoubleColor = dialogView.findViewById<Button>(R.id.btnDoubleColor)
-
-        sbStrokeWidth?.progress = sfxCanvasView.sfxLayer.strokeWidth.toInt()
-        sbDoubleWidth?.progress = sfxCanvasView.sfxLayer.doubleStrokeWidth.toInt()
-
-        btnStrokeColor?.setOnClickListener {
-            ColorPickerHelper.showColorPickerDialog(this, sfxCanvasView.sfxLayer.strokeColor) { c ->
-                sfxCanvasView.sfxLayer.strokeColor = c
-                sfxCanvasView.invalidate()
-            }
-        }
-
-        btnDoubleColor?.setOnClickListener {
-            ColorPickerHelper.showColorPickerDialog(this, sfxCanvasView.sfxLayer.doubleStrokeColor) { c ->
-                sfxCanvasView.sfxLayer.doubleStrokeColor = c
-                sfxCanvasView.invalidate()
-            }
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Stroke Options")
-            .setView(dialogView)
-            .setPositiveButton("Apply") { _, _ ->
-                if (sbStrokeWidth != null) sfxCanvasView.sfxLayer.strokeWidth = sbStrokeWidth.progress.toFloat()
-                if (sbDoubleWidth != null) sfxCanvasView.sfxLayer.doubleStrokeWidth = sbDoubleWidth.progress.toFloat()
-                sfxCanvasView.invalidate()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showGlitchEffectDialog() {
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(32, 16, 32, 16)
-        }
-
-        val tvLabel = TextView(this).apply {
-            text = "Glitch Intensity: ${sfxCanvasView.sfxLayer.glitchAmount.toInt()}"
-            setTextColor(ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appTextColorPrimary))
-        }
-
-        val sbGlitch = SeekBar(this).apply {
-            max = 50
-            progress = sfxCanvasView.sfxLayer.glitchAmount.toInt()
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    tvLabel.text = "Glitch Intensity: $progress"
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
-        }
-
-        layout.addView(tvLabel)
-        layout.addView(sbGlitch)
-
-        AlertDialog.Builder(this)
-            .setTitle("Glitch Effect")
-            .setView(layout)
-            .setPositiveButton("Apply") { _, _ ->
-                val amount = sbGlitch.progress.toFloat()
-                if (amount > 0f) {
-                    sfxCanvasView.sfxLayer.currentEffect = TextEffectType.GLITCH
-                    sfxCanvasView.sfxLayer.glitchAmount = amount
-                } else {
-                    sfxCanvasView.sfxLayer.currentEffect = TextEffectType.NONE
-                    sfxCanvasView.sfxLayer.glitchAmount = 0f
-                }
-                sfxCanvasView.invalidate()
             }
             .setNegativeButton("Cancel", null)
             .show()
