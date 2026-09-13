@@ -214,6 +214,16 @@
                     android:layout_height="36dp"
                     android:text="+ Vector Points"
                     android:textSize="11sp"
+                    android:layout_marginEnd="8dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+                <!-- Reduce Vector Points Button -->
+                <Button
+                    android:id="@+id/btnReduceVectorPoints"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="- Vector Points"
+                    android:textSize="11sp"
                     android:layout_marginEnd="12dp"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
 

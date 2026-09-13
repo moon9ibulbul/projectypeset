@@ -266,30 +266,46 @@ abstract class Layer {
         val stylable = this as? StylableLayer
 
         if (stylable != null && stylable.isWarp) {
-            val mesh = stylable.warpMesh
-            if (mesh != null && mesh.size >= 2) {
-                var minX = Float.MAX_VALUE
-                var maxX = -Float.MAX_VALUE
-                var minY = Float.MAX_VALUE
-                var maxY = -Float.MAX_VALUE
-                for (i in 0 until mesh.size / 2) {
-                    val mx = mesh[i * 2]
-                    val my = mesh[i * 2 + 1]
-                    if (mx < minX) minX = mx
-                    if (mx > maxX) maxX = mx
-                    if (my < minY) minY = my
-                    if (my > maxY) maxY = my
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+
+            val textLayer = this as? TextLayer
+            if (textLayer != null && textLayer.letterWarpMeshes.isNotEmpty()) {
+                for (mesh in textLayer.letterWarpMeshes.values) {
+                    for (i in 0 until mesh.size / 2) {
+                        val mx = mesh[i * 2]
+                        val my = mesh[i * 2 + 1]
+                        if (mx < minX) minX = mx
+                        if (mx > maxX) maxX = mx
+                        if (my < minY) minY = my
+                        if (my > maxY) maxY = my
+                    }
                 }
-                if (minX != Float.MAX_VALUE) {
-                    val localRect = RectF(minX - pad, minY - pad, maxX + pad, maxY + pad)
-                    val matrix = Matrix()
-                    matrix.setTranslate(x, y)
-                    matrix.preRotate(rotation)
-                    matrix.preScale(scaleX, scaleY)
-                    val bounds = RectF()
-                    matrix.mapRect(bounds, localRect)
-                    return bounds
+            } else {
+                val mesh = stylable.warpMesh
+                if (mesh != null && mesh.size >= 2) {
+                    for (i in 0 until mesh.size / 2) {
+                        val mx = mesh[i * 2]
+                        val my = mesh[i * 2 + 1]
+                        if (mx < minX) minX = mx
+                        if (mx > maxX) maxX = mx
+                        if (my < minY) minY = my
+                        if (my > maxY) maxY = my
+                    }
                 }
+            }
+
+            if (minX != Float.MAX_VALUE) {
+                val localRect = RectF(minX - pad, minY - pad, maxX + pad, maxY + pad)
+                val matrix = Matrix()
+                matrix.setTranslate(x, y)
+                matrix.preRotate(rotation)
+                matrix.preScale(scaleX, scaleY)
+                val bounds = RectF()
+                matrix.mapRect(bounds, localRect)
+                return bounds
             }
         }
 

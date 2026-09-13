@@ -9896,7 +9896,7 @@ class EditorActivity : AppCompatActivity() {
         val presets = com.astral.typer.utils.SfxPresetManager.getPresets()
 
         if (presets.isEmpty()) {
-            Toast.makeText(this, "No SFX presets available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Preset masih empty", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -9910,10 +9910,14 @@ class EditorActivity : AppCompatActivity() {
 
         val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
             override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): androidx.recyclerview.widget.RecyclerView.ViewHolder {
-                val frame = FrameLayout(this@EditorActivity).apply {
+                val frame = object : FrameLayout(this@EditorActivity) {
+                    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                        super.onMeasure(widthMeasureSpec, widthMeasureSpec)
+                    }
+                }.apply {
                     layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(
                         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                        dpToPx(80)
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT
                     ).apply {
                         setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
                     }
@@ -9945,8 +9949,8 @@ class EditorActivity : AppCompatActivity() {
                 val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
                     this@EditorActivity,
                     preset,
-                    dpToPx(120),
-                    dpToPx(80)
+                    dpToPx(100),
+                    dpToPx(100)
                 )
                 imageView.setImageBitmap(thumbnail)
 

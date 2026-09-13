@@ -149,6 +149,19 @@ class SfxCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun reduceSelectedCharMesh() {
+        val textStr = sfxLayer.text.toString()
+        if (selectedCharIndex < 0 || selectedCharIndex >= textStr.length) return
+        val curRows = sfxLayer.letterWarpRows[selectedCharIndex] ?: 2
+        val curCols = sfxLayer.letterWarpCols[selectedCharIndex] ?: 2
+        val newRows = (curRows - 1).coerceAtLeast(1)
+        val newCols = (curCols - 1).coerceAtLeast(1)
+
+        sfxLayer.initWarpMeshForTarget(selectedCharIndex, newRows, newCols, forceReset = false)
+        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+        invalidate()
+    }
+
     fun resetSelectedCharMesh() {
         val textStr = sfxLayer.text.toString()
         if (selectedCharIndex < 0 || selectedCharIndex >= textStr.length) return
@@ -198,7 +211,7 @@ class SfxCanvasView @JvmOverloads constructor(
         canvas.drawRect(-canvasWidth / 2f, -canvasHeight / 2f, canvasWidth / 2f, canvasHeight / 2f, canvasBgPaint)
 
         // Render SFX Layer
-        sfxLayer.draw(canvas)
+        sfxLayer.draw(canvas, skipEffects = false, viewScale = totalScale)
 
         // Draw Handles in edit modes
         if (currentMode == Mode.VECTOR_EDIT) {
