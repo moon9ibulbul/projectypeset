@@ -1176,16 +1176,66 @@ class TextLayer(
 
     override fun getWidth(): Float {
         ensureLayout()
-        // If fixedHeight is set, we return boxWidth/fixedHeight for the container size
-        // But cachedLayout.width is the text flow width.
-        // We should return the visible bounding box width.
-        return if (boxWidth != null && boxWidth!! > 0) boxWidth!! else (cachedLayout?.width?.toFloat() ?: 0f)
+        if (boxWidth != null && boxWidth!! > 0) return boxWidth!!
+        if (letterWarpMeshes.isNotEmpty()) {
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            for (mesh in letterWarpMeshes.values) {
+                for (i in 0 until mesh.size / 2) {
+                    val mx = mesh[i * 2]
+                    if (mx < minX) minX = mx
+                    if (mx > maxX) maxX = mx
+                }
+            }
+            if (minX != Float.MAX_VALUE && maxX > minX) {
+                return Math.max(Math.abs(minX), Math.abs(maxX)) * 2f
+            }
+        }
+        if (isWarp && _warpMesh != null && _warpMesh!!.size >= 2) {
+            var minX = Float.MAX_VALUE
+            var maxX = -Float.MAX_VALUE
+            for (i in 0 until _warpMesh!!.size / 2) {
+                val mx = _warpMesh!![i * 2]
+                if (mx < minX) minX = mx
+                if (mx > maxX) maxX = mx
+            }
+            if (minX != Float.MAX_VALUE && maxX > minX) {
+                return Math.max(Math.abs(minX), Math.abs(maxX)) * 2f
+            }
+        }
+        return (cachedLayout?.width?.toFloat() ?: 0f)
     }
 
     override fun getHeight(): Float {
         ensureLayout()
-        // Return fixedHeight if set, otherwise content height
-        return if (fixedHeight != null && fixedHeight!! > 0) fixedHeight!! else (cachedLayout?.height?.toFloat() ?: 0f)
+        if (fixedHeight != null && fixedHeight!! > 0) return fixedHeight!!
+        if (letterWarpMeshes.isNotEmpty()) {
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+            for (mesh in letterWarpMeshes.values) {
+                for (i in 0 until mesh.size / 2) {
+                    val my = mesh[i * 2 + 1]
+                    if (my < minY) minY = my
+                    if (my > maxY) maxY = my
+                }
+            }
+            if (minY != Float.MAX_VALUE && maxY > minY) {
+                return Math.max(Math.abs(minY), Math.abs(maxY)) * 2f
+            }
+        }
+        if (isWarp && _warpMesh != null && _warpMesh!!.size >= 2) {
+            var minY = Float.MAX_VALUE
+            var maxY = -Float.MAX_VALUE
+            for (i in 0 until _warpMesh!!.size / 2) {
+                val my = _warpMesh!![i * 2 + 1]
+                if (my < minY) minY = my
+                if (my > maxY) maxY = my
+            }
+            if (minY != Float.MAX_VALUE && maxY > minY) {
+                return Math.max(Math.abs(minY), Math.abs(maxY)) * 2f
+            }
+        }
+        return (cachedLayout?.height?.toFloat() ?: 0f)
     }
 
     // Internal method to get actual content height (for scrolling/positioning if needed)
@@ -1739,7 +1789,8 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
         }
 
-        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val effectiveScale = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * Math.max(1f, viewScale)
+        val baseQualityScale = Math.max(1f, effectiveScale).coerceAtMost(4f)
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
 
         try {

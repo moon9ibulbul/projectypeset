@@ -49,52 +49,7 @@ object SfxPresetManager {
 
     private val customPresets = mutableListOf<SfxPreset>()
 
-    val builtinPresets: List<SfxPreset> = listOf(
-        SfxPreset(
-            id = "sfx_boom",
-            name = "Impact BOOM",
-            text = "BOOM!",
-            fontSize = 110f,
-            color = Color.BLACK,
-            strokeWidth = 0f,
-            doubleStrokeWidth = 0f,
-            tripleStrokeWidth = 0f,
-            isWarp = true,
-            letterWarpRows = mapOf("0" to 2, "1" to 2, "2" to 2, "3" to 2, "4" to 2),
-            letterWarpCols = mapOf("0" to 2, "1" to 2, "2" to 2, "3" to 2, "4" to 2)
-        ),
-        SfxPreset(
-            id = "sfx_shock",
-            name = "Electric Shock",
-            text = "SHOCK!",
-            fontSize = 100f,
-            color = Color.BLACK,
-            strokeWidth = 0f,
-            doubleStrokeWidth = 0f,
-            isWarp = true
-        ),
-        SfxPreset(
-            id = "sfx_slash",
-            name = "Speed Slash",
-            text = "SLASH!",
-            fontSize = 105f,
-            color = Color.BLACK,
-            strokeWidth = 0f,
-            doubleStrokeWidth = 0f,
-            isWarp = true
-        ),
-        SfxPreset(
-            id = "sfx_bang",
-            name = "Explosive Bang",
-            text = "BANG!",
-            fontSize = 120f,
-            color = Color.BLACK,
-            strokeWidth = 0f,
-            doubleStrokeWidth = 0f,
-            tripleStrokeWidth = 0f,
-            isWarp = true
-        )
-    )
+    val builtinPresets: List<SfxPreset> = emptyList()
 
     fun init(context: Context) {
         loadCustomPresets(context)
@@ -278,22 +233,29 @@ object SfxPresetManager {
         }
     }
 
-    fun generateThumbnail(context: Context, preset: SfxPreset, widthPx: Int = 220, heightPx: Int = 120): Bitmap {
-        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+    fun generateThumbnail(context: Context, preset: SfxPreset, widthPx: Int = 200, heightPx: Int = 200): Bitmap {
+        val size = Math.min(widthPx, heightPx)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
         val bgPaint = android.graphics.Paint().apply {
             color = Color.WHITE
             style = android.graphics.Paint.Style.FILL
         }
-        canvas.drawRect(0f, 0f, widthPx.toFloat(), heightPx.toFloat(), bgPaint)
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), bgPaint)
 
         val tempLayer = TextLayer(preset.text, preset.color)
         applyPresetToLayer(preset, tempLayer, context)
-        tempLayer.fontSize = (heightPx * 0.4f).coerceIn(24f, 64f)
+
+        val lw = tempLayer.getWidth().coerceAtLeast(10f)
+        val lh = tempLayer.getHeight().coerceAtLeast(10f)
+        val maxDim = Math.max(lw, lh)
+        val fitScale = (size.toFloat() * 0.75f) / maxDim
+        tempLayer.scaleX = fitScale
+        tempLayer.scaleY = fitScale
 
         canvas.save()
-        canvas.translate(widthPx / 2f, heightPx / 2f)
+        canvas.translate(size / 2f, size / 2f)
         tempLayer.draw(canvas, skipEffects = true)
         canvas.restore()
 
