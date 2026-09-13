@@ -194,32 +194,72 @@ class MainActivity : AppCompatActivity() {
 
     private fun importZipFromUri(uri: Uri) {
         val fileName = getFileName(uri).replace(".zip", "", ignoreCase = true)
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
-        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
-        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
-
-        val dialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setCancelable(false)
-            .create()
-        dialog.show()
-
         lifecycleScope.launch(Dispatchers.IO) {
-            val success = ProjectManager.importZipContent(this@MainActivity, uri, fileName) { current, total ->
-                runOnUiThread {
-                    progressBar.max = total
-                    progressBar.progress = current
-                    tvStatus.text = "Importing $current/$total..."
+            // Check zip contents first to determine if it contains project files or only font files
+            var hasProjectContent = false
+            var hasFontContent = false
+            try {
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val zis = java.util.zip.ZipInputStream(stream)
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        val name = entry.name.lowercase()
+                        if (!entry.isDirectory && !name.startsWith(".") && !name.contains("__macosx")) {
+                            if (name.endsWith(".atd") || name.endsWith("project.json") ||
+                                name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp")) {
+                                if (!name.endsWith("thumbnail.png")) {
+                                    hasProjectContent = true
+                                }
+                            }
+                            if (name.endsWith(".ttf") || name.endsWith(".otf")) {
+                                hasFontContent = true
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-            withContext(Dispatchers.Main) {
-                dialog.dismiss()
-                if (success) {
-                    Toast.makeText(this@MainActivity, "Imported $fileName successfully", Toast.LENGTH_SHORT).show()
-                    setupRecentProjects()
-                } else {
-                    // Fallback to font import if zip doesn't contain project/images
+
+            if (!hasProjectContent && hasFontContent) {
+                withContext(Dispatchers.Main) {
                     importFontFromUri(uri)
+                }
+                return@launch
+            }
+
+            withContext(Dispatchers.Main) {
+                val dialogView = LayoutInflater.from(this@MainActivity).inflate(R.layout.dialog_import_loading, null)
+                val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+                val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+
+                val dialog = AlertDialog.Builder(this@MainActivity)
+                    .setView(dialogView)
+                    .setCancelable(false)
+                    .create()
+                dialog.show()
+
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val success = ProjectManager.importZipContent(this@MainActivity, uri, fileName) { current, total ->
+                        runOnUiThread {
+                            progressBar.max = total
+                            progressBar.progress = current
+                            tvStatus.text = "Importing $current/$total..."
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        dialog.dismiss()
+                        if (success) {
+                            Toast.makeText(this@MainActivity, "Imported $fileName successfully", Toast.LENGTH_SHORT).show()
+                            setupRecentProjects()
+                        } else if (hasFontContent) {
+                            importFontFromUri(uri)
+                        } else {
+                            Toast.makeText(this@MainActivity, "Failed to import zip", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
         }
