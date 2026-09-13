@@ -145,7 +145,11 @@ class SfxCanvasView @JvmOverloads constructor(
         val newCols = (curCols + 1).coerceAtMost(5)
 
         sfxLayer.initWarpMeshForTarget(selectedCharIndex, newRows, newCols, forceReset = false)
-        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)?.recycle()
+        sfxLayer.morphedCharBmpHash.remove(selectedCharIndex)
+        sfxLayer.morphedBmpCache?.recycle()
+        sfxLayer.morphedBmpCache = null
+        sfxLayer.morphedBmpHash = 0
         invalidate()
     }
 
@@ -158,7 +162,11 @@ class SfxCanvasView @JvmOverloads constructor(
         val newCols = (curCols - 1).coerceAtLeast(1)
 
         sfxLayer.initWarpMeshForTarget(selectedCharIndex, newRows, newCols, forceReset = false)
-        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)?.recycle()
+        sfxLayer.morphedCharBmpHash.remove(selectedCharIndex)
+        sfxLayer.morphedBmpCache?.recycle()
+        sfxLayer.morphedBmpCache = null
+        sfxLayer.morphedBmpHash = 0
         invalidate()
     }
 
@@ -166,7 +174,11 @@ class SfxCanvasView @JvmOverloads constructor(
         val textStr = sfxLayer.text.toString()
         if (selectedCharIndex < 0 || selectedCharIndex >= textStr.length) return
         sfxLayer.initWarpMeshForTarget(selectedCharIndex, 2, 2, forceReset = true)
-        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)?.recycle()
+        sfxLayer.morphedCharBmpHash.remove(selectedCharIndex)
+        sfxLayer.morphedBmpCache?.recycle()
+        sfxLayer.morphedBmpCache = null
+        sfxLayer.morphedBmpHash = 0
         invalidate()
     }
 
@@ -174,7 +186,7 @@ class SfxCanvasView @JvmOverloads constructor(
         sfxLayer.letterWarpMeshes.clear()
         sfxLayer.letterWarpRows.clear()
         sfxLayer.letterWarpCols.clear()
-        sfxLayer.morphedCharBmpCache.clear()
+        sfxLayer.recycleMorphedCaches()
         val textStr = sfxLayer.text.toString()
         for (i in textStr.indices) {
             if (!textStr[i].isWhitespace()) {
@@ -328,6 +340,7 @@ class SfxCanvasView @JvmOverloads constructor(
                 lastTouchY = touchY
 
                 if (currentMode == Mode.VECTOR_EDIT) {
+                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     val hitIndex = findControlPointAt(layerX, layerY)
                     if (hitIndex != -1) {
                         selectedPointIndex = hitIndex
@@ -338,11 +351,13 @@ class SfxCanvasView @JvmOverloads constructor(
                         val charIndexHit = findCharIndexAt(layerX, layerY)
                         if (charIndexHit != -1 && charIndexHit != selectedCharIndex) {
                             selectedCharIndex = charIndexHit
+                            sfxLayer.selectedWarpIndex = selectedCharIndex
                             invalidate()
                             return true
                         }
                     }
                 } else if (currentMode == Mode.MOVE_ROTATE) {
+                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     val bounds = getCharMeshBounds(selectedCharIndex) ?: sfxLayer.getWarpTargetBounds(selectedCharIndex)
                     val effectiveScale = getCalculatedTotalScale()
                     val padding = 12f / effectiveScale.coerceAtLeast(0.5f)
@@ -369,6 +384,7 @@ class SfxCanvasView @JvmOverloads constructor(
                             val charIndexHit = findCharIndexAt(layerX, layerY)
                             if (charIndexHit != -1 && charIndexHit != selectedCharIndex) {
                                 selectedCharIndex = charIndexHit
+                                sfxLayer.selectedWarpIndex = selectedCharIndex
                                 invalidate()
                                 return true
                             }
@@ -385,14 +401,20 @@ class SfxCanvasView @JvmOverloads constructor(
                 val dy = touchY - lastTouchY
 
                 if (currentMode == Mode.VECTOR_EDIT && selectedPointIndex != -1) {
+                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     val mesh = sfxLayer.letterWarpMeshes[selectedCharIndex]
                     if (mesh != null) {
                         mesh[selectedPointIndex * 2] = layerX
                         mesh[selectedPointIndex * 2 + 1] = layerY
-                        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+                        sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)?.recycle()
+                        sfxLayer.morphedCharBmpHash.remove(selectedCharIndex)
+                        sfxLayer.morphedBmpCache?.recycle()
+                        sfxLayer.morphedBmpCache = null
+                        sfxLayer.morphedBmpHash = 0
                         invalidate()
                     }
                 } else if (currentMode == Mode.MOVE_ROTATE) {
+                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     if (isDraggingMove) {
                         val mDx = layerX - lastLayerX
                         val mDy = layerY - lastLayerY
@@ -403,7 +425,11 @@ class SfxCanvasView @JvmOverloads constructor(
                                 mesh[i * 2] += mDx
                                 mesh[i * 2 + 1] += mDy
                             }
-                            sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+                            sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)?.recycle()
+                            sfxLayer.morphedCharBmpHash.remove(selectedCharIndex)
+                            sfxLayer.morphedBmpCache?.recycle()
+                            sfxLayer.morphedBmpCache = null
+                            sfxLayer.morphedBmpHash = 0
                             invalidate()
                         }
                         lastLayerX = layerX
@@ -428,12 +454,16 @@ class SfxCanvasView @JvmOverloads constructor(
                                 mesh[i * 2] = rx + centerX
                                 mesh[i * 2 + 1] = ry + centerY
                             }
-                            sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+                            sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)?.recycle()
+                            sfxLayer.morphedCharBmpHash.remove(selectedCharIndex)
+                            sfxLayer.morphedBmpCache?.recycle()
+                            sfxLayer.morphedBmpCache = null
+                            sfxLayer.morphedBmpHash = 0
                             invalidate()
                         }
                         lastAngle = currentAngle
                     }
-                } else if (currentMode == Mode.PAN_ZOOM && isDraggingPan) {
+                } else if (currentMode == Mode.PAN_ZOOM && isDraggingPan && !scaleGestureDetector.isInProgress) {
                     panX += dx
                     panY += dy
                     invalidate()
@@ -448,6 +478,7 @@ class SfxCanvasView @JvmOverloads constructor(
                 isDraggingPan = false
                 isDraggingMove = false
                 isDraggingRotate = false
+                sfxLayer.selectedWarpIndex = -1
                 invalidate()
             }
         }
