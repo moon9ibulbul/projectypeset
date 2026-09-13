@@ -1174,6 +1174,18 @@ class TextLayer(
         eraseMask = newMask
     }
 
+    fun getBaseWidth(): Float {
+        ensureLayout()
+        if (boxWidth != null && boxWidth!! > 0) return boxWidth!!
+        return (cachedLayout?.width?.toFloat() ?: 0f)
+    }
+
+    fun getBaseHeight(): Float {
+        ensureLayout()
+        if (fixedHeight != null && fixedHeight!! > 0) return fixedHeight!!
+        return (cachedLayout?.height?.toFloat() ?: 0f)
+    }
+
     override fun getWidth(): Float {
         ensureLayout()
         if (boxWidth != null && boxWidth!! > 0) return boxWidth!!
@@ -2202,16 +2214,16 @@ class TextLayer(
         val yTop = layout.getLineTop(line).toFloat()
         val yBottom = layout.getLineBottom(line).toFloat()
 
-        val w = getWidth()
-        val h = getHeight()
+        val baseW = getBaseWidth()
+        val baseH = getBaseHeight()
         val left = Math.min(xStart, xEnd)
         val right = Math.max(xStart, xEnd)
 
         return RectF(
-            -w / 2f + left,
-            -h / 2f + yTop,
-            -w / 2f + right,
-            -h / 2f + yBottom
+            -baseW / 2f + left,
+            -baseH / 2f + yTop,
+            -baseW / 2f + right,
+            -baseH / 2f + yBottom
         )
     }
 
@@ -2720,8 +2732,10 @@ class TextLayer(
                     tempBmp.recycle()
                 }
             } else {
+                val baseW = getBaseWidth()
+                val baseH = getBaseHeight()
                 canvas.save()
-                canvas.translate(-w / 2f + left, -h / 2f + yTop)
+                canvas.translate(-baseW / 2f + left, -baseH / 2f + yTop)
                 val prevPass = isDrawingStrokePass
                 isDrawingStrokePass = false
                 try {

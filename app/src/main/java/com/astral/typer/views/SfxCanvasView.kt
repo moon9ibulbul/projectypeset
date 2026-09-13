@@ -125,7 +125,18 @@ class SfxCanvasView @JvmOverloads constructor(
     })
 
     init {
-        ensureMeshForChar(0)
+        initAllCharMeshes()
+    }
+
+    fun initAllCharMeshes() {
+        val textStr = sfxLayer.text.toString()
+        for (i in textStr.indices) {
+            if (!textStr[i].isWhitespace()) {
+                if (sfxLayer.letterWarpMeshes[i] == null) {
+                    sfxLayer.initWarpMeshForTarget(i, 2, 2, forceReset = true)
+                }
+            }
+        }
     }
 
     fun ensureMeshForChar(charIdx: Int) {
@@ -396,6 +407,11 @@ class SfxCanvasView @JvmOverloads constructor(
                 }
             }
 
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> {
+                lastTouchX = touchX
+                lastTouchY = touchY
+            }
+
             MotionEvent.ACTION_MOVE -> {
                 val dx = touchX - lastTouchX
                 val dy = touchY - lastTouchY
@@ -463,10 +479,12 @@ class SfxCanvasView @JvmOverloads constructor(
                         }
                         lastAngle = currentAngle
                     }
-                } else if (currentMode == Mode.PAN_ZOOM && isDraggingPan && !scaleGestureDetector.isInProgress) {
-                    panX += dx
-                    panY += dy
-                    invalidate()
+                } else if (currentMode == Mode.PAN_ZOOM && isDraggingPan) {
+                    if (!scaleGestureDetector.isInProgress && event.pointerCount == 1) {
+                        panX += dx
+                        panY += dy
+                        invalidate()
+                    }
                 }
 
                 lastTouchX = touchX
@@ -515,9 +533,9 @@ class SfxCanvasView @JvmOverloads constructor(
         val textStr = sfxLayer.text.toString()
         for (i in textStr.indices) {
             if (textStr[i].isWhitespace()) continue
-            val bounds = sfxLayer.getWarpTargetBounds(i)
-            bounds.inset(-20f, -20f)
-            if (bounds.contains(lx, ly)) {
+            val bounds = getCharMeshBounds(i) ?: sfxLayer.getWarpTargetBounds(i)
+            val expanded = RectF(bounds).apply { inset(-20f, -20f) }
+            if (expanded.contains(lx, ly)) {
                 return i
             }
         }
