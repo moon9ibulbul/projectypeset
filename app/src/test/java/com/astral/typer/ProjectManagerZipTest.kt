@@ -57,4 +57,32 @@ class ProjectManagerZipTest {
         assertFalse("Should not contain raw project.json inside child project folder",
             entryNames.any { it.contains("Chapter1/project.json") })
     }
+
+    @Test
+    fun testUnzipProjectFolderExtractsProjectJson() {
+        val rootDir = tempFolder.newFolder("ParentProject2")
+
+        val childProject1 = File(rootDir, "Chapter1")
+        childProject1.mkdirs()
+        File(childProject1, "project.json").writeText("{\"canvasWidth\":1080,\"canvasHeight\":1080,\"canvasColor\":-1,\"layers\":[]}")
+
+        val outputZip = tempFolder.newFile("ExportedFolder2.zip")
+        ProjectManager.zipProjectFolder(rootDir, outputZip)
+
+        // Extract Chapter1.atd from outputZip to a temp dir
+        val extractTarget = tempFolder.newFolder("UnpackedChapter1")
+        val atdTempFile = tempFolder.newFile("extracted_chapter1.atd")
+
+        ZipFile(outputZip).use { zip ->
+            val entry = zip.getEntry("ParentProject2/Chapter1.atd") ?: zip.getEntry("Chapter1.atd")
+            assertNotNull("Chapter1.atd entry should exist", entry)
+            zip.getInputStream(entry).use { input ->
+                FileOutputStream(atdTempFile).use { out -> input.copyTo(out) }
+            }
+        }
+
+        val unzipSuccess = ProjectManager.unzipProjectFolder(atdTempFile, extractTarget)
+        assertTrue("unzipProjectFolder should return true", unzipSuccess)
+        assertTrue("project.json should exist inside extracted project folder", File(extractTarget, "project.json").exists())
+    }
 }

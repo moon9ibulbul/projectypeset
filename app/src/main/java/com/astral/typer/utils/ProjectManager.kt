@@ -2826,7 +2826,9 @@ object ProjectManager {
             if (atdFiles.isNotEmpty()) {
                 val sortedAtds = atdFiles.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
                 for ((index, projFile) in sortedAtds.withIndex()) {
-                    projFile.copyTo(File(targetFolder, projFile.name), true)
+                    val childProjectFolder = File(targetFolder, projFile.nameWithoutExtension)
+                    childProjectFolder.mkdirs()
+                    unzipProjectFolder(projFile, childProjectFolder)
                     onProgress(index + 1, sortedAtds.size)
                 }
                 return true
