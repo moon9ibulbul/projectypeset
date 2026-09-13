@@ -3770,6 +3770,10 @@ class EditorActivity : AppCompatActivity() {
             addWatermarkLayer(false)
         }
 
+        sidebarBinding.btnInsertSfxPreset.setOnClickListener {
+            showSfxPresetPickerDialog()
+        }
+
         sidebarBinding.btnSuperResolution.setOnClickListener {
             val activeLayer = canvasView.getSelectedLayer()
             if (activeLayer != null) {
@@ -9885,6 +9889,34 @@ class EditorActivity : AppCompatActivity() {
 
         layout.addView(btnReset)
         container.addView(layout)
+    }
+
+    private fun showSfxPresetPickerDialog() {
+        com.astral.typer.utils.SfxPresetManager.init(this)
+        val presets = com.astral.typer.utils.SfxPresetManager.getPresets()
+        val presetNames = presets.map { it.name }.toTypedArray()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Insert SFX Preset")
+            .setItems(presetNames) { _, which ->
+                val selectedPreset = presets[which]
+                binding.saveSidebar.root.visibility = View.GONE
+
+                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+                val newLayer = com.astral.typer.models.TextLayer("BOOM!", android.graphics.Color.RED)
+                com.astral.typer.utils.SfxPresetManager.applyPresetToLayer(selectedPreset, newLayer, this)
+
+                newLayer.x = canvasView.canvasWidth / 2f
+                newLayer.y = canvasView.canvasHeight / 2f
+
+                canvasView.getLayers().add(newLayer)
+                canvasView.selectLayer(newLayer)
+                canvasView.invalidate()
+
+                Toast.makeText(this, "Inserted SFX Preset: ${selectedPreset.name}", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun addWatermarkLayer(isAuto: Boolean) {

@@ -56,6 +56,13 @@
                 android:layout_marginBottom="16dp"/>
 
             <Button
+                android:id="@+id/btnInsertSfxPreset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Insert SFX Preset"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
                 android:id="@+id/btnInsertWatermark"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

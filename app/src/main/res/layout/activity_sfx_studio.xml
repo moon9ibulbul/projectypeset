@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/appBackgroundColor">
+
+    <!-- Header Toolbar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:background="?attr/appSurfaceColor"
+        android:elevation="4dp">
+
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="6dp"
+            android:src="@drawable/ic_arrow_back"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            app:tint="?attr/appIconTint" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="SFX Studio"
+            android:textColor="?attr/appTextColorPrimary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_marginStart="12dp" />
+
+        <Button
+            android:id="@+id/btnSavePreset"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:text="Save Preset"
+            android:textSize="12sp"
+            android:textColor="?attr/appTextColorPrimary"
+            android:backgroundTint="?attr/appSurfaceColor" />
+    </LinearLayout>
+
+    <!-- Main Canvas View -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#121212">
+
+        <com.astral.typer.views.SfxCanvasView
+            android:id="@+id/sfxCanvasView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Overlay Floating Mode Indicator -->
+        <TextView
+            android:id="@+id/tvModeIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_panel_dynamic"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="Mode: Edit Vector Points"
+            android:textColor="?attr/appTextColorPrimary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <!-- Bottom Control Panel -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/appSurfaceColor"
+        android:elevation="8dp"
+        android:padding="12dp">
+
+        <!-- Mode Toggle & Main Controls -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <RadioGroup
+                android:id="@+id/rgMode"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:orientation="horizontal"
+                android:background="@drawable/bg_panel_dynamic"
+                android:padding="2dp">
+
+                <RadioButton
+                    android:id="@+id/rbVectorMode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:button="@null"
+                    android:paddingHorizontal="12dp"
+                    android:text="Vector Edit"
+                    android:textSize="12sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:gravity="center"
+                    android:checked="true"/>
+
+                <RadioButton
+                    android:id="@+id/rbPanZoomMode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:button="@null"
+                    android:paddingHorizontal="12dp"
+                    android:text="Pan &amp; Zoom"
+                    android:textSize="12sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:gravity="center"/>
+            </RadioGroup>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"/>
+
+            <Button
+                android:id="@+id/btnResetAllPoints"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Reset Points"
+                android:textSize="11sp"
+                android:paddingHorizontal="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+        </LinearLayout>
+
+        <!-- Horizontal Scrollable Options Panel -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- Text Input -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="SFX Text"
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="10sp"/>
+
+                    <EditText
+                        android:id="@+id/etSfxText"
+                        android:layout_width="140dp"
+                        android:layout_height="36dp"
+                        android:text="BOOM!"
+                        android:textSize="13sp"
+                        android:paddingHorizontal="8dp"
+                        android:background="@drawable/bg_input_dynamic"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:singleLine="true"/>
+                </LinearLayout>
+
+                <!-- Letter Selection -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Target Letter"
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="10sp"/>
+
+                    <Spinner
+                        android:id="@+id/spinnerLetterSelect"
+                        android:layout_width="120dp"
+                        android:layout_height="36dp"
+                        android:backgroundTint="?attr/appIconTint"/>
+                </LinearLayout>
+
+                <!-- Subdivide / Add Vector Points Button -->
+                <Button
+                    android:id="@+id/btnAddVectorPoints"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="+ Vector Points"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="12dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+                <!-- Font Select Button -->
+                <Button
+                    android:id="@+id/btnSelectFont"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Select Font"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="12dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+                <!-- Quick Styling Action Buttons -->
+                <Button
+                    android:id="@+id/btnChangeColor"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Fill Color"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="8dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+                <Button
+                    android:id="@+id/btnChangeStroke"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Stroke"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="8dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+                <Button
+                    android:id="@+id/btnChangeSpike"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Spike Effect"
+                    android:textSize="11sp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+
+            </LinearLayout>
+        </HorizontalScrollView>
+
+    </LinearLayout>
+
+</LinearLayout>

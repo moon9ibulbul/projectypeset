@@ -85,6 +85,10 @@
             android:name=".FontActivity"
             android:hardwareAccelerated="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode" />
+        <activity
+            android:name=".SfxStudioActivity"
+            android:hardwareAccelerated="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
