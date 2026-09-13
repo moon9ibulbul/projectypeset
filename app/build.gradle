@@ -11,10 +11,19 @@ android {
         applicationId "com.astral.typer"
         minSdk 24
         targetSdk 34
-        versionCode 35
-        versionName "1.6.5"
+        versionCode 36
+        versionName "1.6.6"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a'
+            universalApk true
+        }
     }
 
     buildTypes {
