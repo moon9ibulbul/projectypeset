@@ -50,7 +50,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#121212">
+        android:background="#1E1E1E">
 
         <com.astral.typer.views.SfxCanvasView
             android:id="@+id/sfxCanvasView"
@@ -109,6 +109,17 @@
                     android:textColor="?attr/appTextColorPrimary"
                     android:gravity="center"
                     android:checked="true"/>
+
+                <RadioButton
+                    android:id="@+id/rbMoveRotateMode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:button="@null"
+                    android:paddingHorizontal="12dp"
+                    android:text="Move &amp; Rotate"
+                    android:textSize="12sp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:gravity="center"/>
 
                 <RadioButton
                     android:id="@+id/rbPanZoomMode"
@@ -212,34 +223,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:text="Select Font"
-                    android:textSize="11sp"
-                    android:layout_marginEnd="12dp"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-
-                <!-- Quick Styling Action Buttons -->
-                <Button
-                    android:id="@+id/btnChangeColor"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="Fill Color"
-                    android:textSize="11sp"
-                    android:layout_marginEnd="8dp"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-
-                <Button
-                    android:id="@+id/btnChangeStroke"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="Stroke"
-                    android:textSize="11sp"
-                    android:layout_marginEnd="8dp"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-
-                <Button
-                    android:id="@+id/btnChangeSpike"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="Spike Effect"
                     android:textSize="11sp"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
 

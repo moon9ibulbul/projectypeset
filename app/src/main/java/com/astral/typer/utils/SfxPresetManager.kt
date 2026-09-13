@@ -17,13 +17,13 @@ data class SfxPreset(
     var text: String = "BOOM!",
     var fontPath: String? = null,
     var fontSize: Float = 90f,
-    var color: Int = Color.RED,
+    var color: Int = Color.BLACK,
     var strokeColor: Int = Color.BLACK,
-    var strokeWidth: Float = 12f,
+    var strokeWidth: Float = 0f,
     var doubleStrokeColor: Int = Color.WHITE,
-    var doubleStrokeWidth: Float = 24f,
+    var doubleStrokeWidth: Float = 0f,
     var tripleStrokeColor: Int = Color.YELLOW,
-    var tripleStrokeWidth: Float = 36f,
+    var tripleStrokeWidth: Float = 0f,
     var isGradientText: Boolean = false,
     var gradientStartColor: Int = Color.RED,
     var gradientEndColor: Int = Color.BLUE,
@@ -55,13 +55,10 @@ object SfxPresetManager {
             name = "Impact BOOM",
             text = "BOOM!",
             fontSize = 110f,
-            color = Color.parseColor("#FF1744"),
-            strokeColor = Color.parseColor("#111111"),
-            strokeWidth = 14f,
-            doubleStrokeColor = Color.parseColor("#FFD600"),
-            doubleStrokeWidth = 28f,
-            tripleStrokeColor = Color.parseColor("#FFFFFF"),
-            tripleStrokeWidth = 38f,
+            color = Color.BLACK,
+            strokeWidth = 0f,
+            doubleStrokeWidth = 0f,
+            tripleStrokeWidth = 0f,
             isWarp = true,
             letterWarpRows = mapOf("0" to 2, "1" to 2, "2" to 2, "3" to 2, "4" to 2),
             letterWarpCols = mapOf("0" to 2, "1" to 2, "2" to 2, "3" to 2, "4" to 2)
@@ -71,25 +68,19 @@ object SfxPresetManager {
             name = "Electric Shock",
             text = "SHOCK!",
             fontSize = 100f,
-            color = Color.parseColor("#00E5FF"),
-            strokeColor = Color.parseColor("#1A237E"),
-            strokeWidth = 12f,
-            doubleStrokeColor = Color.parseColor("#FFFFFF"),
-            doubleStrokeWidth = 22f,
-            isWarp = true,
-            currentEffect = "GLITCH",
-            glitchAmount = 15f
+            color = Color.BLACK,
+            strokeWidth = 0f,
+            doubleStrokeWidth = 0f,
+            isWarp = true
         ),
         SfxPreset(
             id = "sfx_slash",
             name = "Speed Slash",
             text = "SLASH!",
             fontSize = 105f,
-            color = Color.parseColor("#FF9100"),
-            strokeColor = Color.parseColor("#212121"),
-            strokeWidth = 12f,
-            doubleStrokeColor = Color.parseColor("#FFEA00"),
-            doubleStrokeWidth = 24f,
+            color = Color.BLACK,
+            strokeWidth = 0f,
+            doubleStrokeWidth = 0f,
             isWarp = true
         ),
         SfxPreset(
@@ -97,13 +88,10 @@ object SfxPresetManager {
             name = "Explosive Bang",
             text = "BANG!",
             fontSize = 120f,
-            color = Color.parseColor("#FF3D00"),
-            strokeColor = Color.parseColor("#000000"),
-            strokeWidth = 16f,
-            doubleStrokeColor = Color.parseColor("#FFD600"),
-            doubleStrokeWidth = 30f,
-            tripleStrokeColor = Color.parseColor("#FFFFFF"),
-            tripleStrokeWidth = 42f,
+            color = Color.BLACK,
+            strokeWidth = 0f,
+            doubleStrokeWidth = 0f,
+            tripleStrokeWidth = 0f,
             isWarp = true
         )
     )
@@ -182,18 +170,16 @@ object SfxPresetManager {
             id = UUID.randomUUID().toString(),
             name = name,
             text = layer.text.toString(),
+            fontPath = layer.fontPath,
             fontSize = layer.fontSize,
-            color = layer.color,
-            strokeColor = layer.strokeColor,
-            strokeWidth = layer.strokeWidth,
-            doubleStrokeColor = layer.doubleStrokeColor,
-            doubleStrokeWidth = layer.doubleStrokeWidth,
-            tripleStrokeColor = layer.tripleStrokeColor,
-            tripleStrokeWidth = layer.tripleStrokeWidth,
-            isGradientText = layer.isGradientText,
-            gradientStartColor = layer.gradientStartColor,
-            gradientEndColor = layer.gradientEndColor,
-            gradientAngle = layer.gradientAngle.toFloat(),
+            color = Color.BLACK,
+            strokeColor = Color.BLACK,
+            strokeWidth = 0f,
+            doubleStrokeColor = Color.WHITE,
+            doubleStrokeWidth = 0f,
+            tripleStrokeColor = Color.YELLOW,
+            tripleStrokeWidth = 0f,
+            isGradientText = false,
             letterWarpMeshes = if (letterWarpMeshesMap.isNotEmpty()) letterWarpMeshesMap else null,
             letterWarpRows = if (letterWarpRowsMap.isNotEmpty()) letterWarpRowsMap else null,
             letterWarpCols = if (letterWarpColsMap.isNotEmpty()) letterWarpColsMap else null,
@@ -201,10 +187,10 @@ object SfxPresetManager {
             warpRows = layer.mainWarpRows,
             warpCols = layer.mainWarpCols,
             isWarp = layer.isWarp,
-            currentEffect = layer.currentEffect.name,
-            secondaryEffect = layer.secondaryEffect.name,
-            tertiaryEffect = layer.tertiaryEffect.name,
-            glitchAmount = layer.glitchAmount,
+            currentEffect = "NONE",
+            secondaryEffect = "NONE",
+            tertiaryEffect = "NONE",
+            glitchAmount = 0f,
             isCustom = true
         )
     }
@@ -275,16 +261,32 @@ object SfxPresetManager {
 
         if (!preset.fontPath.isNullOrEmpty() && context != null) {
             val allFonts = FontManager.getStandardFonts(context) + FontManager.getCustomFonts(context)
-            val fontItem = allFonts.find { it.path == preset.fontPath || it.name == preset.fontPath }
+            val fontItem = allFonts.find {
+                (it.isCustom && it.path == preset.fontPath) ||
+                (!it.isCustom && (it.path == preset.fontPath || it.name == preset.fontPath))
+            }
             if (fontItem != null) {
                 layer.typeface = fontItem.typeface
+                layer.fontPath = if (fontItem.isCustom) fontItem.path else fontItem.name
+            } else {
+                layer.typeface = android.graphics.Typeface.DEFAULT
+                layer.fontPath = null
             }
+        } else {
+            layer.typeface = android.graphics.Typeface.DEFAULT
+            layer.fontPath = null
         }
     }
 
     fun generateThumbnail(context: Context, preset: SfxPreset, widthPx: Int = 220, heightPx: Int = 120): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+
+        val bgPaint = android.graphics.Paint().apply {
+            color = Color.WHITE
+            style = android.graphics.Paint.Style.FILL
+        }
+        canvas.drawRect(0f, 0f, widthPx.toFloat(), heightPx.toFloat(), bgPaint)
 
         val tempLayer = TextLayer(preset.text, preset.color)
         applyPresetToLayer(preset, tempLayer, context)

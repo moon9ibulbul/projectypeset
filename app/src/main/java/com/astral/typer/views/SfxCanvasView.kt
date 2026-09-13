@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -19,7 +20,8 @@ class SfxCanvasView @JvmOverloads constructor(
 
     enum class Mode {
         PAN_ZOOM,
-        VECTOR_EDIT
+        VECTOR_EDIT,
+        MOVE_ROTATE
     }
 
     var currentMode: Mode = Mode.VECTOR_EDIT
@@ -28,15 +30,17 @@ class SfxCanvasView @JvmOverloads constructor(
             invalidate()
         }
 
-    val sfxLayer = TextLayer("BOOM!", Color.parseColor("#FF1744")).apply {
-        fontSize = 100f
-        strokeColor = Color.parseColor("#111111")
-        strokeWidth = 14f
-        doubleStrokeColor = Color.parseColor("#FFD600")
-        doubleStrokeWidth = 28f
-        tripleStrokeColor = Color.parseColor("#FFFFFF")
-        tripleStrokeWidth = 38f
+    val canvasWidth = 1080
+    val canvasHeight = 1080
+
+    val sfxLayer = TextLayer("BOOM!", Color.BLACK).apply {
+        fontSize = 110f
+        strokeWidth = 0f
+        doubleStrokeWidth = 0f
+        tripleStrokeWidth = 0f
         isWarp = true
+        x = 0f
+        y = 0f
     }
 
     var selectedCharIndex: Int = 0
@@ -58,6 +62,23 @@ class SfxCanvasView @JvmOverloads constructor(
     private var lastTouchY = 0f
     private var isDraggingPan = false
 
+    private var isDraggingMove = false
+    private var isDraggingRotate = false
+    private var lastLayerX = 0f
+    private var lastLayerY = 0f
+    private var lastAngle = 0.0
+
+    // Canvas Paints
+    private val canvasBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#40000000")
+        style = Paint.Style.FILL
+    }
+
     // Rendering Paints
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#00E5FF")
@@ -76,6 +97,17 @@ class SfxCanvasView @JvmOverloads constructor(
     }
 
     private val selectedHandlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#FFD600")
+        style = Paint.Style.FILL
+    }
+
+    private val moveBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#00E5FF")
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+    }
+
+    private val rotateKnobPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFD600")
         style = Paint.Style.FILL
     }
@@ -139,25 +171,85 @@ class SfxCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    private fun getCalculatedTotalScale(): Float {
+        val viewW = width.toFloat()
+        val viewH = height.toFloat()
+        val baseScale = if (viewW > 0f && viewH > 0f) minOf(viewW / canvasWidth, viewH / canvasHeight) * 0.85f else 1.0f
+        return baseScale * scaleFactor
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val cx = width / 2f
-        val cy = height / 2f
+        val viewW = width.toFloat()
+        val viewH = height.toFloat()
+        if (viewW <= 0f || viewH <= 0f) return
+
+        val totalScale = getCalculatedTotalScale()
+        val cx = viewW / 2f + panX
+        val cy = viewH / 2f + panY
 
         canvas.save()
-        canvas.translate(cx + panX, cy + panY)
-        canvas.scale(scaleFactor, scaleFactor)
+        canvas.translate(cx, cy)
+        canvas.scale(totalScale, totalScale)
+
+        // Draw Canvas Board (1080x1080) with Shadow
+        canvas.drawRect(-canvasWidth / 2f + 8f, -canvasHeight / 2f + 8f, canvasWidth / 2f + 8f, canvasHeight / 2f + 8f, shadowPaint)
+        canvas.drawRect(-canvasWidth / 2f, -canvasHeight / 2f, canvasWidth / 2f, canvasHeight / 2f, canvasBgPaint)
 
         // Render SFX Layer
         sfxLayer.draw(canvas)
 
-        // Draw Vector Control Points in VECTOR_EDIT Mode
+        // Draw Handles in edit modes
         if (currentMode == Mode.VECTOR_EDIT) {
             drawVectorHandles(canvas)
+        } else if (currentMode == Mode.MOVE_ROTATE) {
+            drawMoveRotateHandles(canvas)
         }
 
         canvas.restore()
+    }
+
+    fun getCharMeshBounds(charIdx: Int): RectF? {
+        val mesh = sfxLayer.letterWarpMeshes[charIdx] ?: return null
+        if (mesh.isEmpty()) return null
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+        for (i in 0 until mesh.size / 2) {
+            val px = mesh[i * 2]
+            val py = mesh[i * 2 + 1]
+            if (px < minX) minX = px
+            if (px > maxX) maxX = px
+            if (py < minY) minY = py
+            if (py > maxY) maxY = py
+        }
+        if (minX > maxX || minY > maxY) return null
+        return RectF(minX, minY, maxX, maxY)
+    }
+
+    private fun drawMoveRotateHandles(canvas: Canvas) {
+        val bounds = getCharMeshBounds(selectedCharIndex) ?: sfxLayer.getWarpTargetBounds(selectedCharIndex)
+        if (bounds.isEmpty) return
+
+        val effectiveScale = getCalculatedTotalScale()
+        val padding = 12f / effectiveScale.coerceAtLeast(0.5f)
+        val rect = RectF(bounds.left - padding, bounds.top - padding, bounds.right + padding, bounds.bottom + padding)
+
+        // Draw bounding box
+        canvas.drawRect(rect, moveBoxPaint)
+
+        // Draw top rotation stalk and knob
+        val topCenterX = rect.centerX()
+        val topY = rect.top
+        val handleLength = 36f / effectiveScale.coerceAtLeast(0.5f)
+        val knobY = topY - handleLength
+        val knobRadius = 14f / effectiveScale.coerceAtLeast(0.5f)
+
+        canvas.drawLine(topCenterX, topY, topCenterX, knobY, moveBoxPaint)
+        canvas.drawCircle(topCenterX, knobY, knobRadius + 4f / effectiveScale.coerceAtLeast(0.5f), handleBorderPaint)
+        canvas.drawCircle(topCenterX, knobY, knobRadius, rotateKnobPaint)
     }
 
     private fun drawVectorHandles(canvas: Canvas) {
@@ -187,11 +279,12 @@ class SfxCanvasView @JvmOverloads constructor(
         }
 
         // 2. Draw Handle Dots
-        val count = (rows + 1) * (cols + 1)
-        val handleRadius = 16f / scaleFactor.coerceAtLeast(0.5f)
-        val handleBorderRadius = 20f / scaleFactor.coerceAtLeast(0.5f)
+        val pointCount = (rows + 1) * (cols + 1)
+        val effectiveScale = getCalculatedTotalScale()
+        val handleRadius = 16f / effectiveScale.coerceAtLeast(0.5f)
+        val handleBorderRadius = 20f / effectiveScale.coerceAtLeast(0.5f)
 
-        for (i in 0 until count) {
+        for (i in 0 until pointCount) {
             val px = mesh[i * 2]
             val py = mesh[i * 2 + 1]
 
@@ -208,12 +301,13 @@ class SfxCanvasView @JvmOverloads constructor(
         val touchX = event.x
         val touchY = event.y
 
-        val cx = width / 2f
-        val cy = height / 2f
+        val totalScale = getCalculatedTotalScale()
+        val cx = width / 2f + panX
+        val cy = height / 2f + panY
 
         // Convert View touch (touchX, touchY) into Canvas Layer Space
-        val layerX = (touchX - cx - panX) / scaleFactor
-        val layerY = (touchY - cy - panY) / scaleFactor
+        val layerX = (touchX - cx) / totalScale
+        val layerY = (touchY - cy) / totalScale
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -235,6 +329,38 @@ class SfxCanvasView @JvmOverloads constructor(
                             return true
                         }
                     }
+                } else if (currentMode == Mode.MOVE_ROTATE) {
+                    val bounds = getCharMeshBounds(selectedCharIndex) ?: sfxLayer.getWarpTargetBounds(selectedCharIndex)
+                    val effectiveScale = getCalculatedTotalScale()
+                    val padding = 12f / effectiveScale.coerceAtLeast(0.5f)
+                    val rect = RectF(bounds.left - padding, bounds.top - padding, bounds.right + padding, bounds.bottom + padding)
+                    val topCenterX = rect.centerX()
+                    val knobY = rect.top - (36f / effectiveScale.coerceAtLeast(0.5f))
+                    val hitDist = hypot((layerX - topCenterX).toDouble(), (layerY - knobY).toDouble()).toFloat()
+                    val maxHitDist = (40f / effectiveScale).coerceAtLeast(20f)
+
+                    if (hitDist <= maxHitDist) {
+                        isDraggingRotate = true
+                        val centerX = bounds.centerX()
+                        val centerY = bounds.centerY()
+                        lastAngle = Math.atan2((layerY - centerY).toDouble(), (layerX - centerX).toDouble())
+                        return true
+                    } else {
+                        val expandedRect = RectF(rect).apply { inset(-20f, -20f) }
+                        if (expandedRect.contains(layerX, layerY)) {
+                            isDraggingMove = true
+                            lastLayerX = layerX
+                            lastLayerY = layerY
+                            return true
+                        } else {
+                            val charIndexHit = findCharIndexAt(layerX, layerY)
+                            if (charIndexHit != -1 && charIndexHit != selectedCharIndex) {
+                                selectedCharIndex = charIndexHit
+                                invalidate()
+                                return true
+                            }
+                        }
+                    }
                 } else if (currentMode == Mode.PAN_ZOOM) {
                     isDraggingPan = true
                     return true
@@ -253,6 +379,47 @@ class SfxCanvasView @JvmOverloads constructor(
                         sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
                         invalidate()
                     }
+                } else if (currentMode == Mode.MOVE_ROTATE) {
+                    if (isDraggingMove) {
+                        val mDx = layerX - lastLayerX
+                        val mDy = layerY - lastLayerY
+                        ensureMeshForChar(selectedCharIndex)
+                        val mesh = sfxLayer.letterWarpMeshes[selectedCharIndex]
+                        if (mesh != null) {
+                            for (i in 0 until mesh.size / 2) {
+                                mesh[i * 2] += mDx
+                                mesh[i * 2 + 1] += mDy
+                            }
+                            sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+                            invalidate()
+                        }
+                        lastLayerX = layerX
+                        lastLayerY = layerY
+                    } else if (isDraggingRotate) {
+                        val bounds = getCharMeshBounds(selectedCharIndex) ?: sfxLayer.getWarpTargetBounds(selectedCharIndex)
+                        val centerX = bounds.centerX()
+                        val centerY = bounds.centerY()
+                        val currentAngle = Math.atan2((layerY - centerY).toDouble(), (layerX - centerX).toDouble())
+                        val dAngle = currentAngle - lastAngle
+
+                        ensureMeshForChar(selectedCharIndex)
+                        val mesh = sfxLayer.letterWarpMeshes[selectedCharIndex]
+                        if (mesh != null) {
+                            val cos = Math.cos(dAngle).toFloat()
+                            val sin = Math.sin(dAngle).toFloat()
+                            for (i in 0 until mesh.size / 2) {
+                                val px = mesh[i * 2] - centerX
+                                val py = mesh[i * 2 + 1] - centerY
+                                val rx = px * cos - py * sin
+                                val ry = px * sin + py * cos
+                                mesh[i * 2] = rx + centerX
+                                mesh[i * 2 + 1] = ry + centerY
+                            }
+                            sfxLayer.morphedCharBmpCache.remove(selectedCharIndex)
+                            invalidate()
+                        }
+                        lastAngle = currentAngle
+                    }
                 } else if (currentMode == Mode.PAN_ZOOM && isDraggingPan) {
                     panX += dx
                     panY += dy
@@ -266,6 +433,8 @@ class SfxCanvasView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 selectedPointIndex = -1
                 isDraggingPan = false
+                isDraggingMove = false
+                isDraggingRotate = false
                 invalidate()
             }
         }
@@ -279,7 +448,8 @@ class SfxCanvasView @JvmOverloads constructor(
         val cols = sfxLayer.letterWarpCols[selectedCharIndex] ?: 2
         val count = (rows + 1) * (cols + 1)
 
-        val maxHitDist = (40f / scaleFactor).coerceAtLeast(20f)
+        val effectiveScale = getCalculatedTotalScale()
+        val maxHitDist = (40f / effectiveScale).coerceAtLeast(20f)
 
         var closestIndex = -1
         var minDistance = Float.MAX_VALUE
