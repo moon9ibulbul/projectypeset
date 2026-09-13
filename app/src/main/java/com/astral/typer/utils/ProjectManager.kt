@@ -2111,19 +2111,33 @@ object ProjectManager {
     private fun zipFolder(srcFolder: File, destZipFile: File): Boolean {
         try {
             ZipOutputStream(FileOutputStream(destZipFile)).use { zipOut ->
-                zipFile(srcFolder, srcFolder.name, zipOut)
+                zipFile(srcFolder, srcFolder.name, zipOut, srcFolder)
             }
             return true
         } catch (e: Exception) { return false }
     }
 
-    private fun zipFile(fileToZip: File, fileName: String, zipOut: ZipOutputStream) {
+    private fun zipFile(fileToZip: File, fileName: String, zipOut: ZipOutputStream, rootFolder: File) {
         if (fileToZip.isHidden) return
         if (fileToZip.isDirectory) {
+            if (fileToZip != rootFolder && File(fileToZip, "project.json").exists()) {
+                val tempAtd = File.createTempFile("export_atd_", ".atd")
+                try {
+                    if (zipFolder(fileToZip, tempAtd)) {
+                        val entryName = if (fileName.endsWith(".atd")) fileName else "$fileName.atd"
+                        zipOut.putNextEntry(ZipEntry(entryName))
+                        tempAtd.inputStream().use { it.copyTo(zipOut) }
+                        zipOut.closeEntry()
+                    }
+                } finally {
+                    tempAtd.delete()
+                }
+                return
+            }
             val name = if (fileName.endsWith("/")) fileName else "$fileName/"
             zipOut.putNextEntry(ZipEntry(name))
             zipOut.closeEntry()
-            fileToZip.listFiles()?.forEach { child -> zipFile(child, "$fileName/${child.name}", zipOut) }
+            fileToZip.listFiles()?.forEach { child -> zipFile(child, "$fileName/${child.name}", zipOut, rootFolder) }
             return
         }
         FileInputStream(fileToZip).use { fis ->
@@ -2784,24 +2798,64 @@ object ProjectManager {
             }
             targetFolder.mkdirs()
 
-            val files = extractDir.listFiles() ?: return false
-            val images = files.filter { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }
-            val projects = files.filter { it.extension.lowercase() == "atd" }
+            val allExtractedFiles = extractDir.walkTopDown()
+                .filter { it.isFile && !it.name.startsWith(".") && !it.path.contains("__MACOSX") }
+                .toList()
 
-            if (images.isNotEmpty()) {
-                val sortedImages = images.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
-                for ((index, imgFile) in sortedImages.withIndex()) {
-                    // Highly optimized save using image file copying & sampled thumbnail (OOM-proof)
-                    saveProjectWithImageFile(context, imgFile, imgFile.nameWithoutExtension, uniqueZipName)
-                    onProgress(index + 1, images.size)
+            val atdFiles = allExtractedFiles.filter { it.extension.lowercase() == "atd" }
+            val fontFiles = allExtractedFiles.filter { it.extension.lowercase() in listOf("ttf", "otf") }
+            val projectJsonFiles = allExtractedFiles.filter { it.name == "project.json" }
+
+            // Import any bundled font files found in the ZIP
+            if (fontFiles.isNotEmpty()) {
+                for (fontFile in fontFiles) {
+                    try {
+                        fontFile.inputStream().use { input ->
+                            val dir = File(context.filesDir, "fonts")
+                            if (!dir.exists()) dir.mkdirs()
+                            val dest = File(dir, fontFile.name)
+                            FileOutputStream(dest).use { out -> input.copyTo(out) }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                FontManager.refreshCache()
+            }
+
+            if (atdFiles.isNotEmpty()) {
+                val sortedAtds = atdFiles.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
+                for ((index, projFile) in sortedAtds.withIndex()) {
+                    projFile.copyTo(File(targetFolder, projFile.name), true)
+                    onProgress(index + 1, sortedAtds.size)
                 }
                 return true
-            } else if (projects.isNotEmpty()) {
-                val sortedProjects = projects.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
-                for ((index, projFile) in sortedProjects.withIndex()) {
-                    projFile.copyTo(File(targetFolder, projFile.name), true)
-                    onProgress(index + 1, projects.size)
+            } else if (projectJsonFiles.isNotEmpty()) {
+                val projectDirs = projectJsonFiles.mapNotNull { it.parentFile }.distinct()
+                val sortedDirs = projectDirs.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
+                for ((index, projDir) in sortedDirs.withIndex()) {
+                    val destDir = File(targetFolder, projDir.name)
+                    projDir.copyRecursively(destDir, overwrite = true)
+                    onProgress(index + 1, sortedDirs.size)
                 }
+                return true
+            } else {
+                val imageFiles = allExtractedFiles.filter {
+                    it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") &&
+                            !it.name.equals("thumbnail.png", ignoreCase = true)
+                }
+                if (imageFiles.isNotEmpty()) {
+                    val sortedImages = imageFiles.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
+                    for ((index, imgFile) in sortedImages.withIndex()) {
+                        saveProjectWithImageFile(context, imgFile, imgFile.nameWithoutExtension, uniqueZipName)
+                        onProgress(index + 1, sortedImages.size)
+                    }
+                    return true
+                }
+            }
+
+            // If there were only font files and no projects/images, return false so caller can notify font import success if needed, or if font files were imported
+            if (fontFiles.isNotEmpty()) {
                 return true
             }
             return false
