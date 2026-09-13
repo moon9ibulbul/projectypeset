@@ -3638,6 +3638,18 @@ class EditorActivity : AppCompatActivity() {
     }
 
     // --- SIDEBAR LOGIC ---
+    private fun setupSidebarSubMenu(header: View, content: View, arrow: ImageView) {
+        header.setOnClickListener {
+            if (content.visibility == View.VISIBLE) {
+                content.visibility = View.GONE
+                arrow.animate().rotation(0f).setDuration(200).start()
+            } else {
+                content.visibility = View.VISIBLE
+                arrow.animate().rotation(180f).setDuration(200).start()
+            }
+        }
+    }
+
     private fun showSaveSidebar() {
         binding.saveSidebar.root.visibility = View.VISIBLE
         resetSidebarUI()
@@ -3645,6 +3657,10 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.viewOverlay.setOnClickListener {
             binding.saveSidebar.root.visibility = View.GONE
         }
+
+        setupSidebarSubMenu(sidebarBinding.headerSubMenuSave, sidebarBinding.contentSubMenuSave, sidebarBinding.ivSaveArrow)
+        setupSidebarSubMenu(sidebarBinding.headerSubMenuInsert, sidebarBinding.contentSubMenuInsert, sidebarBinding.ivInsertArrow)
+        setupSidebarSubMenu(sidebarBinding.headerSubMenuEdit, sidebarBinding.contentSubMenuEdit, sidebarBinding.ivEditArrow)
 
         sidebarBinding.btnSaveProjectOption.setOnClickListener {
             sidebarBinding.layoutSaveOptions.visibility = View.GONE
@@ -4030,6 +4046,13 @@ class EditorActivity : AppCompatActivity() {
         sidebarBinding.layoutSaveOptions.visibility = View.VISIBLE
         sidebarBinding.layoutSaveProjectForm.visibility = View.GONE
         sidebarBinding.layoutSaveFileForm.visibility = View.GONE
+
+        sidebarBinding.contentSubMenuSave.visibility = View.GONE
+        sidebarBinding.ivSaveArrow.rotation = 0f
+        sidebarBinding.contentSubMenuInsert.visibility = View.GONE
+        sidebarBinding.ivInsertArrow.rotation = 0f
+        sidebarBinding.contentSubMenuEdit.visibility = View.GONE
+        sidebarBinding.ivEditArrow.rotation = 0f
     }
 
 

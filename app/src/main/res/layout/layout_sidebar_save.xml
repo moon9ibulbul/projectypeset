@@ -17,318 +17,458 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tvSidebarTitle"
+        <!-- Initial Options Container -->
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Save Options"
-            android:textColor="?attr/appTextColorPrimary"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="24dp"/>
-
-        <!-- Initial Options -->
-        <LinearLayout
-            android:id="@+id/layoutSaveOptions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <Button
-                android:id="@+id/btnSaveProjectOption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save as Project (.atd)"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnSaveFileOption"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save as File (Export)"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnChangeBaseImage"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Change Base Image"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnInsertSfxPreset"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Insert SFX Preset"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnInsertWatermark"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Insert Watermark"
-                android:layout_marginBottom="16dp"
-                android:visibility="gone"/>
-
-            <Button
-                android:id="@+id/btnFlattenLayers"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Flatten All Layers"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnSuperResolution"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Super Resolution"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnLoadRaw"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Load RAW"/>
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
 
             <LinearLayout
-                android:id="@+id/layoutRawControls"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:visibility="gone"
-                android:layout_marginTop="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="RAW Mode"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:layout_marginBottom="8dp"/>
-
-                <Spinner
-                    android:id="@+id/spinnerRawMode"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:backgroundTint="?attr/appIconTint"
-                    android:layout_marginBottom="16dp"/>
-
-                <TextView
-                    android:id="@+id/tvRawOpacityLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="RAW Opacity: 100%"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:layout_marginBottom="8dp"/>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
-                        android:id="@+id/btnMinusRawOpacity"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:text="−"
-                        android:textSize="16sp"
-                        android:gravity="center"
-                        android:textColor="?attr/appTextColorPrimary"
-                        android:background="@drawable/bg_button_dynamic" />
-
-                    <SeekBar
-                        android:id="@+id/seekBarRawOpacity"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:max="255"
-                        android:progress="255"/>
-
-                    <TextView
-                        android:id="@+id/btnPlusRawOpacity"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:text="+"
-                        android:textSize="16sp"
-                        android:gravity="center"
-                        android:textColor="?attr/appTextColorPrimary"
-                        android:background="@drawable/bg_button_dynamic" />
-                </LinearLayout>
-
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnOpenSettings"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Open Settings"
-                android:layout_marginTop="16dp"/>
-
-        </LinearLayout>
-
-        <!-- Save Project Form -->
-        <LinearLayout
-            android:id="@+id/layoutSaveProjectForm"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Project Name"
-                android:textColor="?attr/appTextColorPrimary"
-                android:layout_marginBottom="8dp"/>
-
-            <EditText
-                android:id="@+id/etProjectName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Enter project name"
-                android:textColor="?attr/appTextColorPrimary"
-                android:textColorHint="?attr/appTextColorSecondary"
-                android:background="@drawable/bg_input_dynamic"
-                android:padding="12dp"
-                android:layout_marginBottom="16dp"/>
-
-            <Button
-                android:id="@+id/btnConfirmSaveProject"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save Project"/>
-
-            <Button
-                android:id="@+id/btnCancelSaveProject"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:text="Back"
-                android:textColor="?attr/appTextColorPrimary"/>
-
-        </LinearLayout>
-
-        <!-- Save File Form -->
-        <LinearLayout
-            android:id="@+id/layoutSaveFileForm"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="File Name"
-                android:textColor="?attr/appTextColorPrimary"
-                android:layout_marginBottom="8dp"/>
-
-            <EditText
-                android:id="@+id/etFileName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Enter file name"
-                android:textColor="?attr/appTextColorPrimary"
-                android:textColorHint="?attr/appTextColorSecondary"
-                android:background="@drawable/bg_input_dynamic"
-                android:padding="12dp"
-                android:layout_marginBottom="16dp"/>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Format"
-                android:textColor="?attr/appTextColorPrimary"
-                android:layout_marginBottom="8dp"/>
-
-            <Spinner
-                android:id="@+id/spinnerFormat"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:backgroundTint="?attr/appIconTint"
-                android:layout_marginBottom="16dp"/>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Export Scale"
-                android:textColor="?attr/appTextColorPrimary"
-                android:layout_marginBottom="8dp"/>
-
-            <Spinner
-                android:id="@+id/spinnerExportScale"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:backgroundTint="?attr/appIconTint"
-                android:layout_marginBottom="16dp"/>
-
-            <LinearLayout
-                android:id="@+id/qualityContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/tvQualityLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Quality: 100%"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:layout_marginBottom="8dp"/>
-
                 <LinearLayout
+                    android:id="@+id/layoutSaveOptions"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
+                    android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/btnMinusQuality"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:text="−"
-                        android:textSize="16sp"
-                        android:gravity="center"
-                        android:textColor="?attr/appTextColorPrimary"
-                        android:background="@drawable/bg_button_dynamic" />
-
-                    <SeekBar
-                        android:id="@+id/seekBarQuality"
-                        android:layout_width="0dp"
+                    <!-- Sub Menu 1: Save -->
+                    <LinearLayout
+                        android:id="@+id/headerSubMenuSave"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:max="100"
-                        android:progress="100"/>
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:background="?attr/selectableItemBackground">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Save"
+                            android:textColor="?attr/appTextColorPrimary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"/>
+
+                        <ImageView
+                            android:id="@+id/ivSaveArrow"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_expand_more"
+                            app:tint="?attr/appIconTint"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/contentSubMenuSave"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:paddingBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnSaveProjectOption"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Save as Project (.atd)"
+                            android:layout_marginBottom="8dp"/>
+
+                        <Button
+                            android:id="@+id/btnSaveFileOption"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Save as File (Export)"
+                            android:layout_marginBottom="8dp"/>
+                    </LinearLayout>
+
+                    <!-- Sub Menu 2: Insert -->
+                    <LinearLayout
+                        android:id="@+id/headerSubMenuInsert"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:background="?attr/selectableItemBackground">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Insert"
+                            android:textColor="?attr/appTextColorPrimary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"/>
+
+                        <ImageView
+                            android:id="@+id/ivInsertArrow"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_expand_more"
+                            app:tint="?attr/appIconTint"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/contentSubMenuInsert"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:paddingBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnInsertSfxPreset"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Insert SFX Preset"
+                            android:layout_marginBottom="8dp"/>
+
+                        <Button
+                            android:id="@+id/btnInsertWatermark"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Insert Watermark"
+                            android:layout_marginBottom="8dp"
+                            android:visibility="gone"/>
+                    </LinearLayout>
+
+                    <!-- Sub Menu 3: Edit -->
+                    <LinearLayout
+                        android:id="@+id/headerSubMenuEdit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="12dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:background="?attr/selectableItemBackground">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Edit"
+                            android:textColor="?attr/appTextColorPrimary"
+                            android:textSize="16sp"
+                            android:textStyle="bold"/>
+
+                        <ImageView
+                            android:id="@+id/ivEditArrow"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_expand_more"
+                            app:tint="?attr/appIconTint"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/contentSubMenuEdit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:paddingBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnChangeBaseImage"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Change Base Image"
+                            android:layout_marginBottom="8dp"/>
+
+                        <Button
+                            android:id="@+id/btnFlattenLayers"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Flatten All Layers"
+                            android:layout_marginBottom="8dp"/>
+
+                        <Button
+                            android:id="@+id/btnSuperResolution"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Super Resolution"
+                            android:layout_marginBottom="8dp"/>
+                    </LinearLayout>
+
+                    <!-- Icons for Load RAW & Settings (Side by side) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:paddingVertical="16dp">
+
+                        <ImageView
+                            android:id="@+id/btnLoadRaw"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:padding="12dp"
+                            android:src="@drawable/ic_menu_image"
+                            android:background="@drawable/bg_button_dynamic"
+                            app:tint="?attr/appIconTint"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:contentDescription="Load RAW"
+                            android:layout_marginEnd="16dp"/>
+
+                        <ImageView
+                            android:id="@+id/btnOpenSettings"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:padding="12dp"
+                            android:src="@drawable/ic_settings"
+                            android:background="@drawable/bg_button_dynamic"
+                            app:tint="?attr/appIconTint"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:contentDescription="Open Settings"
+                            android:layout_marginStart="16dp"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutRawControls"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="RAW Mode"
+                            android:textColor="?attr/appTextColorPrimary"
+                            android:layout_marginBottom="8dp"/>
+
+                        <Spinner
+                            android:id="@+id/spinnerRawMode"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:backgroundTint="?attr/appIconTint"
+                            android:layout_marginBottom="16dp"/>
+
+                        <TextView
+                            android:id="@+id/tvRawOpacityLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="RAW Opacity: 100%"
+                            android:textColor="?attr/appTextColorPrimary"
+                            android:layout_marginBottom="8dp"/>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="16dp">
+
+                            <TextView
+                                android:id="@+id/btnMinusRawOpacity"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:text="−"
+                                android:textSize="16sp"
+                                android:gravity="center"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:background="@drawable/bg_button_dynamic" />
+
+                            <SeekBar
+                                android:id="@+id/seekBarRawOpacity"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:max="255"
+                                android:progress="255"/>
+
+                            <TextView
+                                android:id="@+id/btnPlusRawOpacity"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:text="+"
+                                android:textSize="16sp"
+                                android:gravity="center"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:background="@drawable/bg_button_dynamic" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- Save Project Form -->
+                <LinearLayout
+                    android:id="@+id/layoutSaveProjectForm"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
 
                     <TextView
-                        android:id="@+id/btnPlusQuality"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:text="+"
-                        android:textSize="16sp"
-                        android:gravity="center"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Project Name"
                         android:textColor="?attr/appTextColorPrimary"
-                        android:background="@drawable/bg_button_dynamic" />
+                        android:layout_marginBottom="8dp"/>
+
+                    <EditText
+                        android:id="@+id/etProjectName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Enter project name"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:background="@drawable/bg_input_dynamic"
+                        android:padding="12dp"
+                        android:layout_marginBottom="16dp"/>
+
+                    <Button
+                        android:id="@+id/btnConfirmSaveProject"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Save Project"/>
+
+                    <Button
+                        android:id="@+id/btnCancelSaveProject"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:text="Back"
+                        android:textColor="?attr/appTextColorPrimary"/>
+
                 </LinearLayout>
+
+                <!-- Save File Form -->
+                <LinearLayout
+                    android:id="@+id/layoutSaveFileForm"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="File Name"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:layout_marginBottom="8dp"/>
+
+                    <EditText
+                        android:id="@+id/etFileName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Enter file name"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:background="@drawable/bg_input_dynamic"
+                        android:padding="12dp"
+                        android:layout_marginBottom="16dp"/>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Format"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:layout_marginBottom="8dp"/>
+
+                    <Spinner
+                        android:id="@+id/spinnerFormat"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:backgroundTint="?attr/appIconTint"
+                        android:layout_marginBottom="16dp"/>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Export Scale"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:layout_marginBottom="8dp"/>
+
+                    <Spinner
+                        android:id="@+id/spinnerExportScale"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:backgroundTint="?attr/appIconTint"
+                        android:layout_marginBottom="16dp"/>
+
+                    <LinearLayout
+                        android:id="@+id/qualityContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvQualityLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Quality: 100%"
+                            android:textColor="?attr/appTextColorPrimary"
+                            android:layout_marginBottom="8dp"/>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="16dp">
+
+                            <TextView
+                                android:id="@+id/btnMinusQuality"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:text="−"
+                                android:textSize="16sp"
+                                android:gravity="center"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:background="@drawable/bg_button_dynamic" />
+
+                            <SeekBar
+                                android:id="@+id/seekBarQuality"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:max="100"
+                                android:progress="100"/>
+
+                            <TextView
+                                android:id="@+id/btnPlusQuality"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:text="+"
+                                android:textSize="16sp"
+                                android:gravity="center"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:background="@drawable/bg_button_dynamic" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnConfirmSaveFile"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Export File"/>
+
+                    <Button
+                        android:id="@+id/btnCancelSaveFile"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:text="Back"
+                        android:textColor="?attr/appTextColorPrimary"/>
+
+                </LinearLayout>
+
             </LinearLayout>
-
-            <Button
-                android:id="@+id/btnConfirmSaveFile"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Export File"/>
-
-            <Button
-                android:id="@+id/btnCancelSaveFile"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:text="Back"
-                android:textColor="?attr/appTextColorPrimary"/>
-
-        </LinearLayout>
+        </ScrollView>
 
     </LinearLayout>
 
