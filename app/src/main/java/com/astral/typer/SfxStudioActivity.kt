@@ -100,6 +100,7 @@ class SfxStudioActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 val newText = s?.toString() ?: ""
                 sfxCanvasView.sfxLayer.text = SpannableStringBuilder(newText)
+                sfxCanvasView.initAllCharMeshes()
                 updateLetterSpinner()
                 sfxCanvasView.invalidate()
             }
