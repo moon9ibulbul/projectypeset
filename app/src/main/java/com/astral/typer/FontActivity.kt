@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.astral.typer.utils.FontManager
+import com.astral.typer.utils.ThemeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,6 +45,7 @@ class FontActivity : AppCompatActivity() {
     private var allStoreFonts: List<com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem> = emptyList()
     private var storePageSize = 50
     private var storeCurrentPage = 1
+    private var selectedStoreCategory = "All"
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -113,6 +115,8 @@ class FontActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
 
+        setupStoreCategories()
+
         // Setup Search
         etSearchFonts.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -127,6 +131,9 @@ class FontActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, R.layout.item_spinner, orderOptions)
         adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinnerOrderBy.adapter = adapter
+        try {
+            spinnerOrderBy.setPopupBackgroundDrawable(android.graphics.drawable.ColorDrawable(ThemeUtils.getColorFromAttr(this, R.attr.appSurfaceColor)))
+        } catch (_: Exception) {}
 
         val prefs = getSharedPreferences("font_prefs", MODE_PRIVATE)
         val savedOrder = prefs.getString("font_order_by", "Name") ?: "Name"
@@ -192,15 +199,58 @@ class FontActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupStoreCategories() {
+        val layoutCategories = findViewById<LinearLayout>(R.id.layoutStoreCategories) ?: return
+        layoutCategories.removeAllViews()
+        val categories = arrayOf("All", "Serif", "Sans-Serif", "Monospace", "Display", "Handwriting")
+        for (cat in categories) {
+            val isActive = selectedStoreCategory.equals(cat, ignoreCase = true)
+            val btn = Button(this).apply {
+                text = cat
+                textSize = 12f
+                isAllCaps = false
+                val density = resources.displayMetrics.density
+                val padH = (12 * density).toInt()
+                val padV = (6 * density).toInt()
+                setPadding(padH, padV, padH, padV)
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    (36 * density).toInt()
+                ).apply {
+                    marginEnd = (8 * density).toInt()
+                }
+                layoutParams = params
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(if (isActive) Color.CYAN else ThemeUtils.getColorFromAttr(this@FontActivity, R.attr.appButtonBgColor))
+                    setStroke((1 * density).toInt(), if (isActive) Color.CYAN else ThemeUtils.getColorFromAttr(this@FontActivity, R.attr.appButtonBorderColor))
+                    cornerRadius = 18 * density
+                }
+                setTextColor(if (isActive) Color.BLACK else ThemeUtils.getColorFromAttr(this@FontActivity, R.attr.appTextColorPrimary))
+                setOnClickListener {
+                    selectedStoreCategory = cat
+                    setupStoreCategories()
+                    filterStoreFonts(resetPage = true)
+                }
+            }
+            layoutCategories.addView(btn)
+        }
+    }
+
     private fun filterStoreFonts(resetPage: Boolean = true) {
         if (resetPage) {
             storeCurrentPage = 1
         }
         val query = etSearchStoreFonts.text.toString().trim()
-        val filtered = if (query.isEmpty()) {
-            allStoreFonts
-        } else {
-            allStoreFonts.filter { it.family.contains(query, ignoreCase = true) }
+        val filtered = allStoreFonts.filter { item ->
+            val matchesCategory = if (selectedStoreCategory.equals("All", ignoreCase = true)) {
+                true
+            } else {
+                val catNorm = item.category?.replace("-", "")?.replace(" ", "")?.lowercase() ?: ""
+                val targetNorm = selectedStoreCategory.replace("-", "").replace(" ", "").lowercase()
+                catNorm == targetNorm
+            }
+            val matchesQuery = query.isEmpty() || item.family.contains(query, ignoreCase = true)
+            matchesCategory && matchesQuery
         }.sortedBy { it.family.lowercase() }
 
         val displayCount = storeCurrentPage * storePageSize

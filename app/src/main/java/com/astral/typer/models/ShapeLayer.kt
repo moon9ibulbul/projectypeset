@@ -39,6 +39,7 @@ class ShapeLayer(
     override var motionShadowSmoothness: Int = 100
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
+    override var highlightCornerRadius: Float = 0f
     override var blendingStrength: Float = 50f
 
     // Gradient
@@ -1432,13 +1433,12 @@ class ShapeLayer(
         val drawShadows = { targetCanvas: Canvas ->
             if (isMotionShadow && motionShadowDistance > 0) {
                 val effectiveDistance = motionShadowDistance
-                val baseIterations = kotlin.math.max(30, effectiveDistance.toInt())
-                val smoothnessFactor = (motionShadowSmoothness / 100f).coerceIn(0.01f, 1f)
-                val iterations = kotlin.math.max(1, (baseIterations * smoothnessFactor).toInt())
+                val iterations = kotlin.math.max(1, effectiveDistance.toInt() / 2)
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
-                val maxBlur = motionShadowThickness
+                val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
+                val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
                 val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
                 val initialShadowAlpha = 2.5f + normThickness * 27.5f
 

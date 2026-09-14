@@ -151,19 +151,90 @@ class SfxStudioActivity : AppCompatActivity() {
 
     private fun showFontPickerDialog() {
         val allFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
-        val fontNames = allFonts.map { it.name }.toTypedArray()
+        var filteredFonts = allFonts
 
-        AlertDialog.Builder(this)
-            .setTitle("Select Font")
-            .setItems(fontNames) { _, which ->
-                val fontItem = allFonts[which]
+        val paddingPx = (16 * resources.displayMetrics.density).toInt()
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+
+        val etSearch = EditText(this).apply {
+            hint = "Search font..."
+            setSingleLine(true)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appInputBgColor))
+                setStroke((1 * resources.displayMetrics.density).toInt(), ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appInputBorderColor))
+                cornerRadius = 8 * resources.displayMetrics.density
+            }
+            setTextColor(ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appTextColorPrimary))
+            setHintTextColor(ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appTextColorSecondary))
+            setPadding(paddingPx, paddingPx / 2, paddingPx, paddingPx / 2)
+        }
+        layout.addView(etSearch)
+
+        val listView = android.widget.ListView(this).apply {
+            val listParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                (300 * resources.displayMetrics.density).toInt()
+            ).apply {
+                topMargin = paddingPx / 2
+            }
+            layoutParams = listParams
+        }
+        layout.addView(listView)
+
+        var dialog: AlertDialog? = null
+
+        fun updateList() {
+            val names = filteredFonts.map { it.name }
+            val adapter = object : ArrayAdapter<String>(this, R.layout.item_spinner_dropdown, names) {
+                override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                    val view = super.getView(position, convertView, parent) as TextView
+                    val fontItem = filteredFonts[position]
+                    try {
+                        view.typeface = fontItem.typeface
+                    } catch (_: Exception) {}
+                    return view
+                }
+            }
+            listView.adapter = adapter
+        }
+
+        updateList()
+
+        listView.setOnItemClickListener { _, _, position, _ ->
+            if (position in filteredFonts.indices) {
+                val fontItem = filteredFonts[position]
                 sfxCanvasView.sfxLayer.typeface = fontItem.typeface
                 sfxCanvasView.sfxLayer.fontPath = if (fontItem.isCustom) fontItem.path else fontItem.name
                 sfxCanvasView.invalidate()
                 Toast.makeText(this, "Font applied: ${fontItem.name}", Toast.LENGTH_SHORT).show()
+                dialog?.dismiss()
             }
+        }
+
+        etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s?.toString()?.trim() ?: ""
+                filteredFonts = if (query.isEmpty()) {
+                    allFonts
+                } else {
+                    allFonts.filter { it.name.contains(query, ignoreCase = true) }
+                }
+                updateList()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        dialog = AlertDialog.Builder(this)
+            .setTitle("Select Font")
+            .setView(layout)
             .setNegativeButton("Cancel", null)
-            .show()
+            .create()
+
+        dialog.show()
     }
 
     private fun showSavedPresetsDialog() {
