@@ -222,6 +222,30 @@ object GoogleFontStoreManager {
         return@withContext false
     }
 
+    private const val MAX_PREVIEW_CACHE_BYTES = 30L * 1024L * 1024L // 30 MB
+
+    private fun prunePreviewCache(dir: File) {
+        try {
+            if (!dir.exists() || !dir.isDirectory) return
+            val files = dir.listFiles() ?: return
+            var totalSize = files.sumOf { it.length() }
+            if (totalSize > MAX_PREVIEW_CACHE_BYTES) {
+                val sortedFiles = files.sortedBy { it.lastModified() }
+                for (file in sortedFiles) {
+                    val length = file.length()
+                    if (file.delete()) {
+                        totalSize -= length
+                    }
+                    if (totalSize <= MAX_PREVIEW_CACHE_BYTES * 0.8) {
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     suspend fun loadPreviewTypeface(
         context: Context,
         item: StoreFontItem
@@ -246,28 +270,80 @@ object GoogleFontStoreManager {
             }
         }
 
-        try {
-            val url = URL(item.fileUrl)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 10000
-            conn.readTimeout = 10000
-            conn.connect()
+        var downloaded = false
 
-            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                conn.inputStream.use { input ->
-                    FileOutputStream(previewFile).use { output ->
-                        input.copyTo(output)
+        // 1. Try Google Fonts Subsetting API first (drastically smaller .ttf download)
+        try {
+            val familyEncoded = java.net.URLEncoder.encode(item.family, "UTF-8")
+            val cssUrlStr = "https://fonts.googleapis.com/css2?family=$familyEncoded&text=$familyEncoded"
+            val cssConn = URL(cssUrlStr).openConnection() as HttpURLConnection
+            cssConn.connectTimeout = 8000
+            cssConn.readTimeout = 8000
+            cssConn.requestMethod = "GET"
+
+            if (cssConn.responseCode == HttpURLConnection.HTTP_OK) {
+                val cssContent = cssConn.inputStream.bufferedReader().use { it.readText() }
+                val fontUrlRegex = Regex("""url\((https?://[^)]+)\)""")
+                val match = fontUrlRegex.find(cssContent)
+                val subsetFontUrl = match?.groupValues?.get(1)?.trim()
+
+                if (!subsetFontUrl.isNullOrEmpty()) {
+                    val fontConn = URL(subsetFontUrl).openConnection() as HttpURLConnection
+                    fontConn.connectTimeout = 8000
+                    fontConn.readTimeout = 8000
+                    fontConn.connect()
+
+                    if (fontConn.responseCode == HttpURLConnection.HTTP_OK) {
+                        fontConn.inputStream.use { input ->
+                            FileOutputStream(previewFile).use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        if (previewFile.exists() && previewFile.length() > 0) {
+                            downloaded = true
+                        }
                     }
-                }
-                if (previewFile.exists()) {
-                    val tf = Typeface.createFromFile(previewFile)
-                    item.typeface = tf
-                    return@withContext tf
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        // 2. Fallback to direct full TTF download if subsetting failed
+        if (!downloaded) {
+            try {
+                val url = URL(item.fileUrl)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+                conn.connect()
+
+                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                    conn.inputStream.use { input ->
+                        FileOutputStream(previewFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    if (previewFile.exists() && previewFile.length() > 0) {
+                        downloaded = true
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        if (downloaded && previewFile.exists()) {
+            try {
+                val tf = Typeface.createFromFile(previewFile)
+                item.typeface = tf
+                prunePreviewCache(previewDir)
+                return@withContext tf
+            } catch (e: Exception) {
+                previewFile.delete()
+            }
+        }
+
         return@withContext null
     }
 }

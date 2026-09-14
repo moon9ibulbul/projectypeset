@@ -32,7 +32,10 @@ class ImageLayer(
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
+    override var motionShadowSmoothness: Int = 100
     override var shadowThickness: Float = 0f
+    override var isTextBlending: Boolean = false
+    override var blendingStrength: Float = 50f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -685,7 +688,10 @@ class ImageLayer(
         newLayer.roughStrokeRoughness = this.roughStrokeRoughness
 
         newLayer.motionShadowThickness = this.motionShadowThickness
+        newLayer.motionShadowSmoothness = this.motionShadowSmoothness
         newLayer.shadowThickness = this.shadowThickness
+        newLayer.isTextBlending = this.isTextBlending
+        newLayer.blendingStrength = this.blendingStrength
         newLayer.chromaticAngle = this.chromaticAngle
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed

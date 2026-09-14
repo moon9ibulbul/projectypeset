@@ -94,7 +94,7 @@ class AstralCanvasView @JvmOverloads constructor(
     private var rawPanelWidth = 0
     private var rawPanelHeight = 0
     var rawPanelOpacity: Int = 255
-    var rawPanelMode: RawPanelMode = RawPanelMode.ON_TOP
+    var rawPanelMode: RawPanelMode = RawPanelMode.BESIDE
 
     // Layer Erase Settings
     var layerEraseSize = 50f

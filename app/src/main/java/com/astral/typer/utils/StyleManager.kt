@@ -257,6 +257,9 @@ object StyleManager {
         val motionAngle: Int,
         val motionDist: Float,
         val motionThickness: Float = 4f,
+        val motionSmoothness: Int = 100,
+        val isTextBlending: Boolean = false,
+        val blendingStrength: Float = 50f,
         // Opacity
         val blendMode: String?,
         val isOpacityGradient: Boolean,
@@ -444,6 +447,9 @@ object StyleManager {
             motionAngle = l.motionShadowAngle,
             motionDist = l.motionShadowDistance,
             motionThickness = l.motionShadowThickness,
+            motionSmoothness = l.motionShadowSmoothness,
+            isTextBlending = l.isTextBlending,
+            blendingStrength = l.blendingStrength,
             blendMode = l.blendMode,
             isOpacityGradient = l.isOpacityGradient,
             opacityStart = l.opacityStart,
@@ -612,7 +618,10 @@ object StyleManager {
         l.motionShadowAngle = m.motionAngle
         l.motionShadowDistance = m.motionDist
         l.motionShadowThickness = m.motionThickness
+        l.motionShadowSmoothness = m.motionSmoothness
         l.shadowThickness = m.shadowThickness ?: 0f
+        l.isTextBlending = m.isTextBlending
+        l.blendingStrength = m.blendingStrength
 
         l.blendMode = m.blendMode ?: "NORMAL"
         l.isOpacityGradient = m.isOpacityGradient

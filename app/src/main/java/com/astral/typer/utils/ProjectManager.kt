@@ -100,8 +100,8 @@ object ProjectManager {
         // Shadow
         val shadowColor: Int? = null, val shadowRadius: Float? = null, val shadowDx: Float? = null, val shadowDy: Float? = null,
         val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
-        val motionShadowThickness: Float? = null,
-        val shadowThickness: Float? = null,
+        val motionShadowThickness: Float? = null, val motionShadowSmoothness: Int? = null,
+        val shadowThickness: Float? = null, val isTextBlending: Boolean? = null, val blendingStrength: Float? = null,
 
         // Gradient
         val isGradient: Boolean? = null, val gradientStartColor: Int? = null, val gradientEndColor: Int? = null, val gradientAngle: Int? = null,
@@ -464,8 +464,8 @@ object ProjectManager {
 
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
-                        motionShadowThickness = layer.motionShadowThickness,
-                        shadowThickness = layer.shadowThickness,
+                        motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness,
+                        shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
@@ -1318,7 +1318,10 @@ object ProjectManager {
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowThickness?.let { layer.motionShadowThickness = it }
+            model.motionShadowSmoothness?.let { layer.motionShadowSmoothness = it }
             model.shadowThickness?.let { layer.shadowThickness = it }
+            model.isTextBlending?.let { layer.isTextBlending = it }
+            model.blendingStrength?.let { layer.blendingStrength = it }
 
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
@@ -1537,7 +1540,10 @@ object ProjectManager {
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowThickness?.let { layer.motionShadowThickness = it }
+            model.motionShadowSmoothness?.let { layer.motionShadowSmoothness = it }
             model.shadowThickness?.let { layer.shadowThickness = it }
+            model.isTextBlending?.let { layer.isTextBlending = it }
+            model.blendingStrength?.let { layer.blendingStrength = it }
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
             model.gradientEndColor?.let { layer.gradientEndColor = it }
