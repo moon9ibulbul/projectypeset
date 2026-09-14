@@ -621,6 +621,7 @@ class TextLayer(
         result = 31 * result + motionShadowAngle
         result = 31 * result + motionShadowDistance.hashCode()
         result = 31 * result + motionShadowThickness.hashCode()
+        result = 31 * result + motionShadowSmoothness
         result = 31 * result + shadowThickness.hashCode()
         result = 31 * result + highlightCornerRadius.hashCode()
         result = 31 * result + isGradient.hashCode()

@@ -190,31 +190,33 @@
                     android:textSize="14sp"
                     android:layout_marginBottom="12dp" />
 
-                <EditText
-                    android:id="@+id/etSearchStoreFonts"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Search Google fonts..."
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:textColorHint="?attr/appTextColorSecondary"
-                    android:background="@drawable/bg_input_dynamic"
-                    android:padding="12dp"
-                    android:layout_marginBottom="12dp"
-                    android:maxLines="1"
-                    android:inputType="text"/>
-
-                <HorizontalScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:scrollbars="none"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
                     android:layout_marginBottom="12dp">
 
-                    <LinearLayout
-                        android:id="@+id/layoutStoreCategories"
+                    <EditText
+                        android:id="@+id/etSearchStoreFonts"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:hint="Search Google fonts..."
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:background="@drawable/bg_input_dynamic"
+                        android:padding="12dp"
+                        android:maxLines="1"
+                        android:inputType="text"/>
+
+                    <Spinner
+                        android:id="@+id/spinnerStoreCategories"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_button_dynamic" />
+                </LinearLayout>
 
                 <ProgressBar
                     android:id="@+id/pbStoreLoading"
