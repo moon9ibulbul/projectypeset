@@ -38,6 +38,7 @@ class FontActivity : AppCompatActivity() {
     private var fontAdapter: FontAdapter? = null
 
     private lateinit var etSearchStoreFonts: EditText
+    private lateinit var spinnerStoreCategories: Spinner
     private lateinit var pbStoreLoading: ProgressBar
     private lateinit var layoutStoreFontsList: RecyclerView
     private lateinit var btnLoadMoreStoreFonts: Button
@@ -93,6 +94,7 @@ class FontActivity : AppCompatActivity() {
         layoutFontsList.isNestedScrollingEnabled = false
 
         etSearchStoreFonts = findViewById(R.id.etSearchStoreFonts)
+        spinnerStoreCategories = findViewById(R.id.spinnerStoreCategories)
         pbStoreLoading = findViewById(R.id.pbStoreLoading)
         layoutStoreFontsList = findViewById(R.id.layoutStoreFontsList)
         btnLoadMoreStoreFonts = findViewById(R.id.btnLoadMoreStoreFonts)
@@ -200,39 +202,20 @@ class FontActivity : AppCompatActivity() {
     }
 
     private fun setupStoreCategories() {
-        val layoutCategories = findViewById<LinearLayout>(R.id.layoutStoreCategories) ?: return
-        layoutCategories.removeAllViews()
         val categories = arrayOf("All", "Serif", "Sans-Serif", "Monospace", "Display", "Handwriting")
-        for (cat in categories) {
-            val isActive = selectedStoreCategory.equals(cat, ignoreCase = true)
-            val btn = Button(this).apply {
-                text = cat
-                textSize = 12f
-                isAllCaps = false
-                val density = resources.displayMetrics.density
-                val padH = (12 * density).toInt()
-                val padV = (6 * density).toInt()
-                setPadding(padH, padV, padH, padV)
-                val params = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    (36 * density).toInt()
-                ).apply {
-                    marginEnd = (8 * density).toInt()
-                }
-                layoutParams = params
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(if (isActive) Color.CYAN else ThemeUtils.getColorFromAttr(this@FontActivity, R.attr.appButtonBgColor))
-                    setStroke((1 * density).toInt(), if (isActive) Color.CYAN else ThemeUtils.getColorFromAttr(this@FontActivity, R.attr.appButtonBorderColor))
-                    cornerRadius = 18 * density
-                }
-                setTextColor(if (isActive) Color.BLACK else ThemeUtils.getColorFromAttr(this@FontActivity, R.attr.appTextColorPrimary))
-                setOnClickListener {
-                    selectedStoreCategory = cat
-                    setupStoreCategories()
-                    filterStoreFonts(resetPage = true)
-                }
+        val adapter = ArrayAdapter(this, R.layout.item_spinner, categories)
+        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
+        spinnerStoreCategories.adapter = adapter
+        try {
+            spinnerStoreCategories.setPopupBackgroundDrawable(android.graphics.drawable.ColorDrawable(ThemeUtils.getColorFromAttr(this, R.attr.appSurfaceColor)))
+        } catch (_: Exception) {}
+
+        spinnerStoreCategories.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                selectedStoreCategory = categories[position]
+                filterStoreFonts(resetPage = true)
             }
-            layoutCategories.addView(btn)
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 

@@ -6066,6 +6066,16 @@ class EditorActivity : AppCompatActivity() {
                 )
             }
 
+            // Search Header Container
+            val searchHeaderLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                     ViewGroup.LayoutParams.MATCH_PARENT,
+                     ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(16, 0, 16, 8) }
+            }
+
             // Search Bar
             val searchInput = EditText(this).apply {
                 hint = "Search fonts..."
@@ -6078,13 +6088,15 @@ class EditorActivity : AppCompatActivity() {
                      cornerRadius = dpToPx(8).toFloat()
                 }
                 layoutParams = LinearLayout.LayoutParams(
-                     ViewGroup.LayoutParams.MATCH_PARENT,
-                     ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(16, 0, 16, 8) }
+                     0,
+                     dpToPx(36),
+                     1f
+                )
                 maxLines = 1
                 inputType = android.text.InputType.TYPE_CLASS_TEXT
             }
-            outerLayout.addView(searchInput)
+            searchHeaderLayout.addView(searchInput)
+            outerLayout.addView(searchHeaderLayout)
 
             // Vertical List Container
             val scroll = ScrollView(this).apply {
@@ -6154,53 +6166,33 @@ class EditorActivity : AppCompatActivity() {
                         var storeCurrentPage = 1
                         var selectedStoreCategory = "All"
 
-                        val categoryScroll = HorizontalScrollView(this@EditorActivity).apply {
-                            isHorizontalScrollBarEnabled = false
-                            layoutParams = LinearLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT
-                            ).apply { setMargins(16, 0, 16, 8) }
-                        }
-                        val categoryList = LinearLayout(this@EditorActivity).apply {
-                            orientation = LinearLayout.HORIZONTAL
-                        }
-                        categoryScroll.addView(categoryList)
-
-                        fun renderCategoryButtons(onSelect: () -> Unit) {
-                            categoryList.removeAllViews()
-                            val categories = arrayOf("All", "Serif", "Sans-Serif", "Monospace", "Display", "Handwriting")
-                            for (cat in categories) {
-                                val isActive = selectedStoreCategory.equals(cat, ignoreCase = true)
-                                val btn = TextView(this@EditorActivity).apply {
-                                    text = cat
-                                    textSize = 12f
-                                    gravity = Gravity.CENTER
-                                    val density = resources.displayMetrics.density
-                                    val padH = (12 * density).toInt()
-                                    val padV = (6 * density).toInt()
-                                    setPadding(padH, padV, padH, padV)
-                                    val params = LinearLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                                        dpToPx(32)
-                                    ).apply { marginEnd = dpToPx(8) }
-                                    layoutParams = params
-                                    background = GradientDrawable().apply {
-                                        setColor(if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                                        setStroke(dpToPx(1), if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
-                                        cornerRadius = dpToPx(16).toFloat()
-                                    }
-                                    setTextColor(if (isActive) Color.BLACK else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                                    setOnClickListener {
-                                        selectedStoreCategory = cat
-                                        renderCategoryButtons(onSelect)
-                                        onSelect()
-                                    }
-                                }
-                                categoryList.addView(btn)
+                        val categories = arrayOf("All", "Serif", "Sans-Serif", "Monospace", "Display", "Handwriting")
+                        val categorySpinner = android.widget.Spinner(this@EditorActivity).apply {
+                            background = GradientDrawable().apply {
+                                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                                cornerRadius = dpToPx(8).toFloat()
                             }
+                            layoutParams = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                dpToPx(36)
+                            ).apply { setMargins(dpToPx(8), 0, 0, 0) }
                         }
+                        val catAdapter = android.widget.ArrayAdapter(this@EditorActivity, com.astral.typer.R.layout.item_spinner, categories)
+                        catAdapter.setDropDownViewResource(com.astral.typer.R.layout.item_spinner_dropdown)
+                        categorySpinner.adapter = catAdapter
+                        try {
+                            categorySpinner.setPopupBackgroundDrawable(android.graphics.drawable.ColorDrawable(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appSurfaceColor)))
+                        } catch (_: Exception) {}
 
-                        outerLayout.addView(categoryScroll, 1)
+                        categorySpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                                selectedStoreCategory = categories[position]
+                                renderStoreFonts(searchInput.text.toString().trim(), true)
+                            }
+                            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+                        }
+                        searchHeaderLayout.addView(categorySpinner)
 
                         fun renderStoreFonts(query: String, resetPage: Boolean) {
                             if (resetPage) {
@@ -6360,7 +6352,6 @@ class EditorActivity : AppCompatActivity() {
                             }
                         }
 
-                        renderCategoryButtons { renderStoreFonts(searchInput.text.toString(), true) }
                         renderStoreFonts("", true)
 
                         searchInput.addTextChangedListener(object: TextWatcher {
