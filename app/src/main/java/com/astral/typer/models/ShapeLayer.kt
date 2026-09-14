@@ -514,7 +514,7 @@ class ShapeLayer(
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
         if (hasTransform) {
-            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f
+            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !(isMotionShadow && motionShadowDistance > 0f)
         }
         val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
@@ -1434,7 +1434,8 @@ class ShapeLayer(
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
                 val maxBlur = motionShadowThickness
-                val initialShadowAlpha = 30f
+                val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
+                val initialShadowAlpha = 2.5f + normThickness * 27.5f
 
                 for (i in 1..iterations) {
                     val t = i / iterations.toFloat()

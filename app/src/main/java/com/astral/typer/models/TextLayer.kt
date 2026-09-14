@@ -1746,7 +1746,7 @@ class TextLayer(
             val hasHighlight = (cachedLayout?.text as? android.text.Spannable)?.let {
                 it.getSpans(0, it.length, android.text.style.BackgroundColorSpan::class.java).isNotEmpty()
             } ?: false
-            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !hasHighlight
+            isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !(isMotionShadow && motionShadowDistance > 0f) && !hasHighlight
         }
 
         val effectiveScale = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * Math.max(1f, viewScale)
@@ -3656,7 +3656,8 @@ class TextLayer(
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
                 val maxBlur = motionShadowThickness
-                val initialShadowAlpha = 30f
+                val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
+                val initialShadowAlpha = 2.5f + normThickness * 27.5f
 
                 for (i in 1..iterations) {
                     val t = i / iterations.toFloat()
