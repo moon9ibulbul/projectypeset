@@ -6185,13 +6185,6 @@ class EditorActivity : AppCompatActivity() {
                             categorySpinner.setPopupBackgroundDrawable(android.graphics.drawable.ColorDrawable(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appSurfaceColor)))
                         } catch (_: Exception) {}
 
-                        categorySpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                                selectedStoreCategory = categories[position]
-                                renderStoreFonts(searchInput.text.toString().trim(), true)
-                            }
-                            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-                        }
                         searchHeaderLayout.addView(categorySpinner)
 
                         fun renderStoreFonts(query: String, resetPage: Boolean) {
@@ -6350,6 +6343,14 @@ class EditorActivity : AppCompatActivity() {
                                 }
                                 list.addView(btnLoadMore)
                             }
+                        }
+
+                        categorySpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                                selectedStoreCategory = categories[position]
+                                renderStoreFonts(searchInput.text.toString().trim(), true)
+                            }
+                            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
                         }
 
                         renderStoreFonts("", true)
