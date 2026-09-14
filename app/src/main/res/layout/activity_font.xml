@@ -34,108 +34,189 @@
             android:layout_marginStart="16dp" />
     </LinearLayout>
 
+    <!-- Top Navigation Tabs (Local Fonts / Font Store) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="?attr/appSurfaceColor"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
+
+        <Button
+            android:id="@+id/btnTabLocalFonts"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Local Fonts"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnTabStoreFonts"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Font Store"
+            android:textSize="14sp" />
+    </LinearLayout>
+
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_height="wrap_content">
 
-            <!-- Order By Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Order By"
-                android:textColor="?attr/appTextColorSecondary"
-                android:textSize="14sp"
-                android:layout_marginBottom="8dp" />
-
-            <Spinner
-                android:id="@+id/spinnerOrderBy"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:backgroundTint="?attr/appIconTint"
-                android:layout_marginBottom="24dp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:background="@drawable/bg_button_dynamic" />
-
-            <!-- Categories Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Custom Categories"
-                android:textColor="?attr/appTextColorSecondary"
-                android:textSize="14sp"
-                android:layout_marginBottom="8dp" />
-
-            <Button
-                android:id="@+id/btnAddCategory"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="+ Add Category"
-                android:layout_marginBottom="12dp" />
-
-            <!-- Dynamic list of custom categories -->
+            <!-- Container for Local Fonts -->
             <LinearLayout
-                android:id="@+id/layoutCategoriesList"
+                android:id="@+id/layoutLocalFontsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginBottom="24dp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:background="@drawable/bg_button_dynamic" />
+                android:padding="16dp"
+                android:visibility="visible">
 
-            <!-- Import Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Install Custom Font"
-                android:textColor="?attr/appTextColorSecondary"
-                android:textSize="14sp"
-                android:layout_marginBottom="8dp" />
+                <!-- Order By Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Order By"
+                    android:textColor="?attr/appTextColorSecondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp" />
 
-            <Button
-                android:id="@+id/btnImportFont"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="+ Import TTF / OTF / ZIP"
-                android:layout_marginBottom="24dp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:background="@drawable/bg_button_dynamic" />
+                <Spinner
+                    android:id="@+id/spinnerOrderBy"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="?attr/appIconTint"
+                    android:layout_marginBottom="24dp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
 
-            <!-- Fonts Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="All Fonts"
-                android:textColor="?attr/appTextColorSecondary"
-                android:textSize="14sp"
-                android:layout_marginBottom="12dp" />
+                <!-- Categories Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Custom Categories"
+                    android:textColor="?attr/appTextColorSecondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp" />
 
-            <!-- Search Fonts -->
-            <EditText
-                android:id="@+id/etSearchFonts"
+                <Button
+                    android:id="@+id/btnAddCategory"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+ Add Category"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Dynamic list of custom categories -->
+                <LinearLayout
+                    android:id="@+id/layoutCategoriesList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="24dp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+
+                <!-- Import Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Install Custom Font"
+                    android:textColor="?attr/appTextColorSecondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnImportFont"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+ Import TTF / OTF / ZIP"
+                    android:layout_marginBottom="24dp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:background="@drawable/bg_button_dynamic" />
+
+                <!-- Fonts Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="All Fonts"
+                    android:textColor="?attr/appTextColorSecondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Search Fonts -->
+                <EditText
+                    android:id="@+id/etSearchFonts"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Search fonts..."
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:textColorHint="?attr/appTextColorSecondary"
+                    android:background="@drawable/bg_input_dynamic"
+                    android:padding="12dp"
+                    android:layout_marginBottom="12dp"
+                    android:maxLines="1"
+                    android:inputType="text"/>
+
+                <!-- We can populate all fonts dynamically -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/layoutFontsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <!-- Container for Store Fonts -->
+            <LinearLayout
+                android:id="@+id/layoutStoreFontsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Search fonts..."
-                android:textColor="?attr/appTextColorPrimary"
-                android:textColorHint="?attr/appTextColorSecondary"
-                android:background="@drawable/bg_input_dynamic"
-                android:padding="12dp"
-                android:layout_marginBottom="12dp"
-                android:maxLines="1"
-                android:inputType="text"/>
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:visibility="gone">
 
-            <!-- We can populate all fonts dynamically -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/layoutFontsList"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Google Fonts Store"
+                    android:textColor="?attr/appTextColorSecondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="12dp" />
 
-        </LinearLayout>
+                <EditText
+                    android:id="@+id/etSearchStoreFonts"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Search Google fonts..."
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:textColorHint="?attr/appTextColorSecondary"
+                    android:background="@drawable/bg_input_dynamic"
+                    android:padding="12dp"
+                    android:layout_marginBottom="12dp"
+                    android:maxLines="1"
+                    android:inputType="text"/>
+
+                <ProgressBar
+                    android:id="@+id/pbStoreLoading"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/layoutStoreFontsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+        </FrameLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

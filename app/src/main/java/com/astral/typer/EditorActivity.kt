@@ -6115,6 +6115,159 @@ class EditorActivity : AppCompatActivity() {
             }
             list.addView(progressBar)
 
+            if (type == "Store") {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val storeItems = com.astral.typer.utils.GoogleFontStoreManager.getGoogleFonts(this@EditorActivity)
+                    withContext(Dispatchers.Main) {
+                        if (list.childCount > 0 && list.getChildAt(list.childCount - 1) == progressBar) {
+                            list.removeView(progressBar)
+                        }
+
+                        if (storeItems.isEmpty()) {
+                            val tvEmpty = TextView(this@EditorActivity).apply {
+                                text = "No online fonts found or internet connection required."
+                                setTextColor(Color.GRAY)
+                                setPadding(16, 16, 16, 16)
+                            }
+                            list.addView(tvEmpty)
+                            return@withContext
+                        }
+
+                        val renderStoreFonts = { query: String ->
+                            list.removeAllViews()
+
+                            val filtered = if (query.isEmpty()) storeItems else storeItems.filter { it.family.contains(query, ignoreCase = true) }
+                            val limit = 50
+                            var count = 0
+
+                            for (item in filtered) {
+                                if (count >= limit && query.isEmpty()) break
+                                count++
+
+                                val isAlreadyInstalled = item.isDownloaded
+                                val isActive = !layer.fontPath.isNullOrEmpty() && item.localPath != null && layer.fontPath == item.localPath
+
+                                val itemLayout = LinearLayout(this@EditorActivity).apply {
+                                    orientation = LinearLayout.HORIZONTAL
+                                    setPadding(16, 16, 16, 16)
+                                    gravity = Gravity.CENTER_VERTICAL
+                                    layoutParams = LinearLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.WRAP_CONTENT
+                                    ).apply { setMargins(0, 4, 0, 4) }
+
+                                    val strokeColor = if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)
+                                    val strokeWidth = if (isActive) dpToPx(2) else dpToPx(1)
+
+                                    background = GradientDrawable().apply {
+                                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                                        setStroke(strokeWidth, strokeColor)
+                                        cornerRadius = dpToPx(8).toFloat()
+                                    }
+                                }
+
+                                val tvName = TextView(this@EditorActivity).apply {
+                                    text = item.family
+                                    textSize = 16f
+                                    setTextColor(if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                                    alpha = if (isAlreadyInstalled) 1.0f else 0.4f
+                                    gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                                    maxLines = 1
+                                    ellipsize = android.text.TextUtils.TruncateAt.END
+                                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                                }
+
+                                if (item.typeface != null) {
+                                    tvName.typeface = item.typeface
+                                } else {
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        val tf = com.astral.typer.utils.GoogleFontStoreManager.loadPreviewTypeface(this@EditorActivity, item)
+                                        if (tf != null) {
+                                            withContext(Dispatchers.Main) {
+                                                tvName.typeface = tf
+                                            }
+                                        }
+                                    }
+                                }
+
+                                val btnAction = TextView(this@EditorActivity).apply {
+                                    text = if (isAlreadyInstalled) "Installed" else "Download"
+                                    textSize = 12f
+                                    setTextColor(if (isAlreadyInstalled) Color.GREEN else Color.CYAN)
+                                    setPadding(16, 8, 16, 8)
+                                    background = GradientDrawable().apply {
+                                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                                        setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                                        cornerRadius = dpToPx(4).toFloat()
+                                    }
+                                }
+
+                                itemLayout.setOnClickListener {
+                                    if (item.isDownloaded && item.localPath != null && item.typeface != null) {
+                                        val fontId = item.localPath
+                                        if (fontId != null) {
+                                            val usagePrefs = getSharedPreferences("font_usage_prefs", Context.MODE_PRIVATE)
+                                            val currentUsage = usagePrefs.getInt(fontId, 0)
+                                            usagePrefs.edit().putInt(fontId, currentUsage + 1).apply()
+                                        }
+                                        val et = activeEditText
+                                        if (et != null && et.selectionStart != et.selectionEnd) {
+                                            applySpanToSelection(CustomTypefaceSpan(item.typeface!!, item.localPath))
+                                        } else {
+                                            layer.typeface = item.typeface!!
+                                            layer.fontPath = item.localPath
+                                            canvasView.invalidate()
+                                        }
+                                        showFontPicker()
+                                    } else {
+                                        btnAction.text = "Downloading..."
+                                        btnAction.isEnabled = false
+                                        lifecycleScope.launch {
+                                            val success = com.astral.typer.utils.GoogleFontStoreManager.downloadFont(this@EditorActivity, item)
+                                            if (success && item.typeface != null && item.localPath != null) {
+                                                Toast.makeText(this@EditorActivity, "Downloaded ${item.family}", Toast.LENGTH_SHORT).show()
+                                                tvName.alpha = 1.0f
+                                                btnAction.text = "Installed"
+                                                btnAction.setTextColor(Color.GREEN)
+
+                                                val et = activeEditText
+                                                if (et != null && et.selectionStart != et.selectionEnd) {
+                                                    applySpanToSelection(CustomTypefaceSpan(item.typeface!!, item.localPath))
+                                                } else {
+                                                    layer.typeface = item.typeface!!
+                                                    layer.fontPath = item.localPath
+                                                    canvasView.invalidate()
+                                                }
+                                                showFontPicker()
+                                            } else {
+                                                Toast.makeText(this@EditorActivity, "Failed to download font", Toast.LENGTH_SHORT).show()
+                                                btnAction.text = "Download"
+                                                btnAction.isEnabled = true
+                                            }
+                                        }
+                                    }
+                                }
+
+                                itemLayout.addView(tvName)
+                                itemLayout.addView(btnAction)
+                                list.addView(itemLayout)
+                            }
+                        }
+
+                        renderStoreFonts("")
+
+                        searchInput.addTextChangedListener(object: TextWatcher {
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                                renderStoreFonts(s?.toString() ?: "")
+                            }
+                            override fun afterTextChanged(s: Editable?) {}
+                        })
+                    }
+                }
+                return
+            }
+
             // Async Load
             kotlin.concurrent.thread {
                 val allFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
@@ -6350,7 +6503,7 @@ class EditorActivity : AppCompatActivity() {
             e.printStackTrace()
         }
 
-        val tabNames = mutableListOf("Standard", "My Font", "Favorite")
+        val tabNames = mutableListOf("Standard", "My Font", "Favorite", "Store")
         tabNames.addAll(categories)
 
         tabsLayout.weightSum = tabNames.size.toFloat()
