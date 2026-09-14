@@ -3650,6 +3650,17 @@ class EditorActivity : AppCompatActivity() {
                 content.visibility = View.GONE
                 arrow.animate().rotation(0f).setDuration(200).start()
             } else {
+                val allSubMenus = listOf(
+                    Triple(sidebarBinding.headerSubMenuSave, sidebarBinding.contentSubMenuSave, sidebarBinding.ivSaveArrow),
+                    Triple(sidebarBinding.headerSubMenuInsert, sidebarBinding.contentSubMenuInsert, sidebarBinding.ivInsertArrow),
+                    Triple(sidebarBinding.headerSubMenuEdit, sidebarBinding.contentSubMenuEdit, sidebarBinding.ivEditArrow)
+                )
+                for ((_, otherContent, otherArrow) in allSubMenus) {
+                    if (otherContent != content && otherContent.visibility == View.VISIBLE) {
+                        otherContent.visibility = View.GONE
+                        otherArrow.animate().rotation(0f).setDuration(200).start()
+                    }
+                }
                 content.visibility = View.VISIBLE
                 arrow.animate().rotation(180f).setDuration(200).start()
             }
@@ -3741,17 +3752,17 @@ class EditorActivity : AppCompatActivity() {
             sidebarBinding.layoutRawControls.visibility = View.GONE
         }
 
-        val rawModes = arrayOf("Load on top Canvas", "Load Beside Canvas")
+        val rawModes = arrayOf("Load Beside Canvas", "Load on top Canvas")
         val rawAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, rawModes)
         rawAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         sidebarBinding.spinnerRawMode.adapter = rawAdapter
 
-        val currentModePos = if (canvasView.rawPanelMode == AstralCanvasView.RawPanelMode.ON_TOP) 0 else 1
+        val currentModePos = if (canvasView.rawPanelMode == AstralCanvasView.RawPanelMode.BESIDE) 0 else 1
         sidebarBinding.spinnerRawMode.setSelection(currentModePos)
 
         sidebarBinding.spinnerRawMode.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
-                canvasView.rawPanelMode = if (pos == 0) AstralCanvasView.RawPanelMode.ON_TOP else AstralCanvasView.RawPanelMode.BESIDE
+                canvasView.rawPanelMode = if (pos == 0) AstralCanvasView.RawPanelMode.BESIDE else AstralCanvasView.RawPanelMode.ON_TOP
                 canvasView.invalidate()
             }
             override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
@@ -8652,6 +8663,16 @@ class EditorActivity : AppCompatActivity() {
                 canvasView.invalidate()
             })
 
+            // Smoothness
+            var smoothnessSlider: View? = null
+            smoothnessSlider = createSlider("Shadow Smoothness: ${stylableLayer.motionShadowSmoothness}", stylableLayer.motionShadowSmoothness, 100) { p ->
+                val valClamped = kotlin.math.max(1, p)
+                stylableLayer.motionShadowSmoothness = valClamped
+                smoothnessSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Shadow Smoothness: $valClamped"
+                canvasView.invalidate()
+            }
+            layout.addView(smoothnessSlider)
+
             // Include Stroke Checkbox
             val cbIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {
                 text = "Include stroke"
@@ -8664,6 +8685,31 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             layout.addView(cbIncludeStroke)
+
+            // Text Blending Checkbox & Strength Slider
+            var blendingSliderContainer: View? = null
+            val cbTextBlending = android.widget.CheckBox(this@EditorActivity).apply {
+                text = "Text Blending"
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                isChecked = stylableLayer.isTextBlending
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                setOnCheckedChangeListener { _, isChecked ->
+                    stylableLayer.isTextBlending = isChecked
+                    blendingSliderContainer?.visibility = if (isChecked) View.VISIBLE else View.GONE
+                    canvasView.invalidate()
+                }
+            }
+            layout.addView(cbTextBlending)
+
+            var blendingSlider: View? = null
+            blendingSlider = createSlider("Blending Strength: ${stylableLayer.blendingStrength.toInt()}%", stylableLayer.blendingStrength.toInt(), 100) { p ->
+                stylableLayer.blendingStrength = p.toFloat()
+                blendingSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Blending Strength: $p%"
+                canvasView.invalidate()
+            }
+            blendingSliderContainer = blendingSlider
+            blendingSliderContainer?.visibility = if (stylableLayer.isTextBlending) View.VISIBLE else View.GONE
+            layout.addView(blendingSliderContainer)
 
             addView(layout)
         }

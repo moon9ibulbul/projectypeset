@@ -687,7 +687,7 @@ class SettingsActivity : AppCompatActivity() {
         // Donate
         btnDonate.setOnClickListener {
             try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://parlor.astralscans.top/donasi.html"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://parlor.astralscans.site/donasi.html"))
                 intent?.let { startActivity(it) }
             } catch (e: Exception) {
                 Toast.makeText(this, "Could not open browser", Toast.LENGTH_SHORT).show()
@@ -695,11 +695,17 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private val expandableSections = mutableListOf<Triple<android.view.View, android.view.View, ImageView>>()
+
     private fun setupExpandableSection(
         header: android.view.View,
         content: android.view.View,
         arrow: ImageView
     ) {
+        val entry = Triple(header, content, arrow)
+        if (!expandableSections.contains(entry)) {
+            expandableSections.add(entry)
+        }
         header.setOnClickListener {
             val parent = header.parent as? android.view.ViewGroup ?: content.parent as? android.view.ViewGroup
             parent?.let {
@@ -708,8 +714,19 @@ class SettingsActivity : AppCompatActivity() {
                 })
             }
             val isExpanded = content.visibility == android.view.View.VISIBLE
-            content.visibility = if (isExpanded) android.view.View.GONE else android.view.View.VISIBLE
-            arrow.animate().rotation(if (isExpanded) 0f else 180f).setDuration(200).start()
+            if (isExpanded) {
+                content.visibility = android.view.View.GONE
+                arrow.animate().rotation(0f).setDuration(200).start()
+            } else {
+                for ((_, otherContent, otherArrow) in expandableSections) {
+                    if (otherContent != content && otherContent.visibility == android.view.View.VISIBLE) {
+                        otherContent.visibility = android.view.View.GONE
+                        otherArrow.animate().rotation(0f).setDuration(200).start()
+                    }
+                }
+                content.visibility = android.view.View.VISIBLE
+                arrow.animate().rotation(180f).setDuration(200).start()
+            }
         }
     }
 

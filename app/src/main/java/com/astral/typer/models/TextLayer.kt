@@ -123,7 +123,10 @@ class TextLayer(
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
+    override var motionShadowSmoothness: Int = 100
     override var shadowThickness: Float = 0f
+    override var isTextBlending: Boolean = false
+    override var blendingStrength: Float = 50f
 
     // Gradient
     override var isGradient: Boolean = false
@@ -903,7 +906,10 @@ class TextLayer(
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
         newLayer.motionShadowThickness = this.motionShadowThickness
+        newLayer.motionShadowSmoothness = this.motionShadowSmoothness
         newLayer.shadowThickness = this.shadowThickness
+        newLayer.isTextBlending = this.isTextBlending
+        newLayer.blendingStrength = this.blendingStrength
 
         newLayer.isGradient = this.isGradient
         newLayer.gradientStartColor = this.gradientStartColor
@@ -3393,6 +3399,41 @@ class TextLayer(
                             paint.shader = null
                             paint.color = modulateColor(color)
                         }
+
+                        if (isTextBlending && (isMotionShadow || motionShadowDistance > 0)) {
+                            val angleRad = Math.toRadians(motionShadowAngle.toDouble())
+                            val cos = Math.cos(angleRad).toFloat()
+                            val sin = Math.sin(angleRad).toFloat()
+                            val bw = w.coerceAtLeast(1f)
+                            val bh = h.coerceAtLeast(1f)
+                            val cx = bw / 2f
+                            val cy = bh / 2f
+                            val halfExtent = (Math.abs(bw * cos) + Math.abs(bh * sin)) / 2f
+                            val xStart = cx - halfExtent * cos
+                            val yStart = cy - halfExtent * sin
+                            val xEnd = cx + halfExtent * cos
+                            val yEnd = cy + halfExtent * sin
+
+                            val strength = (blendingStrength / 100f).coerceIn(0.01f, 1f)
+                            val startAlpha = ((1f - strength * 0.9f) * 255).toInt().coerceIn(0, 255)
+                            val blendStartColor = (shadowColor and 0x00FFFFFF) or (startAlpha shl 24)
+                            val blendEndColor = color
+
+                            val blendShader = android.graphics.LinearGradient(
+                                xStart, yStart, xEnd, yEnd,
+                                intArrayOf(blendStartColor, blendEndColor),
+                                floatArrayOf(0f, 1f),
+                                Shader.TileMode.CLAMP
+                            )
+
+                            val currentShader = paint.shader
+                            if (currentShader != null) {
+                                paint.shader = android.graphics.ComposeShader(currentShader, blendShader, PorterDuff.Mode.SRC_ATOP)
+                            } else {
+                                paint.shader = blendShader
+                                paint.color = Color.WHITE
+                            }
+                        }
                         paint.clearShadowLayer()
                         drawLayoutSafe(fillCanvas, true)
                     drawTailPath(fillCanvas, paint)
@@ -3651,7 +3692,9 @@ class TextLayer(
                 paint.color = shadowColor
 
                 val effectiveDistance = motionShadowDistance
-                val iterations = kotlin.math.max(30, effectiveDistance.toInt())
+                val baseIterations = kotlin.math.max(30, effectiveDistance.toInt())
+                val smoothnessFactor = (motionShadowSmoothness / 100f).coerceIn(0.01f, 1f)
+                val iterations = kotlin.math.max(1, (baseIterations * smoothnessFactor).toInt())
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
