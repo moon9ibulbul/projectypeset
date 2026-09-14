@@ -36,6 +36,16 @@
             android:layout_marginStart="12dp" />
 
         <Button
+            android:id="@+id/btnPresets"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:text="Saved Presets"
+            android:textSize="12sp"
+            android:textColor="?attr/appTextColorPrimary"
+            android:backgroundTint="?attr/appSurfaceColor"
+            android:layout_marginEnd="6dp" />
+
+        <Button
             android:id="@+id/btnSavePreset"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
@@ -83,70 +93,72 @@
         android:padding="12dp">
 
         <!-- Mode Toggle & Main Controls -->
-        <LinearLayout
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
+            android:scrollbars="none"
             android:layout_marginBottom="8dp">
 
-            <RadioGroup
-                android:id="@+id/rgMode"
+            <LinearLayout
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:background="@drawable/bg_panel_dynamic"
-                android:padding="2dp">
+                android:gravity="center_vertical">
 
-                <RadioButton
-                    android:id="@+id/rbVectorMode"
+                <RadioGroup
+                    android:id="@+id/rgMode"
                     android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:button="@null"
-                    android:paddingHorizontal="12dp"
-                    android:text="Vector Edit"
-                    android:textSize="12sp"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:gravity="center"
-                    android:checked="true"/>
+                    android:layout_height="36dp"
+                    android:orientation="horizontal"
+                    android:background="@drawable/bg_panel_dynamic"
+                    android:padding="2dp"
+                    android:layout_marginEnd="8dp">
 
-                <RadioButton
-                    android:id="@+id/rbMoveRotateMode"
+                    <RadioButton
+                        android:id="@+id/rbVectorMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:button="@null"
+                        android:paddingHorizontal="10dp"
+                        android:text="Vector Edit"
+                        android:textSize="12sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:gravity="center"
+                        android:checked="true"/>
+
+                    <RadioButton
+                        android:id="@+id/rbMoveRotateMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:button="@null"
+                        android:paddingHorizontal="10dp"
+                        android:text="Move &amp; Rotate"
+                        android:textSize="12sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:gravity="center"/>
+
+                    <RadioButton
+                        android:id="@+id/rbPanZoomMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:button="@null"
+                        android:paddingHorizontal="10dp"
+                        android:text="Pan &amp; Zoom"
+                        android:textSize="12sp"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:gravity="center"/>
+                </RadioGroup>
+
+                <Button
+                    android:id="@+id/btnResetAllPoints"
                     android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:button="@null"
-                    android:paddingHorizontal="12dp"
-                    android:text="Move &amp; Rotate"
-                    android:textSize="12sp"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:gravity="center"/>
-
-                <RadioButton
-                    android:id="@+id/rbPanZoomMode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:button="@null"
-                    android:paddingHorizontal="12dp"
-                    android:text="Pan &amp; Zoom"
-                    android:textSize="12sp"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:gravity="center"/>
-            </RadioGroup>
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1"/>
-
-            <Button
-                android:id="@+id/btnResetAllPoints"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="Reset Points"
-                android:textSize="11sp"
-                android:paddingHorizontal="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-        </LinearLayout>
+                    android:layout_height="36dp"
+                    android:text="Reset Points"
+                    android:textSize="11sp"
+                    android:paddingHorizontal="8dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+            </LinearLayout>
+        </HorizontalScrollView>
 
         <!-- Horizontal Scrollable Options Panel -->
         <HorizontalScrollView

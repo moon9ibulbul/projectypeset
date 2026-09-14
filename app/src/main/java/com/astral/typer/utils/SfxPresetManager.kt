@@ -90,6 +90,15 @@ object SfxPresetManager {
         saveCustomPresets(context)
     }
 
+    fun updateCustomPreset(context: Context, preset: SfxPreset) {
+        val index = customPresets.indexOfFirst { it.id == preset.id }
+        if (index != -1) {
+            preset.isCustom = true
+            customPresets[index] = preset
+            saveCustomPresets(context)
+        }
+    }
+
     fun renamePreset(context: Context, id: String, newName: String) {
         val preset = customPresets.find { it.id == id }
         if (preset != null) {
@@ -105,7 +114,7 @@ object SfxPresetManager {
         }
     }
 
-    fun createPresetFromLayer(layer: TextLayer, name: String): SfxPreset {
+    fun createPresetFromLayer(layer: TextLayer, name: String, existingId: String? = null): SfxPreset {
         val letterWarpMeshesMap = mutableMapOf<String, List<Float>>()
         layer.letterWarpMeshes.forEach { (k, v) ->
             letterWarpMeshesMap[k.toString()] = v.toList()
@@ -122,30 +131,33 @@ object SfxPresetManager {
         }
 
         return SfxPreset(
-            id = UUID.randomUUID().toString(),
+            id = existingId ?: UUID.randomUUID().toString(),
             name = name,
             text = layer.text.toString(),
             fontPath = layer.fontPath,
             fontSize = layer.fontSize,
-            color = Color.BLACK,
-            strokeColor = Color.BLACK,
-            strokeWidth = 0f,
-            doubleStrokeColor = Color.WHITE,
-            doubleStrokeWidth = 0f,
-            tripleStrokeColor = Color.YELLOW,
-            tripleStrokeWidth = 0f,
-            isGradientText = false,
+            color = layer.color,
+            strokeColor = layer.strokeColor,
+            strokeWidth = layer.strokeWidth,
+            doubleStrokeColor = layer.doubleStrokeColor,
+            doubleStrokeWidth = layer.doubleStrokeWidth,
+            tripleStrokeColor = layer.tripleStrokeColor,
+            tripleStrokeWidth = layer.tripleStrokeWidth,
+            isGradientText = layer.isGradientText,
+            gradientStartColor = layer.gradientStartColor,
+            gradientEndColor = layer.gradientEndColor,
+            gradientAngle = layer.gradientAngle.toFloat(),
             letterWarpMeshes = if (letterWarpMeshesMap.isNotEmpty()) letterWarpMeshesMap else null,
             letterWarpRows = if (letterWarpRowsMap.isNotEmpty()) letterWarpRowsMap else null,
             letterWarpCols = if (letterWarpColsMap.isNotEmpty()) letterWarpColsMap else null,
-            warpMesh = layer.mainWarpMesh?.toList(),
+            warpMesh = layer.mainWarpMesh?.toList() ?: layer.warpMesh?.toList(),
             warpRows = layer.mainWarpRows,
             warpCols = layer.mainWarpCols,
             isWarp = layer.isWarp,
-            currentEffect = "NONE",
-            secondaryEffect = "NONE",
-            tertiaryEffect = "NONE",
-            glitchAmount = 0f,
+            currentEffect = layer.currentEffect.name,
+            secondaryEffect = layer.secondaryEffect.name,
+            tertiaryEffect = layer.tertiaryEffect.name,
+            glitchAmount = layer.glitchAmount,
             isCustom = true
         )
     }
