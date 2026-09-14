@@ -198,6 +198,20 @@ class BubbleDetectorProcessor(private val context: Context) {
         } catch (e: Exception) {}
     }
 
+    fun deleteOriginalModel(): Boolean {
+        closeSession()
+        return if (modelFile.exists()) {
+            modelFile.delete()
+        } else false
+    }
+
+    fun deleteInt8Model(): Boolean {
+        closeSession()
+        return if (modelInt8File.exists()) {
+            modelInt8File.delete()
+        } else false
+    }
+
     // --- Core Inference Logic ---
 
     suspend fun detect(image: Bitmap, allowedLabels: Set<Long>? = null, boxScale: Float = 0.75f): List<RectF> = process(image, allowedLabels, boxScale)

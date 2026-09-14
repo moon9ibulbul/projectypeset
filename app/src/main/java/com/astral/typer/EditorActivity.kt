@@ -3640,6 +3640,12 @@ class EditorActivity : AppCompatActivity() {
     // --- SIDEBAR LOGIC ---
     private fun setupSidebarSubMenu(header: View, content: View, arrow: ImageView) {
         header.setOnClickListener {
+            val parent = header.parent as? android.view.ViewGroup ?: content.parent as? android.view.ViewGroup
+            parent?.let {
+                android.transition.TransitionManager.beginDelayedTransition(it, android.transition.AutoTransition().apply {
+                    duration = 200
+                })
+            }
             if (content.visibility == View.VISIBLE) {
                 content.visibility = View.GONE
                 arrow.animate().rotation(0f).setDuration(200).start()

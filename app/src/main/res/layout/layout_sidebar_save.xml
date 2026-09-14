@@ -37,166 +37,190 @@
 
                     <!-- Sub Menu 1: Save -->
                     <LinearLayout
-                        android:id="@+id/headerSubMenuSave"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingVertical="12dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:background="?attr/selectableItemBackground">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Save"
-                            android:textColor="?attr/appTextColorPrimary"
-                            android:textSize="16sp"
-                            android:textStyle="bold"/>
-
-                        <ImageView
-                            android:id="@+id/ivSaveArrow"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@drawable/ic_expand_more"
-                            app:tint="?attr/appIconTint"/>
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/contentSubMenuSave"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:visibility="gone"
-                        android:paddingBottom="8dp">
+                        android:background="@drawable/bg_panel_dynamic"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
 
-                        <Button
-                            android:id="@+id/btnSaveProjectOption"
+                        <LinearLayout
+                            android:id="@+id/headerSubMenuSave"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Save as Project (.atd)"
-                            android:layout_marginBottom="8dp"/>
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?android:attr/selectableItemBackground">
 
-                        <Button
-                            android:id="@+id/btnSaveFileOption"
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Save"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:textSize="16sp"
+                                android:textStyle="bold"/>
+
+                            <ImageView
+                                android:id="@+id/ivSaveArrow"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:src="@drawable/ic_expand_more"
+                                app:tint="?attr/appIconTint"/>
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/contentSubMenuSave"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Save as File (Export)"
-                            android:layout_marginBottom="8dp"/>
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            android:paddingTop="12dp">
+
+                            <Button
+                                android:id="@+id/btnSaveProjectOption"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Save as Project (.atd)"
+                                android:layout_marginBottom="8dp"/>
+
+                            <Button
+                                android:id="@+id/btnSaveFileOption"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Save as File (Export)"/>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <!-- Sub Menu 2: Insert -->
                     <LinearLayout
-                        android:id="@+id/headerSubMenuInsert"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingVertical="12dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:background="?attr/selectableItemBackground">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Insert"
-                            android:textColor="?attr/appTextColorPrimary"
-                            android:textSize="16sp"
-                            android:textStyle="bold"/>
-
-                        <ImageView
-                            android:id="@+id/ivInsertArrow"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@drawable/ic_expand_more"
-                            app:tint="?attr/appIconTint"/>
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/contentSubMenuInsert"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:visibility="gone"
-                        android:paddingBottom="8dp">
+                        android:background="@drawable/bg_panel_dynamic"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
 
-                        <Button
-                            android:id="@+id/btnInsertSfxPreset"
+                        <LinearLayout
+                            android:id="@+id/headerSubMenuInsert"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Insert SFX Preset"
-                            android:layout_marginBottom="8dp"/>
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?android:attr/selectableItemBackground">
 
-                        <Button
-                            android:id="@+id/btnInsertWatermark"
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Insert"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:textSize="16sp"
+                                android:textStyle="bold"/>
+
+                            <ImageView
+                                android:id="@+id/ivInsertArrow"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:src="@drawable/ic_expand_more"
+                                app:tint="?attr/appIconTint"/>
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/contentSubMenuInsert"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Insert Watermark"
-                            android:layout_marginBottom="8dp"
-                            android:visibility="gone"/>
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            android:paddingTop="12dp">
+
+                            <Button
+                                android:id="@+id/btnInsertSfxPreset"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Insert SFX Preset"/>
+
+                            <Button
+                                android:id="@+id/btnInsertWatermark"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Insert Watermark"
+                                android:layout_marginTop="8dp"
+                                android:visibility="gone"/>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <!-- Sub Menu 3: Edit -->
                     <LinearLayout
-                        android:id="@+id/headerSubMenuEdit"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingVertical="12dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:background="?attr/selectableItemBackground">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Edit"
-                            android:textColor="?attr/appTextColorPrimary"
-                            android:textSize="16sp"
-                            android:textStyle="bold"/>
-
-                        <ImageView
-                            android:id="@+id/ivEditArrow"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@drawable/ic_expand_more"
-                            app:tint="?attr/appIconTint"/>
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/contentSubMenuEdit"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:visibility="gone"
-                        android:paddingBottom="8dp">
+                        android:background="@drawable/bg_panel_dynamic"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
 
-                        <Button
-                            android:id="@+id/btnChangeBaseImage"
+                        <LinearLayout
+                            android:id="@+id/headerSubMenuEdit"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Change Base Image"
-                            android:layout_marginBottom="8dp"/>
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?android:attr/selectableItemBackground">
 
-                        <Button
-                            android:id="@+id/btnFlattenLayers"
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Edit"
+                                android:textColor="?attr/appTextColorPrimary"
+                                android:textSize="16sp"
+                                android:textStyle="bold"/>
+
+                            <ImageView
+                                android:id="@+id/ivEditArrow"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:src="@drawable/ic_expand_more"
+                                app:tint="?attr/appIconTint"/>
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/contentSubMenuEdit"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Flatten All Layers"
-                            android:layout_marginBottom="8dp"/>
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            android:paddingTop="12dp">
 
-                        <Button
-                            android:id="@+id/btnSuperResolution"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Super Resolution"
-                            android:layout_marginBottom="8dp"/>
+                            <Button
+                                android:id="@+id/btnChangeBaseImage"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Change Base Image"
+                                android:layout_marginBottom="8dp"/>
+
+                            <Button
+                                android:id="@+id/btnFlattenLayers"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Flatten All Layers"
+                                android:layout_marginBottom="8dp"/>
+
+                            <Button
+                                android:id="@+id/btnSuperResolution"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Super Resolution"/>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <!-- Icons for Load RAW & Settings (Side by side) -->
@@ -205,12 +229,13 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center"
-                        android:paddingVertical="16dp">
+                        android:paddingVertical="8dp">
 
                         <ImageView
                             android:id="@+id/btnLoadRaw"
-                            android:layout_width="48dp"
+                            android:layout_width="0dp"
                             android:layout_height="48dp"
+                            android:layout_weight="1"
                             android:padding="10dp"
                             android:src="@drawable/ic_raw"
                             android:background="@drawable/bg_button_dynamic"
@@ -218,12 +243,13 @@
                             android:clickable="true"
                             android:focusable="true"
                             android:contentDescription="Load RAW"
-                            android:layout_marginEnd="16dp"/>
+                            android:layout_marginEnd="6dp"/>
 
                         <ImageView
                             android:id="@+id/btnOpenSettings"
-                            android:layout_width="48dp"
+                            android:layout_width="0dp"
                             android:layout_height="48dp"
+                            android:layout_weight="1"
                             android:padding="12dp"
                             android:src="@drawable/ic_settings"
                             android:background="@drawable/bg_button_dynamic"
@@ -231,7 +257,7 @@
                             android:clickable="true"
                             android:focusable="true"
                             android:contentDescription="Open Settings"
-                            android:layout_marginStart="16dp"/>
+                            android:layout_marginStart="6dp"/>
                     </LinearLayout>
 
                     <LinearLayout

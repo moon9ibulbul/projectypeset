@@ -420,62 +420,95 @@ class RecentActivity : AppCompatActivity() {
         val files = adapter.selectedItems.toList()
         if (files.isEmpty()) return
 
-        val uris = ArrayList<Uri>()
-        val tempDir = File(cacheDir, "share_temp")
-        if (tempDir.exists()) tempDir.deleteRecursively()
-        tempDir.mkdirs()
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        tvStatus.text = "Preparing files for export..."
+        progressBar.isIndeterminate = true
 
-        for (file in files) {
-            try {
-                val isProjectFolder = file.isDirectory && ProjectManager.isProjectDirectory(this@RecentActivity, file)
-                if (isProjectFolder) {
-                    // Compile/Zip to .atd for sharing
-                    val zipFile = File(tempDir, "${file.name}.atd")
-                    if (ProjectManager.zipProjectFolder(file, zipFile)) {
-                        uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", zipFile))
-                    }
-                } else if (file.isDirectory) {
-                    // It's a sub-folder directory, zip it as .zip
-                    val zipFile = File(tempDir, "${file.name}.zip")
-                    if (ProjectManager.zipProjectFolder(file, zipFile)) {
-                        uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", zipFile))
-                    }
-                } else {
-                    uris.add(FileProvider.getUriForFile(this, "${packageName}.provider", file))
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
 
-        if (uris.isNotEmpty()) {
-            val options = arrayOf("Share to App", "Save to Device (Downloads/AstralTyper)")
-            android.app.AlertDialog.Builder(this)
-                .setTitle("Export / Share")
-                .setItems(options) { _, which ->
-                    if (which == 0) {
-                        val intent = Intent().apply {
-                            if (uris.size == 1) {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_STREAM, uris[0])
-                            } else {
-                                action = Intent.ACTION_SEND_MULTIPLE
-                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-                            }
-                            type = "application/zip"
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val uris = ArrayList<Uri>()
+            val tempDir = File(cacheDir, "share_temp")
+            if (tempDir.exists()) tempDir.deleteRecursively()
+            tempDir.mkdirs()
+
+            for (file in files) {
+                try {
+                    val isProjectFolder = file.isDirectory && ProjectManager.isProjectDirectory(this@RecentActivity, file)
+                    if (isProjectFolder) {
+                        // Compile/Zip to .atd for sharing
+                        val zipFile = File(tempDir, "${file.name}.atd")
+                        if (ProjectManager.zipProjectFolder(file, zipFile)) {
+                            uris.add(FileProvider.getUriForFile(this@RecentActivity, "${packageName}.provider", zipFile))
                         }
-                        startActivity(Intent.createChooser(intent, "Share Projects"))
+                    } else if (file.isDirectory) {
+                        // It's a sub-folder directory, zip it as .zip
+                        val zipFile = File(tempDir, "${file.name}.zip")
+                        if (ProjectManager.zipProjectFolder(file, zipFile)) {
+                            uris.add(FileProvider.getUriForFile(this@RecentActivity, "${packageName}.provider", zipFile))
+                        }
                     } else {
-                        saveProjectsToDownloads(files)
+                        uris.add(FileProvider.getUriForFile(this@RecentActivity, "${packageName}.provider", file))
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                .setNegativeButton("Cancel", null)
-                .show()
+            }
+
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                if (uris.isNotEmpty()) {
+                    val options = arrayOf("Share to App", "Save to Device (Downloads/AstralTyper)")
+                    android.app.AlertDialog.Builder(this@RecentActivity)
+                        .setTitle("Export / Share")
+                        .setItems(options) { _, which ->
+                            if (which == 0) {
+                                val intent = Intent().apply {
+                                    if (uris.size == 1) {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_STREAM, uris[0])
+                                    } else {
+                                        action = Intent.ACTION_SEND_MULTIPLE
+                                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                    }
+                                    type = "application/zip"
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                startActivity(Intent.createChooser(intent, "Share Projects"))
+                            } else {
+                                saveProjectsToDownloads(files)
+                            }
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                } else {
+                    Toast.makeText(this@RecentActivity, "Failed to prepare export files", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
     private fun saveProjectsToDownloads(files: List<File>) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        tvStatus.text = "Saving to Downloads/AstralTyper..."
+        progressBar.isIndeterminate = true
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        dialog.show()
+
         lifecycleScope.launch(Dispatchers.IO) {
             var savedCount = 0
             val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
@@ -543,6 +576,7 @@ class RecentActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
+                dialog.dismiss()
                 if (savedCount > 0) {
                     Toast.makeText(this@RecentActivity, "Saved $savedCount file(s) to Downloads/AstralTyper", Toast.LENGTH_LONG).show()
                 } else {
