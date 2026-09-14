@@ -124,6 +124,7 @@ class TextLayer(
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
+    override var motionShadowKernelSize: Int = 5
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
     override var highlightCornerRadius: Float = 0f
@@ -622,6 +623,7 @@ class TextLayer(
         result = 31 * result + motionShadowDistance.hashCode()
         result = 31 * result + motionShadowThickness.hashCode()
         result = 31 * result + motionShadowSmoothness
+        result = 31 * result + motionShadowKernelSize
         result = 31 * result + shadowThickness.hashCode()
         result = 31 * result + highlightCornerRadius.hashCode()
         result = 31 * result + isGradient.hashCode()
@@ -910,6 +912,7 @@ class TextLayer(
         newLayer.motionShadowDistance = this.motionShadowDistance
         newLayer.motionShadowThickness = this.motionShadowThickness
         newLayer.motionShadowSmoothness = this.motionShadowSmoothness
+        newLayer.motionShadowKernelSize = this.motionShadowKernelSize
         newLayer.shadowThickness = this.shadowThickness
         newLayer.isTextBlending = this.isTextBlending
         newLayer.highlightCornerRadius = this.highlightCornerRadius
@@ -3679,7 +3682,7 @@ class TextLayer(
                 paint.color = shadowColor
 
                 val effectiveDistance = motionShadowDistance
-                val iterations = kotlin.math.max(1, effectiveDistance.toInt() / 2)
+                val iterations = kotlin.math.max(5, motionShadowKernelSize)
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()

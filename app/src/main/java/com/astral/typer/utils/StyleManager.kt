@@ -258,6 +258,7 @@ object StyleManager {
         val motionDist: Float,
         val motionThickness: Float = 4f,
         val motionSmoothness: Int = 100,
+        val motionKernelSize: Int = 5,
         val isTextBlending: Boolean = false,
         val blendingStrength: Float = 50f,
         val highlightCornerRadius: Float = 0f,
@@ -449,6 +450,7 @@ object StyleManager {
             motionDist = l.motionShadowDistance,
             motionThickness = l.motionShadowThickness,
             motionSmoothness = l.motionShadowSmoothness,
+            motionKernelSize = l.motionShadowKernelSize,
             isTextBlending = l.isTextBlending,
             blendingStrength = l.blendingStrength,
             highlightCornerRadius = l.highlightCornerRadius,
@@ -621,6 +623,7 @@ object StyleManager {
         l.motionShadowDistance = m.motionDist
         l.motionShadowThickness = m.motionThickness
         l.motionShadowSmoothness = m.motionSmoothness
+        l.motionShadowKernelSize = m.motionKernelSize
         l.shadowThickness = m.shadowThickness ?: 0f
         l.isTextBlending = m.isTextBlending
         l.blendingStrength = m.blendingStrength

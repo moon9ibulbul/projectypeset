@@ -37,6 +37,7 @@ class ShapeLayer(
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
+    override var motionShadowKernelSize: Int = 5
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
     override var highlightCornerRadius: Float = 0f
@@ -603,7 +604,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke, isGradientShadow, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowThickness, motionShadowSmoothness, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke, isGradientShadow, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -804,7 +805,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowThickness, motionShadowSmoothness, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -1433,7 +1434,7 @@ class ShapeLayer(
         val drawShadows = { targetCanvas: Canvas ->
             if (isMotionShadow && motionShadowDistance > 0) {
                 val effectiveDistance = motionShadowDistance
-                val iterations = kotlin.math.max(1, effectiveDistance.toInt() / 2)
+                val iterations = kotlin.math.max(5, motionShadowKernelSize)
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
@@ -2809,7 +2810,7 @@ class ShapeLayer(
         newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
-        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness; newLayer.motionShadowSmoothness = motionShadowSmoothness; newLayer.shadowThickness = shadowThickness; newLayer.isTextBlending = isTextBlending; newLayer.blendingStrength = blendingStrength
+        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness; newLayer.motionShadowSmoothness = motionShadowSmoothness; newLayer.motionShadowKernelSize = motionShadowKernelSize; newLayer.shadowThickness = shadowThickness; newLayer.isTextBlending = isTextBlending; newLayer.blendingStrength = blendingStrength
         newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.hasMiddleColor = hasMiddleColor; newLayer.gradientMiddleColor = gradientMiddleColor; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke = isGradientStroke; newLayer.isGradientShadow = isGradientShadow
         newLayer.gradientStartPos = gradientStartPos; newLayer.gradientMiddlePos = gradientMiddlePos; newLayer.gradientEndPos = gradientEndPos
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)

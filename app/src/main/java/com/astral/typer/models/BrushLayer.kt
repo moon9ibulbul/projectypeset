@@ -273,6 +273,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
+    override var motionShadowKernelSize: Int = 5
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
     override var highlightCornerRadius: Float = 0f

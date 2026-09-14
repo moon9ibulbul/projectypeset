@@ -944,7 +944,12 @@ class SettingsActivity : AppCompatActivity() {
                 dialog.dismiss()
                 if (isSuccess) {
                     Toast.makeText(this@SettingsActivity, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()
-                    finish()
+                    val intent = packageManager.getLaunchIntentForPackage(packageName)
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                        startActivity(intent)
+                    }
+                    finishAffinity()
                 } else {
                     Toast.makeText(this@SettingsActivity, "Import Failed", Toast.LENGTH_SHORT).show()
                 }
