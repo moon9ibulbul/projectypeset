@@ -39,8 +39,11 @@ class FontActivity : AppCompatActivity() {
     private lateinit var etSearchStoreFonts: EditText
     private lateinit var pbStoreLoading: ProgressBar
     private lateinit var layoutStoreFontsList: RecyclerView
+    private lateinit var btnLoadMoreStoreFonts: Button
     private var storeAdapter: StoreFontAdapter? = null
     private var allStoreFonts: List<com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem> = emptyList()
+    private var storePageSize = 50
+    private var storeCurrentPage = 1
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -90,16 +93,22 @@ class FontActivity : AppCompatActivity() {
         etSearchStoreFonts = findViewById(R.id.etSearchStoreFonts)
         pbStoreLoading = findViewById(R.id.pbStoreLoading)
         layoutStoreFontsList = findViewById(R.id.layoutStoreFontsList)
+        btnLoadMoreStoreFonts = findViewById(R.id.btnLoadMoreStoreFonts)
         layoutStoreFontsList.layoutManager = LinearLayoutManager(this)
         layoutStoreFontsList.isNestedScrollingEnabled = false
 
         btnTabLocalFonts.setOnClickListener { switchTab(isLocal = true) }
         btnTabStoreFonts.setOnClickListener { switchTab(isLocal = false) }
 
+        btnLoadMoreStoreFonts.setOnClickListener {
+            storeCurrentPage++
+            filterStoreFonts(resetPage = false)
+        }
+
         etSearchStoreFonts.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                filterStoreFonts()
+                filterStoreFonts(resetPage = true)
             }
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
@@ -179,14 +188,29 @@ class FontActivity : AppCompatActivity() {
             val items = com.astral.typer.utils.GoogleFontStoreManager.getGoogleFonts(this@FontActivity)
             allStoreFonts = items
             pbStoreLoading.visibility = View.GONE
-            filterStoreFonts()
+            filterStoreFonts(resetPage = true)
         }
     }
 
-    private fun filterStoreFonts() {
+    private fun filterStoreFonts(resetPage: Boolean = true) {
+        if (resetPage) {
+            storeCurrentPage = 1
+        }
         val query = etSearchStoreFonts.text.toString().trim()
-        val filtered = if (query.isEmpty()) allStoreFonts else allStoreFonts.filter { it.family.contains(query, ignoreCase = true) }
-        val limited = if (query.isEmpty()) filtered.take(50) else filtered
+        val filtered = if (query.isEmpty()) {
+            allStoreFonts
+        } else {
+            allStoreFonts.filter { it.family.contains(query, ignoreCase = true) }
+        }.sortedBy { it.family.lowercase() }
+
+        val displayCount = storeCurrentPage * storePageSize
+        val limited = filtered.take(displayCount)
+
+        if (filtered.size > displayCount) {
+            btnLoadMoreStoreFonts.visibility = View.VISIBLE
+        } else {
+            btnLoadMoreStoreFonts.visibility = View.GONE
+        }
 
         if (storeAdapter == null) {
             storeAdapter = StoreFontAdapter(

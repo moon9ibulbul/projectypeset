@@ -77,8 +77,9 @@ object GoogleFontStoreManager {
 
         val items = parseGoogleFontsJson(jsonString)
         val synced = syncDownloadStatus(context, items)
-        cachedStoreItems = synced
-        return@withContext synced
+        val sorted = synced.sortedBy { it.family.lowercase() }
+        cachedStoreItems = sorted
+        return@withContext sorted
     }
 
     private fun parseGoogleFontsJson(jsonString: String): List<StoreFontItem> {
