@@ -184,13 +184,20 @@ class LaMaProcessor(private val context: Context) {
         }
     }
 
-    private fun closeSession() {
+    fun closeSession() {
         try {
             ortSession?.close()
             ortSession = null
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun deleteModel(): Boolean {
+        closeSession()
+        return if (modelFile.exists()) {
+            modelFile.delete()
+        } else false
     }
 
     suspend fun inpaint(image: Bitmap, mask: Bitmap): Bitmap? = withContext(Dispatchers.Default) {

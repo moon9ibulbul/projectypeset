@@ -17,7 +17,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.astral.typer.utils.LaMaProcessor
 import com.astral.typer.utils.MiganProcessor
 import com.astral.typer.utils.BubbleDetectorProcessor
@@ -289,21 +291,25 @@ class SettingsActivity : AppCompatActivity() {
         val tvModelStatus = findViewById<TextView>(R.id.tvModelStatus)
         val pbModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbModelDownload)
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
+        val btnDeleteModel = findViewById<Button>(R.id.btnDeleteModel)
 
         // Model Views (MIGAN)
         val tvMiganModelStatus = findViewById<TextView>(R.id.tvMiganModelStatus)
         val pbMiganModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbMiganModelDownload)
         val btnDownloadMiganModel = findViewById<Button>(R.id.btnDownloadMiganModel)
+        val btnDeleteMiganModel = findViewById<Button>(R.id.btnDeleteMiganModel)
 
         // Model Views (Bubble Detector)
         val tvTyperModelStatus = findViewById<TextView>(R.id.tvTyperModelStatus)
         val pbTyperModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperModelDownload)
         val btnDownloadTyperModel = findViewById<Button>(R.id.btnDownloadTyperModel)
+        val btnDeleteTyperModel = findViewById<Button>(R.id.btnDeleteTyperModel)
 
         // Model Views (Bubble Detector Int8)
         val tvTyperInt8ModelStatus = findViewById<TextView>(R.id.tvTyperInt8ModelStatus)
         val pbTyperInt8ModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperInt8ModelDownload)
         val btnDownloadTyperInt8Model = findViewById<Button>(R.id.btnDownloadTyperInt8Model)
+        val btnDeleteTyperInt8Model = findViewById<Button>(R.id.btnDeleteTyperInt8Model)
 
         val layoutTyperModelSelect = findViewById<android.widget.LinearLayout>(R.id.layoutTyperModelSelect)
         val spinnerTyperModelSelect = findViewById<android.widget.Spinner>(R.id.spinnerTyperModelSelect)
@@ -394,33 +400,41 @@ class SettingsActivity : AppCompatActivity() {
             if (lamaProcessor.isModelAvailable()) {
                 tvModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadModel.text = "Redownload"
+                btnDeleteModel.visibility = android.view.View.VISIBLE
             } else {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
+                btnDeleteModel.visibility = android.view.View.GONE
             }
 
             if (miganProcessor.isModelAvailable()) {
                 tvMiganModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadMiganModel.text = "Redownload"
+                btnDeleteMiganModel.visibility = android.view.View.VISIBLE
             } else {
                 tvMiganModelStatus.text = "Status: Not Downloaded"
                 btnDownloadMiganModel.text = "Download Model (~27MB)"
+                btnDeleteMiganModel.visibility = android.view.View.GONE
             }
 
             if (bubbleProcessor.isOriginalModelAvailable()) {
                 tvTyperModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadTyperModel.text = "Redownload"
+                btnDeleteTyperModel.visibility = android.view.View.VISIBLE
             } else {
                 tvTyperModelStatus.text = "Status: Not Downloaded"
                 btnDownloadTyperModel.text = "Download Model (170 MB)"
+                btnDeleteTyperModel.visibility = android.view.View.GONE
             }
 
             if (bubbleProcessor.isInt8ModelAvailable()) {
                 tvTyperInt8ModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadTyperInt8Model.text = "Redownload"
+                btnDeleteTyperInt8Model.visibility = android.view.View.VISIBLE
             } else {
                 tvTyperInt8ModelStatus.text = "Status: Not Downloaded"
                 btnDownloadTyperInt8Model.text = "Download Int8 Model (11 MB)"
+                btnDeleteTyperInt8Model.visibility = android.view.View.GONE
             }
 
             if (bubbleProcessor.isOriginalModelAvailable() && bubbleProcessor.isInt8ModelAvailable()) {
@@ -547,16 +561,44 @@ class SettingsActivity : AppCompatActivity() {
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
         }
 
+        btnDeleteModel.setOnClickListener {
+            if (lamaProcessor.deleteModel()) {
+                Toast.makeText(this, "Model LaMa deleted", Toast.LENGTH_SHORT).show()
+            }
+            updateModelStatus()
+        }
+
         btnDownloadMiganModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
+        }
+
+        btnDeleteMiganModel.setOnClickListener {
+            if (miganProcessor.deleteModel()) {
+                Toast.makeText(this, "Model MIGAN deleted", Toast.LENGTH_SHORT).show()
+            }
+            updateModelStatus()
         }
 
         btnDownloadTyperModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
 
+        btnDeleteTyperModel.setOnClickListener {
+            if (bubbleProcessor.deleteOriginalModel()) {
+                Toast.makeText(this, "Detector Original Model deleted", Toast.LENGTH_SHORT).show()
+            }
+            updateModelStatus()
+        }
+
         btnDownloadTyperInt8Model.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startBubbleInt8Download(this@SettingsActivity)
+        }
+
+        btnDeleteTyperInt8Model.setOnClickListener {
+            if (bubbleProcessor.deleteInt8Model()) {
+                Toast.makeText(this, "Detector Int8 Model deleted", Toast.LENGTH_SHORT).show()
+            }
+            updateModelStatus()
         }
 
         // Handle auto-download from intent extra
@@ -659,6 +701,12 @@ class SettingsActivity : AppCompatActivity() {
         arrow: ImageView
     ) {
         header.setOnClickListener {
+            val parent = header.parent as? android.view.ViewGroup ?: content.parent as? android.view.ViewGroup
+            parent?.let {
+                android.transition.TransitionManager.beginDelayedTransition(it, android.transition.AutoTransition().apply {
+                    duration = 200
+                })
+            }
             val isExpanded = content.visibility == android.view.View.VISIBLE
             content.visibility = if (isExpanded) android.view.View.GONE else android.view.View.VISIBLE
             arrow.animate().rotation(if (isExpanded) 0f else 180f).setDuration(200).start()
@@ -720,52 +768,77 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun performExport(uri: Uri) {
-        try {
-            val tempFile = File(cacheDir, "temp_export.zip")
-            if (tempFile.exists()) tempFile.delete()
+        val dialogView = layoutInflater.inflate(R.layout.dialog_import_loading, null)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        tvStatus.text = "Exporting data..."
+        progressBar.isIndeterminate = true
 
-            ZipOutputStream(FileOutputStream(tempFile)).use { zipOut ->
-                // 1. Styles (SharedPrefs)
-                if (cbStyle.isChecked) {
-                    addFileToZip(File(dataDir, "shared_prefs/style_prefs.xml"), "shared_prefs/style_prefs.xml", zipOut)
-                }
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
 
-                // 2. Favorites (SharedPrefs)
-                if (cbFavorite.isChecked) {
-                    addFileToZip(File(dataDir, "shared_prefs/font_prefs.xml"), "shared_prefs/font_prefs.xml", zipOut)
-                }
+        dialog.show()
 
-                // 3. My Fonts (Files)
-                if (cbMyFont.isChecked) {
-                    val fontDir = File(filesDir, "fonts")
-                    if (fontDir.exists()) {
-                        fontDir.listFiles()?.forEach { file ->
-                            addFileToZip(file, "files/fonts/${file.name}", zipOut)
+        lifecycleScope.launch(Dispatchers.IO) {
+            var isSuccess = false
+            var errorMessage: String? = null
+            try {
+                val tempFile = File(cacheDir, "temp_export.zip")
+                if (tempFile.exists()) tempFile.delete()
+
+                ZipOutputStream(FileOutputStream(tempFile)).use { zipOut ->
+                    // 1. Styles (SharedPrefs)
+                    if (cbStyle.isChecked) {
+                        addFileToZip(File(dataDir, "shared_prefs/style_prefs.xml"), "shared_prefs/style_prefs.xml", zipOut)
+                    }
+
+                    // 2. Favorites (SharedPrefs)
+                    if (cbFavorite.isChecked) {
+                        addFileToZip(File(dataDir, "shared_prefs/font_prefs.xml"), "shared_prefs/font_prefs.xml", zipOut)
+                    }
+
+                    // 3. My Fonts (Files)
+                    if (cbMyFont.isChecked) {
+                        val fontDir = File(filesDir, "fonts")
+                        if (fontDir.exists()) {
+                            fontDir.listFiles()?.forEach { file ->
+                                addFileToZip(file, "files/fonts/${file.name}", zipOut)
+                            }
                         }
+                    }
+
+                    // 4. Custom Warp Presets (SharedPrefs)
+                    if (cbWarpPreset.isChecked) {
+                        addFileToZip(File(dataDir, "shared_prefs/warp_preset_prefs.xml"), "shared_prefs/warp_preset_prefs.xml", zipOut)
+                    }
+
+                    // 5. Custom SFX Presets (SharedPrefs)
+                    if (cbSfxPreset.isChecked) {
+                        addFileToZip(File(dataDir, "shared_prefs/sfx_preset_prefs.xml"), "shared_prefs/sfx_preset_prefs.xml", zipOut)
                     }
                 }
 
-                // 4. Custom Warp Presets (SharedPrefs)
-                if (cbWarpPreset.isChecked) {
-                    addFileToZip(File(dataDir, "shared_prefs/warp_preset_prefs.xml"), "shared_prefs/warp_preset_prefs.xml", zipOut)
+                // Write temp file to Uri
+                contentResolver.openOutputStream(uri)?.use { out ->
+                    FileInputStream(tempFile).copyTo(out)
                 }
-
-                // 5. Custom SFX Presets (SharedPrefs)
-                if (cbSfxPreset.isChecked) {
-                    addFileToZip(File(dataDir, "shared_prefs/sfx_preset_prefs.xml"), "shared_prefs/sfx_preset_prefs.xml", zipOut)
-                }
+                tempFile.delete()
+                isSuccess = true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                errorMessage = e.message
             }
 
-            // Write temp file to Uri
-            contentResolver.openOutputStream(uri)?.use { out ->
-                FileInputStream(tempFile).copyTo(out)
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                if (isSuccess) {
+                    Toast.makeText(this@SettingsActivity, "Export Successful", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@SettingsActivity, "Export Failed: ${errorMessage ?: ""}", Toast.LENGTH_SHORT).show()
+                }
             }
-            tempFile.delete()
-            Toast.makeText(this, "Export Successful", Toast.LENGTH_SHORT).show()
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Export Failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -779,64 +852,86 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun performImport(uri: Uri) {
-        try {
-            contentResolver.openInputStream(uri)?.use { input ->
-                val zipIn = ZipInputStream(input)
-                var entry = zipIn.nextEntry
-                while (entry != null) {
-                    val filePath = entry.name
-                    // Security check for Zip Slip
-                    if (filePath.contains("..")) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_import_loading, null)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        tvStatus.text = "Importing data..."
+        progressBar.isIndeterminate = true
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var isSuccess = false
+            try {
+                contentResolver.openInputStream(uri)?.use { input ->
+                    val zipIn = ZipInputStream(input)
+                    var entry = zipIn.nextEntry
+                    while (entry != null) {
+                        val filePath = entry.name
+                        // Security check for Zip Slip
+                        if (filePath.contains("..")) {
+                            entry = zipIn.nextEntry
+                            continue
+                        }
+
+                        var targetFile: File? = null
+
+                        if (filePath.startsWith("shared_prefs/")) {
+                            if (filePath.contains("style_prefs.xml") && cbStyle.isChecked) {
+                                 targetFile = File(dataDir, filePath)
+                            } else if (filePath.contains("font_prefs.xml") && cbFavorite.isChecked) {
+                                 targetFile = File(dataDir, filePath)
+                            } else if (filePath.contains("warp_preset_prefs.xml") && cbWarpPreset.isChecked) {
+                                 targetFile = File(dataDir, filePath)
+                            } else if (filePath.contains("sfx_preset_prefs.xml") && cbSfxPreset.isChecked) {
+                                 targetFile = File(dataDir, filePath)
+                            }
+                        } else if (filePath.startsWith("files/fonts/") && cbMyFont.isChecked) {
+                            targetFile = File(filesDir, "fonts/${File(filePath).name}")
+                        }
+
+                        if (targetFile != null) {
+                            targetFile.parentFile?.mkdirs()
+                            FileOutputStream(targetFile).use { out ->
+                                zipIn.copyTo(out)
+                            }
+                        }
+
+                        zipIn.closeEntry()
                         entry = zipIn.nextEntry
-                        continue
                     }
+                }
 
-                    var targetFile: File? = null
+                // Reload StyleManager and WarpPresetManager in-memory data if imported
+                if (cbStyle.isChecked) {
+                    com.astral.typer.utils.StyleManager.reload(this@SettingsActivity)
+                }
+                if (cbWarpPreset.isChecked) {
+                    com.astral.typer.utils.WarpPresetManager.reload(this@SettingsActivity)
+                }
+                if (cbSfxPreset.isChecked) {
+                    com.astral.typer.utils.SfxPresetManager.reload(this@SettingsActivity)
+                }
 
-                    if (filePath.startsWith("shared_prefs/")) {
-                        if (filePath.contains("style_prefs.xml") && cbStyle.isChecked) {
-                             targetFile = File(dataDir, filePath)
-                        } else if (filePath.contains("font_prefs.xml") && cbFavorite.isChecked) {
-                             targetFile = File(dataDir, filePath)
-                        } else if (filePath.contains("warp_preset_prefs.xml") && cbWarpPreset.isChecked) {
-                             targetFile = File(dataDir, filePath)
-                        } else if (filePath.contains("sfx_preset_prefs.xml") && cbSfxPreset.isChecked) {
-                             targetFile = File(dataDir, filePath)
-                        }
-                    } else if (filePath.startsWith("files/fonts/") && cbMyFont.isChecked) {
-                        targetFile = File(filesDir, "fonts/${File(filePath).name}")
-                    }
+                isSuccess = true
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
 
-                    if (targetFile != null) {
-                        targetFile.parentFile?.mkdirs()
-                        FileOutputStream(targetFile).use { out ->
-                            zipIn.copyTo(out)
-                        }
-                    }
-
-                    zipIn.closeEntry()
-                    entry = zipIn.nextEntry
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                if (isSuccess) {
+                    Toast.makeText(this@SettingsActivity, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()
+                    finish()
+                } else {
+                    Toast.makeText(this@SettingsActivity, "Import Failed", Toast.LENGTH_SHORT).show()
                 }
             }
-
-            // Reload StyleManager and WarpPresetManager in-memory data if imported
-            if (cbStyle.isChecked) {
-                com.astral.typer.utils.StyleManager.reload(this)
-            }
-            if (cbWarpPreset.isChecked) {
-                com.astral.typer.utils.WarpPresetManager.reload(this)
-            }
-            if (cbSfxPreset.isChecked) {
-                com.astral.typer.utils.SfxPresetManager.reload(this)
-            }
-
-            Toast.makeText(this, "Import Successful. Restarting...", Toast.LENGTH_SHORT).show()
-
-            finish()
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Import Failed", Toast.LENGTH_SHORT).show()
         }
     }
 }
