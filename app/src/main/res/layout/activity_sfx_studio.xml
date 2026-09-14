@@ -33,24 +33,29 @@
             android:textColor="?attr/appTextColorPrimary"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:layout_marginStart="12dp" />
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
 
         <Button
             android:id="@+id/btnPresets"
             android:layout_width="wrap_content"
-            android:layout_height="38dp"
+            android:layout_height="36dp"
             android:text="Saved Presets"
-            android:textSize="12sp"
+            android:textSize="11sp"
+            android:paddingHorizontal="10dp"
             android:textColor="?attr/appTextColorPrimary"
             android:backgroundTint="?attr/appSurfaceColor"
-            android:layout_marginEnd="6dp" />
+            android:layout_marginEnd="4dp" />
 
         <Button
             android:id="@+id/btnSavePreset"
             android:layout_width="wrap_content"
-            android:layout_height="38dp"
+            android:layout_height="36dp"
             android:text="Save Preset"
-            android:textSize="12sp"
+            android:textSize="11sp"
+            android:paddingHorizontal="10dp"
             android:textColor="?attr/appTextColorPrimary"
             android:backgroundTint="?attr/appSurfaceColor" />
     </LinearLayout>
