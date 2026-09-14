@@ -6152,6 +6152,55 @@ class EditorActivity : AppCompatActivity() {
 
                         var storePageSize = 50
                         var storeCurrentPage = 1
+                        var selectedStoreCategory = "All"
+
+                        val categoryScroll = HorizontalScrollView(this@EditorActivity).apply {
+                            isHorizontalScrollBarEnabled = false
+                            layoutParams = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT
+                            ).apply { setMargins(16, 0, 16, 8) }
+                        }
+                        val categoryList = LinearLayout(this@EditorActivity).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                        }
+                        categoryScroll.addView(categoryList)
+
+                        fun renderCategoryButtons(onSelect: () -> Unit) {
+                            categoryList.removeAllViews()
+                            val categories = arrayOf("All", "Serif", "Sans-Serif", "Monospace", "Display", "Handwriting")
+                            for (cat in categories) {
+                                val isActive = selectedStoreCategory.equals(cat, ignoreCase = true)
+                                val btn = TextView(this@EditorActivity).apply {
+                                    text = cat
+                                    textSize = 12f
+                                    gravity = Gravity.CENTER
+                                    val density = resources.displayMetrics.density
+                                    val padH = (12 * density).toInt()
+                                    val padV = (6 * density).toInt()
+                                    setPadding(padH, padV, padH, padV)
+                                    val params = LinearLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                                        dpToPx(32)
+                                    ).apply { marginEnd = dpToPx(8) }
+                                    layoutParams = params
+                                    background = GradientDrawable().apply {
+                                        setColor(if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                                        setStroke(dpToPx(1), if (isActive) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                                        cornerRadius = dpToPx(16).toFloat()
+                                    }
+                                    setTextColor(if (isActive) Color.BLACK else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                                    setOnClickListener {
+                                        selectedStoreCategory = cat
+                                        renderCategoryButtons(onSelect)
+                                        onSelect()
+                                    }
+                                }
+                                categoryList.addView(btn)
+                            }
+                        }
+
+                        outerLayout.addView(categoryScroll, 1)
 
                         fun renderStoreFonts(query: String, resetPage: Boolean) {
                             if (resetPage) {
@@ -6159,10 +6208,16 @@ class EditorActivity : AppCompatActivity() {
                             }
                             list.removeAllViews()
 
-                            val filtered = if (query.isEmpty()) {
-                                storeItems
-                            } else {
-                                storeItems.filter { it.family.contains(query, ignoreCase = true) }
+                            val filtered = storeItems.filter { item ->
+                                val matchesCategory = if (selectedStoreCategory.equals("All", ignoreCase = true)) {
+                                    true
+                                } else {
+                                    val catNorm = item.category?.replace("-", "")?.replace(" ", "")?.lowercase() ?: ""
+                                    val targetNorm = selectedStoreCategory.replace("-", "").replace(" ", "").lowercase()
+                                    catNorm == targetNorm
+                                }
+                                val matchesQuery = query.isEmpty() || item.family.contains(query, ignoreCase = true)
+                                matchesCategory && matchesQuery
                             }.sortedBy { it.family.lowercase() }
 
                             val displayCount = storeCurrentPage * storePageSize
@@ -6305,6 +6360,7 @@ class EditorActivity : AppCompatActivity() {
                             }
                         }
 
+                        renderCategoryButtons { renderStoreFonts(searchInput.text.toString(), true) }
                         renderStoreFonts("", true)
 
                         searchInput.addTextChangedListener(object: TextWatcher {
@@ -6845,6 +6901,25 @@ class EditorActivity : AppCompatActivity() {
             listHighlight.addView(paletteViewHighlight)
             scrollHighlight.addView(listHighlight)
             contentLayout.addView(scrollHighlight)
+
+            if (currentHighlightColor != Color.TRANSPARENT) {
+                val currentCorner = layer.highlightCornerRadius
+                val cornerSlider = createSlider("Highlight Corner Radius: ${currentCorner.toInt()}", currentCorner.toInt(), 100) { p ->
+                    layer.highlightCornerRadius = p.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvLabel = cornerSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+                cornerSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        layer.highlightCornerRadius = progress.toFloat()
+                        tvLabel?.text = "Highlight Corner Radius: $progress"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+                contentLayout.addView(cornerSlider)
+            }
 
         } else {
             val scroll = HorizontalScrollView(this).apply {
@@ -8655,22 +8730,54 @@ class EditorActivity : AppCompatActivity() {
                 distSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Blur Distance: $p"
                 canvasView.invalidate()
             }
+            val tvDistLabel = distSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            distSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    stylableLayer.motionShadowDistance = progress.toFloat()
+                    tvDistLabel?.text = "Blur Distance: $progress"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
             layout.addView(distSlider)
 
             // Thickness
-            layout.addView(createSlider("Thickness", stylableLayer.motionShadowThickness.toInt(), 20) {
-                stylableLayer.motionShadowThickness = it.toFloat()
+            val thickSlider = createSlider("Thickness: ${stylableLayer.motionShadowThickness.toInt()}", stylableLayer.motionShadowThickness.toInt(), 20) { p ->
+                stylableLayer.motionShadowThickness = p.toFloat()
                 canvasView.invalidate()
+            }
+            val tvThickLabel = thickSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            thickSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    stylableLayer.motionShadowThickness = progress.toFloat()
+                    tvThickLabel?.text = "Thickness: $progress"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
+            layout.addView(thickSlider)
 
             // Smoothness
             var smoothnessSlider: View? = null
             smoothnessSlider = createSlider("Shadow Smoothness: ${stylableLayer.motionShadowSmoothness}", stylableLayer.motionShadowSmoothness, 100) { p ->
-                val valClamped = kotlin.math.max(1, p)
+                val valClamped = kotlin.math.max(0, p)
                 stylableLayer.motionShadowSmoothness = valClamped
                 smoothnessSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Shadow Smoothness: $valClamped"
                 canvasView.invalidate()
             }
+            val tvSmoothLabel = smoothnessSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            smoothnessSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val valClamped = kotlin.math.max(0, progress)
+                    stylableLayer.motionShadowSmoothness = valClamped
+                    tvSmoothLabel?.text = "Shadow Smoothness: $valClamped"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
             layout.addView(smoothnessSlider)
 
             // Include Stroke Checkbox
@@ -8685,31 +8792,6 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             layout.addView(cbIncludeStroke)
-
-            // Text Blending Checkbox & Strength Slider
-            var blendingSliderContainer: View? = null
-            val cbTextBlending = android.widget.CheckBox(this@EditorActivity).apply {
-                text = "Text Blending"
-                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                isChecked = stylableLayer.isTextBlending
-                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
-                setOnCheckedChangeListener { _, isChecked ->
-                    stylableLayer.isTextBlending = isChecked
-                    blendingSliderContainer?.visibility = if (isChecked) View.VISIBLE else View.GONE
-                    canvasView.invalidate()
-                }
-            }
-            layout.addView(cbTextBlending)
-
-            var blendingSlider: View? = null
-            blendingSlider = createSlider("Blending Strength: ${stylableLayer.blendingStrength.toInt()}%", stylableLayer.blendingStrength.toInt(), 100) { p ->
-                stylableLayer.blendingStrength = p.toFloat()
-                blendingSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Blending Strength: $p%"
-                canvasView.invalidate()
-            }
-            blendingSliderContainer = blendingSlider
-            blendingSliderContainer?.visibility = if (stylableLayer.isTextBlending) View.VISIBLE else View.GONE
-            layout.addView(blendingSliderContainer)
 
             addView(layout)
         }

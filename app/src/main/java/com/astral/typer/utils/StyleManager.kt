@@ -260,6 +260,7 @@ object StyleManager {
         val motionSmoothness: Int = 100,
         val isTextBlending: Boolean = false,
         val blendingStrength: Float = 50f,
+        val highlightCornerRadius: Float = 0f,
         // Opacity
         val blendMode: String?,
         val isOpacityGradient: Boolean,
@@ -450,6 +451,7 @@ object StyleManager {
             motionSmoothness = l.motionShadowSmoothness,
             isTextBlending = l.isTextBlending,
             blendingStrength = l.blendingStrength,
+            highlightCornerRadius = l.highlightCornerRadius,
             blendMode = l.blendMode,
             isOpacityGradient = l.isOpacityGradient,
             opacityStart = l.opacityStart,
@@ -622,6 +624,7 @@ object StyleManager {
         l.shadowThickness = m.shadowThickness ?: 0f
         l.isTextBlending = m.isTextBlending
         l.blendingStrength = m.blendingStrength
+        l.highlightCornerRadius = m.highlightCornerRadius
 
         l.blendMode = m.blendMode ?: "NORMAL"
         l.isOpacityGradient = m.isOpacityGradient

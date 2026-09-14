@@ -25,6 +25,9 @@ interface StylableLayer {
     var isTextBlending: Boolean
     var blendingStrength: Float
 
+    // Highlight
+    var highlightCornerRadius: Float
+
     // Gradient
     var isGradient: Boolean
     var gradientStartColor: Int

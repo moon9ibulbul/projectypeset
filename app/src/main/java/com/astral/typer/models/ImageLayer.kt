@@ -35,6 +35,7 @@ class ImageLayer(
     override var motionShadowSmoothness: Int = 100
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
+    override var highlightCornerRadius: Float = 0f
     override var blendingStrength: Float = 50f
 
     // Gradient

@@ -102,6 +102,7 @@ object ProjectManager {
         val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
         val motionShadowThickness: Float? = null, val motionShadowSmoothness: Int? = null,
         val shadowThickness: Float? = null, val isTextBlending: Boolean? = null, val blendingStrength: Float? = null,
+        val highlightCornerRadius: Float? = null,
 
         // Gradient
         val isGradient: Boolean? = null, val gradientStartColor: Int? = null, val gradientEndColor: Int? = null, val gradientAngle: Int? = null,
@@ -466,6 +467,7 @@ object ProjectManager {
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
+                        highlightCornerRadius = layer.highlightCornerRadius,
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
@@ -1322,6 +1324,7 @@ object ProjectManager {
             model.shadowThickness?.let { layer.shadowThickness = it }
             model.isTextBlending?.let { layer.isTextBlending = it }
             model.blendingStrength?.let { layer.blendingStrength = it }
+            model.highlightCornerRadius?.let { layer.highlightCornerRadius = it }
 
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }

@@ -126,6 +126,7 @@ class TextLayer(
     override var motionShadowSmoothness: Int = 100
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
+    override var highlightCornerRadius: Float = 0f
     override var blendingStrength: Float = 50f
 
     // Gradient
@@ -621,6 +622,7 @@ class TextLayer(
         result = 31 * result + motionShadowDistance.hashCode()
         result = 31 * result + motionShadowThickness.hashCode()
         result = 31 * result + shadowThickness.hashCode()
+        result = 31 * result + highlightCornerRadius.hashCode()
         result = 31 * result + isGradient.hashCode()
         result = 31 * result + gradientStartColor
         result = 31 * result + gradientEndColor
@@ -909,6 +911,7 @@ class TextLayer(
         newLayer.motionShadowSmoothness = this.motionShadowSmoothness
         newLayer.shadowThickness = this.shadowThickness
         newLayer.isTextBlending = this.isTextBlending
+        newLayer.highlightCornerRadius = this.highlightCornerRadius
         newLayer.blendingStrength = this.blendingStrength
 
         newLayer.isGradient = this.isGradient
@@ -3071,19 +3074,36 @@ class TextLayer(
             val hasBg = spannableForBg?.getSpans(0, spannableForBg.length, android.text.style.BackgroundColorSpan::class.java)?.isNotEmpty() == true
 
             if (!isDrawingStrokePass && !isDrawingShadowPass && !isDrawingClippingMask && hasBg) {
-                val prevColor = paint.color
-                val prevStyle = paint.style
-                val prevShader = paint.shader
+                val bgSpans = spannableForBg?.getSpans(0, spannableForBg.length, android.text.style.BackgroundColorSpan::class.java)
+                if (bgSpans != null && bgSpans.isNotEmpty()) {
+                    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.FILL
+                    }
+                    for (span in bgSpans) {
+                        if (span.backgroundColor == Color.TRANSPARENT) continue
+                        val start = spannableForBg.getSpanStart(span)
+                        val end = spannableForBg.getSpanEnd(span)
+                        if (start >= end) continue
+                        bgPaint.color = span.backgroundColor
 
-                paint.color = android.graphics.Color.TRANSPARENT
-                paint.style = android.graphics.Paint.Style.FILL
-                paint.shader = null
-                paint.clearShadowLayer()
-                layout.draw(targetCanvas)
-
-                paint.color = prevColor
-                paint.style = prevStyle
-                paint.shader = prevShader
+                        val startLine = layout.getLineForOffset(start)
+                        val endLine = layout.getLineForOffset(end)
+                        for (l in startLine..endLine) {
+                            val lineStart = layout.getLineStart(l)
+                            val lineEnd = layout.getLineEnd(l)
+                            val selStart = Math.max(start, lineStart)
+                            val selEnd = Math.min(end, lineEnd)
+                            if (selStart < selEnd) {
+                                val left = layout.getPrimaryHorizontal(selStart)
+                                val right = layout.getPrimaryHorizontal(selEnd)
+                                val top = layout.getLineTop(l).toFloat()
+                                val bottom = layout.getLineBottom(l).toFloat()
+                                val rect = RectF(Math.min(left, right), top, Math.max(left, right), bottom)
+                                targetCanvas.drawRoundRect(rect, highlightCornerRadius, highlightCornerRadius, bgPaint)
+                            }
+                        }
+                    }
+                }
             }
 
 
@@ -3400,40 +3420,6 @@ class TextLayer(
                             paint.color = modulateColor(color)
                         }
 
-                        if (isTextBlending && (isMotionShadow || motionShadowDistance > 0)) {
-                            val angleRad = Math.toRadians(motionShadowAngle.toDouble())
-                            val cos = Math.cos(angleRad).toFloat()
-                            val sin = Math.sin(angleRad).toFloat()
-                            val bw = w.coerceAtLeast(1f)
-                            val bh = h.coerceAtLeast(1f)
-                            val cx = bw / 2f
-                            val cy = bh / 2f
-                            val halfExtent = (Math.abs(bw * cos) + Math.abs(bh * sin)) / 2f
-                            val xStart = cx - halfExtent * cos
-                            val yStart = cy - halfExtent * sin
-                            val xEnd = cx + halfExtent * cos
-                            val yEnd = cy + halfExtent * sin
-
-                            val strength = (blendingStrength / 100f).coerceIn(0.01f, 1f)
-                            val startAlpha = ((1f - strength * 0.9f) * 255).toInt().coerceIn(0, 255)
-                            val blendStartColor = (shadowColor and 0x00FFFFFF) or (startAlpha shl 24)
-                            val blendEndColor = color
-
-                            val blendShader = android.graphics.LinearGradient(
-                                xStart, yStart, xEnd, yEnd,
-                                intArrayOf(blendStartColor, blendEndColor),
-                                floatArrayOf(0f, 1f),
-                                Shader.TileMode.CLAMP
-                            )
-
-                            val currentShader = paint.shader
-                            if (currentShader != null) {
-                                paint.shader = android.graphics.ComposeShader(currentShader, blendShader, PorterDuff.Mode.SRC_ATOP)
-                            } else {
-                                paint.shader = blendShader
-                                paint.color = Color.WHITE
-                            }
-                        }
                         paint.clearShadowLayer()
                         drawLayoutSafe(fillCanvas, true)
                     drawTailPath(fillCanvas, paint)
@@ -3692,13 +3678,12 @@ class TextLayer(
                 paint.color = shadowColor
 
                 val effectiveDistance = motionShadowDistance
-                val baseIterations = kotlin.math.max(30, effectiveDistance.toInt())
-                val smoothnessFactor = (motionShadowSmoothness / 100f).coerceIn(0.01f, 1f)
-                val iterations = kotlin.math.max(1, (baseIterations * smoothnessFactor).toInt())
+                val iterations = kotlin.math.max(1, effectiveDistance.toInt() / 2)
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
-                val maxBlur = motionShadowThickness
+                val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
+                val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
                 val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
                 val initialShadowAlpha = 2.5f + normThickness * 27.5f
 

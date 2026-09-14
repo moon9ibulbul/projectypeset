@@ -203,6 +203,19 @@
                     android:maxLines="1"
                     android:inputType="text"/>
 
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:id="@+id/layoutStoreCategories"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+
                 <ProgressBar
                     android:id="@+id/pbStoreLoading"
                     android:layout_width="wrap_content"
