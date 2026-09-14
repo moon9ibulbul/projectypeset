@@ -24,6 +24,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 
 class FontActivity : AppCompatActivity() {
 
+    private lateinit var btnTabLocalFonts: Button
+    private lateinit var btnTabStoreFonts: Button
+    private lateinit var layoutLocalFontsContainer: LinearLayout
+    private lateinit var layoutStoreFontsContainer: LinearLayout
     private lateinit var spinnerOrderBy: Spinner
     private lateinit var btnAddCategory: Button
     private lateinit var layoutCategoriesList: LinearLayout
@@ -31,6 +35,12 @@ class FontActivity : AppCompatActivity() {
     private lateinit var etSearchFonts: EditText
     private lateinit var layoutFontsList: RecyclerView
     private var fontAdapter: FontAdapter? = null
+
+    private lateinit var etSearchStoreFonts: EditText
+    private lateinit var pbStoreLoading: ProgressBar
+    private lateinit var layoutStoreFontsList: RecyclerView
+    private var storeAdapter: StoreFontAdapter? = null
+    private var allStoreFonts: List<com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem> = emptyList()
 
     private val importFontLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -63,6 +73,11 @@ class FontActivity : AppCompatActivity() {
             finish()
         }
 
+        btnTabLocalFonts = findViewById(R.id.btnTabLocalFonts)
+        btnTabStoreFonts = findViewById(R.id.btnTabStoreFonts)
+        layoutLocalFontsContainer = findViewById(R.id.layoutLocalFontsContainer)
+        layoutStoreFontsContainer = findViewById(R.id.layoutStoreFontsContainer)
+
         spinnerOrderBy = findViewById(R.id.spinnerOrderBy)
         btnAddCategory = findViewById(R.id.btnAddCategory)
         layoutCategoriesList = findViewById(R.id.layoutCategoriesList)
@@ -71,6 +86,23 @@ class FontActivity : AppCompatActivity() {
         layoutFontsList = findViewById(R.id.layoutFontsList)
         layoutFontsList.layoutManager = LinearLayoutManager(this)
         layoutFontsList.isNestedScrollingEnabled = false
+
+        etSearchStoreFonts = findViewById(R.id.etSearchStoreFonts)
+        pbStoreLoading = findViewById(R.id.pbStoreLoading)
+        layoutStoreFontsList = findViewById(R.id.layoutStoreFontsList)
+        layoutStoreFontsList.layoutManager = LinearLayoutManager(this)
+        layoutStoreFontsList.isNestedScrollingEnabled = false
+
+        btnTabLocalFonts.setOnClickListener { switchTab(isLocal = true) }
+        btnTabStoreFonts.setOnClickListener { switchTab(isLocal = false) }
+
+        etSearchStoreFonts.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                filterStoreFonts()
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
 
         // Setup Search
         etSearchFonts.addTextChangedListener(object : android.text.TextWatcher {
@@ -112,6 +144,75 @@ class FontActivity : AppCompatActivity() {
 
         loadCategoriesList()
         loadFontsList()
+        switchTab(isLocal = true)
+    }
+
+    private fun switchTab(isLocal: Boolean) {
+        if (isLocal) {
+            layoutLocalFontsContainer.visibility = View.VISIBLE
+            layoutStoreFontsContainer.visibility = View.GONE
+
+            btnTabLocalFonts.setBackgroundColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appButtonBgColor))
+            btnTabLocalFonts.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorPrimary))
+
+            btnTabStoreFonts.setBackgroundColor(Color.TRANSPARENT)
+            btnTabStoreFonts.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorSecondary))
+        } else {
+            layoutLocalFontsContainer.visibility = View.GONE
+            layoutStoreFontsContainer.visibility = View.VISIBLE
+
+            btnTabStoreFonts.setBackgroundColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appButtonBgColor))
+            btnTabStoreFonts.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorPrimary))
+
+            btnTabLocalFonts.setBackgroundColor(Color.TRANSPARENT)
+            btnTabLocalFonts.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorSecondary))
+
+            if (allStoreFonts.isEmpty()) {
+                loadStoreFontsList()
+            }
+        }
+    }
+
+    private fun loadStoreFontsList() {
+        pbStoreLoading.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            val items = com.astral.typer.utils.GoogleFontStoreManager.getGoogleFonts(this@FontActivity)
+            allStoreFonts = items
+            pbStoreLoading.visibility = View.GONE
+            filterStoreFonts()
+        }
+    }
+
+    private fun filterStoreFonts() {
+        val query = etSearchStoreFonts.text.toString().trim()
+        val filtered = if (query.isEmpty()) allStoreFonts else allStoreFonts.filter { it.family.contains(query, ignoreCase = true) }
+        val limited = if (query.isEmpty()) filtered.take(50) else filtered
+
+        if (storeAdapter == null) {
+            storeAdapter = StoreFontAdapter(
+                this,
+                limited,
+                onDownload = { item, pos ->
+                    downloadStoreFont(item, pos)
+                }
+            )
+            layoutStoreFontsList.adapter = storeAdapter
+        } else {
+            storeAdapter?.updateItems(limited)
+        }
+    }
+
+    private fun downloadStoreFont(item: com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem, position: Int) {
+        lifecycleScope.launch {
+            val success = com.astral.typer.utils.GoogleFontStoreManager.downloadFont(this@FontActivity, item)
+            if (success) {
+                Toast.makeText(this@FontActivity, "Font '${item.family}' downloaded!", Toast.LENGTH_SHORT).show()
+                storeAdapter?.notifyItemChanged(position)
+                loadFontsList() // refresh local list
+            } else {
+                Toast.makeText(this@FontActivity, "Failed to download font", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun getCustomCategories(): List<String> {
@@ -618,6 +719,98 @@ class FontActivity : AppCompatActivity() {
                 }
             } else {
                 holder.btnDelete?.visibility = View.GONE
+            }
+        }
+
+        override fun getItemCount(): Int = items.size
+    }
+
+    class StoreFontAdapter(
+        private val context: Context,
+        private var items: List<com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem>,
+        private val onDownload: (com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem, Int) -> Unit
+    ) : RecyclerView.Adapter<StoreFontAdapter.StoreViewHolder>() {
+
+        fun updateItems(newItems: List<com.astral.typer.utils.GoogleFontStoreManager.StoreFontItem>) {
+            items = newItems
+            notifyDataSetChanged()
+        }
+
+        class StoreViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
+            val tvName: TextView = view.findViewWithTag("tvName")
+            val btnAction: Button = view.findViewWithTag("btnAction")
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StoreViewHolder {
+            val card = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(12, 12, 12, 12)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 6, 0, 6) }
+                background = GradientDrawable().apply {
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appCardBgColor))
+                    cornerRadius = 10f
+                    setStroke(com.astral.typer.utils.ThemeUtils.getDimensionFromAttr(context, com.astral.typer.R.attr.appCardBorderWidth).toInt(), com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appCardBorderColor))
+                }
+            }
+
+            val tvName = TextView(context).apply {
+                tag = "tvName"
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
+                textSize = 18f
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val btnAction = Button(context).apply {
+                tag = "btnAction"
+                textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            card.addView(tvName)
+            card.addView(btnAction)
+            return StoreViewHolder(card)
+        }
+
+        override fun onBindViewHolder(holder: StoreViewHolder, position: Int) {
+            val item = items[position]
+            holder.tvName.text = item.family
+
+            if (item.typeface != null) {
+                holder.tvName.typeface = item.typeface
+            } else {
+                holder.tvName.typeface = null
+                (context as? AppCompatActivity)?.lifecycleScope?.launch(Dispatchers.IO) {
+                    val tf = com.astral.typer.utils.GoogleFontStoreManager.loadPreviewTypeface(context, item)
+                    if (tf != null) {
+                        withContext(Dispatchers.Main) {
+                            holder.tvName.typeface = tf
+                        }
+                    }
+                }
+            }
+
+            if (item.isDownloaded) {
+                holder.tvName.alpha = 1.0f
+                holder.btnAction.text = "Installed"
+                holder.btnAction.isEnabled = false
+                holder.btnAction.setTextColor(Color.GREEN)
+            } else {
+                holder.tvName.alpha = 0.4f
+                holder.btnAction.text = "Download"
+                holder.btnAction.isEnabled = true
+                holder.btnAction.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
+                holder.btnAction.setOnClickListener {
+                    holder.btnAction.text = "Downloading..."
+                    holder.btnAction.isEnabled = false
+                    onDownload(item, holder.adapterPosition)
+                }
             }
         }
 
