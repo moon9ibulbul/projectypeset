@@ -6133,16 +6133,25 @@ class EditorActivity : AppCompatActivity() {
                             return@withContext
                         }
 
-                        val renderStoreFonts = { query: String ->
+                        var storePageSize = 50
+                        var storeCurrentPage = 1
+
+                        fun renderStoreFonts(query: String, resetPage: Boolean) {
+                            if (resetPage) {
+                                storeCurrentPage = 1
+                            }
                             list.removeAllViews()
 
-                            val filtered = if (query.isEmpty()) storeItems else storeItems.filter { it.family.contains(query, ignoreCase = true) }
-                            val limit = 50
-                            var count = 0
+                            val filtered = if (query.isEmpty()) {
+                                storeItems
+                            } else {
+                                storeItems.filter { it.family.contains(query, ignoreCase = true) }
+                            }.sortedBy { it.family.lowercase() }
 
-                            for (item in filtered) {
-                                if (count >= limit && query.isEmpty()) break
-                                count++
+                            val displayCount = storeCurrentPage * storePageSize
+                            val limited = filtered.take(displayCount)
+
+                            for (item in limited) {
 
                                 val isAlreadyInstalled = item.isDownloaded
                                 val isActive = !layer.fontPath.isNullOrEmpty() && item.localPath != null && layer.fontPath == item.localPath
@@ -6252,14 +6261,39 @@ class EditorActivity : AppCompatActivity() {
                                 itemLayout.addView(btnAction)
                                 list.addView(itemLayout)
                             }
+
+                            if (filtered.size > displayCount) {
+                                val btnLoadMore = TextView(this@EditorActivity).apply {
+                                    text = "Load More"
+                                    textSize = 14f
+                                    gravity = Gravity.CENTER
+                                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                                    setPadding(16, 20, 16, 20)
+                                    background = GradientDrawable().apply {
+                                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                                        setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                                        cornerRadius = dpToPx(8).toFloat()
+                                    }
+                                    layoutParams = LinearLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.WRAP_CONTENT
+                                    ).apply { setMargins(0, 12, 0, 12) }
+
+                                    setOnClickListener {
+                                        storeCurrentPage++
+                                        renderStoreFonts(query, false)
+                                    }
+                                }
+                                list.addView(btnLoadMore)
+                            }
                         }
 
-                        renderStoreFonts("")
+                        renderStoreFonts("", true)
 
                         searchInput.addTextChangedListener(object: TextWatcher {
                             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                                renderStoreFonts(s?.toString() ?: "")
+                                renderStoreFonts(s?.toString() ?: "", true)
                             }
                             override fun afterTextChanged(s: Editable?) {}
                         })
