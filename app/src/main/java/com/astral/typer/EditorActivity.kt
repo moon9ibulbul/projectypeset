@@ -4518,6 +4518,8 @@ class EditorActivity : AppCompatActivity() {
                 if (layer.warpMesh == null) {
                     initWarpMesh(layer as Layer, 1, 1)
                 }
+            } else {
+                (layer as? Layer)?.commitWarpBounds()
             }
 
             // Notify Canvas to show/hide tool handles
@@ -9673,6 +9675,8 @@ class EditorActivity : AppCompatActivity() {
             if (enabled) {
                 layer.isWarp = true
                 if (layer.warpMesh == null) initWarpMesh(layer as Layer, layer.warpRows, layer.warpCols)
+            } else {
+                (layer as? Layer)?.commitWarpBounds()
             }
             canvasView.setWarpToolActive(enabled)
         }

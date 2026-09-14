@@ -2996,6 +2996,58 @@ class ShapeLayer(
         scaleX /= 2f
         scaleY /= 2f
     }
+
+    override fun commitWarpBounds() {
+        if (!isWarp) return
+        var minX = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+
+        val mesh = warpMesh
+        if (mesh != null && mesh.size >= 2) {
+            for (i in 0 until mesh.size / 2) {
+                val mx = mesh[i * 2]
+                val my = mesh[i * 2 + 1]
+                if (mx < minX) minX = mx
+                if (mx > maxX) maxX = mx
+                if (my < minY) minY = my
+                if (my > maxY) maxY = my
+            }
+        }
+
+        if (minX == Float.MAX_VALUE || maxX == -Float.MAX_VALUE || minY == Float.MAX_VALUE || maxY == -Float.MAX_VALUE) return
+
+        val newW = maxX - minX
+        val newH = maxY - minY
+        if (newW <= 0f || newH <= 0f) return
+
+        val centerXOffset = (minX + maxX) / 2f
+        val centerYOffset = (minY + maxY) / 2f
+
+        // Transform center offset by rotation and scale to canvas coordinates
+        val rad = Math.toRadians(rotation.toDouble())
+        val cos = Math.cos(rad).toFloat()
+        val sin = Math.sin(rad).toFloat()
+        val canvasDx = (centerXOffset * scaleX) * cos - (centerYOffset * scaleY) * sin
+        val canvasDy = (centerXOffset * scaleX) * sin + (centerYOffset * scaleY) * cos
+
+        this.x += canvasDx
+        this.y += canvasDy
+
+        // Re-center mesh coordinates relative to new center origin (0, 0)
+        warpMesh?.let { m ->
+            for (i in 0 until m.size / 2) {
+                m[i * 2] -= centerXOffset
+                m[i * 2 + 1] -= centerYOffset
+            }
+        }
+
+        this.customWidth = newW
+        this.customHeight = newH
+
+        recycleMorphedCaches()
+    }
 }
 
 @Suppress("DEPRECATION")

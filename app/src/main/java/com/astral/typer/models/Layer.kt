@@ -363,4 +363,6 @@ abstract class Layer {
     }
 
     open fun doubleResolution() {}
+
+    open fun commitWarpBounds() {}
 }
