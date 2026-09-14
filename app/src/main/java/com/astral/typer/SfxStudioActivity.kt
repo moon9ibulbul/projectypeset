@@ -32,7 +32,6 @@ class SfxStudioActivity : AppCompatActivity() {
     private lateinit var rgMode: RadioGroup
     private lateinit var rbVectorMode: RadioButton
     private lateinit var rbMoveRotateMode: RadioButton
-    private lateinit var rbPanZoomMode: RadioButton
     private lateinit var btnResetAllPoints: Button
     private lateinit var etSfxText: EditText
     private lateinit var spinnerLetterSelect: Spinner
@@ -55,7 +54,6 @@ class SfxStudioActivity : AppCompatActivity() {
         rgMode = findViewById(R.id.rgMode)
         rbVectorMode = findViewById(R.id.rbVectorMode)
         rbMoveRotateMode = findViewById(R.id.rbMoveRotateMode)
-        rbPanZoomMode = findViewById(R.id.rbPanZoomMode)
         btnResetAllPoints = findViewById(R.id.btnResetAllPoints)
         etSfxText = findViewById(R.id.etSfxText)
         spinnerLetterSelect = findViewById(R.id.spinnerLetterSelect)
@@ -67,11 +65,11 @@ class SfxStudioActivity : AppCompatActivity() {
             finish()
         }
 
-        findViewById<Button>(R.id.btnPresets).setOnClickListener {
+        findViewById<View>(R.id.btnPresets).setOnClickListener {
             showSavedPresetsDialog()
         }
 
-        findViewById<Button>(R.id.btnSavePreset).setOnClickListener {
+        findViewById<View>(R.id.btnSavePreset).setOnClickListener {
             showSavePresetDialog()
         }
 
@@ -85,10 +83,6 @@ class SfxStudioActivity : AppCompatActivity() {
                 R.id.rbMoveRotateMode -> {
                     sfxCanvasView.currentMode = SfxCanvasView.Mode.MOVE_ROTATE
                     tvModeIndicator.text = "Mode: Move & Rotate Letter"
-                }
-                else -> {
-                    sfxCanvasView.currentMode = SfxCanvasView.Mode.PAN_ZOOM
-                    tvModeIndicator.text = "Mode: Pan & Zoom"
                 }
             }
         }

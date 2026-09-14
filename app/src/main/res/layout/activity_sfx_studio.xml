@@ -38,26 +38,26 @@
             android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp" />
 
-        <Button
+        <ImageView
             android:id="@+id/btnPresets"
-            android:layout_width="wrap_content"
+            android:layout_width="36dp"
             android:layout_height="36dp"
-            android:text="Saved Presets"
-            android:textSize="11sp"
-            android:paddingHorizontal="10dp"
-            android:textColor="?attr/appTextColorPrimary"
-            android:backgroundTint="?attr/appSurfaceColor"
-            android:layout_marginEnd="4dp" />
+            android:padding="6dp"
+            android:src="@drawable/ic_presets"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            app:tint="?attr/appIconTint"
+            android:contentDescription="Saved Presets"
+            android:layout_marginEnd="8dp" />
 
-        <Button
+        <ImageView
             android:id="@+id/btnSavePreset"
-            android:layout_width="wrap_content"
+            android:layout_width="36dp"
             android:layout_height="36dp"
-            android:text="Save Preset"
-            android:textSize="11sp"
-            android:paddingHorizontal="10dp"
-            android:textColor="?attr/appTextColorPrimary"
-            android:backgroundTint="?attr/appSurfaceColor" />
+            android:padding="6dp"
+            android:src="@drawable/ic_save"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            app:tint="?attr/appIconTint"
+            android:contentDescription="Save Preset" />
     </LinearLayout>
 
     <!-- Main Canvas View -->
@@ -138,17 +138,6 @@
                         android:button="@null"
                         android:paddingHorizontal="10dp"
                         android:text="Move &amp; Rotate"
-                        android:textSize="12sp"
-                        android:textColor="?attr/appTextColorPrimary"
-                        android:gravity="center"/>
-
-                    <RadioButton
-                        android:id="@+id/rbPanZoomMode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:button="@null"
-                        android:paddingHorizontal="10dp"
-                        android:text="Pan &amp; Zoom"
                         android:textSize="12sp"
                         android:textColor="?attr/appTextColorPrimary"
                         android:gravity="center"/>

@@ -3,6 +3,7 @@ package com.astral.typer.views
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
@@ -19,7 +20,6 @@ class SfxCanvasView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     enum class Mode {
-        PAN_ZOOM,
         VECTOR_EDIT,
         MOVE_ROTATE
     }
@@ -54,13 +54,17 @@ class SfxCanvasView @JvmOverloads constructor(
     private var selectedPointIndex: Int = -1
 
     // Canvas View Transformations
-    private var panX = 0f
-    private var panY = 0f
-    private var scaleFactor = 1.0f
+    private val viewMatrix = Matrix()
+    private val invertedMatrix = Matrix()
+    private var isMatrixInitialized = false
 
     private var lastTouchX = 0f
     private var lastTouchY = 0f
-    private var isDraggingPan = false
+    private var isPanningCanvas = false
+
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
+    private var hasLastFocus = false
 
     private var isDraggingMove = false
     private var isDraggingRotate = false
@@ -114,18 +118,48 @@ class SfxCanvasView @JvmOverloads constructor(
 
     private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            if (currentMode == Mode.PAN_ZOOM) {
-                scaleFactor *= detector.scaleFactor
-                scaleFactor = scaleFactor.coerceIn(0.2f, 5.0f)
-                invalidate()
-                return true
+            val scaleFactor = detector.scaleFactor
+            val focusX = detector.focusX
+            val focusY = detector.focusY
+
+            viewMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY)
+
+            if (hasLastFocus) {
+                val focusDx = focusX - lastFocusX
+                val focusDy = focusY - lastFocusY
+                viewMatrix.postTranslate(focusDx, focusDy)
             }
-            return false
+
+            lastFocusX = focusX
+            lastFocusY = focusY
+            hasLastFocus = true
+
+            invalidate()
+            return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            hasLastFocus = false
         }
     })
 
     init {
         initAllCharMeshes()
+    }
+
+    private fun initMatrixIfNeeded() {
+        if (!isMatrixInitialized && width > 0 && height > 0) {
+            val viewW = width.toFloat()
+            val viewH = height.toFloat()
+            val baseScale = minOf(viewW / canvasWidth, viewH / canvasHeight) * 0.85f
+            val cx = viewW / 2f
+            val cy = viewH / 2f
+
+            viewMatrix.reset()
+            viewMatrix.postScale(baseScale, baseScale)
+            viewMatrix.postTranslate(cx, cy)
+            isMatrixInitialized = true
+        }
     }
 
     fun initAllCharMeshes() {
@@ -208,10 +242,11 @@ class SfxCanvasView @JvmOverloads constructor(
     }
 
     private fun getCalculatedTotalScale(): Float {
-        val viewW = width.toFloat()
-        val viewH = height.toFloat()
-        val baseScale = if (viewW > 0f && viewH > 0f) minOf(viewW / canvasWidth, viewH / canvasHeight) * 0.85f else 1.0f
-        return baseScale * scaleFactor
+        val values = FloatArray(9)
+        viewMatrix.getValues(values)
+        val scaleX = values[Matrix.MSCALE_X]
+        val skewY = values[Matrix.MSKEW_Y]
+        return kotlin.math.sqrt(scaleX * scaleX + skewY * skewY)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -221,15 +256,14 @@ class SfxCanvasView @JvmOverloads constructor(
         val viewH = height.toFloat()
         if (viewW <= 0f || viewH <= 0f) return
 
+        initMatrixIfNeeded()
+
         val totalScale = getCalculatedTotalScale()
-        val cx = viewW / 2f + panX
-        val cy = viewH / 2f + panY
 
         canvas.save()
-        canvas.translate(cx, cy)
-        canvas.scale(totalScale, totalScale)
+        canvas.concat(viewMatrix)
 
-        // Draw Canvas Board (1080x1080) with Shadow
+        // Draw Canvas Board (1080x1080) with Shadow centered at (0, 0)
         canvas.drawRect(-canvasWidth / 2f + 8f, -canvasHeight / 2f + 8f, canvasWidth / 2f + 8f, canvasHeight / 2f + 8f, shadowPaint)
         canvas.drawRect(-canvasWidth / 2f, -canvasHeight / 2f, canvasWidth / 2f, canvasHeight / 2f, canvasBgPaint)
 
@@ -332,43 +366,47 @@ class SfxCanvasView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        initMatrixIfNeeded()
+
         scaleGestureDetector.onTouchEvent(event)
 
+        val pointerCount = event.pointerCount
         val touchX = event.x
         val touchY = event.y
 
-        val totalScale = getCalculatedTotalScale()
-        val cx = width / 2f + panX
-        val cy = height / 2f + panY
+        if (pointerCount >= 2) {
+            selectedPointIndex = -1
+            isDraggingMove = false
+            isDraggingRotate = false
+            isPanningCanvas = true
+            lastTouchX = touchX
+            lastTouchY = touchY
+            return true
+        }
 
-        // Convert View touch (touchX, touchY) into Canvas Layer Space
-        val layerX = (touchX - cx) / totalScale
-        val layerY = (touchY - cy) / totalScale
+        viewMatrix.invert(invertedMatrix)
+        val layerPoint = floatArrayOf(touchX, touchY)
+        invertedMatrix.mapPoints(layerPoint)
+        val layerX = layerPoint[0]
+        val layerY = layerPoint[1]
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = touchX
                 lastTouchY = touchY
+                hasLastFocus = false
+                sfxLayer.selectedWarpIndex = selectedCharIndex
 
                 if (currentMode == Mode.VECTOR_EDIT) {
-                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     val hitIndex = findControlPointAt(layerX, layerY)
                     if (hitIndex != -1) {
                         selectedPointIndex = hitIndex
-                        invalidate()
-                        return true
+                        isPanningCanvas = false
                     } else {
-                        // Check if touching another letter to change active selection
-                        val charIndexHit = findCharIndexAt(layerX, layerY)
-                        if (charIndexHit != -1 && charIndexHit != selectedCharIndex) {
-                            selectedCharIndex = charIndexHit
-                            sfxLayer.selectedWarpIndex = selectedCharIndex
-                            invalidate()
-                            return true
-                        }
+                        selectedPointIndex = -1
+                        isPanningCanvas = true
                     }
                 } else if (currentMode == Mode.MOVE_ROTATE) {
-                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     val bounds = getCharMeshBounds(selectedCharIndex) ?: sfxLayer.getWarpTargetBounds(selectedCharIndex)
                     val effectiveScale = getCalculatedTotalScale()
                     val padding = 12f / effectiveScale.coerceAtLeast(0.5f)
@@ -380,36 +418,29 @@ class SfxCanvasView @JvmOverloads constructor(
 
                     if (hitDist <= maxHitDist) {
                         isDraggingRotate = true
+                        isPanningCanvas = false
                         val centerX = bounds.centerX()
                         val centerY = bounds.centerY()
                         lastAngle = Math.atan2((layerY - centerY).toDouble(), (layerX - centerX).toDouble())
-                        return true
                     } else {
                         val expandedRect = RectF(rect).apply { inset(-20f, -20f) }
                         if (expandedRect.contains(layerX, layerY)) {
                             isDraggingMove = true
+                            isPanningCanvas = false
                             lastLayerX = layerX
                             lastLayerY = layerY
-                            return true
                         } else {
-                            val charIndexHit = findCharIndexAt(layerX, layerY)
-                            if (charIndexHit != -1 && charIndexHit != selectedCharIndex) {
-                                selectedCharIndex = charIndexHit
-                                sfxLayer.selectedWarpIndex = selectedCharIndex
-                                invalidate()
-                                return true
-                            }
+                            isPanningCanvas = true
                         }
                     }
-                } else if (currentMode == Mode.PAN_ZOOM) {
-                    isDraggingPan = true
-                    return true
                 }
+                invalidate()
             }
 
             MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP -> {
                 lastTouchX = touchX
                 lastTouchY = touchY
+                hasLastFocus = false
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -417,7 +448,6 @@ class SfxCanvasView @JvmOverloads constructor(
                 val dy = touchY - lastTouchY
 
                 if (currentMode == Mode.VECTOR_EDIT && selectedPointIndex != -1) {
-                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     val mesh = sfxLayer.letterWarpMeshes[selectedCharIndex]
                     if (mesh != null) {
                         mesh[selectedPointIndex * 2] = layerX
@@ -430,7 +460,6 @@ class SfxCanvasView @JvmOverloads constructor(
                         invalidate()
                     }
                 } else if (currentMode == Mode.MOVE_ROTATE) {
-                    sfxLayer.selectedWarpIndex = selectedCharIndex
                     if (isDraggingMove) {
                         val mDx = layerX - lastLayerX
                         val mDy = layerY - lastLayerY
@@ -478,13 +507,13 @@ class SfxCanvasView @JvmOverloads constructor(
                             invalidate()
                         }
                         lastAngle = currentAngle
-                    }
-                } else if (currentMode == Mode.PAN_ZOOM && isDraggingPan) {
-                    if (!scaleGestureDetector.isInProgress && event.pointerCount == 1) {
-                        panX += dx
-                        panY += dy
+                    } else if (isPanningCanvas) {
+                        viewMatrix.postTranslate(dx, dy)
                         invalidate()
                     }
+                } else if (isPanningCanvas) {
+                    viewMatrix.postTranslate(dx, dy)
+                    invalidate()
                 }
 
                 lastTouchX = touchX
@@ -493,9 +522,10 @@ class SfxCanvasView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 selectedPointIndex = -1
-                isDraggingPan = false
                 isDraggingMove = false
                 isDraggingRotate = false
+                isPanningCanvas = false
+                hasLastFocus = false
                 sfxLayer.selectedWarpIndex = -1
                 invalidate()
             }
@@ -527,18 +557,5 @@ class SfxCanvasView @JvmOverloads constructor(
         }
 
         return closestIndex
-    }
-
-    private fun findCharIndexAt(lx: Float, ly: Float): Int {
-        val textStr = sfxLayer.text.toString()
-        for (i in textStr.indices) {
-            if (textStr[i].isWhitespace()) continue
-            val bounds = getCharMeshBounds(i) ?: sfxLayer.getWarpTargetBounds(i)
-            val expanded = RectF(bounds).apply { inset(-20f, -20f) }
-            if (expanded.contains(lx, ly)) {
-                return i
-            }
-        }
-        return -1
     }
 }
