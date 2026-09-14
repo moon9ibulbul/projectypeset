@@ -569,6 +569,9 @@ class EditorActivity : AppCompatActivity() {
                     layer.isMotionShadow = style.isMotionShadow
                     layer.motionShadowAngle = style.motionAngle
                     layer.motionShadowDistance = style.motionDist
+                    layer.motionShadowThickness = style.motionThickness
+                    layer.motionShadowSmoothness = style.motionSmoothness
+                    layer.motionShadowKernelSize = style.motionKernelSize
                     layer.shadowThickness = style.shadowThickness ?: 0f
                     layer.isGradient = style.isGradient
                     layer.gradientStartColor = style.gradientStart
@@ -4642,6 +4645,9 @@ class EditorActivity : AppCompatActivity() {
         layer.isMotionShadow = style.isMotionShadow
         layer.motionShadowAngle = style.motionAngle
         layer.motionShadowDistance = style.motionDist
+        layer.motionShadowThickness = style.motionThickness
+        layer.motionShadowSmoothness = style.motionSmoothness
+        layer.motionShadowKernelSize = style.motionKernelSize
         layer.shadowThickness = style.shadowThickness ?: 0f
         layer.isGradient = style.isGradient
         layer.gradientStartColor = style.gradientStart
@@ -8771,6 +8777,28 @@ class EditorActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
             layout.addView(smoothnessSlider)
+
+            // Kernel Size (Iterations)
+            var kernelSlider: View? = null
+            val currentKernel = stylableLayer.motionShadowKernelSize.coerceIn(5, 100)
+            kernelSlider = createSlider("Kernel Size: $currentKernel", currentKernel, 100) { p ->
+                val valClamped = kotlin.math.max(5, p)
+                stylableLayer.motionShadowKernelSize = valClamped
+                kernelSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Kernel Size: $valClamped"
+                canvasView.invalidate()
+            }
+            val tvKernelLabel = kernelSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            kernelSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val valClamped = kotlin.math.max(5, progress)
+                    stylableLayer.motionShadowKernelSize = valClamped
+                    tvKernelLabel?.text = "Kernel Size: $valClamped"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+            layout.addView(kernelSlider)
 
             // Include Stroke Checkbox
             val cbIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {

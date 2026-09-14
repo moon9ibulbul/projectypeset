@@ -33,6 +33,7 @@ class ImageLayer(
     override var motionShadowDistance: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
+    override var motionShadowKernelSize: Int = 5
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
     override var highlightCornerRadius: Float = 0f
@@ -690,6 +691,7 @@ class ImageLayer(
 
         newLayer.motionShadowThickness = this.motionShadowThickness
         newLayer.motionShadowSmoothness = this.motionShadowSmoothness
+        newLayer.motionShadowKernelSize = this.motionShadowKernelSize
         newLayer.shadowThickness = this.shadowThickness
         newLayer.isTextBlending = this.isTextBlending
         newLayer.blendingStrength = this.blendingStrength

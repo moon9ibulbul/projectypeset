@@ -21,6 +21,7 @@ interface StylableLayer {
     var motionShadowDistance: Float
     var motionShadowThickness: Float
     var motionShadowSmoothness: Int
+    var motionShadowKernelSize: Int
     var shadowThickness: Float
     var isTextBlending: Boolean
     var blendingStrength: Float
