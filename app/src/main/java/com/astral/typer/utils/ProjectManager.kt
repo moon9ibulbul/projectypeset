@@ -1027,11 +1027,9 @@ object ProjectManager {
 
         for (layer in finalData.layers) {
             if (layer.type == "TEXT" && !layer.fontPath.isNullOrEmpty()) {
-                val found = availableFonts.find {
-                    (it.isCustom && it.path == layer.fontPath) || (!it.isCustom && it.name == layer.fontPath)
-                }
+                val found = FontManager.findMatchingFont(availableFonts, layer.fontPath)
                 if (found == null) {
-                    val fontName = layer.fontPath.substringAfterLast("/").substringBeforeLast(".")
+                    val fontName = layer.fontPath.substringAfterLast("/").substringAfterLast(":").substringBeforeLast(".")
                     if (!missingFonts.contains("• $fontName")) {
                         missingFonts.add("• $fontName")
                     }
@@ -1242,11 +1240,10 @@ object ProjectManager {
                              }
                              "FONT" -> {
                                  span.value?.let { fontPath ->
-                                     val found = availableFonts.find {
-                                         (it.isCustom && it.path == fontPath) || (!it.isCustom && it.name == fontPath)
-                                     }
+                                     val found = FontManager.findMatchingFont(availableFonts, fontPath)
                                      if (found != null) {
-                                         sb.setSpan(CustomTypefaceSpan(found.typeface, fontPath), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                         val matchedPath = if (found.isCustom) found.path else found.name
+                                         sb.setSpan(CustomTypefaceSpan(found.typeface ?: android.graphics.Typeface.DEFAULT, matchedPath), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                      }
                                  }
                              }
@@ -1293,11 +1290,10 @@ object ProjectManager {
             val appInstance = TyperApplication.instance
             if (appInstance != null && !model.fontPath.isNullOrEmpty()) {
                 val availableFonts = FontManager.getStandardFonts(appInstance) + FontManager.getCustomFonts(appInstance)
-                val found = availableFonts.find {
-                    (it.isCustom && it.path == model.fontPath) || (!it.isCustom && it.name == model.fontPath)
-                }
+                val found = FontManager.findMatchingFont(availableFonts, model.fontPath)
                 if (found != null) {
-                    layer.typeface = found.typeface
+                    layer.typeface = found.typeface ?: android.graphics.Typeface.DEFAULT
+                    layer.fontPath = if (found.isCustom) found.path else found.name
                 } else {
                     layer.typeface = android.graphics.Typeface.DEFAULT
                 }

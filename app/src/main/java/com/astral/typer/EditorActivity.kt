@@ -382,11 +382,10 @@ class EditorActivity : AppCompatActivity() {
              if (layer != null) {
                  // Restore Font Typeface if TextLayer
                  if (layer is TextLayer && !model.fontPath.isNullOrEmpty()) {
-                     val found = availableFonts.find {
-                         (it.isCustom && it.path == model.fontPath) || (!it.isCustom && it.name == model.fontPath)
-                     }
+                     val found = FontManager.findMatchingFont(availableFonts, model.fontPath)
                      if (found != null) {
-                         layer.typeface = found.typeface
+                         layer.typeface = found.typeface ?: Typeface.DEFAULT
+                         layer.fontPath = if (found.isCustom) found.path else found.name
                      } else {
                          layer.typeface = Typeface.DEFAULT
                      }
@@ -550,11 +549,10 @@ class EditorActivity : AppCompatActivity() {
                     layer.fontSize = style.fontSize
                     // Load Font if needed
                     if (style.fontPath != null) {
-                         val found = FontManager.getStandardFonts(this@EditorActivity).find { it.name == style.fontPath }
-                             ?: FontManager.getCustomFonts(this@EditorActivity).find { it.path == style.fontPath }
+                         val found = FontManager.findMatchingFont(this@EditorActivity, style.fontPath)
 
                          if (found != null) {
-                             layer.typeface = found.typeface
+                             layer.typeface = found.typeface ?: Typeface.DEFAULT
                              layer.fontPath = if (found.isCustom) found.path else found.name
                          }
                     } else {
@@ -4625,11 +4623,11 @@ class EditorActivity : AppCompatActivity() {
 
         var fontResolved = false
         if (style.fontPath != null) {
-            val found = FontManager.getStandardFonts(this).find { it.name == style.fontPath }
-                ?: FontManager.getCustomFonts(this).find { it.path == style.fontPath }
+            val found = FontManager.findMatchingFont(this, style.fontPath)
 
             if (found != null) {
-                layer.typeface = found.typeface
+                layer.typeface = found.typeface ?: Typeface.DEFAULT
+                layer.fontPath = if (found.isCustom) found.path else found.name
                 fontResolved = true
             }
         }
@@ -6407,7 +6405,7 @@ class EditorActivity : AppCompatActivity() {
 
                         val activeFontIndex = filtered.indexOfFirst { f ->
                             if (!layer.fontPath.isNullOrEmpty()) {
-                                (f.isCustom && f.path == layer.fontPath) || (!f.isCustom && f.name == layer.fontPath)
+                                FontManager.isMatchingFont(f, layer.fontPath, fonts)
                             } else {
                                 f.typeface == layer.typeface
                             }
@@ -6423,7 +6421,7 @@ class EditorActivity : AppCompatActivity() {
                             count++
 
                             val isActive = if (!layer.fontPath.isNullOrEmpty()) {
-                                (font.isCustom && font.path == layer.fontPath) || (!font.isCustom && font.name == layer.fontPath)
+                                FontManager.isMatchingFont(font, layer.fontPath, fonts)
                             } else {
                                 font.typeface == layer.typeface
                             }
@@ -6457,9 +6455,9 @@ class EditorActivity : AppCompatActivity() {
                                     val et = activeEditText
                                     if (et != null && et.selectionStart != et.selectionEnd) {
                                          val fontPath = if (font.isCustom) font.path else font.name
-                                         applySpanToSelection(CustomTypefaceSpan(font.typeface, fontPath))
+                                         applySpanToSelection(CustomTypefaceSpan(font.typeface ?: Typeface.DEFAULT, fontPath))
                                     } else {
-                                        layer.typeface = font.typeface
+                                        layer.typeface = font.typeface ?: Typeface.DEFAULT
                                         layer.fontPath = if (font.isCustom) font.path else font.name // Save Identifier
                                         canvasView.invalidate()
                                     }
@@ -6540,9 +6538,9 @@ class EditorActivity : AppCompatActivity() {
                                                  val et = activeEditText
                                                  if (et != null && et.selectionStart != et.selectionEnd) {
                                                      val fontPath = if (font.isCustom) font.path else font.name
-                                                     applySpanToSelection(CustomTypefaceSpan(font.typeface, fontPath))
+                                                     applySpanToSelection(CustomTypefaceSpan(font.typeface ?: Typeface.DEFAULT, fontPath))
                                                  } else {
-                                                     layer.typeface = font.typeface
+                                                     layer.typeface = font.typeface ?: Typeface.DEFAULT
                                                      layer.fontPath = if (font.isCustom) font.path else font.name
                                                      canvasView.invalidate()
                                                  }
@@ -6551,7 +6549,7 @@ class EditorActivity : AppCompatActivity() {
 
                                          val tvName = TextView(this@EditorActivity).apply {
                                              text = font.name
-                                             typeface = font.typeface
+                                             if (font.typeface != null) typeface = font.typeface
                                              textSize = 16f
                                              setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                                              gravity = Gravity.CENTER_VERTICAL or Gravity.START
@@ -6634,12 +6632,10 @@ class EditorActivity : AppCompatActivity() {
 
         // Find initial tab for current font
         val allFonts = FontManager.getStandardFonts(this) + FontManager.getCustomFonts(this)
-        val currentFontItem = allFonts.find { f ->
-            if (!layer.fontPath.isNullOrEmpty()) {
-                (f.isCustom && f.path == layer.fontPath) || (!f.isCustom && f.name == layer.fontPath)
-            } else {
-                f.typeface == layer.typeface
-            }
+        val currentFontItem = if (!layer.fontPath.isNullOrEmpty()) {
+            FontManager.findMatchingFont(allFonts, layer.fontPath)
+        } else {
+            allFonts.find { f -> f.typeface == layer.typeface }
         }
 
         var defaultTab = "Standard"
