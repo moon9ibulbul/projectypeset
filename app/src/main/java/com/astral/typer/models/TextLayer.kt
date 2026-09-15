@@ -3682,19 +3682,22 @@ class TextLayer(
                 paint.color = shadowColor
 
                 val effectiveDistance = motionShadowDistance
-                val iterations = kotlin.math.max(5, motionShadowKernelSize)
+                val iterations = kotlin.math.max(1, motionShadowKernelSize)
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
                 val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
                 val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
                 val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
-                val initialShadowAlpha = 2.5f + normThickness * 27.5f
+                val thicknessScale = 0.7f + 0.6f * normThickness
+                val baseShadowAlpha = if (Color.alpha(shadowColor) > 0) Color.alpha(shadowColor).toFloat() else 255f
+                val initialAlpha = (baseShadowAlpha * thicknessScale / kotlin.math.sqrt(iterations.toDouble()).toFloat()).coerceIn(1f, 255f)
 
                 for (i in 1..iterations) {
                     val t = i / iterations.toFloat()
+                    val fade = 1f - (i - 1) / iterations.toFloat()
                     val d = t * effectiveDistance
-                    val iterationAlpha = (initialShadowAlpha * (1f - t)).toInt().coerceIn(0, 255)
+                    val iterationAlpha = (initialAlpha * fade).toInt().coerceIn(0, 255)
                     paint.alpha = iterationAlpha
                     val blur = t * maxBlur
                     if (blur > 0.5f) {
