@@ -8780,9 +8780,9 @@ class EditorActivity : AppCompatActivity() {
 
             // Kernel Size (Iterations)
             var kernelSlider: View? = null
-            val currentKernel = stylableLayer.motionShadowKernelSize.coerceIn(5, 100)
+            val currentKernel = stylableLayer.motionShadowKernelSize.coerceIn(1, 100)
             kernelSlider = createSlider("Kernel Size: $currentKernel", currentKernel, 100) { p ->
-                val valClamped = kotlin.math.max(5, p)
+                val valClamped = kotlin.math.max(1, p)
                 stylableLayer.motionShadowKernelSize = valClamped
                 kernelSlider?.findViewWithTag<TextView>("SLIDER_LABEL")?.text = "Kernel Size: $valClamped"
                 canvasView.invalidate()
@@ -8790,7 +8790,7 @@ class EditorActivity : AppCompatActivity() {
             val tvKernelLabel = kernelSlider.findViewWithTag<TextView>("SLIDER_LABEL")
             kernelSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val valClamped = kotlin.math.max(5, progress)
+                    val valClamped = kotlin.math.max(1, progress)
                     stylableLayer.motionShadowKernelSize = valClamped
                     tvKernelLabel?.text = "Kernel Size: $valClamped"
                     canvasView.invalidate()
