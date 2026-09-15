@@ -11,9 +11,16 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.UUID
 
+data class SfxFolder(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String
+)
+
 data class SfxPreset(
     val id: String = UUID.randomUUID().toString(),
     var name: String,
+    var folderId: String? = null,
+    var folderIds: List<String>? = null,
     var text: String = "BOOM!",
     var fontPath: String? = null,
     var fontSize: Float = 90f,
@@ -40,23 +47,107 @@ data class SfxPreset(
     var tertiaryEffect: String = "NONE",
     var glitchAmount: Float = 0f,
     var isCustom: Boolean = false
-)
+) {
+    fun getSfxFolderIds(): List<String> {
+        if (!folderIds.isNullOrEmpty()) {
+            return folderIds!!
+        }
+        if (!folderId.isNullOrEmpty()) {
+            return listOf(folderId!!)
+        }
+        return emptyList()
+    }
+}
 
 object SfxPresetManager {
 
     private const val PREFS_NAME = "sfx_preset_prefs"
     private const val KEY_CUSTOM_SFX_PRESETS = "custom_sfx_presets"
+    private const val KEY_FOLDERS = "saved_sfx_folders"
 
     private val customPresets = mutableListOf<SfxPreset>()
+    private val savedFolders = mutableListOf<SfxFolder>()
 
     val builtinPresets: List<SfxPreset> = emptyList()
 
     fun init(context: Context) {
         loadCustomPresets(context)
+        loadFolders(context)
     }
 
     fun reload(context: Context) {
         loadCustomPresets(context)
+        loadFolders(context)
+    }
+
+    private fun loadFolders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_FOLDERS, null)
+        savedFolders.clear()
+        if (json != null) {
+            try {
+                val type = object : TypeToken<List<SfxFolder>>() {}.type
+                val loaded: List<SfxFolder> = Gson().fromJson(json, type)
+                savedFolders.addAll(loaded)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun persistFolders(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = Gson().toJson(savedFolders)
+        prefs.edit().putString(KEY_FOLDERS, json).apply()
+    }
+
+    fun getFolders(): List<SfxFolder> {
+        return savedFolders
+    }
+
+    fun addFolder(context: Context, name: String): SfxFolder {
+        val folder = SfxFolder(name = name)
+        savedFolders.add(folder)
+        persistFolders(context)
+        return folder
+    }
+
+    fun renameFolder(context: Context, id: String, newName: String) {
+        val index = savedFolders.indexOfFirst { it.id == id }
+        if (index != -1) {
+            savedFolders[index] = savedFolders[index].copy(name = newName)
+            persistFolders(context)
+        }
+    }
+
+    fun deleteFolder(context: Context, id: String) {
+        savedFolders.removeAll { it.id == id }
+        var modified = false
+        for (i in customPresets.indices) {
+            val preset = customPresets[i]
+            val currentFolderIds = preset.getSfxFolderIds()
+            if (currentFolderIds.contains(id)) {
+                val updatedList = currentFolderIds.filter { it != id }
+                val newFolderId = if (preset.folderId == id) updatedList.firstOrNull() else preset.folderId
+                preset.folderIds = updatedList
+                preset.folderId = newFolderId
+                modified = true
+            }
+        }
+        persistFolders(context)
+        if (modified) {
+            saveCustomPresets(context)
+        }
+    }
+
+    fun assignPresetToFolders(context: Context, presetId: String, folderIds: List<String>) {
+        val preset = customPresets.find { it.id == presetId }
+        if (preset != null) {
+            val primaryFolderId = folderIds.firstOrNull()
+            preset.folderIds = folderIds
+            preset.folderId = primaryFolderId
+            saveCustomPresets(context)
+        }
     }
 
     private fun loadCustomPresets(context: Context) {
@@ -81,7 +172,8 @@ object SfxPresetManager {
     }
 
     fun getPresets(): List<SfxPreset> {
-        return builtinPresets + customPresets
+        val all = builtinPresets + customPresets
+        return all.sortedWith { a, b -> AlphanumComparator.compare(a.name, b.name) }
     }
 
     fun addCustomPreset(context: Context, preset: SfxPreset) {
@@ -114,7 +206,13 @@ object SfxPresetManager {
         }
     }
 
-    fun createPresetFromLayer(layer: TextLayer, name: String, existingId: String? = null): SfxPreset {
+    fun createPresetFromLayer(
+        layer: TextLayer,
+        name: String,
+        existingId: String? = null,
+        folderId: String? = null,
+        folderIds: List<String>? = null
+    ): SfxPreset {
         val letterWarpMeshesMap = mutableMapOf<String, List<Float>>()
         layer.letterWarpMeshes.forEach { (k, v) ->
             letterWarpMeshesMap[k.toString()] = v.toList()
@@ -130,9 +228,13 @@ object SfxPresetManager {
             letterWarpColsMap[k.toString()] = v
         }
 
+        val actualFolderIds = folderIds ?: if (folderId != null) listOf(folderId) else null
+
         return SfxPreset(
             id = existingId ?: UUID.randomUUID().toString(),
             name = name,
+            folderId = folderId ?: actualFolderIds?.firstOrNull(),
+            folderIds = actualFolderIds,
             text = layer.text.toString(),
             fontPath = layer.fontPath,
             fontSize = layer.fontSize,

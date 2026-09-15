@@ -40,6 +40,7 @@ class SfxStudioActivity : AppCompatActivity() {
     private lateinit var btnSelectFont: Button
 
     private var isUpdatingSpinner = false
+    private var selectedCategoryFolderId: String = "ALL"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeHelper.applyTheme(this)
@@ -239,14 +240,107 @@ class SfxStudioActivity : AppCompatActivity() {
 
     private fun showSavedPresetsDialog() {
         SfxPresetManager.init(this)
-        val presets = SfxPresetManager.getPresets()
+        val allPresets = SfxPresetManager.getPresets()
+        val folders = SfxPresetManager.getFolders()
 
-        if (presets.isEmpty()) {
-            Toast.makeText(this, "No saved presets found", Toast.LENGTH_SHORT).show()
-            return
+        val mainLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
         }
 
+        // Horizontal Category Chips Bar
+        val chipScroll = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            val paddingPx = (8 * resources.displayMetrics.density).toInt()
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+        val chipRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        chipScroll.addView(chipRow)
+        mainLayout.addView(chipScroll)
+
         var dialog: AlertDialog? = null
+
+        fun createChip(
+            title: String,
+            isSelected: Boolean,
+            isAction: Boolean = false,
+            onClick: () -> Unit,
+            onLongClick: (() -> Unit)? = null
+        ): TextView {
+            return TextView(this).apply {
+                text = title
+                setPadding((12 * resources.displayMetrics.density).toInt(), (6 * resources.displayMetrics.density).toInt(), (12 * resources.displayMetrics.density).toInt(), (6 * resources.displayMetrics.density).toInt())
+                textSize = 12.5f
+                val activeBgColor = ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appButtonBgColor)
+                val activeTextColor = ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appTextColorPrimary)
+                val inactiveBgColor = ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appSurfaceColor)
+                val borderColor = ThemeUtils.getColorFromAttr(this@SfxStudioActivity, R.attr.appButtonBorderColor)
+
+                setTextColor(activeTextColor)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(if (isSelected || isAction) activeBgColor else inactiveBgColor)
+                    setStroke((1 * resources.displayMetrics.density).toInt(), if (isSelected || isAction) activeTextColor else borderColor)
+                    cornerRadius = 16 * resources.displayMetrics.density
+                }
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, (6 * resources.displayMetrics.density).toInt(), 0)
+                }
+                setOnClickListener { onClick() }
+                if (onLongClick != null) {
+                    setOnLongClickListener {
+                        onLongClick()
+                        true
+                    }
+                }
+            }
+        }
+
+        // Add "+ Category" chip
+        chipRow.addView(createChip("+ Category", isSelected = false, isAction = true, onClick = {
+            showAddCategoryDialog(dialog)
+        }))
+
+        // "All" chip
+        chipRow.addView(createChip("All", isSelected = selectedCategoryFolderId == "ALL", onClick = {
+            selectedCategoryFolderId = "ALL"
+            dialog?.dismiss()
+            showSavedPresetsDialog()
+        }))
+
+        // "Unassigned" chip
+        chipRow.addView(createChip("Unassigned", isSelected = selectedCategoryFolderId == "UNASSIGNED", onClick = {
+            selectedCategoryFolderId = "UNASSIGNED"
+            dialog?.dismiss()
+            showSavedPresetsDialog()
+        }))
+
+        // Custom Category Chips
+        folders.forEach { folder ->
+            chipRow.addView(createChip(
+                title = folder.name,
+                isSelected = selectedCategoryFolderId == folder.id,
+                onClick = {
+                    selectedCategoryFolderId = folder.id
+                    dialog?.dismiss()
+                    showSavedPresetsDialog()
+                },
+                onLongClick = {
+                    showCategoryOptionsDialog(folder, dialog)
+                }
+            ))
+        }
+
+        // Filter presets according to selectedCategoryFolderId
+        val filteredPresets = when (selectedCategoryFolderId) {
+            "ALL" -> allPresets
+            "UNASSIGNED" -> allPresets.filter { it.getSfxFolderIds().isEmpty() }
+            else -> allPresets.filter { it.getSfxFolderIds().contains(selectedCategoryFolderId) }
+        }
 
         val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
             layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@SfxStudioActivity, 2)
@@ -298,7 +392,7 @@ class SfxStudioActivity : AppCompatActivity() {
             }
 
             override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
-                val preset = presets[position]
+                val preset = filteredPresets[position]
                 val cardLayout = holder.itemView as android.widget.LinearLayout
                 val imageView = cardLayout.getChildAt(0) as android.widget.ImageView
                 val tvName = cardLayout.getChildAt(1) as TextView
@@ -311,26 +405,99 @@ class SfxStudioActivity : AppCompatActivity() {
                 cardLayout.setOnClickListener {
                     showPresetActionDialog(preset, dialog)
                 }
+
+                cardLayout.setOnLongClickListener {
+                    showPresetActionDialog(preset, dialog)
+                    true
+                }
             }
 
-            override fun getItemCount(): Int = presets.size
+            override fun getItemCount(): Int = filteredPresets.size
         }
 
         recyclerView.adapter = adapter
+        mainLayout.addView(recyclerView)
 
         dialog = AlertDialog.Builder(this)
             .setTitle("Saved SFX Presets")
-            .setView(recyclerView)
+            .setView(mainLayout)
             .setNegativeButton("Close", null)
             .create()
 
         dialog.show()
     }
 
+    private fun showAddCategoryDialog(parentDialog: AlertDialog?) {
+        val etName = EditText(this).apply {
+            hint = "Category Name"
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Add Category")
+            .setView(etName)
+            .setPositiveButton("Add") { _, _ ->
+                val name = etName.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    val newFolder = SfxPresetManager.addFolder(this, name)
+                    selectedCategoryFolderId = newFolder.id
+                    parentDialog?.dismiss()
+                    showSavedPresetsDialog()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showCategoryOptionsDialog(folder: com.astral.typer.utils.SfxFolder, parentDialog: AlertDialog?) {
+        val options = arrayOf("Rename Category", "Delete Category")
+        AlertDialog.Builder(this)
+            .setTitle(folder.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> { // Rename
+                        val etName = EditText(this).apply {
+                            setText(folder.name)
+                            setSelectAllOnFocus(true)
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle("Rename Category")
+                            .setView(etName)
+                            .setPositiveButton("Save") { _, _ ->
+                                val newName = etName.text.toString().trim()
+                                if (newName.isNotEmpty()) {
+                                    SfxPresetManager.renameFolder(this, folder.id, newName)
+                                    parentDialog?.dismiss()
+                                    showSavedPresetsDialog()
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    1 -> { // Delete
+                        AlertDialog.Builder(this)
+                            .setTitle("Delete Category")
+                            .setMessage("Are you sure you want to delete category '${folder.name}'?")
+                            .setPositiveButton("Delete") { _, _ ->
+                                SfxPresetManager.deleteFolder(this, folder.id)
+                                if (selectedCategoryFolderId == folder.id) {
+                                    selectedCategoryFolderId = "ALL"
+                                }
+                                parentDialog?.dismiss()
+                                showSavedPresetsDialog()
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                }
+            }
+            .show()
+    }
+
     private fun showPresetActionDialog(preset: com.astral.typer.utils.SfxPreset, parentDialog: AlertDialog?) {
         val options = mutableListOf<String>()
         options.add("Edit / Load to Canvas")
         if (preset.isCustom) {
+            options.add("Move to Category")
             options.add("Rename Preset")
             options.add("Delete Preset")
         }
@@ -344,6 +511,9 @@ class SfxStudioActivity : AppCompatActivity() {
                         loadPresetToCanvas(preset)
                         parentDialog?.dismiss()
                     }
+                    selectedOption.startsWith("Move") -> {
+                        showMovePresetToCategoryDialog(preset, parentDialog)
+                    }
                     selectedOption.startsWith("Rename") -> {
                         showRenamePresetDialog(preset, parentDialog)
                     }
@@ -352,6 +522,39 @@ class SfxStudioActivity : AppCompatActivity() {
                     }
                 }
             }
+            .show()
+    }
+
+    private fun showMovePresetToCategoryDialog(preset: com.astral.typer.utils.SfxPreset, parentDialog: AlertDialog?) {
+        val currentFolders = SfxPresetManager.getFolders()
+        if (currentFolders.isEmpty()) {
+            Toast.makeText(this, "No categories created yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val folderNames = currentFolders.map { it.name }.toTypedArray()
+        val currentAssignedIds = preset.getSfxFolderIds().toSet()
+        val checkedItems = BooleanArray(currentFolders.size) { i ->
+            currentAssignedIds.contains(currentFolders[i].id)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Move to Category")
+            .setMultiChoiceItems(folderNames, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton("OK") { _, _ ->
+                val selectedFolderIds = mutableListOf<String>()
+                for (i in currentFolders.indices) {
+                    if (checkedItems[i]) {
+                        selectedFolderIds.add(currentFolders[i].id)
+                    }
+                }
+                SfxPresetManager.assignPresetToFolders(this, preset.id, selectedFolderIds)
+                parentDialog?.dismiss()
+                showSavedPresetsDialog()
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -413,7 +616,12 @@ class SfxStudioActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val name = etName.text.toString().trim()
                 if (name.isNotEmpty()) {
-                    val preset = SfxPresetManager.createPresetFromLayer(sfxCanvasView.sfxLayer, name)
+                    val initialFolderId = if (selectedCategoryFolderId != "ALL" && selectedCategoryFolderId != "UNASSIGNED") selectedCategoryFolderId else null
+                    val preset = SfxPresetManager.createPresetFromLayer(
+                        layer = sfxCanvasView.sfxLayer,
+                        name = name,
+                        folderId = initialFolderId
+                    )
                     SfxPresetManager.addCustomPreset(this, preset)
                     Toast.makeText(this, "SFX Preset '$name' saved!", Toast.LENGTH_SHORT).show()
                 }

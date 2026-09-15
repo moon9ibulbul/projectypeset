@@ -81,6 +81,7 @@ class EditorActivity : AppCompatActivity() {
     // Style Rearrange & Folder Selection
     private var isStyleRearrangeMode = false
     private var selectedStyleFolderId: String? = "ALL" // "ALL", "UNASSIGNED", or folder.id
+    private var selectedSfxPresetFolderId: String = "ALL" // "ALL", "UNASSIGNED", or folder.id
 
     // Typer
     private var typerAdapter: TyperTextAdapter? = null
@@ -10253,14 +10254,90 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showSfxPresetPickerDialog() {
         com.astral.typer.utils.SfxPresetManager.init(this)
-        val presets = com.astral.typer.utils.SfxPresetManager.getPresets()
+        val allPresets = com.astral.typer.utils.SfxPresetManager.getPresets()
+        val folders = com.astral.typer.utils.SfxPresetManager.getFolders()
 
-        if (presets.isEmpty()) {
+        if (allPresets.isEmpty()) {
             Toast.makeText(this, "Preset masih empty", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        // Category Filter Chips ScrollView
+        val chipScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+        }
+        val chipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        chipScroll.addView(chipRow)
+        mainLayout.addView(chipScroll)
+
         var dialog: android.app.AlertDialog? = null
+
+        fun createChip(
+            title: String,
+            isSelected: Boolean,
+            onClick: () -> Unit
+        ): TextView {
+            return TextView(this).apply {
+                text = title
+                setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+                textSize = 12.5f
+                val activeBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)
+                val activeTextColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary)
+                val inactiveBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appSurfaceColor)
+                val borderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)
+
+                setTextColor(activeTextColor)
+                background = GradientDrawable().apply {
+                    setColor(if (isSelected) activeBgColor else inactiveBgColor)
+                    setStroke(dpToPx(1), if (isSelected) activeTextColor else borderColor)
+                    cornerRadius = dpToPx(16).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, dpToPx(6), 0)
+                }
+                setOnClickListener { onClick() }
+            }
+        }
+
+        // "All" chip
+        chipRow.addView(createChip("All", selectedSfxPresetFolderId == "ALL", onClick = {
+            selectedSfxPresetFolderId = "ALL"
+            dialog?.dismiss()
+            showSfxPresetPickerDialog()
+        }))
+
+        // "Unassigned" chip
+        chipRow.addView(createChip("Unassigned", selectedSfxPresetFolderId == "UNASSIGNED", onClick = {
+            selectedSfxPresetFolderId = "UNASSIGNED"
+            dialog?.dismiss()
+            showSfxPresetPickerDialog()
+        }))
+
+        // Custom Category Chips
+        folders.forEach { folder ->
+            chipRow.addView(createChip(folder.name, selectedSfxPresetFolderId == folder.id, onClick = {
+                selectedSfxPresetFolderId = folder.id
+                dialog?.dismiss()
+                showSfxPresetPickerDialog()
+            }))
+        }
+
+        val filteredPresets = when (selectedSfxPresetFolderId) {
+            "ALL" -> allPresets
+            "UNASSIGNED" -> allPresets.filter { it.getSfxFolderIds().isEmpty() }
+            else -> allPresets.filter { it.getSfxFolderIds().contains(selectedSfxPresetFolderId) }
+        }
 
         val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
             layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@EditorActivity, 3)
@@ -10302,7 +10379,7 @@ class EditorActivity : AppCompatActivity() {
             }
 
             override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
-                val preset = presets[position]
+                val preset = filteredPresets[position]
                 val frame = holder.itemView as FrameLayout
                 val imageView = frame.getChildAt(0) as ImageView
 
@@ -10332,14 +10409,15 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            override fun getItemCount(): Int = presets.size
+            override fun getItemCount(): Int = filteredPresets.size
         }
 
         recyclerView.adapter = adapter
+        mainLayout.addView(recyclerView)
 
         dialog = android.app.AlertDialog.Builder(this)
             .setTitle("Insert SFX Preset")
-            .setView(recyclerView)
+            .setView(mainLayout)
             .setNegativeButton("Cancel", null)
             .create()
 
