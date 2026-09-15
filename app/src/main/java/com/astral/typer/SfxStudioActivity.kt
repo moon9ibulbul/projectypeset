@@ -206,7 +206,7 @@ class SfxStudioActivity : AppCompatActivity() {
         listView.setOnItemClickListener { _, _, position, _ ->
             if (position in filteredFonts.indices) {
                 val fontItem = filteredFonts[position]
-                sfxCanvasView.sfxLayer.typeface = fontItem.typeface
+                sfxCanvasView.sfxLayer.typeface = fontItem.typeface ?: android.graphics.Typeface.DEFAULT
                 sfxCanvasView.sfxLayer.fontPath = if (fontItem.isCustom) fontItem.path else fontItem.name
                 sfxCanvasView.invalidate()
                 Toast.makeText(this, "Font applied: ${fontItem.name}", Toast.LENGTH_SHORT).show()

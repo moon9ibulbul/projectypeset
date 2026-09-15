@@ -573,13 +573,11 @@ object StyleManager {
 
         // Resolve Typeface from fontPath to ensure custom fonts are loaded
         if (!m.fontPath.isNullOrEmpty()) {
-            val stdFonts = FontManager.getStandardFonts(context)
-            val customFonts = FontManager.getCustomFonts(context)
-            val found = stdFonts.find { it.name == m.fontPath }
-                ?: customFonts.find { it.path == m.fontPath }
+            val found = FontManager.findMatchingFont(context, m.fontPath)
 
             if (found != null) {
-                l.typeface = found.typeface
+                l.typeface = found.typeface ?: Typeface.DEFAULT
+                l.fontPath = if (found.isCustom) found.path else found.name
             }
         }
         l.color = m.color

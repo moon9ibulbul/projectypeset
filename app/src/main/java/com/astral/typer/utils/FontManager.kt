@@ -20,7 +20,7 @@ object FontManager {
     data class FontItem(
         val name: String,
         val path: String?, // Null for system, "std_cache:xxx" for bundled, absolute path for custom
-        val typeface: Typeface,
+        val typeface: Typeface?,
         var isFavorite: Boolean = false,
         val isCustom: Boolean = false
     )
@@ -228,6 +228,44 @@ object FontManager {
             }
         }
         return result ?: "font.ttf"
+    }
+
+    /**
+     * Smart font resolution:
+     * 1. Check exact match by path (for custom/file-based) or name (for standard).
+     * 2. If no exact match found, extract base font name (without path or extension) and match case-insensitively.
+     */
+    fun findMatchingFont(fonts: List<FontItem>, fontPath: String?): FontItem? {
+        if (fontPath.isNullOrEmpty()) return null
+
+        // 1. Exact match
+        val exactMatch = fonts.find {
+            (it.isCustom && it.path == fontPath) || (!it.isCustom && (it.path == fontPath || it.name == fontPath))
+        }
+        if (exactMatch != null) return exactMatch
+
+        // 2. Extract base name without path or extension
+        val baseName = fontPath.substringAfterLast("/").substringAfterLast(":").substringBeforeLast(".")
+        if (baseName.isEmpty()) return null
+
+        // 3. Smart Fallback match by font name or filename without extension (case-insensitive)
+        return fonts.find { item ->
+            val itemName = item.name
+            val itemFileName = item.path?.substringAfterLast("/")?.substringAfterLast(":")?.substringBeforeLast(".") ?: item.name
+            itemName.equals(baseName, ignoreCase = true) || itemFileName.equals(baseName, ignoreCase = true)
+        }
+    }
+
+    fun findMatchingFont(context: Context, fontPath: String?): FontItem? {
+        if (fontPath.isNullOrEmpty()) return null
+        val availableFonts = getStandardFonts(context) + getCustomFonts(context)
+        return findMatchingFont(availableFonts, fontPath)
+    }
+
+    fun isMatchingFont(font: FontItem, fontPath: String?, fonts: List<FontItem>): Boolean {
+        if (fontPath.isNullOrEmpty()) return false
+        val matched = findMatchingFont(fonts, fontPath)
+        return matched == font
     }
 
     fun deleteCustomFont(context: Context, item: FontItem): Boolean {

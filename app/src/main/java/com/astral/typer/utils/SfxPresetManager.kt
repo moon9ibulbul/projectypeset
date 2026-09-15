@@ -227,13 +227,9 @@ object SfxPresetManager {
         layer.glitchAmount = preset.glitchAmount
 
         if (!preset.fontPath.isNullOrEmpty() && context != null) {
-            val allFonts = FontManager.getStandardFonts(context) + FontManager.getCustomFonts(context)
-            val fontItem = allFonts.find {
-                (it.isCustom && it.path == preset.fontPath) ||
-                (!it.isCustom && (it.path == preset.fontPath || it.name == preset.fontPath))
-            }
+            val fontItem = FontManager.findMatchingFont(context, preset.fontPath)
             if (fontItem != null) {
-                layer.typeface = fontItem.typeface
+                layer.typeface = fontItem.typeface ?: android.graphics.Typeface.DEFAULT
                 layer.fontPath = if (fontItem.isCustom) fontItem.path else fontItem.name
             } else {
                 layer.typeface = android.graphics.Typeface.DEFAULT
