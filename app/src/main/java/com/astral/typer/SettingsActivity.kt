@@ -293,6 +293,15 @@ class SettingsActivity : AppCompatActivity() {
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
         val btnDeleteModel = findViewById<Button>(R.id.btnDeleteModel)
 
+        // Model Views (LaMa Int8)
+        val tvLamaInt8ModelStatus = findViewById<TextView>(R.id.tvLamaInt8ModelStatus)
+        val pbLamaInt8ModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbLamaInt8ModelDownload)
+        val btnDownloadLamaInt8Model = findViewById<Button>(R.id.btnDownloadLamaInt8Model)
+        val btnDeleteLamaInt8Model = findViewById<Button>(R.id.btnDeleteLamaInt8Model)
+
+        val layoutLamaModelSelect = findViewById<android.widget.LinearLayout>(R.id.layoutLamaModelSelect)
+        val spinnerLamaModelSelect = findViewById<android.widget.Spinner>(R.id.spinnerLamaModelSelect)
+
         // Model Views (MIGAN)
         val tvMiganModelStatus = findViewById<TextView>(R.id.tvMiganModelStatus)
         val pbMiganModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbMiganModelDownload)
@@ -396,8 +405,25 @@ class SettingsActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
 
+        // Setup LaMa Spinner Options
+        val lamaSpinnerAdapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modelVersions)
+        lamaSpinnerAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
+        spinnerLamaModelSelect.adapter = lamaSpinnerAdapter
+
+        val savedLamaModelVersion = settingsPrefs.getString("lama_model_version", "Int8")
+        val lamaModelIndex = modelVersions.indexOf(savedLamaModelVersion).coerceAtLeast(0)
+        spinnerLamaModelSelect.setSelection(lamaModelIndex)
+
+        spinnerLamaModelSelect.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                settingsPrefs.edit().putString("lama_model_version", modelVersions[position]).apply()
+                lamaProcessor.closeSession()
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
         fun updateModelStatus() {
-            if (lamaProcessor.isModelAvailable()) {
+            if (lamaProcessor.isOriginalModelAvailable()) {
                 tvModelStatus.text = "Status: Downloaded (Ready)"
                 btnDownloadModel.text = "Redownload"
                 btnDeleteModel.visibility = android.view.View.VISIBLE
@@ -405,6 +431,22 @@ class SettingsActivity : AppCompatActivity() {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
                 btnDeleteModel.visibility = android.view.View.GONE
+            }
+
+            if (lamaProcessor.isInt8ModelAvailable()) {
+                tvLamaInt8ModelStatus.text = "Status: Downloaded (Ready)"
+                btnDownloadLamaInt8Model.text = "Redownload"
+                btnDeleteLamaInt8Model.visibility = android.view.View.VISIBLE
+            } else {
+                tvLamaInt8ModelStatus.text = "Status: Not Downloaded"
+                btnDownloadLamaInt8Model.text = "Download Int8 Model (62 MB)"
+                btnDeleteLamaInt8Model.visibility = android.view.View.GONE
+            }
+
+            if (lamaProcessor.isOriginalModelAvailable() && lamaProcessor.isInt8ModelAvailable()) {
+                layoutLamaModelSelect.visibility = android.view.View.VISIBLE
+            } else {
+                layoutLamaModelSelect.visibility = android.view.View.GONE
             }
 
             if (miganProcessor.isModelAvailable()) {
@@ -468,6 +510,34 @@ class SettingsActivity : AppCompatActivity() {
                         tvModelStatus.text = "Status: Download Failed"
                         pbModelDownload.visibility = android.view.View.GONE
                         btnDownloadModel.isEnabled = true
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            com.astral.typer.utils.ModelDownloadManager.lamaInt8State.collect { state ->
+                when (state.status) {
+                    com.astral.typer.utils.DownloadStatus.IDLE -> {
+                        updateModelStatus()
+                        pbLamaInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaInt8Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
+                        btnDownloadLamaInt8Model.isEnabled = false
+                        pbLamaInt8ModelDownload.visibility = android.view.View.VISIBLE
+                        pbLamaInt8ModelDownload.progress = (state.progress * 100).toInt()
+                        tvLamaInt8ModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
+                    }
+                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
+                        updateModelStatus()
+                        pbLamaInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaInt8Model.isEnabled = true
+                    }
+                    com.astral.typer.utils.DownloadStatus.FAILED -> {
+                        tvLamaInt8ModelStatus.text = "Status: Download Failed"
+                        pbLamaInt8ModelDownload.visibility = android.view.View.GONE
+                        btnDownloadLamaInt8Model.isEnabled = true
                     }
                 }
             }
@@ -562,8 +632,19 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         btnDeleteModel.setOnClickListener {
-            if (lamaProcessor.deleteModel()) {
-                Toast.makeText(this, "Model LaMa deleted", Toast.LENGTH_SHORT).show()
+            if (lamaProcessor.deleteOriginalModel()) {
+                Toast.makeText(this, "Model LaMa Original deleted", Toast.LENGTH_SHORT).show()
+            }
+            updateModelStatus()
+        }
+
+        btnDownloadLamaInt8Model.setOnClickListener {
+            com.astral.typer.utils.ModelDownloadManager.startLamaInt8Download(this@SettingsActivity)
+        }
+
+        btnDeleteLamaInt8Model.setOnClickListener {
+            if (lamaProcessor.deleteInt8Model()) {
+                Toast.makeText(this, "Model LaMa Int8 deleted", Toast.LENGTH_SHORT).show()
             }
             updateModelStatus()
         }
@@ -605,7 +686,7 @@ class SettingsActivity : AppCompatActivity() {
         if (intent.getBooleanExtra("AUTO_DOWNLOAD", false)) {
             contentAiModels.visibility = android.view.View.VISIBLE
             ivAiModelsArrow.rotation = 180f
-            com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
+            com.astral.typer.utils.ModelDownloadManager.startLamaInt8Download(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
