@@ -29,8 +29,8 @@ class LaMaProcessor(private val context: Context) {
         private const val TRAINED_SIZE = 512
         private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
         private const val MODEL_FILENAME = "LaMa_512.onnx"
-        private const val MODEL_INT8_URL = "https://huggingface.co/g-ronimo/lama/resolve/main/lama_int8.onnx"
-        private const val MODEL_INT8_FILENAME = "lama_int8.onnx"
+        private const val MODEL_INT8_URL = "https://huggingface.co/g-ronimo/lama/resolve/main/lama_512_int8.onnx"
+        private const val MODEL_INT8_FILENAME = "lama_512_int8.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
