@@ -53,6 +53,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import androidx.lifecycle.lifecycleScope
 
 enum class InpaintSelectionMode {
@@ -89,6 +90,7 @@ class EditorActivity : AppCompatActivity() {
     private var typerPopup: android.widget.PopupWindow? = null
     private var loadingDialog: android.app.Dialog? = null
     private var isProjectLoadedSuccessfully = true
+    private var autosaveTimerJob: kotlinx.coroutines.Job? = null
 
     private val importTxtLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -338,6 +340,7 @@ class EditorActivity : AppCompatActivity() {
                     .setTitle("Confirmation")
                     .setMessage("Do you want to go back to main menu?")
                     .setPositiveButton("Yes") { _, _ ->
+                        ProjectManager.clearSessionRecovery(this@EditorActivity)
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
                     }
@@ -352,6 +355,55 @@ class EditorActivity : AppCompatActivity() {
 
         // Check for Typer Model
         checkTyperAvailability()
+
+        // Check for Session Recovery
+        checkSessionRecovery()
+    }
+
+    private fun checkSessionRecovery() {
+        if (ProjectManager.hasSessionRecovery(this)) {
+            val info = ProjectManager.getSessionRecoveryInfo(this)
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Pulihkan Sesi Edit?")
+                .setMessage("Ditemukan draf sesi pengeditan sebelumnya yang belum disimpan. Apakah Anda ingin memulihkannya?")
+                .setPositiveButton("Pulihkan") { _, _ ->
+                    binding.loadingOverlay.visibility = View.VISIBLE
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val recoveryDir = java.io.File(cacheDir, "session_recovery")
+                        val result = ProjectManager.loadProject(this@EditorActivity, recoveryDir)
+                        withContext(Dispatchers.Main) {
+                            binding.loadingOverlay.visibility = View.GONE
+                            when (result) {
+                                is ProjectManager.LoadResult.Success -> {
+                                    if (info != null) {
+                                        currentProjectName = info.projectName
+                                        parentFolderName = info.parentFolderName
+                                    }
+                                    loadProjectData(result.projectData, result.images)
+                                    isProjectLoadedSuccessfully = true
+                                }
+                                is ProjectManager.LoadResult.MissingAssets -> {
+                                    if (info != null) {
+                                        currentProjectName = info.projectName
+                                        parentFolderName = info.parentFolderName
+                                    }
+                                    loadProjectData(result.projectData, result.images)
+                                    isProjectLoadedSuccessfully = true
+                                }
+                                else -> {
+                                    Toast.makeText(this@EditorActivity, "Gagal memulihkan draf sesi", Toast.LENGTH_SHORT).show()
+                                    ProjectManager.clearSessionRecovery(this@EditorActivity)
+                                }
+                            }
+                        }
+                    }
+                }
+                .setNegativeButton("Abaikan") { _, _ ->
+                    ProjectManager.clearSessionRecovery(this)
+                }
+                .setCancelable(false)
+                .show()
+        }
     }
 
     private fun checkTyperAvailability() {
@@ -412,16 +464,67 @@ class EditorActivity : AppCompatActivity() {
             recreate()
             currentThemeName = prefsTheme
         }
+        startAutosaveTimer()
     }
 
     override fun onPause() {
         super.onPause()
-        // Auto Save
+        stopAutosaveTimer()
+
+        // 1. Session Recovery Auto-Draft (for low RAM recovery if OS kills activity)
+        if (!isFinishing && isProjectLoadedSuccessfully && (canvasView.getLayers().isNotEmpty() || canvasView.isBackgroundModified || currentProjectName != null)) {
+            val recoveryLayers = canvasView.getLayers().toMutableList()
+            val recoveryProject = currentProjectName
+            val recoveryParent = parentFolderName
+            val recoveryBg = if (canvasView.isBackgroundModified) canvasView.getBackgroundImage() else null
+            val recoveryW = canvasView.canvasWidth
+            val recoveryH = canvasView.canvasHeight
+            val recoveryColor = canvasView.canvasColor
+
+            lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+                ProjectManager.saveSessionRecovery(
+                    this@EditorActivity,
+                    recoveryLayers,
+                    recoveryW,
+                    recoveryH,
+                    recoveryColor,
+                    recoveryBg,
+                    recoveryProject,
+                    recoveryParent
+                )
+            }
+        }
+
+        // 2. Auto Save
+        performAutosave()
+    }
+
+    private fun startAutosaveTimer() {
+        autosaveTimerJob?.cancel()
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
         val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
-        if (!enableAutosave) return
+        val intervalMinutes = settingsPrefs.getInt("autosave_interval_minutes", 0)
 
-        // Capture data on Main Thread
+        if (enableAutosave && intervalMinutes > 0) {
+            autosaveTimerJob = lifecycleScope.launch {
+                while (coroutineContext.isActive) {
+                    kotlinx.coroutines.delay(intervalMinutes * 60 * 1000L)
+                    performAutosave()
+                }
+            }
+        }
+    }
+
+    private fun stopAutosaveTimer() {
+        autosaveTimerJob?.cancel()
+        autosaveTimerJob = null
+    }
+
+    private fun performAutosave() {
+        val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+        val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
+        if (!enableAutosave || ProjectManager.isSaving) return
+
         val layersToSave = canvasView.getLayers().toMutableList()
         val sourceProject = currentProjectName
         val bgBitmap = if (canvasView.isBackgroundModified) canvasView.getBackgroundImage() else null
@@ -429,7 +532,6 @@ class EditorActivity : AppCompatActivity() {
         val w = bmp.width
         val h = bmp.height
 
-        // Generate Thumbnail (small)
         val thumbW = 300
         val thumbH = (h * (thumbW.toFloat() / w)).toInt()
         val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
@@ -459,14 +561,12 @@ class EditorActivity : AppCompatActivity() {
                     }
                 } finally {
                     ProjectManager.isSaving = false
-                    // Recycle temporary bitmaps
                     bgBitmap?.recycle()
                     bmp.recycle()
                     thumbnail.recycle()
                 }
             }
         } else {
-            // Even if not saved, we should recycle the temporary bitmaps
             bgBitmap?.recycle()
             bmp.recycle()
             thumbnail.recycle()
@@ -4038,6 +4138,9 @@ class EditorActivity : AppCompatActivity() {
                     parentFolderName,
                     sourceProjectName = sourceProject
                 )
+                if (success) {
+                    ProjectManager.clearSessionRecovery(this@EditorActivity)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {

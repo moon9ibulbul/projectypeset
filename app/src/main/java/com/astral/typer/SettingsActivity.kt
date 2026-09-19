@@ -8,6 +8,11 @@ import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Spinner
+import android.widget.LinearLayout
+import android.widget.ArrayAdapter
+import android.widget.AdapterView
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
@@ -127,8 +132,33 @@ class SettingsActivity : AppCompatActivity() {
 
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
         cbAutosave.isChecked = settingsPrefs.getBoolean("enable_autosave", false)
+
+        val layoutAutosaveInterval = findViewById<LinearLayout>(R.id.layoutAutosaveInterval)
+        val spinnerAutosaveInterval = findViewById<Spinner>(R.id.spinnerAutosaveInterval)
+        val intervalValues = intArrayOf(0, 5, 10, 15, 20, 30, 45, 60)
+        val intervalLabels = arrayOf("Nonaktif", "5 Menit", "10 Menit", "15 Menit", "20 Menit", "30 Menit", "45 Menit", "1 Jam")
+
+        val autosaveAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervalLabels)
+        autosaveAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerAutosaveInterval.adapter = autosaveAdapter
+
+        val currentInterval = settingsPrefs.getInt("autosave_interval_minutes", 0)
+        val initialSelection = intervalValues.indexOf(currentInterval).let { if (it >= 0) it else 0 }
+        spinnerAutosaveInterval.setSelection(initialSelection)
+
+        layoutAutosaveInterval.visibility = if (cbAutosave.isChecked) View.VISIBLE else View.GONE
+
         cbAutosave.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("enable_autosave", isChecked).apply()
+            layoutAutosaveInterval.visibility = if (isChecked) View.VISIBLE else View.GONE
+        }
+
+        spinnerAutosaveInterval.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selectedMinutes = intervalValues[position]
+                settingsPrefs.edit().putInt("autosave_interval_minutes", selectedMinutes).apply()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         val cbDisableSnap = findViewById<CheckBox>(R.id.cbDisableSnap)

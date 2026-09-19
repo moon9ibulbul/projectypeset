@@ -422,12 +422,13 @@ class MainActivity : AppCompatActivity() {
                                     val name = if (file.isDirectory) file.name else file.nameWithoutExtension
                                     if (name.startsWith("autosave")) {
                                         if (name.startsWith("autosave_")) {
+                                            val suffix = name.substringAfter("autosave_")
                                             try {
-                                                val timestamp = name.substringAfter("autosave_").toLong()
+                                                val timestamp = suffix.toLong()
                                                 val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-                                                text.text = sdf.format(Date(timestamp))
+                                                text.text = "Auto Save (${sdf.format(Date(timestamp))})"
                                             } catch (e: Exception) {
-                                                text.text = "Auto Save"
+                                                text.text = if (suffix == "default") "Auto Save" else "Auto Save ($suffix)"
                                             }
                                         } else {
                                             text.text = "Auto Save"
