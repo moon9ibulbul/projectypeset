@@ -836,6 +836,9 @@ object ProjectManager {
     }
 
     private fun findExistingBackgroundFile(context: Context, cleanName: String, subFolder: String?): File? {
+        val recoveryBg = File(context.cacheDir, "session_recovery/images/background.png")
+        if (cleanName == "session_recovery" && recoveryBg.exists()) return recoveryBg
+
         val publicFolder = getPublicProjectFile(cleanName, subFolder)
         val publicBg = File(publicFolder, "images/background.png")
         if (publicBg.exists()) return publicBg
