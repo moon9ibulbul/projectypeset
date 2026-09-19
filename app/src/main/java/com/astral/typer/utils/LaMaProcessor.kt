@@ -29,6 +29,8 @@ class LaMaProcessor(private val context: Context) {
         private const val TRAINED_SIZE = 512
         private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
         private const val MODEL_FILENAME = "LaMa_512.onnx"
+        private const val MODEL_INT8_URL = "https://huggingface.co/g-ronimo/lama/resolve/main/lama_512_int8.onnx"
+        private const val MODEL_INT8_FILENAME = "lama_512_int8.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
@@ -41,31 +43,57 @@ class LaMaProcessor(private val context: Context) {
     private val modelFile: File
         get() = File(context.filesDir, "onnx/$MODEL_FILENAME")
 
+    private val modelInt8File: File
+        get() = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+
     fun isModelAvailable(): Boolean {
+        val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val useInt8 = prefs.getString("lama_model_version", "Int8") == "Int8"
+        val activeFile = if (useInt8) modelInt8File else modelFile
+
+        if (!activeFile.exists() || activeFile.length() <= 0) {
+            val fallbackFile = if (useInt8) modelFile else modelInt8File
+            return fallbackFile.exists() && fallbackFile.length() > 0
+        }
+        return true
+    }
+
+    fun isOriginalModelAvailable(): Boolean {
         return modelFile.exists() && modelFile.length() > 0
     }
 
-    suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    fun isInt8ModelAvailable(): Boolean {
+        return modelInt8File.exists() && modelInt8File.length() > 0
+    }
+
+    suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean {
+        return downloadInternal(MODEL_URL, modelFile, "$MODEL_FILENAME.tmp", onProgress)
+    }
+
+    suspend fun downloadInt8Model(onProgress: (Float) -> Unit): Boolean {
+        return downloadInternal(MODEL_INT8_URL, modelInt8File, "$MODEL_INT8_FILENAME.tmp", onProgress)
+    }
+
+    private suspend fun downloadInternal(urlStrInput: String, file: File, tmpFileName: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
-            val file = modelFile
             file.parentFile?.mkdirs()
-            val tmpFile = File(file.parentFile, "$MODEL_FILENAME.tmp")
+            val tmpFile = File(file.parentFile, tmpFileName)
 
-            var urlStr = MODEL_URL
+            var urlStr = urlStrInput
             var redirects = 0
             val maxRedirects = 5
 
             while (true) {
                 val url = URL(urlStr)
                 connection = url.openConnection() as HttpURLConnection
-                connection!!.instanceFollowRedirects = false
-                connection!!.connectTimeout = CONNECT_TIMEOUT
-                connection!!.readTimeout = READ_TIMEOUT
-                connection!!.setRequestProperty("User-Agent", USER_AGENT)
-                connection!!.connect()
+                connection.instanceFollowRedirects = false
+                connection.connectTimeout = CONNECT_TIMEOUT
+                connection.readTimeout = READ_TIMEOUT
+                connection.setRequestProperty("User-Agent", USER_AGENT)
+                connection.connect()
 
-                val responseCode = connection!!.responseCode
+                val responseCode = connection.responseCode
                 if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
                     responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
                     responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
@@ -74,11 +102,11 @@ class LaMaProcessor(private val context: Context) {
                         Log.e("LaMaProcessor", "Too many redirects")
                         return@withContext false
                     }
-                    val location = connection!!.getHeaderField("Location")
+                    val location = connection.getHeaderField("Location")
                     if (location != null) {
                         urlStr = location
                         redirects++
-                        connection!!.disconnect()
+                        connection.disconnect()
                         continue
                     } else {
                         Log.e("LaMaProcessor", "Redirect with no Location header")
@@ -87,7 +115,7 @@ class LaMaProcessor(private val context: Context) {
                 } else if (responseCode == HttpURLConnection.HTTP_OK) {
                     break
                 } else {
-                     Log.e("LaMaProcessor", "Server returned HTTP $responseCode ${connection!!.responseMessage}")
+                     Log.e("LaMaProcessor", "Server returned HTTP $responseCode ${connection.responseMessage}")
                      return@withContext false
                 }
             }
@@ -117,7 +145,6 @@ class LaMaProcessor(private val context: Context) {
 
             // Try rename, if fails, try copy and delete
             if (!tmpFile.renameTo(file)) {
-                // Fallback for rename failure
                 try {
                      tmpFile.copyTo(file, overwrite = true)
                      tmpFile.delete()
@@ -127,7 +154,6 @@ class LaMaProcessor(private val context: Context) {
                 }
             }
 
-            // Clear cache to reload new model if session exists
             closeSession()
             return@withContext true
 
@@ -146,6 +172,14 @@ class LaMaProcessor(private val context: Context) {
 
         if (ortSession == null) {
             val sessionOptions = OrtSession.SessionOptions()
+            val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+            val useInt8 = prefs.getString("lama_model_version", "Int8") == "Int8"
+            var activeFile = if (useInt8) modelInt8File else modelFile
+
+            if (!activeFile.exists() || activeFile.length() <= 0) {
+                activeFile = if (useInt8) modelFile else modelInt8File
+            }
+
             // Optimization options
             try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
@@ -157,7 +191,6 @@ class LaMaProcessor(private val context: Context) {
                  sessionOptions.setIntraOpNumThreads(optimalThreads)
 
                  // Retrieve NNAPI toggle preference from Settings
-                 val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
                  val enableNnapi = prefs.getBoolean("enable_lama_nnapi", false)
                  if (enableNnapi) {
                      sessionOptions.addNnapi()
@@ -168,7 +201,7 @@ class LaMaProcessor(private val context: Context) {
             } catch (e: Exception) {
                 Log.w("LaMaProcessor", "Failed to set optimization options or enable NNAPI", e)
             }
-            ortSession = ortEnvironment!!.createSession(modelFile.absolutePath, sessionOptions)
+            ortSession = ortEnvironment!!.createSession(activeFile.absolutePath, sessionOptions)
         }
         return ortSession!!
     }
@@ -194,9 +227,20 @@ class LaMaProcessor(private val context: Context) {
     }
 
     fun deleteModel(): Boolean {
+        return deleteOriginalModel() || deleteInt8Model()
+    }
+
+    fun deleteOriginalModel(): Boolean {
         closeSession()
         return if (modelFile.exists()) {
             modelFile.delete()
+        } else false
+    }
+
+    fun deleteInt8Model(): Boolean {
+        closeSession()
+        return if (modelInt8File.exists()) {
+            modelInt8File.delete()
         } else false
     }
 
@@ -318,14 +362,21 @@ class LaMaProcessor(private val context: Context) {
 
         var tensorImg: OnnxTensor? = null
         var tensorMask: OnnxTensor? = null
+        var tensorCombined: OnnxTensor? = null
         var resultOrt: OrtSession.Result? = null
 
         try {
-            // 3. Prepare Tensors
-            tensorImg = bitmapToOnnxTensor(env, inputImage)
-            tensorMask = bitmapToMaskTensor(env, inputMask)
-
-            val inputs = mapOf("image" to tensorImg, "mask" to tensorMask)
+            // Check session inputs to determine whether model uses single combined input or separate image+mask inputs
+            val inputNames = session.inputNames
+            val inputs = if (inputNames.contains("input") || inputNames.size == 1) {
+                tensorCombined = bitmapToCombined4DOnnxTensor(env, inputImage, inputMask)
+                val name = inputNames.firstOrNull() ?: "input"
+                mapOf(name to tensorCombined)
+            } else {
+                tensorImg = bitmapToOnnxTensor(env, inputImage)
+                tensorMask = bitmapToMaskTensor(env, inputMask)
+                mapOf("image" to tensorImg, "mask" to tensorMask)
+            }
 
             // 4. Run Inference
             resultOrt = session.run(inputs)
@@ -367,6 +418,7 @@ class LaMaProcessor(private val context: Context) {
                 resultOrt?.close()
                 tensorImg?.close()
                 tensorMask?.close()
+                tensorCombined?.close()
             } catch (e: Exception) { /* ignore */ }
         }
     }
@@ -486,6 +538,39 @@ class LaMaProcessor(private val context: Context) {
         return if (found) android.graphics.Rect(minX, minY, maxX + 1, maxY + 1) else null
     }
 
+    private fun bitmapToCombined4DOnnxTensor(env: OrtEnvironment, image: Bitmap, mask: Bitmap): OnnxTensor {
+        val w = image.width
+        val h = image.height
+        val imgPixels = IntArray(w * h)
+        val maskPixels = IntArray(w * h)
+        image.getPixels(imgPixels, 0, w, 0, 0, w, h)
+        mask.getPixels(maskPixels, 0, w, 0, 0, w, h)
+
+        val size = 4 * w * h
+        val data = FloatArray(size)
+        val channelSize = w * h
+
+        for (i in 0 until channelSize) {
+            val mVal = if (((maskPixels[i] shr 24) and 0xFF) > 0) 1f else 0f
+            val p = imgPixels[i]
+            // If masked (mVal == 1f), masked image region is zeroed out
+            val r = if (mVal > 0f) 0f else (((p shr 16) and 0xFF) / 255f)
+            val g = if (mVal > 0f) 0f else (((p shr 8) and 0xFF) / 255f)
+            val b = if (mVal > 0f) 0f else ((p and 0xFF) / 255f)
+
+            data[i] = r
+            data[channelSize + i] = g
+            data[2 * channelSize + i] = b
+            data[3 * channelSize + i] = mVal
+        }
+
+        return OnnxTensor.createTensor(
+            env,
+            FloatBuffer.wrap(data),
+            longArrayOf(1, 4, h.toLong(), w.toLong())
+        )
+    }
+
     private fun bitmapToMaskTensor(env: OrtEnvironment, bitmap: Bitmap): OnnxTensor {
         val w = bitmap.width
         val h = bitmap.height
@@ -545,12 +630,18 @@ class LaMaProcessor(private val context: Context) {
         val size = width * height
         val pixels = IntArray(size)
 
-        val amp = 1
+        // Determine if output is normalized 0..1 or 0..255
+        var maxVal = 0f
+        val checkCount = kotlin.math.min(data.size, 1000)
+        for (i in 0 until checkCount) {
+            if (data[i] > maxVal) maxVal = data[i]
+        }
+        val scale = if (maxVal <= 2.0f) 255f else 1f
 
         for (i in 0 until size) {
-            val r = (data[i] * amp).toInt().coerceIn(0, 255)
-            val g = (data[size + i] * amp).toInt().coerceIn(0, 255)
-            val b = (data[2 * size + i] * amp).toInt().coerceIn(0, 255)
+            val r = (data[i] * scale).toInt().coerceIn(0, 255)
+            val g = (data[size + i] * scale).toInt().coerceIn(0, 255)
+            val b = (data[2 * size + i] * scale).toInt().coerceIn(0, 255)
 
             pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
