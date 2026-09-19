@@ -467,16 +467,12 @@ class EditorActivity : AppCompatActivity() {
         startAutosaveTimer()
     }
 
-    override fun onPause() {
-        super.onPause()
-        stopAutosaveTimer()
-
-        // 1. Session Recovery Auto-Draft (for low RAM recovery if OS kills activity)
-        if (!isFinishing && isProjectLoadedSuccessfully && (canvasView.getLayers().isNotEmpty() || canvasView.isBackgroundModified || currentProjectName != null)) {
+    private fun triggerSessionRecoverySave() {
+        if (isProjectLoadedSuccessfully && (canvasView.getLayers().isNotEmpty() || canvasView.getBackgroundImage() != null || currentProjectName != null)) {
             val recoveryLayers = canvasView.getLayers().toMutableList()
             val recoveryProject = currentProjectName
             val recoveryParent = parentFolderName
-            val recoveryBg = if (canvasView.isBackgroundModified) canvasView.getBackgroundImage() else null
+            val recoveryBg = canvasView.getBackgroundImage()
             val recoveryW = canvasView.canvasWidth
             val recoveryH = canvasView.canvasHeight
             val recoveryColor = canvasView.canvasColor
@@ -494,6 +490,16 @@ class EditorActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopAutosaveTimer()
+
+        // 1. Session Recovery Auto-Draft (for low RAM recovery if OS kills activity)
+        if (!isFinishing) {
+            triggerSessionRecoverySave()
+        }
 
         // 2. Auto Save
         performAutosave()
@@ -505,11 +511,18 @@ class EditorActivity : AppCompatActivity() {
         val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
         val intervalMinutes = settingsPrefs.getInt("autosave_interval_minutes", 0)
 
-        if (enableAutosave && intervalMinutes > 0) {
-            autosaveTimerJob = lifecycleScope.launch {
-                while (coroutineContext.isActive) {
-                    kotlinx.coroutines.delay(intervalMinutes * 60 * 1000L)
+        autosaveTimerJob = lifecycleScope.launch {
+            while (coroutineContext.isActive) {
+                val delayMs = if (enableAutosave && intervalMinutes > 0) {
+                    intervalMinutes * 60 * 1000L
+                } else {
+                    60 * 1000L
+                }
+                kotlinx.coroutines.delay(delayMs)
+                if (enableAutosave && intervalMinutes > 0) {
                     performAutosave()
+                } else {
+                    triggerSessionRecoverySave()
                 }
             }
         }
@@ -521,6 +534,8 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun performAutosave() {
+        triggerSessionRecoverySave()
+
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
         val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
         if (!enableAutosave || ProjectManager.isSaving) return
