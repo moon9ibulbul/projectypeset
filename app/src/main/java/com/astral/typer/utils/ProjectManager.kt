@@ -247,6 +247,12 @@ object ProjectManager {
         val transformDotsMultiplier: Float? = null
     )
 
+    data class SessionInfo(
+        val projectName: String?,
+        val parentFolderName: String?,
+        val timestamp: Long
+    )
+
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
     private var cachedMaxTextureSize = 0
@@ -350,8 +356,15 @@ object ProjectManager {
             if (!imagesDir.mkdirs() && !imagesDir.exists()) return false
 
             var targetProjectName = projectName.trim()
-            if (targetProjectName == "autosave") {
-                targetProjectName = "autosave_${System.currentTimeMillis()}"
+            if (targetProjectName.startsWith("autosave")) {
+                val cleanSource = sourceProjectName?.trim()
+                targetProjectName = if (!cleanSource.isNullOrEmpty() && !cleanSource.startsWith("autosave")) {
+                    "autosave_$cleanSource"
+                } else if (targetProjectName.contains("_")) {
+                    targetProjectName
+                } else {
+                    "autosave_default"
+                }
             }
 
             if (bgBitmap != null) {
@@ -847,10 +860,6 @@ object ProjectManager {
     private fun finalizeSave(context: Context, tempDir: File, projectName: String, subFolder: String? = null): Boolean {
         var cleanName = projectName.trim()
 
-        if (cleanName == "autosave") {
-            cleanName = "autosave_${System.currentTimeMillis()}"
-        }
-
         // Invalidate Thumbnail Cache for this project
         try {
             val cacheDir = File(context.cacheDir, "thumbnails")
@@ -869,7 +878,7 @@ object ProjectManager {
         // Try public root first
         var targetFolder = getPublicProjectFile(cleanName, subFolder)
         try {
-            if (targetFolder.exists()) {
+            if (targetFolder.exists() && !cleanName.startsWith("autosave")) {
                 deleteProjectFolder(context, targetFolder)
             }
             if (targetFolder.mkdirs() || targetFolder.exists()) {
@@ -880,7 +889,7 @@ object ProjectManager {
             e.printStackTrace()
             success = false
             try {
-                if (targetFolder.exists()) {
+                if (targetFolder.exists() && !cleanName.startsWith("autosave")) {
                     targetFolder.deleteRecursively()
                 }
             } catch (ex: Exception) {
@@ -892,7 +901,7 @@ object ProjectManager {
             // Fallback to private folder
             targetFolder = getPrivateProjectFile(context, cleanName, subFolder)
             try {
-                if (targetFolder.exists()) {
+                if (targetFolder.exists() && !cleanName.startsWith("autosave")) {
                     deleteProjectFolder(context, targetFolder)
                 }
                 if (targetFolder.mkdirs() || targetFolder.exists()) {
@@ -2920,6 +2929,80 @@ object ProjectManager {
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    fun saveSessionRecovery(
+        context: Context,
+        layers: List<com.astral.typer.models.Layer>,
+        width: Int,
+        height: Int,
+        canvasColor: Int,
+        bgBitmap: Bitmap?,
+        projectName: String?,
+        parentFolder: String?
+    ): Boolean {
+        try {
+            val recoveryDir = File(context.cacheDir, "session_recovery")
+            if (!recoveryDir.exists()) recoveryDir.mkdirs()
+
+            val info = SessionInfo(projectName, parentFolder, System.currentTimeMillis())
+            File(recoveryDir, "session_info.json").writeText(gson.toJson(info))
+
+            val success = saveProject(
+                context = context,
+                layers = layers,
+                width = width,
+                height = height,
+                canvasColor = canvasColor,
+                bgBitmap = bgBitmap,
+                projectName = "session_recovery",
+                thumbnail = null,
+                subFolder = null,
+                sourceProjectName = projectName
+            )
+
+            val publicFolder = getPublicProjectFile("session_recovery", null)
+            val privateFolder = getPrivateProjectFile(context, "session_recovery", null)
+            val sourceFolder = if (publicFolder.exists()) publicFolder else privateFolder
+
+            if (sourceFolder.exists()) {
+                sourceFolder.copyRecursively(recoveryDir, overwrite = true)
+                deleteProjectFolder(context, sourceFolder)
+            }
+
+            return success
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
+    }
+
+    fun hasSessionRecovery(context: Context): Boolean {
+        val jsonFile = File(context.cacheDir, "session_recovery/project.json")
+        return jsonFile.exists() && jsonFile.length() > 0
+    }
+
+    fun getSessionRecoveryInfo(context: Context): SessionInfo? {
+        try {
+            val infoFile = File(context.cacheDir, "session_recovery/session_info.json")
+            if (infoFile.exists()) {
+                return gson.fromJson(infoFile.readText(), SessionInfo::class.java)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
+    fun clearSessionRecovery(context: Context) {
+        try {
+            val recoveryDir = File(context.cacheDir, "session_recovery")
+            if (recoveryDir.exists()) {
+                recoveryDir.deleteRecursively()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

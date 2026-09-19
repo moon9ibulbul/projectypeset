@@ -99,6 +99,31 @@
                     android:textColor="?attr/appTextColorPrimary"
                     android:checked="true"/>
 
+                <LinearLayout
+                    android:id="@+id/layoutAutosaveInterval"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Interval Autosave:"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textSize="14sp"/>
+
+                    <Spinner
+                        android:id="@+id/spinnerAutosaveInterval"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+
                 <CheckBox
                     android:id="@+id/cbDisableSnap"
                     android:layout_width="wrap_content"
