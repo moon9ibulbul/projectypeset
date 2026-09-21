@@ -361,8 +361,9 @@ class ImageLayer(
         if (isOpacityGradient) {
             val maskPaint = Paint()
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-            val size = Math.max(w, h) * 3
-            maskPaint.shader = getOpacityGradientShader(w, h)
+            val maxDimension = Math.max(Math.max(w, h), Math.max(bounds.width(), bounds.height()))
+            val size = maxDimension * 3f
+            maskPaint.shader = getOpacityGradientShader(w, h, bounds)
             canvas.drawRect(-size, -size, size, size, maskPaint)
         }
 
@@ -492,21 +493,33 @@ class ImageLayer(
         return matrix
     }
 
-    private fun getOpacityGradientShader(w: Float, h: Float): Shader {
+    private fun getOpacityGradientShader(w: Float, h: Float, bounds: RectF? = null): Shader {
         val startColor = (opacityStart shl 24) or 0x000000
         val endColor = (opacityEnd shl 24) or 0x000000
-        return createGradient(w, h, opacityAngle, startColor, endColor)
+        val shader = createGradient(w, h, opacityAngle, startColor, endColor, bounds = bounds)
+        val mat = Matrix()
+        mat.setTranslate(-w / 2f, -h / 2f)
+        shader.setLocalMatrix(mat)
+        return shader
     }
 
-    private fun createGradient(w: Float, h: Float, angle: Int, startColor: Int, endColor: Int): Shader {
+    private fun createGradient(w: Float, h: Float, angle: Int, startColor: Int, endColor: Int, bounds: RectF? = null): Shader {
         val cx = w / 2f
         val cy = h / 2f
+        var halfW = w / 2f
+        var halfH = h / 2f
+
+        if (bounds != null) {
+            halfW = Math.max(halfW, bounds.width() / 2f)
+            halfH = Math.max(halfH, bounds.height() / 2f)
+        }
+
         val angleRad = Math.toRadians(angle.toDouble())
         val cos = Math.cos(angleRad).toFloat()
         val sin = Math.sin(angleRad).toFloat()
 
         val corners = listOf(
-            Pair(-cx, -cy), Pair(cx, -cy), Pair(-cx, cy), Pair(cx, cy)
+            Pair(-halfW, -halfH), Pair(halfW, -halfH), Pair(-halfW, halfH), Pair(halfW, halfH)
         )
 
         var minP = Float.MAX_VALUE
