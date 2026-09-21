@@ -429,6 +429,11 @@ class EditorActivity : AppCompatActivity() {
              }
          }
          canvasView.setLayers(restoredLayers)
+
+         val autoWatermark = getSharedPreferences("settings_prefs", MODE_PRIVATE).getBoolean("auto_watermark", false)
+         if (autoWatermark && canvasView.getLayers().none { it.name == "Watermark" }) {
+             addWatermarkLayer(true)
+         }
     }
 
     override fun onResume() {
@@ -5355,9 +5360,12 @@ class EditorActivity : AppCompatActivity() {
         binding.propertyDetailContainer.visibility = View.VISIBLE
         binding.propertyDetailContainer.removeAllViews()
 
-        // Enforce Uniform Reduced Height
+        val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+        val menuHeightDp = settingsPrefs.getInt("bottom_menu_height", MENU_HEIGHT_DP)
+
+        // Enforce Height
         val params = binding.propertyDetailContainer.layoutParams
-        params.height = dpToPx(MENU_HEIGHT_DP)
+        params.height = dpToPx(menuHeightDp)
         binding.propertyDetailContainer.layoutParams = params
 
         val container = LinearLayout(this).apply {
@@ -10525,6 +10533,7 @@ class EditorActivity : AppCompatActivity() {
                 val autoScaling = settingsPrefs.getBoolean("watermark_auto_scaling", false)
 
                 val layer = ImageLayer(bitmap, null)
+                layer.name = "Watermark"
                 layer.opacity = opacity
 
                 val cw = canvasView.canvasWidth
