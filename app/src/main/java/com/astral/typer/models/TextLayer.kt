@@ -1526,25 +1526,38 @@ class TextLayer(
         return createGradient(w, h, layout, gradientAngle, adjustedStartColor, adjustedEndColor, hasMiddleColor, adjustedMidColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
     }
 
-    private fun getOpacityGradientShader(w: Float, h: Float, layout: StaticLayout): Shader {
+    private fun getOpacityGradientShader(w: Float, h: Float, layout: StaticLayout, bounds: RectF? = null): Shader {
         val startColor = (opacityStart shl 24) or 0x000000
         val endColor = (opacityEnd shl 24) or 0x000000
-        return createGradient(w, h, layout, opacityAngle, startColor, endColor)
+        val shader = createGradient(w, h, layout, opacityAngle, startColor, endColor, bounds = bounds)
+        val textBounds = getTextHorizontalBounds(layout, w)
+        val cx = (textBounds.first + textBounds.second) / 2f
+        val cy = h / 2f
+        val mat = Matrix()
+        mat.setTranslate(-cx, -cy)
+        shader.setLocalMatrix(mat)
+        return shader
     }
 
     private fun createGradient(
         w: Float, h: Float, layout: StaticLayout, angle: Int,
         startColor: Int, endColor: Int, hasMid: Boolean = false, midColor: Int = 0,
-        startPos: Float = 0f, midPos: Float = 0.5f, endPos: Float = 1f
+        startPos: Float = 0f, midPos: Float = 0.5f, endPos: Float = 1f,
+        bounds: RectF? = null
     ): Shader {
-        val bounds = getTextHorizontalBounds(layout, w)
-        val actualLeft = bounds.first
-        val actualRight = bounds.second
+        val textBounds = getTextHorizontalBounds(layout, w)
+        val actualLeft = textBounds.first
+        val actualRight = textBounds.second
 
         val cx = (actualLeft + actualRight) / 2f
         val cy = h / 2f
-        val halfW = (actualRight - actualLeft) / 2f
-        val halfH = h / 2f
+        var halfW = (actualRight - actualLeft) / 2f
+        var halfH = h / 2f
+
+        if (bounds != null) {
+            halfW = Math.max(halfW, bounds.width() / 2f)
+            halfH = Math.max(halfH, bounds.height() / 2f)
+        }
 
         val angleRad = Math.toRadians(angle.toDouble())
         val cos = Math.cos(angleRad).toFloat()
@@ -1909,8 +1922,9 @@ class TextLayer(
         if (isOpacityGradient) {
             val maskPaint = Paint()
             maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-            val size = Math.max(w, h) * 3
-            maskPaint.shader = getOpacityGradientShader(w, h, layout)
+            val maxDimension = Math.max(Math.max(w, h), Math.max(bounds.width(), bounds.height()))
+            val size = maxDimension * 3f
+            maskPaint.shader = getOpacityGradientShader(w, h, layout, bounds)
             canvas.drawRect(-size, -size, size, size, maskPaint)
         }
 
