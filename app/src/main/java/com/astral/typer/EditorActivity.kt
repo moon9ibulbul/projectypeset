@@ -153,6 +153,18 @@ class EditorActivity : AppCompatActivity() {
     private val changeBaseImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             try {
+                // Cache raw imported image directly into session recovery background file
+                try {
+                    val recoveryImagesDir = java.io.File(cacheDir, "session_recovery/images")
+                    if (!recoveryImagesDir.exists()) recoveryImagesDir.mkdirs()
+                    val bgCacheFile = java.io.File(recoveryImagesDir, "background.png")
+                    contentResolver.openInputStream(it)?.use { input ->
+                        java.io.FileOutputStream(bgCacheFile).use { out -> input.copyTo(out) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 val inputStream = contentResolver.openInputStream(it)
                 val options = android.graphics.BitmapFactory.Options().apply {
                     inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
@@ -296,6 +308,19 @@ class EditorActivity : AppCompatActivity() {
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
                         val uri = android.net.Uri.parse(imageUriString)
+
+                        // Cache raw imported image directly into session recovery background file
+                        try {
+                            val recoveryImagesDir = java.io.File(cacheDir, "session_recovery/images")
+                            if (!recoveryImagesDir.exists()) recoveryImagesDir.mkdirs()
+                            val bgCacheFile = java.io.File(recoveryImagesDir, "background.png")
+                            contentResolver.openInputStream(uri)?.use { input ->
+                                java.io.FileOutputStream(bgCacheFile).use { out -> input.copyTo(out) }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+
                         val inputStream = contentResolver.openInputStream(uri)
                         val options = android.graphics.BitmapFactory.Options().apply {
                             inPreferredConfig = android.graphics.Bitmap.Config.RGB_565

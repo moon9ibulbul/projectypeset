@@ -2064,7 +2064,7 @@ object ProjectManager {
         val tempFile = File(file.parentFile, "${file.name}.tmp")
         var success = false
         try {
-            // Try PNG first
+            // Try PNG (lossless 100% quality) first
             try {
                 java.io.BufferedOutputStream(FileOutputStream(tempFile)).use { out ->
                     success = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
@@ -2079,7 +2079,7 @@ object ProjectManager {
                 success = false
             }
 
-            // Fallback to JPEG if PNG failed
+            // Fallback to JPEG if PNG compression failed
             if (!success) {
                 if (tempFile.exists()) tempFile.delete()
                 try {
@@ -2940,19 +2940,7 @@ object ProjectManager {
             val info = SessionInfo(projectName, parentFolder, System.currentTimeMillis())
             File(recoveryDir, "session_info.json").writeText(gson.toJson(info))
 
-            // 2. Handle background.png
-            val bgFile = File(imagesDir, "background.png")
-            if (bgBitmap != null) {
-                saveBitmap(bgBitmap, bgFile)
-            } else if (!bgFile.exists()) {
-                val lookupName = if (!projectName.isNullOrEmpty()) projectName else "autosave_default"
-                val existingBg = findExistingBackgroundFile(context, lookupName, parentFolder)
-                if (existingBg != null && existingBg.exists()) {
-                    existingBg.copyTo(bgFile, overwrite = true)
-                }
-            }
-
-            // 3. Convert layers to LayerModels and save layer assets to imagesDir
+            // 2. Convert layers to LayerModels first
             val layerModels = mutableListOf<LayerModel>()
 
             for ((index, layer) in layers.withIndex()) {
@@ -3380,9 +3368,21 @@ object ProjectManager {
                 }
             }
 
-            // 4. Save project.json
+            // 3. Save project.json immediately so hasSessionRecovery evaluates to true instantly
             val projectData = ProjectData(width, height, canvasColor, layerModels)
             File(recoveryDir, "project.json").writeText(gson.toJson(projectData))
+
+            // 4. Handle background.png
+            val bgFile = File(imagesDir, "background.png")
+            if (bgBitmap != null) {
+                saveBitmap(bgBitmap, bgFile)
+            } else if (!bgFile.exists()) {
+                val lookupName = if (!projectName.isNullOrEmpty()) projectName else "autosave_default"
+                val existingBg = findExistingBackgroundFile(context, lookupName, parentFolder)
+                if (existingBg != null && existingBg.exists()) {
+                    existingBg.copyTo(bgFile, overwrite = true)
+                }
+            }
 
             return true
         } catch (e: Exception) {
