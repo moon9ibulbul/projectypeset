@@ -1337,21 +1337,21 @@ class ShapeLayer(
 
                                         if (originalAlpha == 0f) continue
                                         val radius = gridSpacing * 0.5f * threshold * originalAlpha
-                                        val insideShape = when (halftoneShape) {
+                                        val shapeCoverage = when (halftoneShape) {
                                             "SQUARE" -> {
                                                 val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
-                                                sqDist < radius
+                                                (radius - sqDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             "LINE" -> {
                                                 val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
-                                                lineDist < radius
+                                                (radius - lineDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             else -> {
-                                                dist < radius
+                                                (radius - dist + 0.5f).coerceIn(0f, 1f)
                                             }
                                         }
-                                        if (insideShape) {
-                                            val dotA = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                        if (shapeCoverage > 0f) {
+                                            val dotA = (halftoneAlpha * originalAlpha * shapeCoverage).coerceIn(0f, 1f)
                                             val origR = Color.red(originalPixel)
                                             val origG = Color.green(originalPixel)
                                             val origB = Color.blue(originalPixel)
@@ -2134,21 +2134,21 @@ class ShapeLayer(
                                     if (halftoneType == "INNER") {
                                         if (originalAlpha == 0f) continue
                                         val radius = gridSpacing * 0.5f * threshold * originalAlpha
-                                        val insideShape = when (halftoneShape) {
+                                        val shapeCoverage = when (halftoneShape) {
                                             "SQUARE" -> {
                                                 val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
-                                                sqDist < radius
+                                                (radius - sqDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             "LINE" -> {
                                                 val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
-                                                lineDist < radius
+                                                (radius - lineDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             else -> { // "DOT"
-                                                dist < radius
+                                                (radius - dist + 0.5f).coerceIn(0f, 1f)
                                             }
                                         }
-                                        if (insideShape) {
-                                            val dotA = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                        if (shapeCoverage > 0f) {
+                                            val dotA = (halftoneAlpha * originalAlpha * shapeCoverage).coerceIn(0f, 1f)
                                             val origR = Color.red(originalPixel)
                                             val origG = Color.green(originalPixel)
                                             val origB = Color.blue(originalPixel)
@@ -2202,22 +2202,22 @@ class ShapeLayer(
                                             }
 
                                             val radius = gridSpacing * 0.5f * threshold * fadeWeight
-                                            val insideShape = when (halftoneShape) {
+                                            val shapeCoverage = when (halftoneShape) {
                                                 "SQUARE" -> {
                                                     val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
-                                                    sqDist < radius
+                                                    (radius - sqDist + 0.5f).coerceIn(0f, 1f)
                                                 }
                                                 "LINE" -> {
                                                     val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
-                                                    lineDist < radius
+                                                    (radius - lineDist + 0.5f).coerceIn(0f, 1f)
                                                 }
                                                 else -> { // "DOT"
-                                                    dist < radius
+                                                    (radius - dist + 0.5f).coerceIn(0f, 1f)
                                                 }
                                             }
 
-                                            if (insideShape) {
-                                                val shadowAlpha = (halftoneAlpha * fadeWeight).coerceIn(0f, 1f)
+                                            if (shapeCoverage > 0f) {
+                                                val shadowAlpha = (halftoneAlpha * fadeWeight * shapeCoverage).coerceIn(0f, 1f)
                                                 // Blend original text on top of halftone shadow
                                                 val outA = (shadowAlpha + originalAlpha * (1f - shadowAlpha)).coerceIn(0f, 1f)
                                                 if (outA > 0f) {

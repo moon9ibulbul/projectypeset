@@ -3572,21 +3572,21 @@ class TextLayer(
 
                                         if (originalAlpha == 0f) continue
                                         val radius = gridSpacing * 0.5f * threshold * originalAlpha
-                                        val insideShape = when (halftoneShape) {
+                                        val shapeCoverage = when (halftoneShape) {
                                             "SQUARE" -> {
                                                 val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
-                                                sqDist < radius
+                                                (radius - sqDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             "LINE" -> {
                                                 val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
-                                                lineDist < radius
+                                                (radius - lineDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             else -> {
-                                                dist < radius
+                                                (radius - dist + 0.5f).coerceIn(0f, 1f)
                                             }
                                         }
-                                        if (insideShape) {
-                                            val dotA = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                        if (shapeCoverage > 0f) {
+                                            val dotA = (halftoneAlpha * originalAlpha * shapeCoverage).coerceIn(0f, 1f)
                                             val origR = Color.red(originalPixel)
                                             val origG = Color.green(originalPixel)
                                             val origB = Color.blue(originalPixel)
@@ -4711,21 +4711,21 @@ class TextLayer(
                                     if (halftoneType == "INNER") {
                                         if (originalAlpha == 0f) continue
                                         val radius = gridSpacing * 0.5f * threshold * originalAlpha
-                                        val insideShape = when (halftoneShape) {
+                                        val shapeCoverage = when (halftoneShape) {
                                             "SQUARE" -> {
                                                 val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
-                                                sqDist < radius
+                                                (radius - sqDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             "LINE" -> {
                                                 val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
-                                                lineDist < radius
+                                                (radius - lineDist + 0.5f).coerceIn(0f, 1f)
                                             }
                                             else -> { // "DOT"
-                                                dist < radius
+                                                (radius - dist + 0.5f).coerceIn(0f, 1f)
                                             }
                                         }
-                                        if (insideShape) {
-                                            val dotA = (halftoneAlpha * originalAlpha).coerceIn(0f, 1f)
+                                        if (shapeCoverage > 0f) {
+                                            val dotA = (halftoneAlpha * originalAlpha * shapeCoverage).coerceIn(0f, 1f)
                                             val origR = Color.red(originalPixel)
                                             val origG = Color.green(originalPixel)
                                             val origB = Color.blue(originalPixel)
@@ -4779,22 +4779,22 @@ class TextLayer(
                                             }
 
                                             val radius = gridSpacing * 0.5f * threshold * fadeWeight
-                                            val insideShape = when (halftoneShape) {
+                                            val shapeCoverage = when (halftoneShape) {
                                                 "SQUARE" -> {
                                                     val sqDist = Math.max(Math.abs(x - centerX), Math.abs(y - centerY))
-                                                    sqDist < radius
+                                                    (radius - sqDist + 0.5f).coerceIn(0f, 1f)
                                                 }
                                                 "LINE" -> {
                                                     val lineDist = Math.abs((x - centerX) - (y - centerY)) * 0.707106f
-                                                    lineDist < radius
+                                                    (radius - lineDist + 0.5f).coerceIn(0f, 1f)
                                                 }
                                                 else -> { // "DOT"
-                                                    dist < radius
+                                                    (radius - dist + 0.5f).coerceIn(0f, 1f)
                                                 }
                                             }
 
-                                            if (insideShape) {
-                                                val shadowAlpha = (halftoneAlpha * fadeWeight).coerceIn(0f, 1f)
+                                            if (shapeCoverage > 0f) {
+                                                val shadowAlpha = (halftoneAlpha * fadeWeight * shapeCoverage).coerceIn(0f, 1f)
                                                 // Blend original text on top of halftone shadow
                                                 val outA = (shadowAlpha + originalAlpha * (1f - shadowAlpha)).coerceIn(0f, 1f)
                                                 if (outA > 0f) {
@@ -5347,24 +5347,24 @@ class TextLayer(
 
                     // For inner halftone, the size depends on original pixel alpha and the threshold
                     float radius = spacing * 0.5 * threshold * original.a;
-                    bool insideShape = false;
+                    float shapeCoverage = 0.0;
 
                     if (shapeType < 0.5) {
                         // DOT (Circle)
-                        insideShape = (dist < radius);
+                        shapeCoverage = clamp(radius - dist + 0.5, 0.0, 1.0);
                     } else if (shapeType < 1.5) {
                         // SQUARE
                         float sqDist = max(abs(coord.x - center.x), abs(coord.y - center.y));
-                        insideShape = (sqDist < radius);
+                        shapeCoverage = clamp(radius - sqDist + 0.5, 0.0, 1.0);
                     } else {
                         // LINE (Diagonal)
                         float lineDist = abs((coord.x - center.x) - (coord.y - center.y)) * 0.707106;
-                        insideShape = (lineDist < radius);
+                        shapeCoverage = clamp(radius - lineDist + 0.5, 0.0, 1.0);
                     }
 
-                    if (insideShape) {
+                    if (shapeCoverage > 0.0) {
                         half4 shadowDot = half4(dotColor * alpha * original.a, alpha * original.a);
-                        return mix(original, shadowDot, alpha);
+                        return mix(original, shadowDot, alpha * shapeCoverage);
                     }
                     return original;
                 } else {
@@ -5403,23 +5403,23 @@ class TextLayer(
 
                         // Determine the halftone dot size/radius at this cell
                         float radius = spacing * 0.5 * threshold * fadeWeight;
-                        bool insideShape = false;
+                        float shapeCoverage = 0.0;
 
                         if (shapeType < 0.5) {
                             // DOT (Circle)
-                            insideShape = (dist < radius);
+                            shapeCoverage = clamp(radius - dist + 0.5, 0.0, 1.0);
                         } else if (shapeType < 1.5) {
                             // SQUARE
                             float sqDist = max(abs(coord.x - center.x), abs(coord.y - center.y));
-                            insideShape = (sqDist < radius);
+                            shapeCoverage = clamp(radius - sqDist + 0.5, 0.0, 1.0);
                         } else {
                             // LINE (Diagonal)
                             float lineDist = abs((coord.x - center.x) - (coord.y - center.y)) * 0.707106;
-                            insideShape = (lineDist < radius);
+                            shapeCoverage = clamp(radius - lineDist + 0.5, 0.0, 1.0);
                         }
 
-                        if (insideShape) {
-                            half4 shadowDot = half4(dotColor * alpha * fadeWeight, alpha * fadeWeight);
+                        if (shapeCoverage > 0.0) {
+                            half4 shadowDot = half4(dotColor * alpha * fadeWeight * shapeCoverage, alpha * fadeWeight * shapeCoverage);
                             // Blend original text on top of the outer halftone shadow
                             return mix(shadowDot, original, original.a);
                         }
