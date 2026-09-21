@@ -827,7 +827,7 @@ object ProjectManager {
             val projectData = ProjectData(width, height, canvasColor, layerModels)
             File(tempDir, "project.json").writeText(gson.toJson(projectData))
 
-            return finalizeSave(context, tempDir, projectName, subFolder)
+            return finalizeSave(context, tempDir, targetProjectName, subFolder)
 
         } catch (e: Exception) {
             e.printStackTrace()
