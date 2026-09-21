@@ -232,10 +232,16 @@ class EditorActivity : AppCompatActivity() {
 
         if (projectPath != null) {
              val file = java.io.File(projectPath)
-             currentProjectName = if (file.isDirectory) file.name else file.nameWithoutExtension
-             val parent = file.parentFile
-             if (parent != null && parent.name != "Project" && parent.name != "Projects") {
-                 parentFolderName = parent.name
+             val isSessionRecovery = intent.getBooleanExtra("IS_SESSION_RECOVERY", false)
+             if (isSessionRecovery) {
+                 currentProjectName = intent.getStringExtra("RECOVERY_PROJECT_NAME")
+                 parentFolderName = intent.getStringExtra("RECOVERY_PARENT_FOLDER")
+             } else {
+                 currentProjectName = if (file.isDirectory) file.name else file.nameWithoutExtension
+                 val parent = file.parentFile
+                 if (parent != null && parent.name != "Project" && parent.name != "Projects") {
+                     parentFolderName = parent.name
+                 }
              }
              isProjectLoadedSuccessfully = false
              // Load Async
@@ -355,55 +361,6 @@ class EditorActivity : AppCompatActivity() {
 
         // Check for Typer Model
         checkTyperAvailability()
-
-        // Check for Session Recovery
-        checkSessionRecovery()
-    }
-
-    private fun checkSessionRecovery() {
-        if (ProjectManager.hasSessionRecovery(this)) {
-            val info = ProjectManager.getSessionRecoveryInfo(this)
-            android.app.AlertDialog.Builder(this)
-                .setTitle("Pulihkan Sesi Edit?")
-                .setMessage("Ditemukan draf sesi pengeditan sebelumnya yang belum disimpan. Apakah Anda ingin memulihkannya?")
-                .setPositiveButton("Pulihkan") { _, _ ->
-                    binding.loadingOverlay.visibility = View.VISIBLE
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        val recoveryDir = java.io.File(cacheDir, "session_recovery")
-                        val result = ProjectManager.loadProject(this@EditorActivity, recoveryDir)
-                        withContext(Dispatchers.Main) {
-                            binding.loadingOverlay.visibility = View.GONE
-                            when (result) {
-                                is ProjectManager.LoadResult.Success -> {
-                                    if (info != null) {
-                                        currentProjectName = info.projectName
-                                        parentFolderName = info.parentFolderName
-                                    }
-                                    loadProjectData(result.projectData, result.images)
-                                    isProjectLoadedSuccessfully = true
-                                }
-                                is ProjectManager.LoadResult.MissingAssets -> {
-                                    if (info != null) {
-                                        currentProjectName = info.projectName
-                                        parentFolderName = info.parentFolderName
-                                    }
-                                    loadProjectData(result.projectData, result.images)
-                                    isProjectLoadedSuccessfully = true
-                                }
-                                else -> {
-                                    Toast.makeText(this@EditorActivity, "Gagal memulihkan draf sesi", Toast.LENGTH_SHORT).show()
-                                    ProjectManager.clearSessionRecovery(this@EditorActivity)
-                                }
-                            }
-                        }
-                    }
-                }
-                .setNegativeButton("Abaikan") { _, _ ->
-                    ProjectManager.clearSessionRecovery(this)
-                }
-                .setCancelable(false)
-                .show()
-        }
     }
 
     private fun checkTyperAvailability() {

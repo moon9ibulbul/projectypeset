@@ -135,8 +135,8 @@ class SettingsActivity : AppCompatActivity() {
 
         val layoutAutosaveInterval = findViewById<LinearLayout>(R.id.layoutAutosaveInterval)
         val spinnerAutosaveInterval = findViewById<Spinner>(R.id.spinnerAutosaveInterval)
-        val intervalValues = intArrayOf(0, 5, 10, 15, 20, 30, 45, 60)
-        val intervalLabels = arrayOf("Nonaktif", "5 Menit", "10 Menit", "15 Menit", "20 Menit", "30 Menit", "45 Menit", "1 Jam")
+        val intervalValues = intArrayOf(0, 2, 3, 4, 5, 10, 15, 30)
+        val intervalLabels = arrayOf("Nonaktif", "2 Menit", "3 Menit", "4 Menit", "5 Menit", "10 Menit", "15 Menit", "30 Menit")
 
         val autosaveAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervalLabels)
         autosaveAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)

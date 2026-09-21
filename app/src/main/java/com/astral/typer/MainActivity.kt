@@ -328,6 +328,8 @@ class MainActivity : AppCompatActivity() {
         return result ?: ""
     }
 
+    private var recoveryDialog: AlertDialog? = null
+
     override fun onResume() {
         super.onResume()
         val prefsTheme = getSharedPreferences("app_prefs", MODE_PRIVATE).getString("app_theme", "Light Grey") ?: "Light Grey"
@@ -336,6 +338,35 @@ class MainActivity : AppCompatActivity() {
             return
         }
         setupRecentProjects()
+        checkSessionRecovery()
+    }
+
+    private fun checkSessionRecovery() {
+        if (recoveryDialog?.isShowing == true) return
+        if (ProjectManager.hasSessionRecovery(this)) {
+            val info = ProjectManager.getSessionRecoveryInfo(this)
+            recoveryDialog = AlertDialog.Builder(this)
+                .setTitle("Pulihkan Sesi Edit?")
+                .setMessage("Ditemukan draf sesi pengeditan sebelumnya yang belum disimpan. Apakah Anda ingin memulihkannya?")
+                .setPositiveButton("Pulihkan") { dialog, _ ->
+                    dialog.dismiss()
+                    val recoveryDir = File(cacheDir, "session_recovery")
+                    val intent = Intent(this@MainActivity, EditorActivity::class.java).apply {
+                        putExtra("PROJECT_PATH", recoveryDir.absolutePath)
+                        putExtra("IS_SESSION_RECOVERY", true)
+                        putExtra("RECOVERY_PROJECT_NAME", info?.projectName)
+                        putExtra("RECOVERY_PARENT_FOLDER", info?.parentFolderName)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Abaikan") { dialog, _ ->
+                    dialog.dismiss()
+                    ProjectManager.clearSessionRecovery(this)
+                }
+                .setCancelable(false)
+                .create()
+            recoveryDialog?.show()
+        }
     }
 
     private fun setupRecentProjects() {
