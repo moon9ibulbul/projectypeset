@@ -147,6 +147,52 @@
                     android:text="Disable Level of Detail &amp; Quality Scaling"
                     android:textColor="?attr/appTextColorPrimary"
                     android:checked="false"/>
+
+                <TextView
+                    android:id="@+id/tvBottomMenuHeight"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tinggi Popup Menu Bawah: 180 dp"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:textSize="14sp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/btnMinusBottomMenuHeight"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="−"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+
+                    <SeekBar
+                        android:id="@+id/sbBottomMenuHeight"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="280"
+                        android:progress="60"/>
+
+                    <TextView
+                        android:id="@+id/btnPlusBottomMenuHeight"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:text="+"
+                        android:textSize="16sp"
+                        android:gravity="center"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:background="@drawable/bg_button_dynamic" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
@@ -409,12 +455,28 @@
                     android:visibility="gone"
                     android:layout_marginTop="8dp">
 
-                    <Button
-                        android:id="@+id/btnImportWatermark"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Import Watermark"
-                        android:layout_marginBottom="8dp"/>
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <Button
+                            android:id="@+id/btnImportWatermark"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Import Watermark"
+                            android:layout_marginEnd="8dp"/>
+
+                        <Button
+                            android:id="@+id/btnDeleteWatermark"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Hapus Watermark"
+                            android:textColor="#FF5252"
+                            android:visibility="gone"/>
+                    </LinearLayout>
 
                     <ImageView
                         android:id="@+id/ivWatermarkPreview"

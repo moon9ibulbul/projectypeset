@@ -44,6 +44,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var cbEnableWatermark: CheckBox
     private lateinit var layoutWatermarkOptions: android.widget.LinearLayout
     private lateinit var btnImportWatermark: Button
+    private lateinit var btnDeleteWatermark: Button
     private lateinit var ivWatermarkPreview: android.widget.ImageView
     private lateinit var tvWatermarkOpacity: TextView
     private lateinit var sbWatermarkOpacity: android.widget.SeekBar
@@ -179,6 +180,30 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("disable_lod_scaling", isChecked).apply()
         }
 
+        val tvBottomMenuHeight = findViewById<TextView>(R.id.tvBottomMenuHeight)
+        val sbBottomMenuHeight = findViewById<android.widget.SeekBar>(R.id.sbBottomMenuHeight)
+
+        val currentBottomMenuHeight = settingsPrefs.getInt("bottom_menu_height", 180)
+        val progressBottomMenu = (currentBottomMenuHeight - 120).coerceIn(0, 280)
+        sbBottomMenuHeight.progress = progressBottomMenu
+        tvBottomMenuHeight.text = "Tinggi Popup Menu Bawah: ${currentBottomMenuHeight} dp"
+
+        findViewById<android.view.View>(R.id.btnMinusBottomMenuHeight)?.setOnClickListener {
+            if (sbBottomMenuHeight.progress > 0) sbBottomMenuHeight.progress -= 10
+        }
+        findViewById<android.view.View>(R.id.btnPlusBottomMenuHeight)?.setOnClickListener {
+            if (sbBottomMenuHeight.progress < sbBottomMenuHeight.max) sbBottomMenuHeight.progress += 10
+        }
+        sbBottomMenuHeight.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                val actualHeight = progress + 120
+                tvBottomMenuHeight.text = "Tinggi Popup Menu Bawah: ${actualHeight} dp"
+                settingsPrefs.edit().putInt("bottom_menu_height", actualHeight).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        })
+
         val cbLamaNnapi = findViewById<CheckBox>(R.id.cbLamaNnapi)
         cbLamaNnapi.isChecked = settingsPrefs.getBoolean("enable_lama_nnapi", false)
         cbLamaNnapi.setOnCheckedChangeListener { _, isChecked ->
@@ -189,6 +214,7 @@ class SettingsActivity : AppCompatActivity() {
         cbEnableWatermark = findViewById(R.id.cbEnableWatermark)
         layoutWatermarkOptions = findViewById(R.id.layoutWatermarkOptions)
         btnImportWatermark = findViewById(R.id.btnImportWatermark)
+        btnDeleteWatermark = findViewById(R.id.btnDeleteWatermark)
         ivWatermarkPreview = findViewById(R.id.ivWatermarkPreview)
         tvWatermarkOpacity = findViewById(R.id.tvWatermarkOpacity)
         sbWatermarkOpacity = findViewById(R.id.sbWatermarkOpacity)
@@ -286,6 +312,15 @@ class SettingsActivity : AppCompatActivity() {
 
         btnImportWatermark.setOnClickListener {
             watermarkLauncher.launch("image/*")
+        }
+
+        btnDeleteWatermark.setOnClickListener {
+            val watermarkFile = File(filesDir, "watermark.png")
+            if (watermarkFile.exists()) {
+                watermarkFile.delete()
+                updateWatermarkPreview()
+                Toast.makeText(this, "Watermark deleted", Toast.LENGTH_SHORT).show()
+            }
         }
 
         updateWatermarkPreview()
@@ -401,9 +436,7 @@ class SettingsActivity : AppCompatActivity() {
             override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                 val actualPadding = progress - 20
                 tvInpaintMaskPadding.text = "Mask Padding: ${actualPadding}px"
-                if (fromUser) {
-                    settingsPrefs.edit().putInt("inpaint_text_padding", actualPadding).apply()
-                }
+                settingsPrefs.edit().putInt("inpaint_text_padding", actualPadding).apply()
             }
             override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
@@ -867,10 +900,12 @@ class SettingsActivity : AppCompatActivity() {
         val watermarkFile = File(filesDir, "watermark.png")
         if (watermarkFile.exists()) {
             ivWatermarkPreview.visibility = android.view.View.VISIBLE
+            btnDeleteWatermark.visibility = android.view.View.VISIBLE
             val bitmap = android.graphics.BitmapFactory.decodeFile(watermarkFile.absolutePath)
             ivWatermarkPreview.setImageBitmap(bitmap)
         } else {
             ivWatermarkPreview.visibility = android.view.View.GONE
+            btnDeleteWatermark.visibility = android.view.View.GONE
         }
     }
 
