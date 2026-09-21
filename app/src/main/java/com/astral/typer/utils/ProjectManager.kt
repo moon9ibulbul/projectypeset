@@ -358,10 +358,10 @@ object ProjectManager {
             var targetProjectName = projectName.trim()
             if (targetProjectName.startsWith("autosave")) {
                 val cleanSource = sourceProjectName?.trim()
-                targetProjectName = if (!cleanSource.isNullOrEmpty() && !cleanSource.startsWith("autosave")) {
+                targetProjectName = if (!cleanSource.isNullOrEmpty() && cleanSource.startsWith("autosave_")) {
+                    cleanSource
+                } else if (!cleanSource.isNullOrEmpty() && cleanSource != "autosave") {
                     "autosave_$cleanSource"
-                } else if (targetProjectName.contains("_")) {
-                    targetProjectName
                 } else {
                     "autosave_default"
                 }
@@ -844,8 +844,19 @@ object ProjectManager {
         val privateBg = File(privateFolder, "images/background.png")
         if (privateBg.exists()) return privateBg
 
-        // If lookup failed and cleanName is an autosave, check latest existing autosave project folder
+        // If lookup failed and cleanName is an autosave, check original project or existing autosave
         if (cleanName.startsWith("autosave_")) {
+            val origName = cleanName.substringAfter("autosave_")
+            if (origName.isNotEmpty()) {
+                val origPublic = getPublicProjectFile(origName, subFolder)
+                val origPublicBg = File(origPublic, "images/background.png")
+                if (origPublicBg.exists()) return origPublicBg
+
+                val origPrivate = getPrivateProjectFile(context, origName, subFolder)
+                val origPrivateBg = File(origPrivate, "images/background.png")
+                if (origPrivateBg.exists()) return origPrivateBg
+            }
+
             val recentAutosaves = getRecentProjects(context).filter { it.name.startsWith("autosave_") }
                 .sortedByDescending { it.lastModified() }
             for (autosaveFolder in recentAutosaves) {
@@ -878,7 +889,7 @@ object ProjectManager {
         // Try public root first
         var targetFolder = getPublicProjectFile(cleanName, subFolder)
         try {
-            if (targetFolder.exists() && !cleanName.startsWith("autosave")) {
+            if (targetFolder.exists()) {
                 deleteProjectFolder(context, targetFolder)
             }
             if (targetFolder.mkdirs() || targetFolder.exists()) {
@@ -889,7 +900,7 @@ object ProjectManager {
             e.printStackTrace()
             success = false
             try {
-                if (targetFolder.exists() && !cleanName.startsWith("autosave")) {
+                if (targetFolder.exists()) {
                     targetFolder.deleteRecursively()
                 }
             } catch (ex: Exception) {
@@ -901,7 +912,7 @@ object ProjectManager {
             // Fallback to private folder
             targetFolder = getPrivateProjectFile(context, cleanName, subFolder)
             try {
-                if (targetFolder.exists() && !cleanName.startsWith("autosave")) {
+                if (targetFolder.exists()) {
                     deleteProjectFolder(context, targetFolder)
                 }
                 if (targetFolder.mkdirs() || targetFolder.exists()) {
@@ -921,31 +932,7 @@ object ProjectManager {
             }
         }
 
-        if (success && projectName.trim() == "autosave") {
-            performAutosaveRotation(context)
-        }
-
         return success
-    }
-
-    private fun performAutosaveRotation(context: Context) {
-        try {
-            val allProjects = getRecentProjects(context)
-            val autosaves = allProjects.filter { it.name.startsWith("autosave_") }
-                .sortedByDescending { it.lastModified() }
-
-            if (autosaves.size > 1) {
-                for (i in 1 until autosaves.size) {
-                    deleteProjectFolder(context, autosaves[i])
-                    // Delete thumbnail cache if exists
-                    try {
-                        val cacheDir = File(context.cacheDir, "thumbnails")
-                        val cacheFile = File(cacheDir, "${autosaves[i].name}.png")
-                        if (cacheFile.exists()) cacheFile.delete()
-                    } catch (e: Exception) {}
-                }
-            }
-        } catch (e: Exception) { e.printStackTrace() }
     }
 
     fun loadProject(context: Context, file: File): LoadResult {
@@ -2934,7 +2921,7 @@ object ProjectManager {
 
     fun saveSessionRecovery(
         context: Context,
-        layers: List<com.astral.typer.models.Layer>,
+        layers: List<Layer>,
         width: Int,
         height: Int,
         canvasColor: Int,
@@ -2946,32 +2933,458 @@ object ProjectManager {
             val recoveryDir = File(context.cacheDir, "session_recovery")
             if (!recoveryDir.exists()) recoveryDir.mkdirs()
 
+            val imagesDir = File(recoveryDir, "images")
+            if (!imagesDir.exists()) imagesDir.mkdirs()
+
+            // 1. Save session_info.json
             val info = SessionInfo(projectName, parentFolder, System.currentTimeMillis())
             File(recoveryDir, "session_info.json").writeText(gson.toJson(info))
 
-            val success = saveProject(
-                context = context,
-                layers = layers,
-                width = width,
-                height = height,
-                canvasColor = canvasColor,
-                bgBitmap = bgBitmap,
-                projectName = "session_recovery",
-                thumbnail = null,
-                subFolder = null,
-                sourceProjectName = projectName
-            )
-
-            val publicFolder = getPublicProjectFile("session_recovery", null)
-            val privateFolder = getPrivateProjectFile(context, "session_recovery", null)
-            val sourceFolder = if (publicFolder.exists()) publicFolder else privateFolder
-
-            if (sourceFolder.exists()) {
-                sourceFolder.copyRecursively(recoveryDir, overwrite = true)
-                deleteProjectFolder(context, sourceFolder)
+            // 2. Handle background.png
+            val bgFile = File(imagesDir, "background.png")
+            if (bgBitmap != null) {
+                saveBitmap(bgBitmap, bgFile)
+            } else if (!bgFile.exists()) {
+                val lookupName = if (!projectName.isNullOrEmpty()) projectName else "autosave_default"
+                val existingBg = findExistingBackgroundFile(context, lookupName, parentFolder)
+                if (existingBg != null && existingBg.exists()) {
+                    existingBg.copyTo(bgFile, overwrite = true)
+                }
             }
 
-            return success
+            // 3. Convert layers to LayerModels and save layer assets to imagesDir
+            val layerModels = mutableListOf<LayerModel>()
+
+            for ((index, layer) in layers.withIndex()) {
+                if (layer is TextLayer) {
+                    var texPath: String? = null
+                    if (layer.textureBitmap != null) {
+                        val name = "tex_$index.png"
+                        saveBitmap(layer.textureBitmap!!, File(imagesDir, name))
+                        texPath = "images/$name"
+                    }
+
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
+
+                    val spanModels = mutableListOf<SpanModel>()
+                    val spanStr = layer.text
+                    val styles = spanStr.getSpans(0, spanStr.length, StyleSpan::class.java)
+                    for (s in styles) {
+                        val type = when(s.style) {
+                            android.graphics.Typeface.BOLD -> "BOLD"
+                            android.graphics.Typeface.ITALIC -> "ITALIC"
+                            android.graphics.Typeface.BOLD_ITALIC -> "BOLD_ITALIC"
+                            else -> "NORMAL"
+                        }
+                        spanModels.add(SpanModel(type, spanStr.getSpanStart(s), spanStr.getSpanEnd(s)))
+                    }
+                    val underlines = spanStr.getSpans(0, spanStr.length, UnderlineSpan::class.java)
+                    for (u in underlines) {
+                        spanModels.add(SpanModel("UNDERLINE", spanStr.getSpanStart(u), spanStr.getSpanEnd(u)))
+                    }
+                    val strikes = spanStr.getSpans(0, spanStr.length, StrikethroughSpan::class.java)
+                    for (s in strikes) {
+                        spanModels.add(SpanModel("STRIKETHROUGH", spanStr.getSpanStart(s), spanStr.getSpanEnd(s)))
+                    }
+                    val foregroundColors = spanStr.getSpans(0, spanStr.length, android.text.style.ForegroundColorSpan::class.java)
+                    for (fc in foregroundColors) {
+                        val hexColor = String.format("#%08X", fc.foregroundColor)
+                        spanModels.add(SpanModel("COLOR", spanStr.getSpanStart(fc), spanStr.getSpanEnd(fc), hexColor))
+                    }
+                    val backgroundColors = spanStr.getSpans(0, spanStr.length, android.text.style.BackgroundColorSpan::class.java)
+                    for (bc in backgroundColors) {
+                        val hexColor = String.format("#%08X", bc.backgroundColor)
+                        spanModels.add(SpanModel("HIGHLIGHT", spanStr.getSpanStart(bc), spanStr.getSpanEnd(bc), hexColor))
+                    }
+                    val customFonts = spanStr.getSpans(0, spanStr.length, CustomTypefaceSpan::class.java)
+                    for (cf in customFonts) {
+                        spanModels.add(SpanModel("FONT", spanStr.getSpanStart(cf), spanStr.getSpanEnd(cf), cf.fontPath))
+                    }
+                    val absoluteSizes = spanStr.getSpans(0, spanStr.length, android.text.style.AbsoluteSizeSpan::class.java)
+                    for (asize in absoluteSizes) {
+                        spanModels.add(SpanModel("SIZE", spanStr.getSpanStart(asize), spanStr.getSpanEnd(asize), asize.size.toString()))
+                    }
+                    val letterSpacings = spanStr.getSpans(0, spanStr.length, LetterSpacingSpan::class.java)
+                    for (ls in letterSpacings) {
+                        spanModels.add(SpanModel("LETTER_SPACING", spanStr.getSpanStart(ls), spanStr.getSpanEnd(ls), ls.spacing.toString()))
+                    }
+                    val positionShifts = spanStr.getSpans(0, spanStr.length, PositionShiftSpan::class.java)
+                    for (ps in positionShifts) {
+                        spanModels.add(SpanModel("POSITION_SHIFT", spanStr.getSpanStart(ps), spanStr.getSpanEnd(ps), "${ps.shiftX},${ps.shiftY}"))
+                    }
+
+                    layerModels.add(LayerModel(
+                        type = "TEXT",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+
+                        text = layer.text.toString(),
+                        spans = spanModels,
+                        color = layer.color,
+                        fontSize = layer.fontSize,
+                        fontPath = layer.fontPath,
+                        textAlign = layer.textAlign.name,
+                        isJustified = layer.isJustified,
+                        letterSpacing = layer.letterSpacing,
+                        lineSpacing = layer.lineSpacing,
+                        boxWidth = layer.boxWidth,
+
+                        shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
+                        shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
+                        highlightCornerRadius = layer.highlightCornerRadius,
+
+                        isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
+                        hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
+                        gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
+                        gradientStrength = layer.gradientStrength,
+                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+
+                        strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
+                        doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
+                        tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
+                        isRoughStroke = layer.isRoughStroke,
+                        roughStrokeRoughness = layer.roughStrokeRoughness,
+
+                        isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
+                        isWarp = layer.isWarp, warpRows = layer.mainWarpRows, warpCols = layer.mainWarpCols, warpMesh = layer.mainWarpMesh?.toList(),
+                        letterWarpMeshes = layer.letterWarpMeshes.mapKeys { it.key.toString() }.mapValues { it.value.toList() },
+                        letterWarpRows = layer.letterWarpRows.mapKeys { it.key.toString() },
+                        letterWarpCols = layer.letterWarpCols.mapKeys { it.key.toString() },
+
+                        texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
+                        patternName = layer.patternName,
+                        patternColor = layer.patternColor,
+                        patternAlpha = layer.patternAlpha,
+                        patternScale = layer.patternScale,
+                        patternRotation = layer.patternRotation,
+                        eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels,
+                        currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
+                        glitchSeed = layer.glitchSeed,
+                        decaySeed = layer.decaySeed,
+                        woodScratchSeed = layer.woodScratchSeed,
+                        chromaticColors = layer.chromaticColors.toList(),
+                        blurRadius = layer.blurRadius,
+                        longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
+                        motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
+                        motionBlurKernelSize = layer.motionBlurKernelSize,
+                        motionBlurOffset = layer.motionBlurOffset,
+                        motionBlurVelocityX = layer.motionBlurVelocityX,
+                        motionBlurVelocityY = layer.motionBlurVelocityY,
+                        halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
+                        halftoneType = layer.halftoneType, halftoneAlpha = layer.halftoneAlpha, halftoneRange = layer.halftoneRange,
+                        halftoneDensity = layer.halftoneDensity, halftoneFadingIntensity = layer.halftoneFadingIntensity, halftoneShape = layer.halftoneShape,
+                        neonRadius = layer.neonRadius, neonColor = layer.neonColor,
+                        neonAlpha = layer.neonAlpha,
+                        neonInnerStrength = layer.neonInnerStrength,
+                        neonOuterStrength = layer.neonOuterStrength,
+                        neonKnockout = layer.neonKnockout,
+                        neonQuality = layer.neonQuality,
+                        glitchIntensity = layer.glitchIntensity,
+                        glitchAmount = layer.glitchAmount,
+                        glitchDistance = layer.glitchDistance,
+                        glitchDirection = layer.glitchDirection,
+                        pixelBlockSize = layer.pixelBlockSize,
+                        chromaticShift = layer.chromaticShift,
+                        chromaticAngle = layer.chromaticAngle,
+                        fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity,
+                        wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
+                        particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
+                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle, multiGradientPositions = layer.multiGradientPositions?.toList(),
+                        radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
+                        decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+                        woodScratchIntensity = layer.woodScratchIntensity,
+                        woodScratchColor = layer.woodScratchColor,
+
+                        twistAngle = layer.twistAngle,
+                        twistOffsetX = layer.twistOffsetX,
+                        twistOffsetY = layer.twistOffsetY,
+                        twistRadius = layer.twistRadius,
+
+                        bulgeCenterX = layer.bulgeCenterX,
+                        bulgeCenterY = layer.bulgeCenterY,
+                        bulgeRadius = layer.bulgeRadius,
+                        bulgeStrength = layer.bulgeStrength,
+
+                        reflectionAlphaStart = layer.reflectionAlphaStart,
+                        reflectionAlphaEnd = layer.reflectionAlphaEnd,
+                        reflectionAmplitudeStart = layer.reflectionAmplitudeStart,
+                        reflectionAmplitudeEnd = layer.reflectionAmplitudeEnd,
+                        reflectionBoundary = layer.reflectionBoundary,
+                        reflectionMirror = layer.reflectionMirror,
+                        reflectionTime = layer.reflectionTime,
+                        reflectionWavelengthStart = layer.reflectionWavelengthStart,
+                        reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+
+                        zoomBlurCenterX = layer.zoomBlurCenterX,
+                        zoomBlurCenterY = layer.zoomBlurCenterY,
+                        zoomBlurInnerRadius = layer.zoomBlurInnerRadius,
+                        zoomBlurRadius = layer.zoomBlurRadius,
+                        zoomBlurStrength = layer.zoomBlurStrength,
+
+                        speedLineType = layer.speedLineType,
+                        speedLineWidth = layer.speedLineWidth,
+                        speedLineHeight = layer.speedLineHeight,
+                        speedLineCount = layer.speedLineCount,
+                        speedLineThickness = layer.speedLineThickness,
+                        speedLineLength = layer.speedLineLength,
+                        speedLineAdditional = layer.speedLineAdditional,
+                        speedLineColor = layer.speedLineColor,
+                        speedLineAngle = layer.speedLineAngle,
+
+                        tailLength = layer.tailLength,
+                        tailWavyIntensity = layer.tailWavyIntensity,
+                        tailAngle = layer.tailAngle,
+                        tailArrowPoint = layer.tailArrowPoint,
+                        tailOffsetX = layer.tailOffsetX,
+                        tailOffsetY = layer.tailOffsetY,
+                        tailThickness = layer.tailThickness,
+                        tailSeed = layer.tailSeed,
+
+                        isOval = layer.isOval,
+                        fixedHeight = layer.fixedHeight,
+                        isGlobalGradient = layer.isGlobalGradient,
+                        globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y,
+                        globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y,
+                        caseType = layer.caseType,
+                        transformTypes = layer.transformTypes,
+                        transformSizeMultiplier = layer.transformSizeMultiplier,
+                        transformAngleMultiplier = layer.transformAngleMultiplier,
+                        transformDotsMultiplier = layer.transformDotsMultiplier
+                    ))
+                } else if (layer is com.astral.typer.models.ShapeLayer) {
+                    var texPath: String? = null
+                    if (layer.textureBitmap != null) {
+                        val name = "shape_tex_$index.png"
+                        saveBitmap(layer.textureBitmap!!, File(imagesDir, name))
+                        texPath = "images/$name"
+                    }
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "shape_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
+                    layerModels.add(LayerModel(
+                        type = "SHAPE",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+                        shapeName = layer.shapeName, color = layer.color,
+                        shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
+                        shadowThickness = layer.shadowThickness,
+                        isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
+                        hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
+                        gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
+                        gradientStrength = layer.gradientStrength,
+                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+                        strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
+                        doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
+                        tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
+                        isRoughStroke = layer.isRoughStroke,
+                        roughStrokeRoughness = layer.roughStrokeRoughness,
+                        isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
+                        isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
+                        texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
+                        patternName = layer.patternName, patternColor = layer.patternColor, patternAlpha = layer.patternAlpha, patternScale = layer.patternScale, patternRotation = layer.patternRotation,
+                        eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels,
+                        currentEffect = layer.currentEffect.name, secondaryEffect = layer.secondaryEffect.name, tertiaryEffect = layer.tertiaryEffect.name, effectSeed = layer.effectSeed,
+                        glitchSeed = layer.glitchSeed,
+                        decaySeed = layer.decaySeed,
+                        woodScratchSeed = layer.woodScratchSeed,
+                        chromaticColors = layer.chromaticColors.toList(), blurRadius = layer.blurRadius,
+                        longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
+                        motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
+                        halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
+                        halftoneType = layer.halftoneType, halftoneAlpha = layer.halftoneAlpha, halftoneRange = layer.halftoneRange,
+                        halftoneDensity = layer.halftoneDensity, halftoneFadingIntensity = layer.halftoneFadingIntensity, halftoneShape = layer.halftoneShape,
+                        neonRadius = layer.neonRadius, neonColor = layer.neonColor,
+                        neonAlpha = layer.neonAlpha,
+                        neonInnerStrength = layer.neonInnerStrength,
+                        neonOuterStrength = layer.neonOuterStrength,
+                        neonKnockout = layer.neonKnockout,
+                        neonQuality = layer.neonQuality,
+                        glitchIntensity = layer.glitchIntensity,
+                        glitchAmount = layer.glitchAmount,
+                        glitchDistance = layer.glitchDistance,
+                        glitchDirection = layer.glitchDirection,
+                        pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
+                        chromaticAngle = layer.chromaticAngle,
+                        fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
+                        particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
+                        multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle, multiGradientPositions = layer.multiGradientPositions?.toList(),
+                        radialBlurInnerRadius = layer.radialBlurInnerRadius, radialBlurMotionStrength = layer.radialBlurMotionStrength,
+                        radialBlurCenterX = layer.radialBlurCenterX, radialBlurCenterY = layer.radialBlurCenterY,
+                        decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel,
+                        woodScratchIntensity = layer.woodScratchIntensity,
+                        woodScratchColor = layer.woodScratchColor,
+
+                        twistAngle = layer.twistAngle,
+                        twistOffsetX = layer.twistOffsetX,
+                        twistOffsetY = layer.twistOffsetY,
+                        twistRadius = layer.twistRadius,
+
+                        bulgeCenterX = layer.bulgeCenterX,
+                        bulgeCenterY = layer.bulgeCenterY,
+                        bulgeRadius = layer.bulgeRadius,
+                        bulgeStrength = layer.bulgeStrength,
+
+                        reflectionAlphaStart = layer.reflectionAlphaStart,
+                        reflectionAlphaEnd = layer.reflectionAlphaEnd,
+                        reflectionAmplitudeStart = layer.reflectionAmplitudeStart,
+                        reflectionAmplitudeEnd = layer.reflectionAmplitudeEnd,
+                        reflectionBoundary = layer.reflectionBoundary,
+                        reflectionMirror = layer.reflectionMirror,
+                        reflectionTime = layer.reflectionTime,
+                        reflectionWavelengthStart = layer.reflectionWavelengthStart,
+                        reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+
+                        zoomBlurCenterX = layer.zoomBlurCenterX,
+                        zoomBlurCenterY = layer.zoomBlurCenterY,
+                        zoomBlurInnerRadius = layer.zoomBlurInnerRadius,
+                        zoomBlurRadius = layer.zoomBlurRadius,
+                        zoomBlurStrength = layer.zoomBlurStrength,
+
+                        speedLineType = layer.speedLineType,
+                        speedLineWidth = layer.speedLineWidth,
+                        speedLineHeight = layer.speedLineHeight,
+                        speedLineCount = layer.speedLineCount,
+                        speedLineThickness = layer.speedLineThickness,
+                        speedLineLength = layer.speedLineLength,
+                        speedLineAdditional = layer.speedLineAdditional,
+                        speedLineColor = layer.speedLineColor,
+                        speedLineAngle = layer.speedLineAngle,
+
+                        tailLength = layer.tailLength,
+                        tailWavyIntensity = layer.tailWavyIntensity,
+                        tailAngle = layer.tailAngle,
+                        tailArrowPoint = layer.tailArrowPoint,
+                        tailOffsetX = layer.tailOffsetX,
+                        tailOffsetY = layer.tailOffsetY,
+                        tailThickness = layer.tailThickness,
+                        tailSeed = layer.tailSeed,
+
+                        motionBlurKernelSize = layer.motionBlurKernelSize,
+                        motionBlurOffset = layer.motionBlurOffset,
+                        motionBlurVelocityX = layer.motionBlurVelocityX,
+                        motionBlurVelocityY = layer.motionBlurVelocityY,
+                        isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
+                    ))
+                } else if (layer is ImageLayer) {
+                    val imgName = "layer_$index.png"
+                    saveBitmap(layer.bitmap, File(imagesDir, imgName))
+
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "image_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
+
+                    layerModels.add(LayerModel(
+                        type = "IMAGE",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+                        imagePath = "images/$imgName",
+                        isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
+                        isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
+                        eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels,
+                        decayIntensity = layer.decayIntensity, decayFadingLevel = layer.decayFadingLevel
+                    ))
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    val brushImgName = "brush_$index.png"
+                    saveBitmap(layer.bitmap, File(imagesDir, brushImgName))
+
+                    var erasePath: String? = null
+                    if (layer.eraseMask != null) {
+                        val name = "brush_erase_$index.png"
+                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
+                        erasePath = "images/$name"
+                    }
+                    val erasePathModels = layer.erasePaths.map { ep ->
+                        ErasePathModel(
+                            points = ep.points.map { ErasePointModel(it.x, it.y) },
+                            size = ep.size,
+                            opacity = ep.opacity,
+                            hardness = ep.hardness
+                        )
+                    }
+
+                    layerModels.add(LayerModel(
+                        type = "BRUSH",
+                        x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
+                        isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        opacity = layer.opacity, blendMode = layer.blendMode,
+                        isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
+                        brushPath = "images/$brushImgName",
+                        brushName = layer.brushName,
+                        brushColor = layer.brushColor,
+                        brushSize = layer.brushSize,
+                        brushHardness = layer.brushHardness,
+                        brushOpacity = layer.brushOpacity,
+                        brushDabsPerActualRadius = layer.brushDabsPerActualRadius,
+                        brushDabsPerBasicRadius = layer.brushDabsPerBasicRadius,
+                        brushDabsPerSecond = layer.brushDabsPerSecond,
+                        brushOffsetByRandom = layer.brushOffsetByRandom,
+                        brushRadiusByRandom = layer.brushRadiusByRandom,
+                        brushEllipticalDabRatio = layer.brushEllipticalDabRatio,
+                        brushEllipticalDabAngle = layer.brushEllipticalDabAngle,
+                        brushSmudge = layer.brushSmudge,
+                        brushSmudgeLength = layer.brushSmudgeLength,
+                        brushSlowTracking = layer.brushSlowTracking,
+                        eraseMaskPath = erasePath,
+                        erasePaths = erasePathModels
+                    ))
+                }
+            }
+
+            // 4. Save project.json
+            val projectData = ProjectData(width, height, canvasColor, layerModels)
+            File(recoveryDir, "project.json").writeText(gson.toJson(projectData))
+
+            return true
         } catch (e: Exception) {
             e.printStackTrace()
             return false
