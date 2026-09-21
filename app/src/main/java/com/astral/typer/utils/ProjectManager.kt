@@ -2064,22 +2064,24 @@ object ProjectManager {
         val tempFile = File(file.parentFile, "${file.name}.tmp")
         var success = false
         try {
-            // Try PNG first
+            // Check if bitmap has alpha. Opaque bitmaps use JPEG 95 which is drastically faster than PNG
+            val preferredFormat = if (bitmap.hasAlpha()) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
+            val preferredQuality = if (preferredFormat == Bitmap.CompressFormat.JPEG) 95 else 100
             try {
                 java.io.BufferedOutputStream(FileOutputStream(tempFile)).use { out ->
-                    success = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    success = bitmap.compress(preferredFormat, preferredQuality, out)
                     out.flush()
                 }
             } catch (oom: OutOfMemoryError) {
-                android.util.Log.e("ProjectManager", "OOM during PNG compression, falling back to JPEG")
+                android.util.Log.e("ProjectManager", "OOM during primary bitmap compression, falling back to JPEG")
                 System.gc()
                 success = false
             } catch (e: Exception) {
-                android.util.Log.e("ProjectManager", "Error during PNG compression, falling back to JPEG", e)
+                android.util.Log.e("ProjectManager", "Error during primary bitmap compression, falling back to JPEG", e)
                 success = false
             }
 
-            // Fallback to JPEG if PNG failed
+            // Fallback to JPEG if primary compression failed
             if (!success) {
                 if (tempFile.exists()) tempFile.delete()
                 try {
@@ -2940,19 +2942,7 @@ object ProjectManager {
             val info = SessionInfo(projectName, parentFolder, System.currentTimeMillis())
             File(recoveryDir, "session_info.json").writeText(gson.toJson(info))
 
-            // 2. Handle background.png
-            val bgFile = File(imagesDir, "background.png")
-            if (bgBitmap != null) {
-                saveBitmap(bgBitmap, bgFile)
-            } else if (!bgFile.exists()) {
-                val lookupName = if (!projectName.isNullOrEmpty()) projectName else "autosave_default"
-                val existingBg = findExistingBackgroundFile(context, lookupName, parentFolder)
-                if (existingBg != null && existingBg.exists()) {
-                    existingBg.copyTo(bgFile, overwrite = true)
-                }
-            }
-
-            // 3. Convert layers to LayerModels and save layer assets to imagesDir
+            // 2. Convert layers to LayerModels first
             val layerModels = mutableListOf<LayerModel>()
 
             for ((index, layer) in layers.withIndex()) {
@@ -3380,9 +3370,21 @@ object ProjectManager {
                 }
             }
 
-            // 4. Save project.json
+            // 3. Save project.json immediately so hasSessionRecovery evaluates to true instantly
             val projectData = ProjectData(width, height, canvasColor, layerModels)
             File(recoveryDir, "project.json").writeText(gson.toJson(projectData))
+
+            // 4. Handle background.png
+            val bgFile = File(imagesDir, "background.png")
+            if (bgBitmap != null) {
+                saveBitmap(bgBitmap, bgFile)
+            } else if (!bgFile.exists()) {
+                val lookupName = if (!projectName.isNullOrEmpty()) projectName else "autosave_default"
+                val existingBg = findExistingBackgroundFile(context, lookupName, parentFolder)
+                if (existingBg != null && existingBg.exists()) {
+                    existingBg.copyTo(bgFile, overwrite = true)
+                }
+            }
 
             return true
         } catch (e: Exception) {
