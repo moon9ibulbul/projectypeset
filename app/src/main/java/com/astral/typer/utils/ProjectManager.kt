@@ -2064,24 +2064,22 @@ object ProjectManager {
         val tempFile = File(file.parentFile, "${file.name}.tmp")
         var success = false
         try {
-            // Check if bitmap has alpha. Opaque bitmaps use JPEG 95 which is drastically faster than PNG
-            val preferredFormat = if (bitmap.hasAlpha()) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
-            val preferredQuality = if (preferredFormat == Bitmap.CompressFormat.JPEG) 95 else 100
+            // Try PNG (lossless 100% quality) first
             try {
                 java.io.BufferedOutputStream(FileOutputStream(tempFile)).use { out ->
-                    success = bitmap.compress(preferredFormat, preferredQuality, out)
+                    success = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                     out.flush()
                 }
             } catch (oom: OutOfMemoryError) {
-                android.util.Log.e("ProjectManager", "OOM during primary bitmap compression, falling back to JPEG")
+                android.util.Log.e("ProjectManager", "OOM during PNG compression, falling back to JPEG")
                 System.gc()
                 success = false
             } catch (e: Exception) {
-                android.util.Log.e("ProjectManager", "Error during primary bitmap compression, falling back to JPEG", e)
+                android.util.Log.e("ProjectManager", "Error during PNG compression, falling back to JPEG", e)
                 success = false
             }
 
-            // Fallback to JPEG if primary compression failed
+            // Fallback to JPEG if PNG compression failed
             if (!success) {
                 if (tempFile.exists()) tempFile.delete()
                 try {
