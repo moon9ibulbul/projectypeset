@@ -358,10 +358,10 @@ object ProjectManager {
             var targetProjectName = projectName.trim()
             if (targetProjectName.startsWith("autosave")) {
                 val cleanSource = sourceProjectName?.trim()
-                targetProjectName = if (!cleanSource.isNullOrEmpty() && !cleanSource.startsWith("autosave")) {
+                targetProjectName = if (!cleanSource.isNullOrEmpty() && cleanSource.startsWith("autosave_")) {
+                    cleanSource
+                } else if (!cleanSource.isNullOrEmpty() && cleanSource != "autosave") {
                     "autosave_$cleanSource"
-                } else if (targetProjectName.contains("_")) {
-                    targetProjectName
                 } else {
                     "autosave_default"
                 }
