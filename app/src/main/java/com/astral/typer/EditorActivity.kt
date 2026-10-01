@@ -9845,157 +9845,161 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
-        // Warp Presets Horizontal Container
-        val presetsContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, 8)
-        }
+        val isWarpPresetDisabled = getSharedPreferences("settings_prefs", MODE_PRIVATE).getBoolean("disable_warp_preset", false)
 
-        val cardBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBgColor)
-        val borderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBorderColor)
-        val textColorPrimary = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorPrimary)
-
-        // "+ Save Preset" Button
-        val saveCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(dpToPx(4), 0, dpToPx(4), 0)
-            }
-            background = GradientDrawable().apply {
-                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                setStroke(dpToPx(1), borderColor)
-                cornerRadius = dpToPx(8).toFloat()
+        if (!isWarpPresetDisabled) {
+            // Warp Presets Horizontal Container
+            val presetsContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, 8)
             }
 
-            val tvPlus = TextView(this@EditorActivity).apply {
-                text = "+"
-                textSize = 24f
-                setTextColor(textColorPrimary)
+            val cardBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBgColor)
+            val borderColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBorderColor)
+            val textColorPrimary = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appTextColorPrimary)
+
+            // "+ Save Preset" Button
+            val saveCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-            }
-            val tvSave = TextView(this@EditorActivity).apply {
-                text = "Save Preset"
-                textSize = 11f
-                setTextColor(textColorPrimary)
-                gravity = Gravity.CENTER
-            }
-            addView(tvPlus)
-            addView(tvSave)
-
-            setOnClickListener {
-                val currentMesh = stylableLayer.warpMesh
-                if (currentMesh == null) {
-                    Toast.makeText(this@EditorActivity, "Please modify warp points first", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
+                setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(dpToPx(4), 0, dpToPx(4), 0)
                 }
-                val input = EditText(this@EditorActivity).apply {
-                    hint = "Preset Name"
+                background = GradientDrawable().apply {
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), borderColor)
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+
+                val tvPlus = TextView(this@EditorActivity).apply {
+                    text = "+"
+                    textSize = 24f
                     setTextColor(textColorPrimary)
-                    setHintTextColor(Color.GRAY)
+                    gravity = Gravity.CENTER
                 }
-                android.app.AlertDialog.Builder(this@EditorActivity)
-                    .setTitle("Save Custom Warp Preset")
-                    .setView(input)
-                    .setPositiveButton("Save") { _, _ ->
-                        val name = input.text.toString().trim()
-                        if (name.isNotEmpty()) {
-                            com.astral.typer.utils.WarpPresetManager.addCustomPreset(
-                                this@EditorActivity,
-                                name,
-                                stylableLayer.warpRows,
-                                stylableLayer.warpCols,
-                                currentMesh,
-                                layer.getWidth().toFloat(),
-                                layer.getHeight().toFloat()
-                            )
-                            Toast.makeText(this@EditorActivity, "Preset Saved", Toast.LENGTH_SHORT).show()
-                            showWarpMenu()
-                        }
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-        }
-        presetsContainer.addView(saveCard)
+                val tvSave = TextView(this@EditorActivity).apply {
+                    text = "Save Preset"
+                    textSize = 11f
+                    setTextColor(textColorPrimary)
+                    gravity = Gravity.CENTER
+                }
+                addView(tvPlus)
+                addView(tvSave)
 
-        // RecyclerView for Warp Presets (Optimized with async loading & preview caching)
-        val rvPresets = androidx.recyclerview.widget.RecyclerView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@EditorActivity, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
-            adapter = WarpPresetAdapter(
-                context = this@EditorActivity,
-                scope = lifecycleScope,
-                presets = com.astral.typer.utils.WarpPresetManager.presets,
-                onApply = { preset ->
-                    val w = layer.getWidth().toFloat()
-                    val h = layer.getHeight().toFloat()
-                    val res = preset.generateMesh(w, h)
-                    stylableLayer.isWarp = true
-                    stylableLayer.warpRows = res.rows
-                    stylableLayer.warpCols = res.cols
-                    stylableLayer.warpMesh = res.mesh.clone()
-                    canvasView.invalidate()
-                    showWarpMenu()
-                },
-                onLongClick = { _, preset ->
-                    val options = if (preset.isCustom) arrayOf("Rename Preset", "Delete Preset") else arrayOf("Rename Preset")
+                setOnClickListener {
+                    val currentMesh = stylableLayer.warpMesh
+                    if (currentMesh == null) {
+                        Toast.makeText(this@EditorActivity, "Please modify warp points first", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    val input = EditText(this@EditorActivity).apply {
+                        hint = "Preset Name"
+                        setTextColor(textColorPrimary)
+                        setHintTextColor(Color.GRAY)
+                    }
                     android.app.AlertDialog.Builder(this@EditorActivity)
-                        .setTitle(preset.name)
-                        .setItems(options) { _, which ->
-                            when (options[which]) {
-                                "Rename Preset" -> {
-                                    val input = EditText(this@EditorActivity).apply {
-                                        setText(preset.name)
-                                        setTextColor(textColorPrimary)
+                        .setTitle("Save Custom Warp Preset")
+                        .setView(input)
+                        .setPositiveButton("Save") { _, _ ->
+                            val name = input.text.toString().trim()
+                            if (name.isNotEmpty()) {
+                                com.astral.typer.utils.WarpPresetManager.addCustomPreset(
+                                    this@EditorActivity,
+                                    name,
+                                    stylableLayer.warpRows,
+                                    stylableLayer.warpCols,
+                                    currentMesh,
+                                    layer.getWidth().toFloat(),
+                                    layer.getHeight().toFloat()
+                                )
+                                Toast.makeText(this@EditorActivity, "Preset Saved", Toast.LENGTH_SHORT).show()
+                                showWarpMenu()
+                            }
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+            presetsContainer.addView(saveCard)
+
+            // RecyclerView for Warp Presets (Optimized with async loading & preview caching)
+            val rvPresets = androidx.recyclerview.widget.RecyclerView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@EditorActivity, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
+                adapter = WarpPresetAdapter(
+                    context = this@EditorActivity,
+                    scope = lifecycleScope,
+                    presets = com.astral.typer.utils.WarpPresetManager.presets,
+                    onApply = { preset ->
+                        val w = layer.getWidth().toFloat()
+                        val h = layer.getHeight().toFloat()
+                        val res = preset.generateMesh(w, h)
+                        stylableLayer.isWarp = true
+                        stylableLayer.warpRows = res.rows
+                        stylableLayer.warpCols = res.cols
+                        stylableLayer.warpMesh = res.mesh.clone()
+                        canvasView.invalidate()
+                        showWarpMenu()
+                    },
+                    onLongClick = { _, preset ->
+                        val options = if (preset.isCustom) arrayOf("Rename Preset", "Delete Preset") else arrayOf("Rename Preset")
+                        android.app.AlertDialog.Builder(this@EditorActivity)
+                            .setTitle(preset.name)
+                            .setItems(options) { _, which ->
+                                when (options[which]) {
+                                    "Rename Preset" -> {
+                                        val input = EditText(this@EditorActivity).apply {
+                                            setText(preset.name)
+                                            setTextColor(textColorPrimary)
+                                        }
+                                        android.app.AlertDialog.Builder(this@EditorActivity)
+                                            .setTitle("Rename Preset")
+                                            .setView(input)
+                                            .setPositiveButton("Save") { _, _ ->
+                                                val newName = input.text.toString().trim()
+                                                if (newName.isNotEmpty()) {
+                                                    com.astral.typer.utils.WarpPresetManager.renamePreset(
+                                                        this@EditorActivity,
+                                                        preset.id,
+                                                        newName
+                                                    )
+                                                    showWarpMenu()
+                                                }
+                                            }
+                                            .setNegativeButton("Cancel", null)
+                                            .show()
                                     }
-                                    android.app.AlertDialog.Builder(this@EditorActivity)
-                                        .setTitle("Rename Preset")
-                                        .setView(input)
-                                        .setPositiveButton("Save") { _, _ ->
-                                            val newName = input.text.toString().trim()
-                                            if (newName.isNotEmpty()) {
-                                                com.astral.typer.utils.WarpPresetManager.renamePreset(
+                                    "Delete Preset" -> {
+                                        android.app.AlertDialog.Builder(this@EditorActivity)
+                                            .setTitle("Delete Preset")
+                                            .setMessage("Delete '${preset.name}'?")
+                                            .setPositiveButton("Delete") { _, _ ->
+                                                com.astral.typer.utils.WarpPresetManager.deletePreset(
                                                     this@EditorActivity,
-                                                    preset.id,
-                                                    newName
+                                                    preset.id
                                                 )
                                                 showWarpMenu()
                                             }
-                                        }
-                                        .setNegativeButton("Cancel", null)
-                                        .show()
-                                }
-                                "Delete Preset" -> {
-                                    android.app.AlertDialog.Builder(this@EditorActivity)
-                                        .setTitle("Delete Preset")
-                                        .setMessage("Delete '${preset.name}'?")
-                                        .setPositiveButton("Delete") { _, _ ->
-                                            com.astral.typer.utils.WarpPresetManager.deletePreset(
-                                                this@EditorActivity,
-                                                preset.id
-                                            )
-                                            showWarpMenu()
-                                        }
-                                        .setNegativeButton("Cancel", null)
-                                        .show()
+                                            .setNegativeButton("Cancel", null)
+                                            .show()
+                                    }
                                 }
                             }
-                        }
-                        .show()
-                }
-            )
+                            .show()
+                    }
+                )
+            }
+            presetsContainer.addView(rvPresets)
+            layout.addView(presetsContainer)
         }
-        presetsContainer.addView(rvPresets)
-        layout.addView(presetsContainer)
 
         // Row/Col Controls
         val row = LinearLayout(this).apply {

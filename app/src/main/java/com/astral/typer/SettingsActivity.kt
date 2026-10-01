@@ -180,6 +180,12 @@ class SettingsActivity : AppCompatActivity() {
             settingsPrefs.edit().putBoolean("disable_lod_scaling", isChecked).apply()
         }
 
+        val cbDisableWarpPresetOption = findViewById<CheckBox>(R.id.cbDisableWarpPreset)
+        cbDisableWarpPresetOption.isChecked = settingsPrefs.getBoolean("disable_warp_preset", false)
+        cbDisableWarpPresetOption.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("disable_warp_preset", isChecked).apply()
+        }
+
         val tvBottomMenuHeight = findViewById<TextView>(R.id.tvBottomMenuHeight)
         val sbBottomMenuHeight = findViewById<android.widget.SeekBar>(R.id.sbBottomMenuHeight)
 
