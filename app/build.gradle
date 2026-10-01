@@ -46,6 +46,49 @@ android {
     }
 }
 
+// Generate fallback google-services.json if missing (e.g. CI builds)
+tasks.register('ensureGoogleServicesJson') {
+    doLast {
+        def targetFile = file('google-services.json')
+        if (!targetFile.exists()) {
+            targetFile.text = '''{
+  "project_info": {
+    "project_number": "1234567890",
+    "project_id": "dummy-project",
+    "storage_bucket": "dummy-project.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1234567890:android:1234567890abcdef",
+        "android_client_info": {
+          "package_name": "com.astral.typer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDummyKeyForBuildOnly"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+'''
+        }
+    }
+}
+
+tasks.matching { it.name.startsWith('process') && it.name.contains('GoogleServices') }.configureEach {
+    dependsOn 'ensureGoogleServicesJson'
+}
+
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
