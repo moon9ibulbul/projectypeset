@@ -18,6 +18,10 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.astral.typer.models.TextEffectType
 import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.FontManager
@@ -391,6 +395,8 @@ class SfxStudioActivity : AppCompatActivity() {
                 return object : androidx.recyclerview.widget.RecyclerView.ViewHolder(cardLayout) {}
             }
 
+        val sfxPreviewCache = mutableMapOf<String, android.graphics.Bitmap>()
+
             override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
                 val preset = filteredPresets[position]
                 val cardLayout = holder.itemView as android.widget.LinearLayout
@@ -398,9 +404,23 @@ class SfxStudioActivity : AppCompatActivity() {
                 val tvName = cardLayout.getChildAt(1) as TextView
 
                 tvName.text = preset.name
+                imageView.setImageBitmap(null)
+
                 val thumbSize = (120 * resources.displayMetrics.density).toInt()
-                val thumbnail = SfxPresetManager.generateThumbnail(this@SfxStudioActivity, preset, thumbSize, thumbSize)
-                imageView.setImageBitmap(thumbnail)
+                val cacheKey = preset.id
+                if (sfxPreviewCache.containsKey(cacheKey)) {
+                    imageView.setImageBitmap(sfxPreviewCache[cacheKey])
+                } else {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val thumbnail = SfxPresetManager.generateThumbnail(this@SfxStudioActivity, preset, thumbSize, thumbSize)
+                        withContext(Dispatchers.Main) {
+                            sfxPreviewCache[cacheKey] = thumbnail
+                            if (holder.adapterPosition == position) {
+                                imageView.setImageBitmap(thumbnail)
+                            }
+                        }
+                    }
+                }
 
                 cardLayout.setOnClickListener {
                     showPresetActionDialog(preset, dialog)

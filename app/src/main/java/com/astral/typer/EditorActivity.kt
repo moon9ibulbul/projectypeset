@@ -10438,18 +10438,34 @@ class EditorActivity : AppCompatActivity() {
                 return object : androidx.recyclerview.widget.RecyclerView.ViewHolder(frame) {}
             }
 
+            val sfxPreviewCache = mutableMapOf<String, android.graphics.Bitmap>()
+
             override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
                 val preset = filteredPresets[position]
                 val frame = holder.itemView as FrameLayout
                 val imageView = frame.getChildAt(0) as ImageView
 
-                val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
-                    this@EditorActivity,
-                    preset,
-                    dpToPx(100),
-                    dpToPx(100)
-                )
-                imageView.setImageBitmap(thumbnail)
+                imageView.setImageBitmap(null)
+                val thumbSize = dpToPx(100)
+                val cacheKey = preset.id
+                if (sfxPreviewCache.containsKey(cacheKey)) {
+                    imageView.setImageBitmap(sfxPreviewCache[cacheKey])
+                } else {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
+                            this@EditorActivity,
+                            preset,
+                            thumbSize,
+                            thumbSize
+                        )
+                        withContext(Dispatchers.Main) {
+                            sfxPreviewCache[cacheKey] = thumbnail
+                            if (holder.adapterPosition == position) {
+                                imageView.setImageBitmap(thumbnail)
+                            }
+                        }
+                    }
+                }
 
                 frame.setOnClickListener {
                     binding.saveSidebar.root.visibility = View.GONE
