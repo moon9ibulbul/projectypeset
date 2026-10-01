@@ -9845,14 +9845,11 @@ class EditorActivity : AppCompatActivity() {
             setPadding(16, 8, 16, 8)
         }
 
-        // Warp Presets Horizontal Selector
-        val horizontalScroll = android.widget.HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            setPadding(0, 0, 0, 8)
-        }
+        // Warp Presets Horizontal Container
         val presetsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 8)
         }
 
         val cardBgColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, com.astral.typer.R.attr.appCardBgColor)
@@ -9927,45 +9924,18 @@ class EditorActivity : AppCompatActivity() {
         }
         presetsContainer.addView(saveCard)
 
-        com.astral.typer.utils.WarpPresetManager.presets.forEach { preset ->
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(dpToPx(4), 0, dpToPx(4), 0)
-                }
-                background = GradientDrawable().apply {
-                    setColor(cardBgColor)
-                    setStroke(dpToPx(1), borderColor)
-                    cornerRadius = dpToPx(8).toFloat()
-                }
-
-                val iv = android.widget.ImageView(this@EditorActivity).apply {
-                    val thumb = com.astral.typer.utils.WarpPresetManager.generateThumbnail(
-                        this@EditorActivity,
-                        preset,
-                        dpToPx(64),
-                        dpToPx(48)
-                    )
-                    setImageBitmap(thumb)
-                    scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                }
-                val tv = TextView(this@EditorActivity).apply {
-                    text = preset.name
-                    textSize = 11f
-                    setTextColor(textColorPrimary)
-                    gravity = Gravity.CENTER
-                    setPadding(0, dpToPx(4), 0, 0)
-                }
-
-                addView(iv)
-                addView(tv)
-
-                setOnClickListener {
+        // RecyclerView for Warp Presets (Optimized with async loading & preview caching)
+        val rvPresets = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@EditorActivity, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
+            adapter = WarpPresetAdapter(
+                context = this@EditorActivity,
+                scope = lifecycleScope,
+                presets = com.astral.typer.utils.WarpPresetManager.presets,
+                onApply = { preset ->
                     val w = layer.getWidth().toFloat()
                     val h = layer.getHeight().toFloat()
                     val res = preset.generateMesh(w, h)
@@ -9975,9 +9945,8 @@ class EditorActivity : AppCompatActivity() {
                     stylableLayer.warpMesh = res.mesh.clone()
                     canvasView.invalidate()
                     showWarpMenu()
-                }
-
-                setOnLongClickListener {
+                },
+                onLongClick = { _, preset ->
                     val options = if (preset.isCustom) arrayOf("Rename Preset", "Delete Preset") else arrayOf("Rename Preset")
                     android.app.AlertDialog.Builder(this@EditorActivity)
                         .setTitle(preset.name)
@@ -10022,13 +9991,11 @@ class EditorActivity : AppCompatActivity() {
                             }
                         }
                         .show()
-                    true
                 }
-            }
-            presetsContainer.addView(card)
+            )
         }
-        horizontalScroll.addView(presetsContainer)
-        layout.addView(horizontalScroll)
+        presetsContainer.addView(rvPresets)
+        layout.addView(presetsContainer)
 
         // Row/Col Controls
         val row = LinearLayout(this).apply {
@@ -10471,18 +10438,34 @@ class EditorActivity : AppCompatActivity() {
                 return object : androidx.recyclerview.widget.RecyclerView.ViewHolder(frame) {}
             }
 
+            val sfxPreviewCache = mutableMapOf<String, android.graphics.Bitmap>()
+
             override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
                 val preset = filteredPresets[position]
                 val frame = holder.itemView as FrameLayout
                 val imageView = frame.getChildAt(0) as ImageView
 
-                val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
-                    this@EditorActivity,
-                    preset,
-                    dpToPx(100),
-                    dpToPx(100)
-                )
-                imageView.setImageBitmap(thumbnail)
+                imageView.setImageBitmap(null)
+                val thumbSize = dpToPx(100)
+                val cacheKey = preset.id
+                if (sfxPreviewCache.containsKey(cacheKey)) {
+                    imageView.setImageBitmap(sfxPreviewCache[cacheKey])
+                } else {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val thumbnail = com.astral.typer.utils.SfxPresetManager.generateThumbnail(
+                            this@EditorActivity,
+                            preset,
+                            thumbSize,
+                            thumbSize
+                        )
+                        withContext(Dispatchers.Main) {
+                            sfxPreviewCache[cacheKey] = thumbnail
+                            if (holder.adapterPosition == position) {
+                                imageView.setImageBitmap(thumbnail)
+                            }
+                        }
+                    }
+                }
 
                 frame.setOnClickListener {
                     binding.saveSidebar.root.visibility = View.GONE
