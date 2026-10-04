@@ -655,6 +655,8 @@ class EditorActivity : AppCompatActivity() {
                     layer.isMotionShadow = style.isMotionShadow
                     layer.motionShadowAngle = style.motionAngle
                     layer.motionShadowDistance = style.motionDist
+                    layer.motionShadowDx = style.motionDx
+                    layer.motionShadowDy = style.motionDy
                     layer.motionShadowThickness = style.motionThickness
                     layer.motionShadowSmoothness = style.motionSmoothness
                     layer.motionShadowKernelSize = style.motionKernelSize
@@ -666,7 +668,9 @@ class EditorActivity : AppCompatActivity() {
                     layer.hasMiddleColor = style.hasMiddleColor
                     layer.gradientMiddleColor = style.gradientMiddleColor
                     layer.isGradientText = style.isGradientText
-                    layer.isGradientStroke = style.isGradientStroke
+                    layer.isGradientStroke1 = style.isGradientStroke1
+                    layer.isGradientStroke2 = style.isGradientStroke2
+                    layer.isGradientStroke3 = style.isGradientStroke3
                     layer.isGradientShadow = style.isGradientShadow
                     layer.strokeColor = style.strokeColor
                     layer.strokeWidth = style.strokeWidth
@@ -4734,6 +4738,8 @@ class EditorActivity : AppCompatActivity() {
         layer.isMotionShadow = style.isMotionShadow
         layer.motionShadowAngle = style.motionAngle
         layer.motionShadowDistance = style.motionDist
+        layer.motionShadowDx = style.motionDx
+        layer.motionShadowDy = style.motionDy
         layer.motionShadowThickness = style.motionThickness
         layer.motionShadowSmoothness = style.motionSmoothness
         layer.motionShadowKernelSize = style.motionKernelSize
@@ -4745,7 +4751,9 @@ class EditorActivity : AppCompatActivity() {
         layer.hasMiddleColor = style.hasMiddleColor
         layer.gradientMiddleColor = style.gradientMiddleColor
         layer.isGradientText = style.isGradientText
-        layer.isGradientStroke = style.isGradientStroke
+        layer.isGradientStroke1 = style.isGradientStroke1
+        layer.isGradientStroke2 = style.isGradientStroke2
+        layer.isGradientStroke3 = style.isGradientStroke3
         layer.isGradientShadow = style.isGradientShadow
         layer.strokeColor = style.strokeColor
         layer.strokeWidth = style.strokeWidth
@@ -5240,9 +5248,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropFont.visibility = View.GONE
             binding.btnPropFormat.visibility = View.GONE
             binding.btnPropSpacing.visibility = View.GONE
-            binding.btnPropStroke.visibility = View.GONE
             binding.btnPropDoubleStroke.visibility = View.GONE
-            binding.btnPropShadow.visibility = View.GONE
             binding.btnPropGradation.visibility = View.GONE
             binding.btnPropEffect.visibility = View.GONE
             binding.btnPropTexture.visibility = View.GONE
@@ -8830,6 +8836,42 @@ class EditorActivity : AppCompatActivity() {
             })
             layout.addView(distSlider)
 
+            // DX
+            layout.addView(createSlider("DX", (stylableLayer.motionShadowDx + 50).toInt(), 100) {
+                stylableLayer.motionShadowDx = (it - 50).toFloat()
+                canvasView.invalidate()
+            })
+
+            // DY
+            layout.addView(createSlider("DY", (stylableLayer.motionShadowDy + 50).toInt(), 100) {
+                stylableLayer.motionShadowDy = (it - 50).toFloat()
+                canvasView.invalidate()
+            })
+
+            // Center Button for Motion Shadow
+            val btnMotionCenter = android.widget.Button(this@EditorActivity).apply {
+                text = "Center"
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                background = GradientDrawable().apply {
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    cornerRadius = dpToPx(8).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 8, 0, 8)
+                }
+                setOnClickListener {
+                    stylableLayer.motionShadowDx = 0f
+                    stylableLayer.motionShadowDy = 0f
+                    canvasView.invalidate()
+                    showShadowControls()
+                }
+            }
+            layout.addView(btnMotionCenter)
+
             // Thickness
             val thickSlider = createSlider("Thickness: ${stylableLayer.motionShadowThickness.toInt()}", stylableLayer.motionShadowThickness.toInt(), 20) { p ->
                 stylableLayer.motionShadowThickness = p.toFloat()
@@ -8978,7 +9020,9 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.pendingHasMiddleColor = if (layerAsText != null) layerAsText.hasMiddleColor else layerAsShape!!.hasMiddleColor
                     canvasView.pendingGradientMiddleColor = if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor
                     canvasView.targetGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
-                    canvasView.targetGradientStroke = if (layerAsText != null) layerAsText.isGradientStroke else layerAsShape!!.isGradientStroke
+                    canvasView.targetGradientStroke1 = if (layerAsText != null) layerAsText.isGradientStroke1 else layerAsShape!!.isGradientStroke1
+                    canvasView.targetGradientStroke2 = if (layerAsText != null) layerAsText.isGradientStroke2 else layerAsShape!!.isGradientStroke2
+                    canvasView.targetGradientStroke3 = if (layerAsText != null) layerAsText.isGradientStroke3 else layerAsShape!!.isGradientStroke3
                     canvasView.targetGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
                 }
                 showGradationControls()
@@ -8986,11 +9030,20 @@ class EditorActivity : AppCompatActivity() {
         }
         mainLayout.addView(btnGradMode)
 
-        // Toggles for Text, Stroke, Shadow
+        // Toggles for Text, 1st Stroke, 2nd Stroke, 3rd Stroke, Shadow
         val togglesLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 16)
+        }
+
+        val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, 16)
+        }
+
+        val row2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
 
         fun createToggle(text: String, isChecked: Boolean, onChecked: (Boolean) -> Unit): android.widget.CheckBox {
@@ -9005,18 +9058,31 @@ class EditorActivity : AppCompatActivity() {
         }
 
         val layerIsGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
-        val layerIsGradientStroke = if (layerAsText != null) layerAsText.isGradientStroke else layerAsShape!!.isGradientStroke
+        val layerIsGradientStroke1 = if (layerAsText != null) layerAsText.isGradientStroke1 else layerAsShape!!.isGradientStroke1
+        val layerIsGradientStroke2 = if (layerAsText != null) layerAsText.isGradientStroke2 else layerAsShape!!.isGradientStroke2
+        val layerIsGradientStroke3 = if (layerAsText != null) layerAsText.isGradientStroke3 else layerAsShape!!.isGradientStroke3
         val layerIsGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
 
-        togglesLayout.addView(createToggle(if (layerAsShape != null) "Fill" else "Text", if (isGradationMode) canvasView.targetGradientText else layerIsGradientText) { b ->
+        row1.addView(createToggle(if (layerAsShape != null) "Fill" else "Text", if (isGradationMode) canvasView.targetGradientText else layerIsGradientText) { b ->
             if (isGradationMode) canvasView.targetGradientText = b else { if (layerAsText != null) layerAsText.isGradientText = b else layerAsShape!!.isGradientText = b; canvasView.invalidate() }
         })
-        togglesLayout.addView(createToggle("Stroke", if (isGradationMode) canvasView.targetGradientStroke else layerIsGradientStroke) { b ->
-            if (isGradationMode) canvasView.targetGradientStroke = b else { if (layerAsText != null) layerAsText.isGradientStroke = b else layerAsShape!!.isGradientStroke = b; canvasView.invalidate() }
+        row1.addView(createToggle("1st Stroke", if (isGradationMode) canvasView.targetGradientStroke1 else layerIsGradientStroke1) { b ->
+            if (isGradationMode) canvasView.targetGradientStroke1 = b else { if (layerAsText != null) layerAsText.isGradientStroke1 = b else layerAsShape!!.isGradientStroke1 = b; canvasView.invalidate() }
         })
-        togglesLayout.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layerIsGradientShadow) { b ->
+        row1.addView(createToggle("2nd Stroke", if (isGradationMode) canvasView.targetGradientStroke2 else layerIsGradientStroke2) { b ->
+            if (isGradationMode) canvasView.targetGradientStroke2 = b else { if (layerAsText != null) layerAsText.isGradientStroke2 = b else layerAsShape!!.isGradientStroke2 = b; canvasView.invalidate() }
+        })
+
+        row2.addView(createToggle("3rd Stroke", if (isGradationMode) canvasView.targetGradientStroke3 else layerIsGradientStroke3) { b ->
+            if (isGradationMode) canvasView.targetGradientStroke3 = b else { if (layerAsText != null) layerAsText.isGradientStroke3 = b else layerAsShape!!.isGradientStroke3 = b; canvasView.invalidate() }
+        })
+        row2.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layerIsGradientShadow) { b ->
             if (isGradationMode) canvasView.targetGradientShadow = b else { if (layerAsText != null) layerAsText.isGradientShadow = b else layerAsShape!!.isGradientShadow = b; canvasView.invalidate() }
         })
+        row2.addView(FrameLayout(this).apply { layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
+
+        togglesLayout.addView(row1)
+        togglesLayout.addView(row2)
 
         mainLayout.addView(togglesLayout)
 

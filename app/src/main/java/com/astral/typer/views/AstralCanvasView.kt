@@ -146,7 +146,9 @@ class AstralCanvasView @JvmOverloads constructor(
     var pendingGradientMiddlePos: Float = 0.5f
     var pendingGradientEndPos: Float = 1.0f
     var targetGradientText: Boolean = true
-    var targetGradientStroke: Boolean = false
+    var targetGradientStroke1: Boolean = false
+    var targetGradientStroke2: Boolean = false
+    var targetGradientStroke3: Boolean = false
     var targetGradientShadow: Boolean = false
 
     var magicWandSensitivity: Int = 30
@@ -2705,7 +2707,9 @@ class AstralCanvasView @JvmOverloads constructor(
                                 layer.gradientMiddlePos = pendingGradientMiddlePos
                                 layer.gradientEndPos = pendingGradientEndPos
                                 layer.isGradientText = targetGradientText
-                                layer.isGradientStroke = targetGradientStroke
+                                layer.isGradientStroke1 = targetGradientStroke1
+                                layer.isGradientStroke2 = targetGradientStroke2
+                                layer.isGradientStroke3 = targetGradientStroke3
                                 layer.isGradientShadow = targetGradientShadow
                             }
                         }

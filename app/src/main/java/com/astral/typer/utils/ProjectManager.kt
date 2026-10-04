@@ -100,6 +100,7 @@ object ProjectManager {
         // Shadow
         val shadowColor: Int? = null, val shadowRadius: Float? = null, val shadowDx: Float? = null, val shadowDy: Float? = null,
         val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
+        val motionShadowDx: Float? = null, val motionShadowDy: Float? = null,
         val motionShadowThickness: Float? = null, val motionShadowSmoothness: Int? = null, val motionShadowKernelSize: Int? = null,
         val shadowThickness: Float? = null, val isTextBlending: Boolean? = null, val blendingStrength: Float? = null,
         val highlightCornerRadius: Float? = null,
@@ -109,7 +110,7 @@ object ProjectManager {
         val hasMiddleColor: Boolean? = null, val gradientMiddleColor: Int? = null,
         val gradientStartPos: Float? = null, val gradientMiddlePos: Float? = null, val gradientEndPos: Float? = null,
         val gradientStrength: Float? = null,
-        val isGradientText: Boolean? = null, val isGradientStroke: Boolean? = null, val isGradientShadow: Boolean? = null,
+        val isGradientText: Boolean? = null, val isGradientStroke1: Boolean? = null, val isGradientStroke2: Boolean? = null, val isGradientStroke3: Boolean? = null, val isGradientShadow: Boolean? = null,
 
         // Stroke
         val strokeColor: Int? = null, val strokeWidth: Float? = null,
@@ -478,6 +479,7 @@ object ProjectManager {
 
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowDx = layer.motionShadowDx, motionShadowDy = layer.motionShadowDy,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
                         highlightCornerRadius = layer.highlightCornerRadius,
@@ -486,7 +488,7 @@ object ProjectManager {
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
                         gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
                         gradientStrength = layer.gradientStrength,
-                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+                        isGradientText = layer.isGradientText, isGradientStroke1 = layer.isGradientStroke1, isGradientStroke2 = layer.isGradientStroke2, isGradientStroke3 = layer.isGradientStroke3, isGradientShadow = layer.isGradientShadow,
 
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
@@ -645,7 +647,7 @@ object ProjectManager {
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
                         gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
                         gradientStrength = layer.gradientStrength,
-                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+                        isGradientText = layer.isGradientText, isGradientStroke1 = layer.isGradientStroke1, isGradientStroke2 = layer.isGradientStroke2, isGradientStroke3 = layer.isGradientStroke3, isGradientShadow = layer.isGradientShadow,
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
@@ -1311,6 +1313,8 @@ object ProjectManager {
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.motionShadowDx?.let { layer.motionShadowDx = it }
+            model.motionShadowDy?.let { layer.motionShadowDy = it }
             model.motionShadowThickness?.let { layer.motionShadowThickness = it }
             model.motionShadowSmoothness?.let { layer.motionShadowSmoothness = it }
             model.motionShadowKernelSize?.let { layer.motionShadowKernelSize = it }
@@ -1330,7 +1334,9 @@ object ProjectManager {
             model.gradientEndPos?.let { layer.gradientEndPos = it }
             model.gradientStrength?.let { layer.gradientStrength = it }
             model.isGradientText?.let { layer.isGradientText = it }
-            model.isGradientStroke?.let { layer.isGradientStroke = it }
+            model.isGradientStroke1?.let { layer.isGradientStroke1 = it }
+            model.isGradientStroke2?.let { layer.isGradientStroke2 = it }
+            model.isGradientStroke3?.let { layer.isGradientStroke3 = it }
             model.isGradientShadow?.let { layer.isGradientShadow = it }
 
             model.strokeColor?.let { layer.strokeColor = it }
@@ -1535,6 +1541,8 @@ object ProjectManager {
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.motionShadowDx?.let { layer.motionShadowDx = it }
+            model.motionShadowDy?.let { layer.motionShadowDy = it }
             model.motionShadowThickness?.let { layer.motionShadowThickness = it }
             model.motionShadowSmoothness?.let { layer.motionShadowSmoothness = it }
             model.motionShadowKernelSize?.let { layer.motionShadowKernelSize = it }
@@ -1552,7 +1560,9 @@ object ProjectManager {
             model.gradientEndPos?.let { layer.gradientEndPos = it }
             model.gradientStrength?.let { layer.gradientStrength = it }
             model.isGradientText?.let { layer.isGradientText = it }
-            model.isGradientStroke?.let { layer.isGradientStroke = it }
+            model.isGradientStroke1?.let { layer.isGradientStroke1 = it }
+            model.isGradientStroke2?.let { layer.isGradientStroke2 = it }
+            model.isGradientStroke3?.let { layer.isGradientStroke3 = it }
             model.isGradientShadow?.let { layer.isGradientShadow = it }
             model.strokeColor?.let { layer.strokeColor = it }
             model.strokeWidth?.let { layer.strokeWidth = it }
@@ -3035,6 +3045,7 @@ object ProjectManager {
 
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowDx = layer.motionShadowDx, motionShadowDy = layer.motionShadowDy,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
                         highlightCornerRadius = layer.highlightCornerRadius,
@@ -3043,7 +3054,7 @@ object ProjectManager {
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
                         gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
                         gradientStrength = layer.gradientStrength,
-                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+                        isGradientText = layer.isGradientText, isGradientStroke1 = layer.isGradientStroke1, isGradientStroke2 = layer.isGradientStroke2, isGradientStroke3 = layer.isGradientStroke3, isGradientShadow = layer.isGradientShadow,
 
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
@@ -3195,7 +3206,7 @@ object ProjectManager {
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
                         gradientStartPos = layer.gradientStartPos, gradientMiddlePos = layer.gradientMiddlePos, gradientEndPos = layer.gradientEndPos,
                         gradientStrength = layer.gradientStrength,
-                        isGradientText = layer.isGradientText, isGradientStroke = layer.isGradientStroke, isGradientShadow = layer.isGradientShadow,
+                        isGradientText = layer.isGradientText, isGradientStroke1 = layer.isGradientStroke1, isGradientStroke2 = layer.isGradientStroke2, isGradientStroke3 = layer.isGradientStroke3, isGradientShadow = layer.isGradientShadow,
                         strokeColor = layer.strokeColor, strokeWidth = layer.strokeWidth,
                         doubleStrokeColor = layer.doubleStrokeColor, doubleStrokeWidth = layer.doubleStrokeWidth,
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,

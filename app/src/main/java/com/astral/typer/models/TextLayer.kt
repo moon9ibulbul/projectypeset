@@ -122,6 +122,8 @@ class TextLayer(
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowDx: Float = 0f
+    override var motionShadowDy: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
     override var motionShadowKernelSize: Int = 5
@@ -142,7 +144,9 @@ class TextLayer(
     override var gradientEndPos: Float = 1.0f
     override var gradientStrength: Float = 1.0f
     override var isGradientText: Boolean = true
-    override var isGradientStroke: Boolean = false
+    override var isGradientStroke1: Boolean = false
+    override var isGradientStroke2: Boolean = false
+    override var isGradientStroke3: Boolean = false
     override var isGradientShadow: Boolean = false
 
     override var isGlobalGradient: Boolean = false
@@ -621,6 +625,8 @@ class TextLayer(
         result = 31 * result + isMotionShadowIncludeStroke.hashCode()
         result = 31 * result + motionShadowAngle
         result = 31 * result + motionShadowDistance.hashCode()
+        result = 31 * result + motionShadowDx.hashCode()
+        result = 31 * result + motionShadowDy.hashCode()
         result = 31 * result + motionShadowThickness.hashCode()
         result = 31 * result + motionShadowSmoothness
         result = 31 * result + motionShadowKernelSize
@@ -637,7 +643,9 @@ class TextLayer(
         result = 31 * result + gradientEndPos.hashCode()
         result = 31 * result + gradientStrength.hashCode()
         result = 31 * result + isGradientText.hashCode()
-        result = 31 * result + isGradientStroke.hashCode()
+        result = 31 * result + isGradientStroke1.hashCode()
+        result = 31 * result + isGradientStroke2.hashCode()
+        result = 31 * result + isGradientStroke3.hashCode()
         result = 31 * result + isGradientShadow.hashCode()
         result = 31 * result + isGlobalGradient.hashCode()
         result = 31 * result + globalP1.x.hashCode()
@@ -910,6 +918,8 @@ class TextLayer(
         newLayer.isMotionShadowIncludeStroke = this.isMotionShadowIncludeStroke
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
+        newLayer.motionShadowDx = this.motionShadowDx
+        newLayer.motionShadowDy = this.motionShadowDy
         newLayer.motionShadowThickness = this.motionShadowThickness
         newLayer.motionShadowSmoothness = this.motionShadowSmoothness
         newLayer.motionShadowKernelSize = this.motionShadowKernelSize
@@ -928,7 +938,9 @@ class TextLayer(
         newLayer.gradientMiddlePos = this.gradientMiddlePos
         newLayer.gradientEndPos = this.gradientEndPos
         newLayer.isGradientText = this.isGradientText
-        newLayer.isGradientStroke = this.isGradientStroke
+        newLayer.isGradientStroke1 = this.isGradientStroke1
+        newLayer.isGradientStroke2 = this.isGradientStroke2
+        newLayer.isGradientStroke3 = this.isGradientStroke3
         newLayer.isGradientShadow = this.isGradientShadow
         newLayer.isGlobalGradient = this.isGlobalGradient
         newLayer.globalP1 = PointF(this.globalP1.x, this.globalP1.y)
@@ -2020,7 +2032,7 @@ class TextLayer(
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
-                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
+                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor, isGradient, isGradientStroke3).hashCode()
                     if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
                         stroke3BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2033,7 +2045,19 @@ class TextLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            color = tripleStrokeColor
+                            if (isGradient && isGradientStroke3) {
+                                val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -ch / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = tripleStrokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
@@ -2052,7 +2076,7 @@ class TextLayer(
                 // 2nd stroke
                 if (doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
-                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
+                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor, isGradient, isGradientStroke2).hashCode()
                     if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
                         stroke2BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2065,7 +2089,19 @@ class TextLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            color = doubleStrokeColor
+                            if (isGradient && isGradientStroke2) {
+                                val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -ch / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = doubleStrokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
@@ -2084,7 +2120,7 @@ class TextLayer(
                 // 1st stroke
                 if (strokeWidthToUse > 0f) {
                     val radius = strokeWidthToUse * qualityScale
-                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor).hashCode()
+                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor, isGradient, isGradientStroke1).hashCode()
                     if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
                         stroke1BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2097,7 +2133,7 @@ class TextLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            if (isGradient && isGradientStroke) {
+                            if (isGradient && isGradientStroke1) {
                                 val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
@@ -2558,7 +2594,7 @@ class TextLayer(
                         // 3rd stroke
                         if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
                             val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
-                            val stroke3Hash = listOf(charHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
+                            val stroke3Hash = listOf(charHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor, isGradient, isGradientStroke3).hashCode()
                             if (stroke3CharBmpCache[i] == null || stroke3CharBmpCache[i]!!.isRecycled || stroke3CharBmpHash[i] != stroke3Hash) {
                                 stroke3CharBmpCache[i]?.recycle()
                                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2574,7 +2610,19 @@ class TextLayer(
                             if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled && offset != null) {
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
-                                    color = tripleStrokeColor
+                                    if (isGradient && isGradientStroke3) {
+                                        val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
+                                        if (sh != null) {
+                                            val mat = android.graphics.Matrix()
+                                            mat.setTranslate(-w / 2f, -ch / 2f)
+                                            sh.setLocalMatrix(mat)
+                                        }
+                                        this.shader = sh
+                                        color = android.graphics.Color.WHITE
+                                    } else {
+                                        this.shader = null
+                                        color = tripleStrokeColor
+                                    }
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
@@ -2593,7 +2641,7 @@ class TextLayer(
                         // 2nd stroke
                         if (doubleStrokeWidthToUse > 0f) {
                             val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
-                            val stroke2Hash = listOf(charHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
+                            val stroke2Hash = listOf(charHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor, isGradient, isGradientStroke2).hashCode()
                             if (stroke2CharBmpCache[i] == null || stroke2CharBmpCache[i]!!.isRecycled || stroke2CharBmpHash[i] != stroke2Hash) {
                                 stroke2CharBmpCache[i]?.recycle()
                                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2609,7 +2657,19 @@ class TextLayer(
                             if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled && offset != null) {
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
-                                    color = doubleStrokeColor
+                                    if (isGradient && isGradientStroke2) {
+                                        val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
+                                        if (sh != null) {
+                                            val mat = android.graphics.Matrix()
+                                            mat.setTranslate(-w / 2f, -ch / 2f)
+                                            sh.setLocalMatrix(mat)
+                                        }
+                                        this.shader = sh
+                                        color = android.graphics.Color.WHITE
+                                    } else {
+                                        this.shader = null
+                                        color = doubleStrokeColor
+                                    }
                                     val cm = android.graphics.ColorMatrix(floatArrayOf(
                                         1f, 0f, 0f, 0f, 0f,
                                         0f, 1f, 0f, 0f, 0f,
@@ -2628,7 +2688,7 @@ class TextLayer(
                         // 1st stroke
                         if (strokeWidthToUse > 0f) {
                             val radius = strokeWidthToUse * qualityScale
-                            val stroke1Hash = listOf(charHash, strokeWidthToUse, strokeColor).hashCode()
+                            val stroke1Hash = listOf(charHash, strokeWidthToUse, strokeColor, isGradient, isGradientStroke1).hashCode()
                             if (stroke1CharBmpCache[i] == null || stroke1CharBmpCache[i]!!.isRecycled || stroke1CharBmpHash[i] != stroke1Hash) {
                                 stroke1CharBmpCache[i]?.recycle()
                                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2644,7 +2704,7 @@ class TextLayer(
                             if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled && offset != null) {
                                 val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                     isFilterBitmap = true
-                                    if (isGradient && isGradientStroke) {
+                                    if (isGradient && isGradientStroke1) {
                                         val sh = getGradientShader(getWidth(), getContentHeight(), cachedLayout ?: layout)
                                         if (sh != null) {
                                             val mat = android.graphics.Matrix()
@@ -3151,14 +3211,20 @@ class TextLayer(
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2
-                paint.shader = null
-                paint.color = modulateColor(silhouetteColor ?: tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
+                if (silhouetteColor != null) {
+                    paint.shader = null
+                    paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
+                } else if (isGradient && isGradientStroke3) {
+                    paint.shader = gradientShader
+                    paint.color = modulateColor(Color.WHITE, ignoreOriginalAlpha = isDrawingShadowPass)
+                } else {
+                    paint.shader = null
+                    paint.color = modulateColor(tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
+                }
                 paint.clearShadowLayer()
                 paint.pathEffect = if (isRough) {
                     android.graphics.ComposePathEffect(
-                        // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
                         android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
-                        // Mengecilkan segmen dari 6f ke 2f agar teksturnya jauh lebih rapat (gritty)
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
@@ -3170,14 +3236,20 @@ class TextLayer(
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2
-                paint.shader = null
-                paint.color = modulateColor(silhouetteColor ?: doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
+                if (silhouetteColor != null) {
+                    paint.shader = null
+                    paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
+                } else if (isGradient && isGradientStroke2) {
+                    paint.shader = gradientShader
+                    paint.color = modulateColor(Color.WHITE, ignoreOriginalAlpha = isDrawingShadowPass)
+                } else {
+                    paint.shader = null
+                    paint.color = modulateColor(doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
+                }
                 paint.clearShadowLayer()
                 paint.pathEffect = if (isRough) {
                     android.graphics.ComposePathEffect(
-                        // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
                         android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
-                        // Mengecilkan segmen dari 6f ke 2f agar teksturnya jauh lebih rapat (gritty)
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
@@ -3192,7 +3264,7 @@ class TextLayer(
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
-                } else if (isGradient && isGradientStroke) {
+                } else if (isGradient && isGradientStroke1) {
                     paint.shader = gradientShader
                     paint.color = modulateColor(Color.WHITE, ignoreOriginalAlpha = isDrawingShadowPass)
                 } else {
@@ -3719,8 +3791,8 @@ class TextLayer(
                     } else {
                         paint.maskFilter = null
                     }
-                    val dx = d * cos
-                    val dy = d * sin
+                    val dx = d * cos + motionShadowDx
+                    val dy = d * sin + motionShadowDy
 
                     val drawIteration = { canvas: Canvas ->
                         if (isMotionShadowIncludeStroke) {
@@ -3739,7 +3811,7 @@ class TextLayer(
                     targetCanvas.restore()
 
                     targetCanvas.save()
-                    targetCanvas.translate(-dx, -dy)
+                    targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
                     drawIteration(targetCanvas)
                     targetCanvas.restore()
                 }
@@ -3759,16 +3831,9 @@ class TextLayer(
                         val shadowStyle = paint.style
                         val shadowStrokeWidth = paint.strokeWidth
 
-                        // Draw stroke (thick part)
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = shadowThickness
+                        paint.style = Paint.Style.FILL_AND_STROKE
+                        paint.strokeWidth = shadowThickness * 2f
                         paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
-                        drawLayoutSafe(targetCanvas, true)
-                        drawTailPath(targetCanvas, paint)
-
-                        // Draw fill
-                        paint.style = Paint.Style.FILL
-                        paint.pathEffect = null
                         drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
@@ -3795,16 +3860,9 @@ class TextLayer(
                         targetCanvas.save()
                         targetCanvas.translate(shadowDx, shadowDy)
 
-                        // Draw stroke (thick part)
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = shadowThickness
+                        paint.style = Paint.Style.FILL_AND_STROKE
+                        paint.strokeWidth = shadowThickness * 2f
                         paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
-                        drawLayoutSafe(targetCanvas, true)
-                        drawTailPath(targetCanvas, paint)
-
-                        // Draw fill
-                        paint.style = Paint.Style.FILL
-                        paint.pathEffect = null
                         drawLayoutSafe(targetCanvas, true)
                         drawTailPath(targetCanvas, paint)
 
@@ -6059,6 +6117,8 @@ class TextLayer(
         shadowDx *= 2f
         shadowDy *= 2f
         motionShadowDistance *= 2f
+        motionShadowDx *= 2f
+        motionShadowDy *= 2f
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f
