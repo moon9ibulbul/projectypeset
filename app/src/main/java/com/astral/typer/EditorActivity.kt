@@ -10663,6 +10663,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         val shapeLayer = ShapeLayer(svgString, textLayer.color).apply {
+            isSmartShape = true
             customWidth = textLayer.getWidth()
             customHeight = textLayer.getContentHeight()
 
@@ -10685,44 +10686,25 @@ class EditorActivity : AppCompatActivity() {
             opacityEnd = textLayer.opacityEnd
             opacityAngle = textLayer.opacityAngle
 
-            // Fill & Gradient
-            isGradient = textLayer.isGradient
-            gradientStartColor = textLayer.gradientStartColor
-            gradientEndColor = textLayer.gradientEndColor
-            gradientAngle = textLayer.gradientAngle
-            hasMiddleColor = textLayer.hasMiddleColor
-            gradientMiddleColor = textLayer.gradientMiddleColor
-            gradientStartPos = textLayer.gradientStartPos
-            gradientMiddlePos = textLayer.gradientMiddlePos
-            gradientEndPos = textLayer.gradientEndPos
-            gradientStrength = textLayer.gradientStrength
-            isGradientText = textLayer.isGradientText
-            isGlobalGradient = textLayer.isGlobalGradient
-            globalP1 = android.graphics.PointF(textLayer.globalP1.x, textLayer.globalP1.y)
-            globalP2 = android.graphics.PointF(textLayer.globalP2.x, textLayer.globalP2.y)
+            // All text fills, gradients, strokes, textures, patterns, and warp/perspective are baked into the SVG vector document.
+            // ShapeLayer's own layer strokes/gradients/transforms start reset/disabled
+            // so the user can add new layer-level strokes (up to 3 additional levels, totaling 6 stroke levels) or new gradients.
+            isGradient = false
+            isGradientText = false
+            isGradientStroke1 = false
+            isGradientStroke2 = false
+            isGradientStroke3 = false
 
-            // Strokes
-            strokeColor = textLayer.strokeColor
-            strokeWidth = textLayer.strokeWidth
-            doubleStrokeColor = textLayer.doubleStrokeColor
-            doubleStrokeWidth = textLayer.doubleStrokeWidth
-            tripleStrokeColor = textLayer.tripleStrokeColor
-            tripleStrokeWidth = textLayer.tripleStrokeWidth
-            isRoughStroke = textLayer.isRoughStroke
-            roughStrokeRoughness = textLayer.roughStrokeRoughness
-            isGradientStroke1 = textLayer.isGradientStroke1
-            isGradientStroke2 = textLayer.isGradientStroke2
-            isGradientStroke3 = textLayer.isGradientStroke3
+            strokeWidth = 0f
+            doubleStrokeWidth = 0f
+            tripleStrokeWidth = 0f
 
-            // Texture & Pattern
-            textureBitmap = textLayer.textureBitmap
-            textureOffsetX = textLayer.textureOffsetX
-            textureOffsetY = textLayer.textureOffsetY
-            patternName = textLayer.patternName
-            patternColor = textLayer.patternColor
-            patternAlpha = textLayer.patternAlpha
-            patternScale = textLayer.patternScale
-            patternRotation = textLayer.patternRotation
+            isPerspective = false
+            perspectivePoints = null
+            isWarp = false
+            warpRows = 1
+            warpCols = 1
+            warpMesh = null
 
             // Erase
             if (textLayer.eraseMask != null) {
@@ -10731,16 +10713,6 @@ class EditorActivity : AppCompatActivity() {
             for (p in textLayer.erasePaths) {
                 erasePaths.add(com.astral.typer.models.ErasePathData(android.graphics.Path(p.path), p.size, p.opacity, p.hardness, p.points))
             }
-
-            // Perspective & Warp
-            isPerspective = textLayer.isPerspective
-            perspectivePoints = textLayer.perspectivePoints?.clone()
-            isWarp = textLayer.isWarp
-            warpRows = textLayer.warpRows
-            warpCols = textLayer.warpCols
-            warpMesh = textLayer.warpMesh?.clone()
-
-            // Note: Shadow and Effect are explicitly excluded as per requirement.
         }
 
         val layers = canvasView.getLayers()

@@ -24,6 +24,8 @@ class ShapeLayer(
     override var color: Int = Color.BLACK
 ) : Layer(), StylableLayer {
 
+    var isSmartShape: Boolean = false
+
     // Shadow
     override var shadowColor: Int = Color.GRAY
     override var shadowRadius: Float = 0f
@@ -2555,41 +2557,86 @@ class ShapeLayer(
 
         var manipulated = svgString!!
 
-        // Simple regex-based manipulation for circle and path elements in assets
-        if (fill != null || fillShader != null) {
-            val hex = String.format("#%06X", 0xFFFFFF and (fill ?: Color.WHITE))
-            manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='$hex'")
-            manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"$hex\"")
-        } else {
-            manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='none'")
-            manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"none\"")
-        }
-
-        if (stroke != null || strokeShader != null) {
-            val hex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
-            val sw = strokeW
-            // Clean up any existing join/cap settings to enforce round joins/caps
-            manipulated = manipulated.replace(Regex("stroke-linejoin='[^']*'"), "")
-            manipulated = manipulated.replace(Regex("stroke-linejoin=\"[^\"]*\""), "")
-            manipulated = manipulated.replace(Regex("stroke-linecap='[^']*'"), "")
-            manipulated = manipulated.replace(Regex("stroke-linecap=\"[^\"]*\""), "")
-
-            // Insert stroke attributes if not present, or replace
-            if (!manipulated.contains("stroke=")) {
-                 manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+        if (isSmartShape) {
+            if (stroke == null && strokeShader == null) {
+                // Base fill / render pass for Smart Shape
+                if (fillShader != null || (isGradient && isGradientText)) {
+                    // Layer-level fill shader or gradient override: replace fills
+                    val hex = String.format("#%06X", 0xFFFFFF and (fill ?: Color.WHITE))
+                    manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='$hex'")
+                    manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"$hex\"")
+                } else {
+                    // Keep original SVG string intact (embedded colors, gradients, and strokes preserved!)
+                }
             } else {
-                 manipulated = manipulated.replace(Regex("stroke='[^']*'"), "stroke='$hex'")
-                 manipulated = manipulated.replace(Regex("stroke-width='[^']*'"), "stroke-width='$sw'")
-                 // Enforce round join and cap on elements
-                 manipulated = manipulated.replace("<path ", "<path stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<circle ", "<circle stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<rect ", "<rect stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<polygon ", "<polygon stroke-linejoin='round' stroke-linecap='round' ")
+                // Layer stroke pass (1st, 2nd, 3rd layer strokes): draw stroke outlines only
+                // 1. Set all fills to none so stroke passes don't render filled shapes
+                manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='none'")
+                manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"none\"")
+
+                // 2. Set stroke properties on vector paths
+                val hex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
+                val sw = strokeW
+                manipulated = manipulated.replace(Regex("stroke-linejoin='[^']*'"), "")
+                manipulated = manipulated.replace(Regex("stroke-linejoin=\"[^\"]*\""), "")
+                manipulated = manipulated.replace(Regex("stroke-linecap='[^']*'"), "")
+                manipulated = manipulated.replace(Regex("stroke-linecap=\"[^\"]*\""), "")
+
+                if (!manipulated.contains("stroke=")) {
+                    manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                } else {
+                    manipulated = manipulated.replace(Regex("stroke='[^']*'"), "stroke='$hex'")
+                    manipulated = manipulated.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$hex\"")
+                    manipulated = manipulated.replace(Regex("stroke-width='[^']*'"), "stroke-width='$sw'")
+                    manipulated = manipulated.replace(Regex("stroke-width=\"[^\"]*\""), "stroke-width=\"$sw\"")
+                    manipulated = manipulated.replace("<path ", "<path stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<circle ", "<circle stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<ellipse ", "<ellipse stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<rect ", "<rect stroke-linejoin='round' stroke-linecap='round' ")
+                    manipulated = manipulated.replace("<polygon ", "<polygon stroke-linejoin='round' stroke-linecap='round' ")
+                }
+            }
+        } else {
+            // Simple regex-based manipulation for circle and path elements in assets
+            if (fill != null || fillShader != null) {
+                val hex = String.format("#%06X", 0xFFFFFF and (fill ?: Color.WHITE))
+                manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='$hex'")
+                manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"$hex\"")
+            } else {
+                manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='none'")
+                manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"none\"")
+            }
+
+            if (stroke != null || strokeShader != null) {
+                val hex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
+                val sw = strokeW
+                // Clean up any existing join/cap settings to enforce round joins/caps
+                manipulated = manipulated.replace(Regex("stroke-linejoin='[^']*'"), "")
+                manipulated = manipulated.replace(Regex("stroke-linejoin=\"[^\"]*\""), "")
+                manipulated = manipulated.replace(Regex("stroke-linecap='[^']*'"), "")
+                manipulated = manipulated.replace(Regex("stroke-linecap=\"[^\"]*\""), "")
+
+                // Insert stroke attributes if not present, or replace
+                if (!manipulated.contains("stroke=")) {
+                     manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                } else {
+                     manipulated = manipulated.replace(Regex("stroke='[^']*'"), "stroke='$hex'")
+                     manipulated = manipulated.replace(Regex("stroke-width='[^']*'"), "stroke-width='$sw'")
+                     // Enforce round join and cap on elements
+                     manipulated = manipulated.replace("<path ", "<path stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<circle ", "<circle stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<ellipse ", "<ellipse stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<rect ", "<rect stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<polygon ", "<polygon stroke-linejoin='round' stroke-linecap='round' ")
+                }
             }
         }
 
@@ -2888,6 +2935,7 @@ class ShapeLayer(
 
     override fun clone(): Layer {
         val newLayer = ShapeLayer(shapeName, color)
+        newLayer.isSmartShape = isSmartShape
         newLayer.customWidth = customWidth
         newLayer.customHeight = customHeight
         newLayer.x = x; newLayer.y = y; newLayer.rotation = rotation; newLayer.scaleX = scaleX; newLayer.scaleY = scaleY
