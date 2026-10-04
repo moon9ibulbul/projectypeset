@@ -3913,6 +3913,15 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
+        sidebarBinding.btnConvertToSmartShape.setOnClickListener {
+            val activeLayer = canvasView.getSelectedLayer()
+            if (activeLayer is TextLayer) {
+                convertTextToSmartShape(activeLayer)
+            } else {
+                Toast.makeText(this, "Fitur ini hanya berlaku pada TextLayer!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         sidebarBinding.btnFlattenLayers.setOnClickListener {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Flatten All Layers")
@@ -10644,6 +10653,107 @@ class EditorActivity : AppCompatActivity() {
             .create()
 
         dialog.show()
+    }
+
+    private fun convertTextToSmartShape(textLayer: TextLayer) {
+        val svgString = textLayer.generateSvgPathString()
+        if (svgString.isEmpty()) {
+            Toast.makeText(this, "Gagal mengkonversi TextLayer ke Smart Shape!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val shapeLayer = ShapeLayer(svgString, textLayer.color).apply {
+            customWidth = textLayer.getWidth()
+            customHeight = textLayer.getContentHeight()
+
+            // Common layer properties
+            x = textLayer.x
+            y = textLayer.y
+            rotation = textLayer.rotation
+            scaleX = textLayer.scaleX
+            scaleY = textLayer.scaleY
+            opacity = textLayer.opacity
+            blendMode = textLayer.blendMode
+            isVisible = textLayer.isVisible
+            isLocked = textLayer.isLocked
+            isClipped = textLayer.isClipped
+            name = if (textLayer.name.isNotEmpty() && textLayer.name != "Text Layer") "${textLayer.name} (Shape)" else "Smart Shape"
+
+            // Opacity Gradient
+            isOpacityGradient = textLayer.isOpacityGradient
+            opacityStart = textLayer.opacityStart
+            opacityEnd = textLayer.opacityEnd
+            opacityAngle = textLayer.opacityAngle
+
+            // Fill & Gradient
+            isGradient = textLayer.isGradient
+            gradientStartColor = textLayer.gradientStartColor
+            gradientEndColor = textLayer.gradientEndColor
+            gradientAngle = textLayer.gradientAngle
+            hasMiddleColor = textLayer.hasMiddleColor
+            gradientMiddleColor = textLayer.gradientMiddleColor
+            gradientStartPos = textLayer.gradientStartPos
+            gradientMiddlePos = textLayer.gradientMiddlePos
+            gradientEndPos = textLayer.gradientEndPos
+            gradientStrength = textLayer.gradientStrength
+            isGradientText = textLayer.isGradientText
+            isGlobalGradient = textLayer.isGlobalGradient
+            globalP1 = android.graphics.PointF(textLayer.globalP1.x, textLayer.globalP1.y)
+            globalP2 = android.graphics.PointF(textLayer.globalP2.x, textLayer.globalP2.y)
+
+            // Strokes
+            strokeColor = textLayer.strokeColor
+            strokeWidth = textLayer.strokeWidth
+            doubleStrokeColor = textLayer.doubleStrokeColor
+            doubleStrokeWidth = textLayer.doubleStrokeWidth
+            tripleStrokeColor = textLayer.tripleStrokeColor
+            tripleStrokeWidth = textLayer.tripleStrokeWidth
+            isRoughStroke = textLayer.isRoughStroke
+            roughStrokeRoughness = textLayer.roughStrokeRoughness
+            isGradientStroke1 = textLayer.isGradientStroke1
+            isGradientStroke2 = textLayer.isGradientStroke2
+            isGradientStroke3 = textLayer.isGradientStroke3
+
+            // Texture & Pattern
+            textureBitmap = textLayer.textureBitmap
+            textureOffsetX = textLayer.textureOffsetX
+            textureOffsetY = textLayer.textureOffsetY
+            patternName = textLayer.patternName
+            patternColor = textLayer.patternColor
+            patternAlpha = textLayer.patternAlpha
+            patternScale = textLayer.patternScale
+            patternRotation = textLayer.patternRotation
+
+            // Erase
+            if (textLayer.eraseMask != null) {
+                eraseMask = textLayer.eraseMask!!.copy(textLayer.eraseMask!!.config, true)
+            }
+            for (p in textLayer.erasePaths) {
+                erasePaths.add(com.astral.typer.models.ErasePathData(android.graphics.Path(p.path), p.size, p.opacity, p.hardness, p.points))
+            }
+
+            // Perspective & Warp
+            isPerspective = textLayer.isPerspective
+            perspectivePoints = textLayer.perspectivePoints?.clone()
+            isWarp = textLayer.isWarp
+            warpRows = textLayer.warpRows
+            warpCols = textLayer.warpCols
+            warpMesh = textLayer.warpMesh?.clone()
+
+            // Note: Shadow and Effect are explicitly excluded as per requirement.
+        }
+
+        val layers = canvasView.getLayers()
+        val index = layers.indexOf(textLayer)
+        if (index >= 0) {
+            com.astral.typer.utils.UndoManager.saveState(layers)
+            layers[index] = shapeLayer
+            canvasView.selectLayer(shapeLayer)
+            canvasView.invalidate()
+            showPropertiesMenu()
+            binding.saveSidebar.root.visibility = View.GONE
+            Toast.makeText(this, "Converted to Smart Shape", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun addWatermarkLayer(isAuto: Boolean) {
