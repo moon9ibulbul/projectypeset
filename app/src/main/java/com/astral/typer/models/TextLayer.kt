@@ -3496,10 +3496,12 @@ class TextLayer(
                 return (c and 0x00FFFFFF) or (a shl 24)
             }
 
+            val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f) shadowThickness else 0f
+
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2 + extraShadowThickness
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3524,7 +3526,7 @@ class TextLayer(
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + extraShadowThickness
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3549,7 +3551,7 @@ class TextLayer(
             // 2. Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse
+                paint.strokeWidth = strokeWidthToUse + extraShadowThickness
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3587,6 +3589,16 @@ class TextLayer(
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
                 paint.color = modulateColor(shadowColor)
                 paint.clearShadowLayer()
+                val hasLayerStrokes = tripleStrokeWidthToUse > 0f || doubleStrokeWidthToUse > 0f || strokeWidthToUse > 0f
+                if (shadowThickness > 0f && (!isDropShadowIncludeStroke || !hasLayerStrokes)) {
+                    paint.style = Paint.Style.FILL_AND_STROKE
+                    paint.strokeWidth = shadowThickness * 0.5f
+                    paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
+                } else {
+                    paint.style = Paint.Style.FILL
+                    paint.strokeWidth = 0f
+                    paint.pathEffect = null
+                }
                 drawLayoutSafe(targetCanvas, true)
                 drawTailPath(targetCanvas, paint)
             } else {

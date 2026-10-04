@@ -136,15 +136,22 @@ class SettingsActivity : AppCompatActivity() {
 
         val layoutAutosaveInterval = findViewById<LinearLayout>(R.id.layoutAutosaveInterval)
         val spinnerAutosaveInterval = findViewById<Spinner>(R.id.spinnerAutosaveInterval)
-        val intervalValues = intArrayOf(0, 2, 3, 4, 5, 10, 15, 30)
-        val intervalLabels = arrayOf("Nonaktif", "2 Menit", "3 Menit", "4 Menit", "5 Menit", "10 Menit", "15 Menit", "30 Menit")
+        val intervalValues = intArrayOf(0, 15, 30, 60, 120, 180, 300, 600)
+        val intervalLabels = arrayOf("Nonaktif", "15 Detik", "30 Detik", "1 Menit", "2 Menit", "3 Menit", "5 Menit", "10 Menit")
 
         val autosaveAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, intervalLabels)
         autosaveAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerAutosaveInterval.adapter = autosaveAdapter
 
-        val currentInterval = settingsPrefs.getInt("autosave_interval_minutes", 0)
-        val initialSelection = intervalValues.indexOf(currentInterval).let { if (it >= 0) it else 0 }
+        val currentIntervalSeconds = if (settingsPrefs.contains("autosave_interval_seconds")) {
+            settingsPrefs.getInt("autosave_interval_seconds", 0)
+        } else {
+            val legacyMinutes = settingsPrefs.getInt("autosave_interval_minutes", 0)
+            val sec = legacyMinutes * 60
+            settingsPrefs.edit().putInt("autosave_interval_seconds", sec).apply()
+            sec
+        }
+        val initialSelection = intervalValues.indexOf(currentIntervalSeconds).let { if (it >= 0) it else 0 }
         spinnerAutosaveInterval.setSelection(initialSelection)
 
         layoutAutosaveInterval.visibility = if (cbAutosave.isChecked) View.VISIBLE else View.GONE
@@ -156,8 +163,11 @@ class SettingsActivity : AppCompatActivity() {
 
         spinnerAutosaveInterval.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selectedMinutes = intervalValues[position]
-                settingsPrefs.edit().putInt("autosave_interval_minutes", selectedMinutes).apply()
+                val selectedSeconds = intervalValues[position]
+                settingsPrefs.edit()
+                    .putInt("autosave_interval_seconds", selectedSeconds)
+                    .putInt("autosave_interval_minutes", selectedSeconds / 60)
+                    .apply()
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
