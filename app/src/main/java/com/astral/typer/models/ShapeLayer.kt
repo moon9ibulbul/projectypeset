@@ -1049,27 +1049,25 @@ class ShapeLayer(
             commonPaint.reset()
             commonPaint.isAntiAlias = true
 
-            val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f) shadowThickness else 0f
-
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke3) Color.WHITE else tripleStrokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke3) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2 + extraShadowThickness, strokeShader = shaderToUse)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2, strokeShader = shaderToUse)
             }
 
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke2) Color.WHITE else doubleStrokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke2) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + extraShadowThickness, strokeShader = shaderToUse)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2, strokeShader = shaderToUse)
             }
 
             // 2. Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke1) Color.WHITE else strokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke1) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + extraShadowThickness, strokeShader = shaderToUse)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse, strokeShader = shaderToUse)
             }
 
             // 3. Fill

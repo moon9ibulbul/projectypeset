@@ -8463,6 +8463,36 @@ class EditorActivity : AppCompatActivity() {
         }
         layout.addView(textSizeRow)
 
+        // Font Weight
+        val weightRow = createControl("Font Weight", "${layer.fontWeight}", "VAL_FONT_WEIGHT",
+            onMinus = {
+                val newW = (layer.fontWeight - 50).coerceAtLeast(100)
+                layer.fontWeight = newW
+                canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_FONT_WEIGHT"))?.text = "$newW"
+            },
+            onPlus = {
+                val newW = (layer.fontWeight + 50).coerceAtMost(1000)
+                layer.fontWeight = newW
+                canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_FONT_WEIGHT"))?.text = "$newW"
+            }
+        )
+        val tvWeightVal = weightRow.findViewWithTag<TextView>("VAL_FONT_WEIGHT")
+        weightRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            val newW = (layer.fontWeight - 50).coerceAtLeast(100)
+            layer.fontWeight = newW
+            canvasView.invalidate()
+            tvWeightVal?.text = "$newW"
+        }
+        weightRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            val newW = (layer.fontWeight + 50).coerceAtMost(1000)
+            layer.fontWeight = newW
+            canvasView.invalidate()
+            tvWeightVal?.text = "$newW"
+        }
+        layout.addView(weightRow)
+
         // Box Scale
         val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%", "VAL_BOX_SCALE",
             onMinus = {
