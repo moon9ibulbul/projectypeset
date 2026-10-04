@@ -903,6 +903,7 @@ class TextLayer(
         newLayer.letterSpacing = this.letterSpacing
         newLayer.lineSpacing = this.lineSpacing
 
+        newLayer.isSelected = this.isSelected
         newLayer.opacity = this.opacity
         newLayer.blendMode = this.blendMode
         newLayer.isOpacityGradient = this.isOpacityGradient

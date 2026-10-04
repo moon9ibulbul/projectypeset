@@ -2882,7 +2882,7 @@ class ShapeLayer(
         newLayer.customWidth = customWidth
         newLayer.customHeight = customHeight
         newLayer.x = x; newLayer.y = y; newLayer.rotation = rotation; newLayer.scaleX = scaleX; newLayer.scaleY = scaleY
-        newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
+        newLayer.isSelected = isSelected; newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
         newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowDx = motionShadowDx; newLayer.motionShadowDy = motionShadowDy; newLayer.motionShadowThickness = motionShadowThickness; newLayer.motionShadowSmoothness = motionShadowSmoothness; newLayer.motionShadowKernelSize = motionShadowKernelSize; newLayer.shadowThickness = shadowThickness; newLayer.isTextBlending = isTextBlending; newLayer.blendingStrength = blendingStrength

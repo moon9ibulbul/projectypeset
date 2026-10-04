@@ -688,6 +688,7 @@ class ImageLayer(
         newLayer.rotation = rotation
         newLayer.scaleX = scaleX
         newLayer.scaleY = scaleY
+        newLayer.isSelected = isSelected
         newLayer.isVisible = isVisible
         newLayer.isLocked = isLocked
         newLayer.isClipped = isClipped

@@ -585,6 +585,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             rotation = this@BrushLayer.rotation
             scaleX = this@BrushLayer.scaleX
             scaleY = this@BrushLayer.scaleY
+            isSelected = this@BrushLayer.isSelected
             isVisible = this@BrushLayer.isVisible
             isLocked = this@BrushLayer.isLocked
             isClipped = this@BrushLayer.isClipped
@@ -597,6 +598,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             brushSize = this@BrushLayer.brushSize
             brushHardness = this@BrushLayer.brushHardness
             brushOpacity = this@BrushLayer.brushOpacity
+            activePreset = this@BrushLayer.activePreset
 
             brushDabsPerActualRadius = this@BrushLayer.brushDabsPerActualRadius
             brushDabsPerBasicRadius = this@BrushLayer.brushDabsPerBasicRadius
