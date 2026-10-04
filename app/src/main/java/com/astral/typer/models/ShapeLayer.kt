@@ -24,6 +24,10 @@ class ShapeLayer(
     override var color: Int = Color.BLACK
 ) : Layer(), StylableLayer {
 
+    var isSmartShape: Boolean = false
+    @Transient
+    var isDrawingShadowPass: Boolean = false
+
     // Shadow
     override var shadowColor: Int = Color.GRAY
     override var shadowRadius: Float = 0f
@@ -1038,7 +1042,7 @@ class ShapeLayer(
     private fun drawContent(canvas: Canvas, w: Float, h: Float, skipEffects: Boolean = false, viewScale: Float = 1.0f) {
         val gradientShader = getGradientShader(w, h)
         silhouetteColor = null
-        var isDrawingShadowPass = false
+        isDrawingShadowPass = false
 
         val drawMain = { targetCanvas: Canvas ->
             commonPaint.reset()
@@ -1524,19 +1528,20 @@ class ShapeLayer(
                     val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
                     val strokeC = if (motionShadowThickness > 0f) c else null
                     val strokeW = if (motionShadowThickness > 0f) motionShadowThickness * 0.5f else 0f
-                    if (isMotionShadowIncludeStroke) {
+                    try {
                         isDrawingShadowPass = true
+                        targetCanvas.save()
+                        targetCanvas.translate(dx, dy)
                         renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
-                        isDrawingShadowPass = false
-                    } else {
-                        renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
-                    }
-                    targetCanvas.restore()
+                        targetCanvas.restore()
 
-                    targetCanvas.save()
-                    targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
-                    renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
-                    targetCanvas.restore()
+                        targetCanvas.save()
+                        targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
+                        renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
+                        targetCanvas.restore()
+                    } finally {
+                        isDrawingShadowPass = false
+                    }
                 }
             }
 
@@ -1553,10 +1558,15 @@ class ShapeLayer(
                 }
 
                 targetCanvas.saveLayer(null, p)
-                if (shadowThickness > 0f) {
-                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 0.5f)
-                } else {
-                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = null)
+                try {
+                    isDrawingShadowPass = true
+                    if (shadowThickness > 0f) {
+                        renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 0.5f)
+                    } else {
+                        renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = null)
+                    }
+                } finally {
+                    isDrawingShadowPass = false
                 }
                 targetCanvas.restore()
                 targetCanvas.restore()
@@ -2555,41 +2565,111 @@ class ShapeLayer(
 
         var manipulated = svgString!!
 
-        // Simple regex-based manipulation for circle and path elements in assets
-        if (fill != null || fillShader != null) {
-            val hex = String.format("#%06X", 0xFFFFFF and (fill ?: Color.WHITE))
-            manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='$hex'")
-            manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"$hex\"")
-        } else {
-            manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='none'")
-            manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"none\"")
-        }
+        val isSilhouetteOrShadow = (silhouetteColor != null) || isDrawingShadowPass
+        val targetColor = silhouetteColor ?: fill ?: stroke ?: Color.WHITE
+        val shadowHex = String.format("#%06X", 0xFFFFFF and targetColor)
 
-        if (stroke != null || strokeShader != null) {
-            val hex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
-            val sw = strokeW
-            // Clean up any existing join/cap settings to enforce round joins/caps
-            manipulated = manipulated.replace(Regex("stroke-linejoin='[^']*'"), "")
-            manipulated = manipulated.replace(Regex("stroke-linejoin=\"[^\"]*\""), "")
-            manipulated = manipulated.replace(Regex("stroke-linecap='[^']*'"), "")
-            manipulated = manipulated.replace(Regex("stroke-linecap=\"[^\"]*\""), "")
+        if (isSmartShape) {
+            if (isSilhouetteOrShadow) {
+                // Shadow, motion shadow, long shadow, or neon silhouette pass
+                val tags = listOf("<path", "<circle", "<ellipse", "<rect", "<polygon")
+                for (tag in tags) {
+                    val pattern = Regex("($tag)(\\s+[^>]*?)(\\s*/?>)")
+                    manipulated = pattern.replace(manipulated) { match ->
+                        val tagStart = match.groupValues[1]
+                        var attrs = match.groupValues[2]
+                        val tagEnd = match.groupValues[3]
 
-            // Insert stroke attributes if not present, or replace
-            if (!manipulated.contains("stroke=")) {
-                 manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                        val hasNonNoneFill = attrs.contains(Regex("fill=(?!'none'|\"none\")"))
+                        val hasNonNoneStroke = attrs.contains(Regex("stroke=(?!'none'|\"none\")"))
+
+                        if (hasNonNoneFill) {
+                            attrs = attrs.replace(Regex("fill='[^']*'"), "fill='$shadowHex'")
+                            attrs = attrs.replace(Regex("fill=\"[^\"]*\""), "fill=\"$shadowHex\"")
+                        }
+                        if (hasNonNoneStroke) {
+                            attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$shadowHex'")
+                            attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$shadowHex\"")
+                        }
+                        if (!attrs.contains("fill=") && !attrs.contains("stroke=")) {
+                            attrs += " fill='$shadowHex'"
+                        }
+                        "$tagStart$attrs$tagEnd"
+                    }
+                }
+            } else if (stroke == null && strokeShader == null) {
+                // Base fill / render pass for Smart Shape
+                if (fillShader != null || (isGradient && isGradientText)) {
+                    // Layer-level fill shader or gradient override: replace fills
+                    val hex = String.format("#%06X", 0xFFFFFF and (fill ?: Color.WHITE))
+                    manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='$hex'")
+                    manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"$hex\"")
+                } else {
+                    // Keep original SVG string intact (embedded colors, gradients, and strokes preserved!)
+                }
             } else {
-                 manipulated = manipulated.replace(Regex("stroke='[^']*'"), "stroke='$hex'")
-                 manipulated = manipulated.replace(Regex("stroke-width='[^']*'"), "stroke-width='$sw'")
-                 // Enforce round join and cap on elements
-                 manipulated = manipulated.replace("<path ", "<path stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<circle ", "<circle stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<ellipse ", "<ellipse stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<rect ", "<rect stroke-linejoin='round' stroke-linecap='round' ")
-                 manipulated = manipulated.replace("<polygon ", "<polygon stroke-linejoin='round' stroke-linecap='round' ")
+                // Layer stroke pass (1st, 2nd, 3rd layer strokes): draw stroke outlines only
+                val strokeHex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
+                val sw = strokeW
+                val tags = listOf("<path", "<circle", "<ellipse", "<rect", "<polygon")
+
+                for (tag in tags) {
+                    val pattern = Regex("($tag)(\\s+[^>]*?)(\\s*/?>)")
+                    manipulated = pattern.replace(manipulated) { match ->
+                        val tagStart = match.groupValues[1]
+                        var attrs = match.groupValues[2]
+                        val tagEnd = match.groupValues[3]
+
+                        // Strip existing fill/stroke attributes
+                        attrs = attrs.replace(Regex("\\s+fill=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+fill-opacity=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-width=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-opacity=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-linejoin=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-linecap=((\"[^\"]*\")|('[^']*'))"), "")
+
+                        "$tagStart$attrs fill='none' stroke='$strokeHex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round'$tagEnd"
+                    }
+                }
+            }
+        } else {
+            // Simple regex-based manipulation for circle and path elements in assets
+            if (fill != null || fillShader != null) {
+                val hex = String.format("#%06X", 0xFFFFFF and (fill ?: Color.WHITE))
+                manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='$hex'")
+                manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"$hex\"")
+            } else {
+                manipulated = manipulated.replace(Regex("fill='[^']*'"), "fill='none'")
+                manipulated = manipulated.replace(Regex("fill=\"[^\"]*\""), "fill=\"none\"")
+            }
+
+            if (stroke != null || strokeShader != null) {
+                val hex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
+                val sw = strokeW
+                // Clean up any existing join/cap settings to enforce round joins/caps
+                manipulated = manipulated.replace(Regex("stroke-linejoin='[^']*'"), "")
+                manipulated = manipulated.replace(Regex("stroke-linejoin=\"[^\"]*\""), "")
+                manipulated = manipulated.replace(Regex("stroke-linecap='[^']*'"), "")
+                manipulated = manipulated.replace(Regex("stroke-linecap=\"[^\"]*\""), "")
+
+                // Insert stroke attributes if not present, or replace
+                if (!manipulated.contains("stroke=")) {
+                     manipulated = manipulated.replace("<path ", "<path stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<circle ", "<circle stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<ellipse ", "<ellipse stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<rect ", "<rect stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<polygon ", "<polygon stroke='$hex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round' ")
+                } else {
+                     manipulated = manipulated.replace(Regex("stroke='[^']*'"), "stroke='$hex'")
+                     manipulated = manipulated.replace(Regex("stroke-width='[^']*'"), "stroke-width='$sw'")
+                     // Enforce round join and cap on elements
+                     manipulated = manipulated.replace("<path ", "<path stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<circle ", "<circle stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<ellipse ", "<ellipse stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<rect ", "<rect stroke-linejoin='round' stroke-linecap='round' ")
+                     manipulated = manipulated.replace("<polygon ", "<polygon stroke-linejoin='round' stroke-linecap='round' ")
+                }
             }
         }
 
@@ -2603,17 +2683,16 @@ class ShapeLayer(
 
             val targetCanvas = if (isRoughStroke && viewScale >= 0.2f) RoughCanvas(canvas, true, roughStrokeRoughness) else canvas
 
-            if (fillShader != null || strokeShader != null) {
+            val shaderToApply = fillShader ?: strokeShader
+            if (shaderToApply != null) {
                 // If shader is present, we render to a layer and apply shader via SRC_IN
                 canvas.saveLayer(null, layerPaint)
                 mSvg.renderToCanvas(targetCanvas)
 
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
                 p.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-                if (fillShader != null) {
-                    p.shader = fillShader
-                    canvas.drawRect(0f, 0f, getWidth(), getHeight(), p)
-                }
+                p.shader = shaderToApply
+                canvas.drawRect(0f, 0f, getWidth(), getHeight(), p)
                 canvas.restore()
             } else {
                 if (layerPaint != null) {
@@ -2888,6 +2967,7 @@ class ShapeLayer(
 
     override fun clone(): Layer {
         val newLayer = ShapeLayer(shapeName, color)
+        newLayer.isSmartShape = isSmartShape
         newLayer.customWidth = customWidth
         newLayer.customHeight = customHeight
         newLayer.x = x; newLayer.y = y; newLayer.rotation = rotation; newLayer.scaleX = scaleX; newLayer.scaleY = scaleY

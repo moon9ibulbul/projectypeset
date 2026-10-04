@@ -891,9 +891,21 @@ class TextLayer(
 
         val w = getWidth()
         val h = getContentHeight()
+        val pad = calculatePadding()
 
-        val combinedPath = Path()
-        val pathPaint = TextPaint(textPaint)
+        val svgW = (w + pad * 2f).coerceAtLeast(1f)
+        val svgH = (h + pad * 2f).coerceAtLeast(1f)
+
+        // Helper to format color to SVG hex & opacity
+        fun colorToHex(c: Int): String = String.format(java.util.Locale.US, "#%06X", 0xFFFFFF and c)
+        fun colorToOpacity(c: Int): String = String.format(java.util.Locale.US, "%.2f", Color.alpha(c) / 255f)
+
+        val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
+        val perspectiveMatrix = if (isPerspective && perspectivePoints != null) calculatePerspectiveMatrix(srcRect, perspectivePoints!!) else null
+
+        // Collect character paths with transforms applied
+        val combinedGlyphPath = Path()
+        val tempPaint = TextPaint(textPaint)
 
         val lineCount = layout.lineCount
         for (line in 0 until lineCount) {
@@ -907,39 +919,231 @@ class TextLayer(
 
                 val charPath = Path()
                 val xPos = layout.getPrimaryHorizontal(i)
-                pathPaint.getTextPath(fullText, i, i + 1, xPos, baseline, charPath)
-                combinedPath.addPath(charPath)
+                tempPaint.getTextPath(fullText, i, i + 1, xPos, baseline, charPath)
+
+                // Check spans (PositionShiftSpan / BaselineShiftSpan)
+                val posSpans = text.getSpans(i, i + 1, com.astral.typer.utils.PositionShiftSpan::class.java)
+                val baseSpans = text.getSpans(i, i + 1, com.astral.typer.utils.BaselineShiftSpan::class.java)
+                var shiftX = 0f
+                var shiftY = 0f
+                if (posSpans.isNotEmpty()) {
+                    shiftX += posSpans[0].shiftX
+                    shiftY += posSpans[0].shiftY
+                }
+                if (baseSpans.isNotEmpty()) {
+                    shiftY += baseSpans[0].shiftY
+                }
+                if (shiftX != 0f || shiftY != 0f) {
+                    charPath.offset(shiftX, shiftY)
+                }
+
+                // Apply Warp or Perspective if active
+                if (isWarpActive || isPerspective) {
+                    val segments = androidx.core.graphics.PathUtils.flatten(charPath, 0.1f)
+                    val warpedPath = Path()
+                    var subpathStartX = Float.NaN
+                    var subpathStartY = Float.NaN
+                    var lastX = Float.NaN
+                    var lastY = Float.NaN
+                    val outPoint = FloatArray(2)
+
+                    for (seg in segments) {
+                        var sx = seg.start.x
+                        var sy = seg.start.y
+                        var ex = seg.end.x
+                        var ey = seg.end.y
+
+                        if (isWarpActive) {
+                            val charMesh = letterWarpMeshes[i]
+                            if (charMesh != null) {
+                                val bounds = getWarpTargetBounds(i)
+                                var u = if (bounds.width() > 0) (sx - bounds.left) / bounds.width() else 0.5f
+                                var v = if (bounds.height() > 0) (sy - bounds.top) / bounds.height() else 0.5f
+                                evaluateBezierSurfaceForCharacter(i, u, v, outPoint)
+                                sx = outPoint[0] + w / 2f
+                                sy = outPoint[1] + h / 2f
+
+                                u = if (bounds.width() > 0) (ex - bounds.left) / bounds.width() else 0.5f
+                                v = if (bounds.height() > 0) (ey - bounds.top) / bounds.height() else 0.5f
+                                evaluateBezierSurfaceForCharacter(i, u, v, outPoint)
+                                ex = outPoint[0] + w / 2f
+                                ey = outPoint[1] + h / 2f
+                            } else if (_warpMesh != null) {
+                                var u = if (w > 0) sx / w else 0.5f
+                                var v = if (h > 0) sy / h else 0.5f
+                                evaluateFullLayerBezierSurface(u, v, outPoint)
+                                sx = outPoint[0] + w / 2f
+                                sy = outPoint[1] + h / 2f
+
+                                u = if (w > 0) ex / w else 0.5f
+                                v = if (h > 0) ey / h else 0.5f
+                                evaluateFullLayerBezierSurface(u, v, outPoint)
+                                ex = outPoint[0] + w / 2f
+                                ey = outPoint[1] + h / 2f
+                            }
+                        }
+
+                        if (isPerspective && perspectiveMatrix != null) {
+                            val pts = floatArrayOf(sx - w / 2f, sy - h / 2f, ex - w / 2f, ey - h / 2f)
+                            perspectiveMatrix.mapPoints(pts)
+                            sx = pts[0] + w / 2f
+                            sy = pts[1] + h / 2f
+                            ex = pts[2] + w / 2f
+                            ey = pts[3] + h / 2f
+                        }
+
+                        if (sx != lastX || sy != lastY) {
+                            if (!subpathStartX.isNaN()) {
+                                warpedPath.close()
+                            }
+                            warpedPath.moveTo(sx, sy)
+                            subpathStartX = sx
+                            subpathStartY = sy
+                        }
+                        warpedPath.lineTo(ex, ey)
+                        lastX = ex
+                        lastY = ey
+                    }
+                    if (!subpathStartX.isNaN()) {
+                        warpedPath.close()
+                    }
+                    combinedGlyphPath.addPath(warpedPath)
+                } else {
+                    combinedGlyphPath.addPath(charPath)
+                }
             }
         }
 
+        // Convert combinedGlyphPath to SVG 'd' string with padding offset and closed subpaths
         val dBuilder = StringBuilder()
-        val segments = androidx.core.graphics.PathUtils.flatten(combinedPath, 0.5f)
+        val segments = androidx.core.graphics.PathUtils.flatten(combinedGlyphPath, 0.1f)
+        var subpathStartX = Float.NaN
+        var subpathStartY = Float.NaN
         var lastX = Float.NaN
         var lastY = Float.NaN
 
         for (seg in segments) {
-            val startX = seg.start.x
-            val startY = seg.start.y
-            val endX = seg.end.x
-            val endY = seg.end.y
+            val startX = seg.start.x + pad
+            val startY = seg.start.y + pad
+            val endX = seg.end.x + pad
+            val endY = seg.end.y + pad
 
             if (startX != lastX || startY != lastY) {
+                if (!subpathStartX.isNaN()) {
+                    dBuilder.append("Z ")
+                }
                 dBuilder.append(String.format(java.util.Locale.US, "M %.2f %.2f ", startX, startY))
+                subpathStartX = startX
+                subpathStartY = startY
             }
             dBuilder.append(String.format(java.util.Locale.US, "L %.2f %.2f ", endX, endY))
             lastX = endX
             lastY = endY
         }
+        if (!subpathStartX.isNaN()) {
+            dBuilder.append("Z ")
+        }
 
-        if (dBuilder.isEmpty()) return ""
+        val glyphD = dBuilder.toString().trim()
+        if (glyphD.isEmpty()) return ""
 
-        val svgW = w.coerceAtLeast(1f)
-        val svgH = h.coerceAtLeast(1f)
+        val defsBuilder = StringBuilder()
 
-        return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
-                "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${svgW.toInt()}\" height=\"${svgH.toInt()}\" viewBox=\"0 0 $svgW $svgH\">\n" +
-                "  <path d=\"${dBuilder.toString().trim()}\" fill=\"#000000\" />\n" +
-                "</svg>"
+        // Helper to generate SVG linearGradient
+        fun addLinearGradient(id: String, angle: Int, startCol: Int, midCol: Int, endCol: Int, hasMid: Boolean, startPos: Float, midPos: Float, endPos: Float) {
+            val angleRad = Math.toRadians(angle.toDouble())
+            val cos = Math.cos(angleRad).toFloat()
+            val sin = Math.sin(angleRad).toFloat()
+            val cx = pad + w / 2f
+            val cy = pad + h / 2f
+            val halfLen = Math.hypot((w / 2f).toDouble(), (h / 2f).toDouble()).toFloat()
+
+            val x1 = cx - halfLen * cos
+            val y1 = cy - halfLen * sin
+            val x2 = cx + halfLen * cos
+            val y2 = cy + halfLen * sin
+
+            val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(hasMid, startPos, midPos, endPos)
+            val sStart = pStart / 2f
+            val sMid = pStart + pMid / 2f
+            val sEnd = 1.0f - pEnd / 2f
+
+            defsBuilder.append("    <linearGradient id=\"$id\" x1=\"${String.format(java.util.Locale.US, "%.2f", x1)}\" y1=\"${String.format(java.util.Locale.US, "%.2f", y1)}\" x2=\"${String.format(java.util.Locale.US, "%.2f", x2)}\" y2=\"${String.format(java.util.Locale.US, "%.2f", y2)}\" gradientUnits=\"userSpaceOnUse\">\n")
+            defsBuilder.append("      <stop offset=\"0%\" stop-color=\"${colorToHex(startCol)}\" stop-opacity=\"${colorToOpacity(startCol)}\"/>\n")
+            defsBuilder.append("      <stop offset=\"${(sStart * 100).toInt()}%\" stop-color=\"${colorToHex(startCol)}\" stop-opacity=\"${colorToOpacity(startCol)}\"/>\n")
+            if (hasMid) {
+                defsBuilder.append("      <stop offset=\"${(sMid * 100).toInt()}%\" stop-color=\"${colorToHex(midCol)}\" stop-opacity=\"${colorToOpacity(midCol)}\"/>\n")
+            }
+            defsBuilder.append("      <stop offset=\"${(sEnd * 100).toInt()}%\" stop-color=\"${colorToHex(endCol)}\" stop-opacity=\"${colorToOpacity(endCol)}\"/>\n")
+            defsBuilder.append("      <stop offset=\"100%\" stop-color=\"${colorToHex(endCol)}\" stop-opacity=\"${colorToOpacity(endCol)}\"/>\n")
+            defsBuilder.append("    </linearGradient>\n")
+        }
+
+        // Fill Reference
+        val fillRef = if (isGradient && isGradientText) {
+            addLinearGradient("textFillGrad", gradientAngle, gradientStartColor, gradientMiddleColor, gradientEndColor, hasMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+            "url(#textFillGrad)"
+        } else {
+            colorToHex(color)
+        }
+        val fillOpacityAttr = if (isGradient && isGradientText) "" else " fill-opacity=\"${colorToOpacity(color)}\""
+
+        val elementsBuilder = StringBuilder()
+
+        // 3rd Stroke
+        if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
+            val stroke3W = (strokeWidthToUse + doubleStrokeWidthToUse * 2f + tripleStrokeWidthToUse * 2f) * 2f
+            val stroke3Ref = if (isGradient && isGradientStroke3) {
+                addLinearGradient("stroke3Grad", gradientAngle, gradientStartColor, gradientMiddleColor, gradientEndColor, hasMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+                "url(#stroke3Grad)"
+            } else {
+                colorToHex(tripleStrokeColor)
+            }
+            val stroke3Opacity = if (isGradient && isGradientStroke3) "" else " stroke-opacity=\"${colorToOpacity(tripleStrokeColor)}\""
+            elementsBuilder.append("  <path d=\"$glyphD\" fill=\"none\" stroke=\"$stroke3Ref\"$stroke3Opacity stroke-width=\"${String.format(java.util.Locale.US, "%.2f", stroke3W)}\" stroke-linejoin=\"round\" stroke-linecap=\"round\" />\n")
+        }
+
+        // 2nd Stroke
+        if (doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
+            val stroke2W = (strokeWidthToUse + doubleStrokeWidthToUse * 2f) * 2f
+            val stroke2Ref = if (isGradient && isGradientStroke2) {
+                addLinearGradient("stroke2Grad", gradientAngle, gradientStartColor, gradientMiddleColor, gradientEndColor, hasMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+                "url(#stroke2Grad)"
+            } else {
+                colorToHex(doubleStrokeColor)
+            }
+            val stroke2Opacity = if (isGradient && isGradientStroke2) "" else " stroke-opacity=\"${colorToOpacity(doubleStrokeColor)}\""
+            elementsBuilder.append("  <path d=\"$glyphD\" fill=\"none\" stroke=\"$stroke2Ref\"$stroke2Opacity stroke-width=\"${String.format(java.util.Locale.US, "%.2f", stroke2W)}\" stroke-linejoin=\"round\" stroke-linecap=\"round\" />\n")
+        }
+
+        // 1st Stroke
+        if (strokeWidthToUse > 0f) {
+            val stroke1W = strokeWidthToUse * 2f
+            val stroke1Ref = if (isGradient && isGradientStroke1) {
+                addLinearGradient("stroke1Grad", gradientAngle, gradientStartColor, gradientMiddleColor, gradientEndColor, hasMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+                "url(#stroke1Grad)"
+            } else {
+                colorToHex(strokeColor)
+            }
+            val stroke1Opacity = if (isGradient && isGradientStroke1) "" else " stroke-opacity=\"${colorToOpacity(strokeColor)}\""
+            elementsBuilder.append("  <path d=\"$glyphD\" fill=\"none\" stroke=\"$stroke1Ref\"$stroke1Opacity stroke-width=\"${String.format(java.util.Locale.US, "%.2f", stroke1W)}\" stroke-linejoin=\"round\" stroke-linecap=\"round\" />\n")
+        }
+
+        // Text Fill Path
+        elementsBuilder.append("  <path d=\"$glyphD\" fill=\"$fillRef\"$fillOpacityAttr stroke=\"none\" />\n")
+
+        val svgBuilder = StringBuilder()
+        svgBuilder.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+        svgBuilder.append("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${svgW.toInt()}\" height=\"${svgH.toInt()}\" viewBox=\"0 0 ${String.format(java.util.Locale.US, "%.2f %.2f", svgW, svgH)}\">\n")
+        if (defsBuilder.isNotEmpty()) {
+            svgBuilder.append("  <defs>\n")
+            svgBuilder.append(defsBuilder.toString())
+            svgBuilder.append("  </defs>\n")
+        }
+        svgBuilder.append(elementsBuilder.toString())
+        svgBuilder.append("</svg>")
+
+        return svgBuilder.toString()
     }
 
     override fun clone(): Layer {
