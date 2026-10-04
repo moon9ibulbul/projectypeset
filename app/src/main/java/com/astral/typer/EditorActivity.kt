@@ -8797,6 +8797,19 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             layout.addView(btnCenter)
+
+            val cbDropIncludeStroke = android.widget.CheckBox(this@EditorActivity).apply {
+                text = "Include stroke"
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                isChecked = stylableLayer.isDropShadowIncludeStroke
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                setOnCheckedChangeListener { _, isChecked ->
+                    stylableLayer.isDropShadowIncludeStroke = isChecked
+                    canvasView.invalidate()
+                }
+            }
+            layout.addView(cbDropIncludeStroke)
+
             addView(layout)
         }
 

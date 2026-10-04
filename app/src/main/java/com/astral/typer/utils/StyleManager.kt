@@ -229,6 +229,7 @@ object StyleManager {
         val shadowRadius: Float,
         val shadowDx: Float,
         val shadowDy: Float,
+        val isDropShadowIncludeStroke: Boolean? = false,
         val strokeColor: Int,
         val strokeWidth: Float,
         val doubleStrokeColor: Int,
@@ -426,6 +427,7 @@ object StyleManager {
             shadowRadius = l.shadowRadius,
             shadowDx = l.shadowDx,
             shadowDy = l.shadowDy,
+            isDropShadowIncludeStroke = l.isDropShadowIncludeStroke,
             strokeColor = l.strokeColor,
             strokeWidth = l.strokeWidth,
             doubleStrokeColor = l.doubleStrokeColor,
@@ -597,6 +599,7 @@ object StyleManager {
         l.shadowRadius = m.shadowRadius
         l.shadowDx = m.shadowDx
         l.shadowDy = m.shadowDy
+        l.isDropShadowIncludeStroke = m.isDropShadowIncludeStroke ?: false
 
         l.strokeColor = m.strokeColor
         l.strokeWidth = m.strokeWidth

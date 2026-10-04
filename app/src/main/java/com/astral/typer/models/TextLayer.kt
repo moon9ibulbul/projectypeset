@@ -116,6 +116,7 @@ class TextLayer(
     override var shadowRadius: Float = 0f
     override var shadowDx: Float = 0f
     override var shadowDy: Float = 0f
+    override var isDropShadowIncludeStroke: Boolean = false
 
     // Motion Shadow
     override var isMotionShadow: Boolean = false
@@ -621,6 +622,7 @@ class TextLayer(
         result = 31 * result + shadowRadius.hashCode()
         result = 31 * result + shadowDx.hashCode()
         result = 31 * result + shadowDy.hashCode()
+        result = 31 * result + isDropShadowIncludeStroke.hashCode()
         result = 31 * result + isMotionShadow.hashCode()
         result = 31 * result + isMotionShadowIncludeStroke.hashCode()
         result = 31 * result + motionShadowAngle
@@ -1178,6 +1180,7 @@ class TextLayer(
         newLayer.shadowRadius = this.shadowRadius
         newLayer.shadowDx = this.shadowDx
         newLayer.shadowDy = this.shadowDy
+        newLayer.isDropShadowIncludeStroke = this.isDropShadowIncludeStroke
         newLayer.isMotionShadow = this.isMotionShadow
         newLayer.isMotionShadowIncludeStroke = this.isMotionShadowIncludeStroke
         newLayer.motionShadowAngle = this.motionShadowAngle
@@ -1559,12 +1562,7 @@ class TextLayer(
         textPaint.typeface = typeface
         textPaint.alpha = 255
         textPaint.letterSpacing = letterSpacing
-
-        if (shadowRadius > 0 && !isMotionShadow) {
-            textPaint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
-        } else {
-            textPaint.clearShadowLayer()
-        }
+        textPaint.clearShadowLayer()
 
         // Texture Application (Legacy)
         if (textureBitmap != null) {
@@ -4117,11 +4115,26 @@ class TextLayer(
             }
 
             // 2. Standard Shadow
-            if (!isMotionShadow && shadowRadius > 0) {
-                if (isGradient && isGradientShadow) {
+            if (!isMotionShadow && (shadowRadius > 0f || shadowThickness > 0f)) {
+                paint.clearShadowLayer()
+                val mask = if (shadowRadius > 0f) BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL) else null
+                if (isDropShadowIncludeStroke) {
+                    paint.shader = if (isGradient && isGradientShadow) gradientShader else null
+                    paint.color = if (isGradient && isGradientShadow) Color.WHITE else shadowColor
+                    paint.maskFilter = mask
+                    targetCanvas.save()
+                    targetCanvas.translate(shadowDx, shadowDy)
+                    try {
+                        isDrawingShadowPass = true
+                        drawMain(targetCanvas)
+                    } finally {
+                        isDrawingShadowPass = false
+                    }
+                    targetCanvas.restore()
+                } else if (isGradient && isGradientShadow) {
                     paint.shader = gradientShader
                     paint.color = Color.WHITE
-                    paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                    paint.maskFilter = mask
                     targetCanvas.save()
                     targetCanvas.translate(shadowDx, shadowDy)
                     if (shadowThickness > 0f) {
@@ -4143,40 +4156,39 @@ class TextLayer(
                     }
                     targetCanvas.restore()
                 } else {
+                    val shadowStyle = paint.style
+                    val shadowStrokeWidth = paint.strokeWidth
+                    val shadowShader = paint.shader
+                    val shadowOrigColor = paint.color
+                    val shadowMaskFilter = paint.maskFilter
+
+                    paint.shader = null
+                    paint.color = shadowColor
+                    paint.maskFilter = mask
+
+                    targetCanvas.save()
+                    targetCanvas.translate(shadowDx, shadowDy)
+
                     if (shadowThickness > 0f) {
-                        val shadowStyle = paint.style
-                        val shadowStrokeWidth = paint.strokeWidth
-                        val shadowShader = paint.shader
-                        val shadowOrigColor = paint.color
-                        val shadowMaskFilter = paint.maskFilter
-
-                        paint.shader = null
-                        paint.color = shadowColor
-                        paint.maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
-
-                        targetCanvas.save()
-                        targetCanvas.translate(shadowDx, shadowDy)
-
                         paint.style = Paint.Style.FILL_AND_STROKE
                         paint.strokeWidth = shadowThickness * 0.5f
                         paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
-                        drawLayoutSafe(targetCanvas, true)
-                        drawTailPath(targetCanvas, paint)
-
-                        targetCanvas.restore()
-
-                        paint.style = shadowStyle
-                        paint.strokeWidth = shadowStrokeWidth
-                        paint.shader = shadowShader
-                        paint.color = shadowOrigColor
-                        paint.maskFilter = shadowMaskFilter
-                        paint.pathEffect = null
                     } else {
-                        paint.setShadowLayer(shadowRadius, shadowDx, shadowDy, shadowColor)
-                        drawLayoutSafe(targetCanvas, true)
-                        drawTailPath(targetCanvas, paint)
-                        paint.clearShadowLayer()
+                        paint.style = Paint.Style.FILL
+                        paint.strokeWidth = 0f
+                        paint.pathEffect = null
                     }
+                    drawLayoutSafe(targetCanvas, true)
+                    drawTailPath(targetCanvas, paint)
+
+                    targetCanvas.restore()
+
+                    paint.style = shadowStyle
+                    paint.strokeWidth = shadowStrokeWidth
+                    paint.shader = shadowShader
+                    paint.color = shadowOrigColor
+                    paint.maskFilter = shadowMaskFilter
+                    paint.pathEffect = null
                 }
             }
 
