@@ -7370,6 +7370,7 @@ class EditorActivity : AppCompatActivity() {
                     // Load preset settings
                     val assetPath = "brushes/$category/$fileName"
                     val preset = com.astral.typer.utils.MyPaintBrushHelper.loadPreset(this@EditorActivity, assetPath)
+                    layer.activePreset = preset
                     layer.brushName = preset.name
 
                     // Map presets to layer defaults
