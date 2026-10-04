@@ -2506,6 +2506,12 @@ class AstralCanvasView @JvmOverloads constructor(
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    val historySize = event.historySize
+                    for (h in 0 until historySize) {
+                        val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
+                        invertedMatrix.mapPoints(hpt)
+                        brushLayer.continueStroke(hpt[0], hpt[1])
+                    }
                     brushLayer.continueStroke(cx, cy)
                     invalidate()
                 }
@@ -2753,6 +2759,12 @@ class AstralCanvasView @JvmOverloads constructor(
                     brushLayer.brushHardness = layerEraseHardness / 100f
                     brushLayer.brushOpacity = layerEraseOpacity
 
+                    val historySize = event.historySize
+                    for (h in 0 until historySize) {
+                        val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
+                        invertedMatrix.mapPoints(hpt)
+                        brushLayer.continueStroke(hpt[0], hpt[1])
+                    }
                     brushLayer.continueStroke(cx, cy)
                     invalidate()
                 }
@@ -2800,6 +2812,17 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
                 MotionEvent.ACTION_MOVE -> {
                     stylable.eraseDragRevision++
+                    val historySize = event.historySize
+                    for (h in 0 until historySize) {
+                        val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
+                        invertedMatrix.mapPoints(hpt)
+                        val hLocalPoint = floatArrayOf(hpt[0], hpt[1])
+                        globalToLocal.mapPoints(hLocalPoint)
+                        val hmX = hLocalPoint[0] + pad
+                        val hmY = hLocalPoint[1] + pad
+                        currentLayerErasePath.lineTo(hmX, hmY)
+                        currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(hmX, hmY))
+                    }
                     currentLayerErasePath.lineTo(maskX, maskY)
                     currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(maskX, maskY))
                     stylable.activeErasePath = currentLayerErasePath

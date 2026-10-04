@@ -501,9 +501,12 @@ class ImageLayer(
         val startColor = (opacityStart shl 24) or 0x000000
         val endColor = (opacityEnd shl 24) or 0x000000
         val shader = createGradient(w, h, opacityAngle, startColor, endColor, bounds = bounds)
-        val mat = Matrix()
-        mat.setTranslate(-w / 2f, -h / 2f)
-        shader.setLocalMatrix(mat)
+        val hasTransform = (isWarp && warpMesh != null)
+        if (hasTransform) {
+            val mat = Matrix()
+            mat.setTranslate(-w / 2f, -h / 2f)
+            shader.setLocalMatrix(mat)
+        }
         return shader
     }
 

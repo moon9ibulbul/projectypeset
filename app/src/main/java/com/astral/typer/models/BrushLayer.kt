@@ -732,7 +732,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
                 val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
-                val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
+                val maxBlur = motionShadowThickness * blurFactor
                 val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
                 val thicknessScale = 0.7f + 0.6f * normThickness
                 val baseShadowAlpha = if (Color.alpha(shadowColor) > 0) Color.alpha(shadowColor).toFloat() else 255f
@@ -1059,7 +1059,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         if (res4.isNaN() || res4 < 0f) {
             res4 = 0f
         }
-        return res4
+        val minDabs = if (dist > 0.5f) (dist / (states[STATE_ACTUAL_RADIUS] * 0.4f).coerceAtLeast(1.0f)) else 0f
+        return kotlin.math.max(res4, minDabs)
     }
 
     fun continueStroke(x: Float, y: Float) {
@@ -1073,7 +1074,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         // Calculate slow tracking factor
         val slowTracking = getBaseValue(preset, "slow_tracking")
         val trackingFactor = if (slowTracking > 0f) {
-            (1f - Math.exp((-100f * dtime / slowTracking).toDouble()).toFloat()).coerceIn(0.01f, 1f)
+            (1f - Math.exp((-100f * dtime / slowTracking).toDouble()).toFloat()).coerceIn(0.1f, 1f)
         } else {
             1f
         }

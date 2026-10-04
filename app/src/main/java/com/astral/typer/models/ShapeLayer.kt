@@ -1470,7 +1470,7 @@ class ShapeLayer(
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
                 val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
-                val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
+                val maxBlur = motionShadowThickness * blurFactor
                 val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
                 val thicknessScale = 0.7f + 0.6f * normThickness
                 val baseShadowAlpha = if (Color.alpha(shadowColor) > 0) Color.alpha(shadowColor).toFloat() else 255f
@@ -1488,21 +1488,21 @@ class ShapeLayer(
 
                     targetCanvas.save()
                     targetCanvas.translate(dx, dy)
+                    val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
+                    val strokeC = if (motionShadowThickness > 0f) c else null
+                    val strokeW = if (motionShadowThickness > 0f) motionShadowThickness * 0.5f else 0f
                     if (isMotionShadowIncludeStroke) {
                         isDrawingShadowPass = true
-                        val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
-                        renderSvgManipulated(targetCanvas, fill = c, stroke = null)
+                        renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
                         isDrawingShadowPass = false
                     } else {
-                        val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
-                        renderSvgManipulated(targetCanvas, fill = c, stroke = null)
+                        renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
                     }
                     targetCanvas.restore()
 
                     targetCanvas.save()
                     targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
-                    val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
-                    renderSvgManipulated(targetCanvas, fill = c, stroke = null)
+                    renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
                     targetCanvas.restore()
                 }
             }
@@ -2769,9 +2769,12 @@ class ShapeLayer(
     private fun getOpacityGradientShader(w: Float, h: Float, bounds: RectF? = null): Shader {
         val startColor = (opacityStart shl 24) or 0x000000; val endColor = (opacityEnd shl 24) or 0x000000
         val shader = createGradient(w, h, opacityAngle, startColor, endColor, bounds = bounds)
-        val mat = Matrix()
-        mat.setTranslate(-w / 2f, -h / 2f)
-        shader.setLocalMatrix(mat)
+        val hasTransform = (isWarp && warpMesh != null) || (isPerspective && perspectivePoints != null)
+        if (hasTransform) {
+            val mat = Matrix()
+            mat.setTranslate(-w / 2f, -h / 2f)
+            shader.setLocalMatrix(mat)
+        }
         return shader
     }
 

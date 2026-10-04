@@ -1542,12 +1542,15 @@ class TextLayer(
         val startColor = (opacityStart shl 24) or 0x000000
         val endColor = (opacityEnd shl 24) or 0x000000
         val shader = createGradient(w, h, layout, opacityAngle, startColor, endColor, bounds = bounds)
-        val textBounds = getTextHorizontalBounds(layout, w)
-        val cx = (textBounds.first + textBounds.second) / 2f
-        val cy = h / 2f
-        val mat = Matrix()
-        mat.setTranslate(-cx, -cy)
-        shader.setLocalMatrix(mat)
+        val isWarpActive = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())
+        if (isWarpActive) {
+            val textBounds = getTextHorizontalBounds(layout, w)
+            val cx = (textBounds.first + textBounds.second) / 2f
+            val cy = h / 2f
+            val mat = Matrix()
+            mat.setTranslate(-cx, -cy)
+            shader.setLocalMatrix(mat)
+        }
         return shader
     }
 
@@ -3773,9 +3776,15 @@ class TextLayer(
                 val cos = Math.cos(angleRad).toFloat()
                 val sin = Math.sin(angleRad).toFloat()
                 val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
-                val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
+                val maxBlur = motionShadowThickness * blurFactor
                 val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
                 val thicknessScale = 0.7f + 0.6f * normThickness
+                if (motionShadowThickness > 0f) {
+                    paint.style = Paint.Style.FILL_AND_STROKE
+                    paint.strokeWidth = motionShadowThickness * 0.5f
+                } else {
+                    paint.style = Paint.Style.FILL
+                }
                 val baseShadowAlpha = if (Color.alpha(shadowColor) > 0) Color.alpha(shadowColor).toFloat() else 255f
                 val initialAlpha = (baseShadowAlpha * thicknessScale / kotlin.math.sqrt(iterations.toDouble()).toFloat()).coerceIn(1f, 255f)
 
