@@ -27,6 +27,7 @@ class ImageLayer(
     override var shadowRadius: Float = 0f
     override var shadowDx: Float = 0f
     override var shadowDy: Float = 0f
+    override var isDropShadowIncludeStroke: Boolean = false
     override var isMotionShadow: Boolean = false
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0

@@ -15,6 +15,7 @@ interface StylableLayer {
     var shadowRadius: Float
     var shadowDx: Float
     var shadowDy: Float
+    var isDropShadowIncludeStroke: Boolean
     var isMotionShadow: Boolean
     var isMotionShadowIncludeStroke: Boolean
     var motionShadowAngle: Int
