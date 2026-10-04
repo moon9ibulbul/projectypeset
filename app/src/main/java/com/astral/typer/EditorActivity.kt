@@ -74,6 +74,7 @@ class EditorActivity : AppCompatActivity() {
     private var parentFolderName: String? = null
 
     private var isInpaintMode = false
+    private var isGradationOptionsExpanded = false
     private var btnApplyInpaint: android.widget.Button? = null
     private var btnApplyCut: android.widget.Button? = null
     private lateinit var inpaintManager: InpaintManager
@@ -8749,10 +8750,21 @@ class EditorActivity : AppCompatActivity() {
                 stylableLayer.shadowDy = (it - 50).toFloat()
                 canvasView.invalidate()
             })
-            layout.addView(createSlider("Thickness", stylableLayer.shadowThickness.toInt(), 50) {
-                stylableLayer.shadowThickness = it.toFloat()
+            val thickSlider = createSlider("Thickness: ${stylableLayer.shadowThickness.toInt()}", stylableLayer.shadowThickness.toInt(), 50) { p ->
+                stylableLayer.shadowThickness = p.toFloat()
                 canvasView.invalidate()
+            }
+            val tvThickLabel = thickSlider.findViewWithTag<TextView>("SLIDER_LABEL")
+            thickSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    stylableLayer.shadowThickness = progress.toFloat()
+                    tvThickLabel?.text = "Thickness: $progress"
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
+            layout.addView(thickSlider)
             val btnCenter = android.widget.Button(this@EditorActivity).apply {
                 text = "Center"
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
@@ -9030,10 +9042,70 @@ class EditorActivity : AppCompatActivity() {
         }
         mainLayout.addView(btnGradMode)
 
+        // Collapsible Container for Targets & Options
+        val collapsibleContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 16)
+            }
+        }
+
+        val headerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+            isClickable = true
+            isFocusable = true
+        }
+
+        val tvHeaderTitle = TextView(this).apply {
+            text = "Targets & Options"
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val ivHeaderArrow = ImageView(this).apply {
+            setImageResource(R.drawable.ic_expand_more)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            layoutParams = LinearLayout.LayoutParams(dpToPx(20), dpToPx(20))
+            rotation = if (isGradationOptionsExpanded) 180f else 0f
+        }
+
+        headerLayout.addView(tvHeaderTitle)
+        headerLayout.addView(ivHeaderArrow)
+        collapsibleContainer.addView(headerLayout)
+
+        val contentLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(12), 0, dpToPx(12), dpToPx(8))
+            visibility = if (isGradationOptionsExpanded) View.VISIBLE else View.GONE
+        }
+
+        headerLayout.setOnClickListener {
+            android.transition.TransitionManager.beginDelayedTransition(mainLayout, android.transition.AutoTransition().apply {
+                duration = 200
+            })
+            isGradationOptionsExpanded = !isGradationOptionsExpanded
+            if (isGradationOptionsExpanded) {
+                contentLayout.visibility = View.VISIBLE
+                ivHeaderArrow.animate().rotation(180f).setDuration(200).start()
+            } else {
+                contentLayout.visibility = View.GONE
+                ivHeaderArrow.animate().rotation(0f).setDuration(200).start()
+            }
+        }
+
         // Toggles for Text, 1st Stroke, 2nd Stroke, 3rd Stroke, Shadow
         val togglesLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 16)
+            setPadding(0, 0, 0, 8)
         }
 
         val row1 = LinearLayout(this).apply {
@@ -9084,7 +9156,7 @@ class EditorActivity : AppCompatActivity() {
         togglesLayout.addView(row1)
         togglesLayout.addView(row2)
 
-        mainLayout.addView(togglesLayout)
+        contentLayout.addView(togglesLayout)
 
         // Auto Gradation
         val isLayerGradient = if (layerAsText != null) layerAsText.isGradient else layerAsShape!!.isGradient
@@ -9092,7 +9164,7 @@ class EditorActivity : AppCompatActivity() {
             val autoGradationToggleLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 0, 0, 16)
+                setPadding(0, 0, 0, 8)
             }
             val chkAutoGradation = android.widget.CheckBox(this).apply {
                 setText("Auto Gradation")
@@ -9131,7 +9203,7 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             autoGradationToggleLayout.addView(chkAutoGradation)
-            mainLayout.addView(autoGradationToggleLayout)
+            contentLayout.addView(autoGradationToggleLayout)
         }
 
         // Middle Color Toggle
@@ -9139,7 +9211,7 @@ class EditorActivity : AppCompatActivity() {
         val middleColorToggleLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, 16)
+            setPadding(0, 0, 0, 8)
         }
         val chkMiddleColor = android.widget.CheckBox(this).apply {
             setText("Middle Color")
@@ -9163,7 +9235,10 @@ class EditorActivity : AppCompatActivity() {
             }
         }
         middleColorToggleLayout.addView(chkMiddleColor)
-        mainLayout.addView(middleColorToggleLayout)
+        contentLayout.addView(middleColorToggleLayout)
+
+        collapsibleContainer.addView(contentLayout)
+        mainLayout.addView(collapsibleContainer)
 
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })

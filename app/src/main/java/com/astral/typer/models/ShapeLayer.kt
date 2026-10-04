@@ -856,7 +856,7 @@ class ShapeLayer(
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
-                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
+                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor, isGradient, isGradientStroke3).hashCode()
                     if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
                         stroke3BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -869,7 +869,19 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            color = tripleStrokeColor
+                            if (isGradient && isGradientStroke3) {
+                                val sh = getGradientShader(getWidth(), getHeight())
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -h / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = tripleStrokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
@@ -888,7 +900,7 @@ class ShapeLayer(
                 // 2nd stroke
                 if (doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
-                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
+                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor, isGradient, isGradientStroke2).hashCode()
                     if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
                         stroke2BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -901,7 +913,19 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            color = doubleStrokeColor
+                            if (isGradient && isGradientStroke2) {
+                                val sh = getGradientShader(getWidth(), getHeight())
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -h / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = doubleStrokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
@@ -920,7 +944,7 @@ class ShapeLayer(
                 // 1st stroke
                 if (strokeWidthToUse > 0f) {
                     val radius = strokeWidthToUse * qualityScale
-                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor).hashCode()
+                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor, isGradient, isGradientStroke1).hashCode()
                     if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
                         stroke1BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -933,7 +957,7 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            if (isGradient && isGradientStroke) {
+                            if (isGradient && isGradientStroke1) {
                                 val sh = getGradientShader(getWidth(), getHeight())
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
@@ -1521,7 +1545,7 @@ class ShapeLayer(
 
                 targetCanvas.saveLayer(null, p)
                 if (shadowThickness > 0f) {
-                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 2f)
+                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 0.5f)
                 } else {
                     renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = null)
                 }
