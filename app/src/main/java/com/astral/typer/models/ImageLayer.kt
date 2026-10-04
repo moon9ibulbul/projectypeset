@@ -31,6 +31,8 @@ class ImageLayer(
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowDx: Float = 0f
+    override var motionShadowDy: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
     override var motionShadowKernelSize: Int = 5
@@ -51,7 +53,9 @@ class ImageLayer(
     override var gradientEndPos: Float = 1.0f
     override var gradientStrength: Float = 1.0f
     override var isGradientText: Boolean = true
-    override var isGradientStroke: Boolean = false
+    override var isGradientStroke1: Boolean = false
+    override var isGradientStroke2: Boolean = false
+    override var isGradientStroke3: Boolean = false
     override var isGradientShadow: Boolean = false
     override var isGlobalGradient: Boolean = false
     override var globalP1: PointF = PointF()
@@ -768,6 +772,8 @@ class ImageLayer(
         shadowDx *= 2f
         shadowDy *= 2f
         motionShadowDistance *= 2f
+        motionShadowDx *= 2f
+        motionShadowDy *= 2f
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f

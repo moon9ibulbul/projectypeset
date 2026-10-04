@@ -1,8 +1,10 @@
 package com.astral.typer.models
 
 import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
@@ -271,6 +273,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowDx: Float = 0f
+    override var motionShadowDy: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
     override var motionShadowKernelSize: Int = 5
@@ -290,7 +294,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var gradientEndPos: Float = 1.0f
     override var gradientStrength: Float = 1.0f
     override var isGradientText: Boolean = false
-    override var isGradientStroke: Boolean = false
+    override var isGradientStroke1: Boolean = false
+    override var isGradientStroke2: Boolean = false
+    override var isGradientStroke3: Boolean = false
     override var isGradientShadow: Boolean = false
     override var isGlobalGradient: Boolean = false
     override var globalP1: PointF = PointF()
@@ -676,8 +682,219 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             }
         }
 
-        // We draw the layer's content onto a temporary canvas if there is an erase mask to apply DST_OUT correctly
-        if (eraseMask != null || activeErasePath != null) {
+        val pad = calculatePadding()
+        val bounds = RectF(dx - pad, dy - pad, dx + w + pad, dy + h + pad)
+
+        val hasShadow = (isMotionShadow && motionShadowDistance > 0f) || (!isMotionShadow && shadowRadius > 0f)
+        val hasStrokes = strokeWidth > 0f || doubleStrokeWidth > 0f || tripleStrokeWidth > 0f
+
+        if (hasShadow || hasStrokes) {
+            val bmpW = Math.ceil((w.toDouble())).toInt().coerceAtLeast(1)
+            val bmpH = Math.ceil((h.toDouble())).toInt().coerceAtLeast(1)
+            val contentBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+            val tempCanvas = Canvas(contentBmp)
+
+            drawTiles(tempCanvas, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG))
+
+            if (eraseMask != null || activeErasePath != null) {
+                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                }
+                if (eraseMask != null) {
+                    tempCanvas.drawBitmap(eraseMask!!, 0f, 0f, maskPaint)
+                }
+                if (activeErasePath != null) {
+                    val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        style = Paint.Style.STROKE
+                        strokeWidth = activeEraseSize
+                        alpha = activeEraseOpacity
+                        strokeCap = Paint.Cap.ROUND
+                        strokeJoin = Paint.Join.ROUND
+                        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                        if (activeEraseHardness < 1f) {
+                            val radius = activeEraseSize * (1f - activeEraseHardness) * 0.5f
+                            if (radius > 0.1f) {
+                                maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
+                            }
+                        }
+                    }
+                    tempCanvas.drawPath(activeErasePath!!, p)
+                }
+            }
+
+            val pFilter = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+
+            // 1. Motion Shadow
+            if (isMotionShadow && motionShadowDistance > 0f) {
+                val iterations = kotlin.math.max(1, motionShadowKernelSize)
+                val angleRad = Math.toRadians(motionShadowAngle.toDouble())
+                val cos = Math.cos(angleRad).toFloat()
+                val sin = Math.sin(angleRad).toFloat()
+                val blurFactor = (motionShadowSmoothness / 100f).coerceIn(0f, 1f)
+                val maxBlur = kotlin.math.max(1f, motionShadowThickness) * blurFactor
+                val normThickness = (motionShadowThickness / 20f).coerceIn(0f, 1f)
+                val thicknessScale = 0.7f + 0.6f * normThickness
+                val baseShadowAlpha = if (Color.alpha(shadowColor) > 0) Color.alpha(shadowColor).toFloat() else 255f
+                val initialAlpha = (baseShadowAlpha * thicknessScale / kotlin.math.sqrt(iterations.toDouble()).toFloat()).coerceIn(1f, 255f)
+
+                for (i in 1..iterations) {
+                    val t = i / iterations.toFloat()
+                    val fade = 1f - (i - 1) / iterations.toFloat()
+                    val d = t * motionShadowDistance
+                    val shadowAlpha = (initialAlpha * fade).toInt().coerceIn(0, 255)
+                    val blur = t * maxBlur
+
+                    val mDx = d * cos + motionShadowDx
+                    val mDy = d * sin + motionShadowDy
+
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        if (blur > 0.5f) {
+                            maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                        }
+                    }
+                    val offset = IntArray(2)
+                    val alphaBmp = contentBmp.extractAlpha(blurPaint, offset)
+                    if (alphaBmp != null && !alphaBmp.isRecycled) {
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            color = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
+                        }
+                        canvas.save()
+                        canvas.translate(dx + mDx + offset[0], dy + mDy + offset[1])
+                        canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        canvas.restore()
+
+                        canvas.save()
+                        canvas.translate(dx - mDx + 2f * motionShadowDx + offset[0], dy - mDy + 2f * motionShadowDy + offset[1])
+                        canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        canvas.restore()
+                        alphaBmp.recycle()
+                    }
+                }
+            }
+
+            // 2. Drop Shadow
+            if (!isMotionShadow && shadowRadius > 0f) {
+                val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                }
+                val offset = IntArray(2)
+                val alphaBmp = contentBmp.extractAlpha(blurPaint, offset)
+                if (alphaBmp != null && !alphaBmp.isRecycled) {
+                    val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        isFilterBitmap = true
+                        color = shadowColor
+                    }
+                    canvas.save()
+                    canvas.translate(dx + shadowDx + offset[0], dy + shadowDy + offset[1])
+                    canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                    canvas.restore()
+                    alphaBmp.recycle()
+                }
+            }
+
+            // 3. Strokes
+            if (hasStrokes) {
+                val holeLayerId = canvas.saveLayer(bounds, layerPaint)
+
+                // 3rd stroke
+                if (tripleStrokeWidth > 0f && doubleStrokeWidth > 0f) {
+                    val strokeRadius = strokeWidth + doubleStrokeWidth * 2f + tripleStrokeWidth * 2f
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        maskFilter = BlurMaskFilter(strokeRadius, BlurMaskFilter.Blur.NORMAL)
+                    }
+                    val offset = IntArray(2)
+                    val alphaBmp = contentBmp.extractAlpha(blurPaint, offset)
+                    if (alphaBmp != null && !alphaBmp.isRecycled) {
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            color = tripleStrokeColor
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        }
+                        canvas.save()
+                        canvas.translate(dx + offset[0], dy + offset[1])
+                        canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        canvas.restore()
+                        alphaBmp.recycle()
+                    }
+                }
+
+                // 2nd stroke
+                if (doubleStrokeWidth > 0f) {
+                    val strokeRadius = strokeWidth + doubleStrokeWidth * 2f
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        maskFilter = BlurMaskFilter(strokeRadius, BlurMaskFilter.Blur.NORMAL)
+                    }
+                    val offset = IntArray(2)
+                    val alphaBmp = contentBmp.extractAlpha(blurPaint, offset)
+                    if (alphaBmp != null && !alphaBmp.isRecycled) {
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            color = doubleStrokeColor
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        }
+                        canvas.save()
+                        canvas.translate(dx + offset[0], dy + offset[1])
+                        canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        canvas.restore()
+                        alphaBmp.recycle()
+                    }
+                }
+
+                // 1st stroke
+                if (strokeWidth > 0f) {
+                    val strokeRadius = strokeWidth
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        maskFilter = BlurMaskFilter(strokeRadius, BlurMaskFilter.Blur.NORMAL)
+                    }
+                    val offset = IntArray(2)
+                    val alphaBmp = contentBmp.extractAlpha(blurPaint, offset)
+                    if (alphaBmp != null && !alphaBmp.isRecycled) {
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            color = strokeColor
+                            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                                1f, 0f, 0f, 0f, 0f,
+                                0f, 1f, 0f, 0f, 0f,
+                                0f, 0f, 1f, 0f, 0f,
+                                0f, 0f, 0f, 100f, -250f
+                            ))
+                            colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+                        }
+                        canvas.save()
+                        canvas.translate(dx + offset[0], dy + offset[1])
+                        canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        canvas.restore()
+                        alphaBmp.recycle()
+                    }
+                }
+
+                // Punch hole
+                val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    isFilterBitmap = true
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                }
+                canvas.drawBitmap(contentBmp, dx, dy, erasePaint)
+                canvas.restoreToCount(holeLayerId)
+            }
+
+            // Draw base content
+            canvas.drawBitmap(contentBmp, dx, dy, layerPaint)
+            contentBmp.recycle()
+        } else if (eraseMask != null || activeErasePath != null) {
             // Draw to a temp layer to apply non-destructive erase masking
             val saveCount = canvas.saveLayer(dx, dy, dx + w, dy + h, null)
             drawTiles(canvas, dx, dy, layerPaint)
@@ -700,7 +917,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                     if (activeEraseHardness < 1f) {
                         val radius = activeEraseSize * (1f - activeEraseHardness) * 0.5f
                         if (radius > 0.1f) {
-                            maskFilter = android.graphics.BlurMaskFilter(radius, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                            maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
                         }
                     }
                 }
@@ -1797,6 +2014,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         shadowDx *= 2f
         shadowDy *= 2f
         motionShadowDistance *= 2f
+        motionShadowDx *= 2f
+        motionShadowDy *= 2f
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f

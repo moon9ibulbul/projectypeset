@@ -19,6 +19,8 @@ interface StylableLayer {
     var isMotionShadowIncludeStroke: Boolean
     var motionShadowAngle: Int
     var motionShadowDistance: Float
+    var motionShadowDx: Float
+    var motionShadowDy: Float
     var motionShadowThickness: Float
     var motionShadowSmoothness: Int
     var motionShadowKernelSize: Int
@@ -42,6 +44,11 @@ interface StylableLayer {
     var gradientStrength: Float
     var isGradientText: Boolean // Fill
     var isGradientStroke: Boolean
+        get() = isGradientStroke1
+        set(value) { isGradientStroke1 = value }
+    var isGradientStroke1: Boolean
+    var isGradientStroke2: Boolean
+    var isGradientStroke3: Boolean
     var isGradientShadow: Boolean
     var isGlobalGradient: Boolean
     var globalP1: PointF

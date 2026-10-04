@@ -35,6 +35,8 @@ class ShapeLayer(
     override var isMotionShadowIncludeStroke: Boolean = false
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
+    override var motionShadowDx: Float = 0f
+    override var motionShadowDy: Float = 0f
     override var motionShadowThickness: Float = 4f
     override var motionShadowSmoothness: Int = 100
     override var motionShadowKernelSize: Int = 5
@@ -55,7 +57,9 @@ class ShapeLayer(
     override var gradientEndPos: Float = 1.0f
     override var gradientStrength: Float = 1.0f
     override var isGradientText: Boolean = true // Repurposed for Shape Fill
-    override var isGradientStroke: Boolean = false
+    override var isGradientStroke1: Boolean = false
+    override var isGradientStroke2: Boolean = false
+    override var isGradientStroke3: Boolean = false
     override var isGradientShadow: Boolean = false
 
     override var isGlobalGradient: Boolean = false
@@ -605,7 +609,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke, isGradientShadow, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke1, isGradientStroke2, isGradientStroke3, isGradientShadow, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowDx, motionShadowDy, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -631,7 +635,7 @@ class ShapeLayer(
                 // 3rd stroke
                 if (tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2) * qualityScale
-                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor).hashCode()
+                    val stroke3Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, tripleStrokeWidthToUse, tripleStrokeColor, isGradient, isGradientStroke3).hashCode()
                     if (stroke3BmpCache == null || stroke3BmpCache!!.isRecycled || stroke3BmpHash != stroke3Hash) {
                         stroke3BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -644,7 +648,19 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            color = tripleStrokeColor
+                            if (isGradient && isGradientStroke3) {
+                                val sh = getGradientShader(getWidth(), getHeight())
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -h / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = tripleStrokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
@@ -663,7 +679,7 @@ class ShapeLayer(
                 // 2nd stroke
                 if (doubleStrokeWidthToUse > 0f) {
                     val radius = (strokeWidthToUse + doubleStrokeWidthToUse * 2) * qualityScale
-                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor).hashCode()
+                    val stroke2Hash = listOf(shapeHash, strokeWidthToUse, doubleStrokeWidthToUse, doubleStrokeColor, isGradient, isGradientStroke2).hashCode()
                     if (stroke2BmpCache == null || stroke2BmpCache!!.isRecycled || stroke2BmpHash != stroke2Hash) {
                         stroke2BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -676,7 +692,19 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            color = doubleStrokeColor
+                            if (isGradient && isGradientStroke2) {
+                                val sh = getGradientShader(getWidth(), getHeight())
+                                if (sh != null) {
+                                    val mat = android.graphics.Matrix()
+                                    mat.setTranslate(-w / 2f, -h / 2f)
+                                    sh.setLocalMatrix(mat)
+                                }
+                                this.shader = sh
+                                color = android.graphics.Color.WHITE
+                            } else {
+                                this.shader = null
+                                color = doubleStrokeColor
+                            }
                             val cm = android.graphics.ColorMatrix(floatArrayOf(
                                 1f, 0f, 0f, 0f, 0f,
                                 0f, 1f, 0f, 0f, 0f,
@@ -695,7 +723,7 @@ class ShapeLayer(
                 // 1st stroke
                 if (strokeWidthToUse > 0f) {
                     val radius = strokeWidthToUse * qualityScale
-                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor).hashCode()
+                    val stroke1Hash = listOf(shapeHash, strokeWidthToUse, strokeColor, isGradient, isGradientStroke1).hashCode()
                     if (stroke1BmpCache == null || stroke1BmpCache!!.isRecycled || stroke1BmpHash != stroke1Hash) {
                         stroke1BmpCache?.recycle()
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -708,7 +736,7 @@ class ShapeLayer(
                     if (blurredAlphaBmp != null && !blurredAlphaBmp.isRecycled) {
                         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             isFilterBitmap = true
-                            if (isGradient && isGradientStroke) {
+                            if (isGradient && isGradientStroke1) {
                                 val sh = getGradientShader(getWidth(), getHeight())
                                 if (sh != null) {
                                     val mat = android.graphics.Matrix()
@@ -806,7 +834,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isMotionShadow, isMotionShadowIncludeStroke, motionShadowAngle, motionShadowDistance, motionShadowDx, motionShadowDy, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -985,20 +1013,22 @@ class ShapeLayer(
 
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
-                val colorToUse = (silhouetteColor ?: tripleStrokeColor)
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2)
+                val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke3) Color.WHITE else tripleStrokeColor
+                val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke3) gradientShader else null
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2, strokeShader = shaderToUse)
             }
 
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
-                val colorToUse = (silhouetteColor ?: doubleStrokeColor)
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2)
+                val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke2) Color.WHITE else doubleStrokeColor
+                val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke2) gradientShader else null
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2, strokeShader = shaderToUse)
             }
 
             // 2. Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
-                val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke) Color.WHITE else strokeColor
-                val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke) gradientShader else null
+                val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke1) Color.WHITE else strokeColor
+                val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke1) gradientShader else null
                 renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse, strokeShader = shaderToUse)
             }
 
@@ -1453,8 +1483,11 @@ class ShapeLayer(
                     val shadowAlpha = (initialAlpha * fade).toInt().coerceIn(0, 255)
                     val blur = t * maxBlur
 
+                    val dx = d * cos + motionShadowDx
+                    val dy = d * sin + motionShadowDy
+
                     targetCanvas.save()
-                    targetCanvas.translate(d * cos, d * sin)
+                    targetCanvas.translate(dx, dy)
                     if (isMotionShadowIncludeStroke) {
                         isDrawingShadowPass = true
                         val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
@@ -1467,7 +1500,7 @@ class ShapeLayer(
                     targetCanvas.restore()
 
                     targetCanvas.save()
-                    targetCanvas.translate(-d * cos, -d * sin)
+                    targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
                     val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
                     renderSvgManipulated(targetCanvas, fill = c, stroke = null)
                     targetCanvas.restore()
@@ -1488,7 +1521,7 @@ class ShapeLayer(
 
                 targetCanvas.saveLayer(null, p)
                 if (shadowThickness > 0f) {
-                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness)
+                    renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 2f)
                 } else {
                     renderSvgManipulated(targetCanvas, fill = Color.BLACK, stroke = null)
                 }
@@ -2825,8 +2858,8 @@ class ShapeLayer(
         newLayer.isVisible = isVisible; newLayer.isLocked = isLocked; newLayer.isClipped = isClipped; newLayer.name = name
         newLayer.opacity = opacity; newLayer.blendMode = blendMode; newLayer.isOpacityGradient = isOpacityGradient; newLayer.opacityStart = opacityStart; newLayer.opacityEnd = opacityEnd; newLayer.opacityAngle = opacityAngle
         newLayer.shadowColor = shadowColor; newLayer.shadowRadius = shadowRadius; newLayer.shadowDx = shadowDx; newLayer.shadowDy = shadowDy
-        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowThickness = motionShadowThickness; newLayer.motionShadowSmoothness = motionShadowSmoothness; newLayer.motionShadowKernelSize = motionShadowKernelSize; newLayer.shadowThickness = shadowThickness; newLayer.isTextBlending = isTextBlending; newLayer.blendingStrength = blendingStrength
-        newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.hasMiddleColor = hasMiddleColor; newLayer.gradientMiddleColor = gradientMiddleColor; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke = isGradientStroke; newLayer.isGradientShadow = isGradientShadow
+        newLayer.isMotionShadow = isMotionShadow; newLayer.isMotionShadowIncludeStroke = isMotionShadowIncludeStroke; newLayer.motionShadowAngle = motionShadowAngle; newLayer.motionShadowDistance = motionShadowDistance; newLayer.motionShadowDx = motionShadowDx; newLayer.motionShadowDy = motionShadowDy; newLayer.motionShadowThickness = motionShadowThickness; newLayer.motionShadowSmoothness = motionShadowSmoothness; newLayer.motionShadowKernelSize = motionShadowKernelSize; newLayer.shadowThickness = shadowThickness; newLayer.isTextBlending = isTextBlending; newLayer.blendingStrength = blendingStrength
+        newLayer.isGradient = isGradient; newLayer.gradientStartColor = gradientStartColor; newLayer.gradientEndColor = gradientEndColor; newLayer.gradientAngle = gradientAngle; newLayer.hasMiddleColor = hasMiddleColor; newLayer.gradientMiddleColor = gradientMiddleColor; newLayer.isGradientText = isGradientText; newLayer.isGradientStroke1 = isGradientStroke1; newLayer.isGradientStroke2 = isGradientStroke2; newLayer.isGradientStroke3 = isGradientStroke3; newLayer.isGradientShadow = isGradientShadow
         newLayer.gradientStartPos = gradientStartPos; newLayer.gradientMiddlePos = gradientMiddlePos; newLayer.gradientEndPos = gradientEndPos
         newLayer.isGlobalGradient = isGlobalGradient; newLayer.globalP1 = PointF(globalP1.x, globalP1.y); newLayer.globalP2 = PointF(globalP2.x, globalP2.y)
         newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth; newLayer.tripleStrokeColor = tripleStrokeColor; newLayer.tripleStrokeWidth = tripleStrokeWidth
@@ -2946,6 +2979,8 @@ class ShapeLayer(
         shadowDx *= 2f
         shadowDy *= 2f
         motionShadowDistance *= 2f
+        motionShadowDx *= 2f
+        motionShadowDy *= 2f
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f

@@ -248,7 +248,9 @@ object StyleManager {
         val gradientEndPos: Float? = null,
         val gradientStrength: Float = 1.0f,
         val isGradientText: Boolean,
-        val isGradientStroke: Boolean,
+        val isGradientStroke1: Boolean = false,
+        val isGradientStroke2: Boolean = false,
+        val isGradientStroke3: Boolean = false,
         val isGradientShadow: Boolean,
         val letterSpacing: Float,
         val lineSpacing: Float,
@@ -256,6 +258,8 @@ object StyleManager {
         val isMotionShadow: Boolean,
         val motionAngle: Int,
         val motionDist: Float,
+        val motionDx: Float = 0f,
+        val motionDy: Float = 0f,
         val motionThickness: Float = 4f,
         val motionSmoothness: Int = 100,
         val motionKernelSize: Int = 5,
@@ -441,13 +445,17 @@ object StyleManager {
             gradientEndPos = l.gradientEndPos,
             gradientStrength = l.gradientStrength,
             isGradientText = l.isGradientText,
-            isGradientStroke = l.isGradientStroke,
+            isGradientStroke1 = l.isGradientStroke1,
+            isGradientStroke2 = l.isGradientStroke2,
+            isGradientStroke3 = l.isGradientStroke3,
             isGradientShadow = l.isGradientShadow,
             letterSpacing = l.letterSpacing,
             lineSpacing = l.lineSpacing,
             isMotionShadow = l.isMotionShadow,
             motionAngle = l.motionShadowAngle,
             motionDist = l.motionShadowDistance,
+            motionDx = l.motionShadowDx,
+            motionDy = l.motionShadowDy,
             motionThickness = l.motionShadowThickness,
             motionSmoothness = l.motionShadowSmoothness,
             motionKernelSize = l.motionShadowKernelSize,
@@ -610,7 +618,9 @@ object StyleManager {
         l.gradientEndPos = m.gradientEndPos ?: 1.0f
         l.gradientStrength = m.gradientStrength
         l.isGradientText = m.isGradientText
-        l.isGradientStroke = m.isGradientStroke
+        l.isGradientStroke1 = m.isGradientStroke1
+        l.isGradientStroke2 = m.isGradientStroke2
+        l.isGradientStroke3 = m.isGradientStroke3
         l.isGradientShadow = m.isGradientShadow
 
         l.letterSpacing = m.letterSpacing
@@ -619,6 +629,8 @@ object StyleManager {
         l.isMotionShadow = m.isMotionShadow
         l.motionShadowAngle = m.motionAngle
         l.motionShadowDistance = m.motionDist
+        l.motionShadowDx = m.motionDx ?: 0f
+        l.motionShadowDy = m.motionDy ?: 0f
         l.motionShadowThickness = m.motionThickness
         l.motionShadowSmoothness = m.motionSmoothness
         l.motionShadowKernelSize = m.motionKernelSize
