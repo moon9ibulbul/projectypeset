@@ -223,6 +223,7 @@ object StyleManager {
         val folderIds: List<String>? = null,
         val color: Int,
         val fontSize: Float,
+        val fontWeight: Int? = 400,
         val fontPath: String?,
         val opacity: Int,
         val shadowColor: Int,
@@ -421,6 +422,7 @@ object StyleManager {
             folderId = null,
             color = l.color,
             fontSize = l.fontSize,
+            fontWeight = l.fontWeight,
             fontPath = l.fontPath,
             opacity = l.opacity,
             shadowColor = l.shadowColor,
@@ -592,6 +594,7 @@ object StyleManager {
         }
         l.color = m.color
         l.fontSize = m.fontSize
+        l.fontWeight = m.fontWeight ?: 400
         l.fontPath = m.fontPath
 
         l.opacity = m.opacity

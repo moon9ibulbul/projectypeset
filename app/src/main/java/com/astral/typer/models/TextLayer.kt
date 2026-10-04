@@ -102,7 +102,27 @@ class TextLayer(
         }
     }
     var fontSize: Float = 100f
+    var fontWeight: Int = 400
     var typeface: Typeface = Typeface.DEFAULT
+
+    fun applyTypefaceAndWeight(paint: TextPaint) {
+        val tf = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            Typeface.create(typeface, fontWeight.coerceIn(1, 1000), typeface.isItalic)
+        } else {
+            typeface
+        }
+        paint.typeface = tf
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            try {
+                paint.fontVariationSettings = "'wght' $fontWeight"
+            } catch (e: Exception) {
+                // Fallback
+            }
+        }
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) {
+            paint.isFakeBoldText = fontWeight > 500
+        }
+    }
     var fontPath: String? = null // Identifier for the font (e.g., "Standard:Serif" or "/path/to/font.ttf")
     var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_CENTER
     var isJustified: Boolean = false
@@ -613,6 +633,7 @@ class TextLayer(
         result = 31 * result + (viewScale >= 0.2f).hashCode()
         result = 31 * result + color
         result = 31 * result + fontSize.hashCode()
+        result = 31 * result + fontWeight.hashCode()
         result = 31 * result + (fontPath?.hashCode() ?: 0)
         result = 31 * result + textAlign.hashCode()
         result = 31 * result + isJustified.hashCode()
@@ -1161,6 +1182,7 @@ class TextLayer(
         newLayer.transformDotsMultiplier = this.transformDotsMultiplier
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
+        newLayer.fontWeight = this.fontWeight
         newLayer.typeface = this.typeface
         newLayer.fontPath = this.fontPath
         newLayer.textAlign = this.textAlign
@@ -1559,7 +1581,7 @@ class TextLayer(
     private fun ensureLayout() {
         textPaint.textSize = fontSize
         textPaint.color = color
-        textPaint.typeface = typeface
+        applyTypefaceAndWeight(textPaint)
         textPaint.alpha = 255
         textPaint.letterSpacing = letterSpacing
         textPaint.clearShadowLayer()
@@ -2772,7 +2794,7 @@ class TextLayer(
             val charPaint = TextPaint(textPaint)
             charPaint.textSize = fontSize
             charPaint.color = color
-            charPaint.typeface = typeface
+            applyTypefaceAndWeight(charPaint)
             charPaint.alpha = 255
             charPaint.letterSpacing = letterSpacing
 
@@ -3496,12 +3518,10 @@ class TextLayer(
                 return (c and 0x00FFFFFF) or (a shl 24)
             }
 
-            val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f) shadowThickness else 0f
-
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2 + extraShadowThickness
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3526,7 +3546,7 @@ class TextLayer(
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + extraShadowThickness
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3551,7 +3571,7 @@ class TextLayer(
             // 2. Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + extraShadowThickness
+                paint.strokeWidth = strokeWidthToUse
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)

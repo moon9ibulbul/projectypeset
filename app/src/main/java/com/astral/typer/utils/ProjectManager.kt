@@ -90,6 +90,7 @@ object ProjectManager {
         val spans: List<SpanModel>? = null,
         val color: Int? = null,
         val fontSize: Float? = null,
+        val fontWeight: Int? = null,
         val fontPath: String? = null,
         val textAlign: String? = null, // ALIGN_NORMAL, ALIGN_CENTER, ALIGN_OPPOSITE
         val isJustified: Boolean? = null,
@@ -471,6 +472,7 @@ object ProjectManager {
                         spans = spanModels,
                         color = layer.color,
                         fontSize = layer.fontSize,
+                        fontWeight = layer.fontWeight,
                         fontPath = layer.fontPath,
                         textAlign = layer.textAlign.name,
                         isJustified = layer.isJustified,
@@ -1287,6 +1289,7 @@ object ProjectManager {
             model.transformAngleMultiplier?.let { layer.transformAngleMultiplier = it }
             model.transformDotsMultiplier?.let { layer.transformDotsMultiplier = it }
             model.fontSize?.let { layer.fontSize = it }
+            model.fontWeight?.let { layer.fontWeight = it }
             layer.fontPath = model.fontPath
             val appInstance = TyperApplication.instance
             if (appInstance != null && !model.fontPath.isNullOrEmpty()) {
@@ -3041,6 +3044,7 @@ object ProjectManager {
                         spans = spanModels,
                         color = layer.color,
                         fontSize = layer.fontSize,
+                        fontWeight = layer.fontWeight,
                         fontPath = layer.fontPath,
                         textAlign = layer.textAlign.name,
                         isJustified = layer.isJustified,

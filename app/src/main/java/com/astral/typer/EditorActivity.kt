@@ -8463,6 +8463,25 @@ class EditorActivity : AppCompatActivity() {
         }
         layout.addView(textSizeRow)
 
+        // Font Weight
+        val weightSliderLayout = createSlider("Font Weight: ${layer.fontWeight}", layer.fontWeight, 1000) { progress ->
+            val actualWeight = if (progress < 1) 1 else progress
+            layer.fontWeight = actualWeight
+            canvasView.invalidate()
+        }
+        val weightTv = weightSliderLayout.findViewWithTag<TextView>("SLIDER_LABEL")
+        weightSliderLayout.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                val actualWeight = if (p < 1) 1 else p
+                layer.fontWeight = actualWeight
+                weightTv?.text = "Font Weight: $actualWeight"
+                canvasView.invalidate()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        layout.addView(weightSliderLayout)
+
         // Box Scale
         val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%", "VAL_BOX_SCALE",
             onMinus = {
