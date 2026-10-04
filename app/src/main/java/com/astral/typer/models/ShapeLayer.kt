@@ -406,6 +406,15 @@ class ShapeLayer(
 
     private fun ensureShapeLoaded() {
         if (svg == null) {
+            if (shapeName.startsWith("<svg") || shapeName.startsWith("<?xml")) {
+                try {
+                    svgString = shapeName
+                    svg = SVG.getFromString(svgString)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                return
+            }
             val context = com.astral.typer.TyperApplication.instance
             if (context != null) {
                 try {

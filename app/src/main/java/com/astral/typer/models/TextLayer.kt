@@ -883,6 +883,65 @@ class TextLayer(
         syncFlagsFromSpans()
     }
 
+    fun generateSvgPathString(): String {
+        ensureLayout()
+        val layout = cachedLayout ?: return ""
+        val fullText = text.toString()
+        if (fullText.isEmpty()) return ""
+
+        val w = getWidth()
+        val h = getContentHeight()
+
+        val combinedPath = Path()
+        val pathPaint = TextPaint(textPaint)
+
+        val lineCount = layout.lineCount
+        for (line in 0 until lineCount) {
+            val lineStart = layout.getLineStart(line)
+            val lineEnd = layout.getLineEnd(line)
+            val baseline = layout.getLineBaseline(line).toFloat()
+
+            for (i in lineStart until lineEnd) {
+                val c = fullText[i]
+                if (c.isWhitespace()) continue
+
+                val charPath = Path()
+                val xPos = layout.getPrimaryHorizontal(i)
+                pathPaint.getTextPath(fullText, i, i + 1, xPos, baseline, charPath)
+                combinedPath.addPath(charPath)
+            }
+        }
+
+        val dBuilder = StringBuilder()
+        val segments = androidx.core.graphics.PathUtils.flatten(combinedPath, 0.5f)
+        var lastX = Float.NaN
+        var lastY = Float.NaN
+
+        for (seg in segments) {
+            val startX = seg.start.x
+            val startY = seg.start.y
+            val endX = seg.end.x
+            val endY = seg.end.y
+
+            if (startX != lastX || startY != lastY) {
+                dBuilder.append(String.format(java.util.Locale.US, "M %.2f %.2f ", startX, startY))
+            }
+            dBuilder.append(String.format(java.util.Locale.US, "L %.2f %.2f ", endX, endY))
+            lastX = endX
+            lastY = endY
+        }
+
+        if (dBuilder.isEmpty()) return ""
+
+        val svgW = w.coerceAtLeast(1f)
+        val svgH = h.coerceAtLeast(1f)
+
+        return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${svgW.toInt()}\" height=\"${svgH.toInt()}\" viewBox=\"0 0 $svgW $svgH\">\n" +
+                "  <path d=\"${dBuilder.toString().trim()}\" fill=\"#000000\" />\n" +
+                "</svg>"
+    }
+
     override fun clone(): Layer {
         val newLayer = TextLayer(this.text.toString(), this.color)
         newLayer.isBold = this.isBold
