@@ -8464,23 +8464,34 @@ class EditorActivity : AppCompatActivity() {
         layout.addView(textSizeRow)
 
         // Font Weight
-        val weightSliderLayout = createSlider("Font Weight: ${layer.fontWeight}", layer.fontWeight, 1000) { progress ->
-            val actualWeight = if (progress < 1) 1 else progress
-            layer.fontWeight = actualWeight
-            canvasView.invalidate()
-        }
-        val weightTv = weightSliderLayout.findViewWithTag<TextView>("SLIDER_LABEL")
-        weightSliderLayout.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                val actualWeight = if (p < 1) 1 else p
-                layer.fontWeight = actualWeight
-                weightTv?.text = "Font Weight: $actualWeight"
+        val weightRow = createControl("Font Weight", "${layer.fontWeight}", "VAL_FONT_WEIGHT",
+            onMinus = {
+                val newW = (layer.fontWeight - 50).coerceAtLeast(100)
+                layer.fontWeight = newW
                 canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_FONT_WEIGHT"))?.text = "$newW"
+            },
+            onPlus = {
+                val newW = (layer.fontWeight + 50).coerceAtMost(1000)
+                layer.fontWeight = newW
+                canvasView.invalidate()
+                ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_FONT_WEIGHT"))?.text = "$newW"
             }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-        layout.addView(weightSliderLayout)
+        )
+        val tvWeightVal = weightRow.findViewWithTag<TextView>("VAL_FONT_WEIGHT")
+        weightRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            val newW = (layer.fontWeight - 50).coerceAtLeast(100)
+            layer.fontWeight = newW
+            canvasView.invalidate()
+            tvWeightVal?.text = "$newW"
+        }
+        weightRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+            val newW = (layer.fontWeight + 50).coerceAtMost(1000)
+            layer.fontWeight = newW
+            canvasView.invalidate()
+            tvWeightVal?.text = "$newW"
+        }
+        layout.addView(weightRow)
 
         // Box Scale
         val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%", "VAL_BOX_SCALE",
