@@ -1049,25 +1049,27 @@ class ShapeLayer(
             commonPaint.reset()
             commonPaint.isAntiAlias = true
 
+            val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f) shadowThickness else 0f
+
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke3) Color.WHITE else tripleStrokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke3) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2, strokeShader = shaderToUse)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2 + extraShadowThickness, strokeShader = shaderToUse)
             }
 
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke2) Color.WHITE else doubleStrokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke2) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2, strokeShader = shaderToUse)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + doubleStrokeWidthToUse * 2 + extraShadowThickness, strokeShader = shaderToUse)
             }
 
             // 2. Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
                 val colorToUse = if (silhouetteColor != null) silhouetteColor!! else if (isGradient && isGradientStroke1) Color.WHITE else strokeColor
                 val shaderToUse = if (silhouetteColor == null && isGradient && isGradientStroke1) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse, strokeShader = shaderToUse)
+                renderSvgManipulated(targetCanvas, fill = null, stroke = colorToUse, strokeW = strokeWidthToUse + extraShadowThickness, strokeShader = shaderToUse)
             }
 
             // 3. Fill
@@ -1076,7 +1078,13 @@ class ShapeLayer(
             } else if (isDrawingShadowPass) {
                 val colorToUse = shadowColor
                 val shaderToUse = if (isGradient && isGradientShadow) gradientShader else null
-                renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = null, fillShader = shaderToUse)
+                val hasLayerStrokes = tripleStrokeWidthToUse > 0f || doubleStrokeWidthToUse > 0f || strokeWidthToUse > 0f
+                val (shadowStroke, shadowStrokeW) = if (shadowThickness > 0f && (!isDropShadowIncludeStroke || !hasLayerStrokes)) {
+                    Pair(colorToUse, shadowThickness * 0.5f)
+                } else {
+                    Pair(null, 0f)
+                }
+                renderSvgManipulated(targetCanvas, fill = colorToUse, stroke = shadowStroke, strokeW = shadowStrokeW, fillShader = shaderToUse)
             } else {
                 val drawFillContent = { fillCanvas: Canvas ->
                     val hasSpeedLine = !skipEffects && (currentEffect == TextEffectType.SPEED_LINE || secondaryEffect == TextEffectType.SPEED_LINE || tertiaryEffect == TextEffectType.SPEED_LINE)
@@ -2595,8 +2603,35 @@ class ShapeLayer(
         val shadowHex = String.format("#%06X", 0xFFFFFF and targetColor)
 
         if (isSmartShape) {
-            if (isSilhouetteOrShadow) {
+            val isLayerStrokePass = (fill == null && stroke != null)
+            if (isLayerStrokePass) {
+                // Layer stroke pass (1st, 2nd, 3rd layer strokes): draw stroke outlines only
+                val strokeHex = String.format("#%06X", 0xFFFFFF and (stroke ?: Color.WHITE))
+                val sw = strokeW
+                val tags = listOf("<path", "<circle", "<ellipse", "<rect", "<polygon")
+
+                for (tag in tags) {
+                    val pattern = Regex("($tag)(\\s+[^>]*?)(\\s*/?>)")
+                    manipulated = pattern.replace(manipulated) { match ->
+                        val tagStart = match.groupValues[1]
+                        var attrs = match.groupValues[2]
+                        val tagEnd = match.groupValues[3]
+
+                        // Strip existing fill/stroke attributes
+                        attrs = attrs.replace(Regex("\\s+fill=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+fill-opacity=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-width=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-opacity=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-linejoin=((\"[^\"]*\")|('[^']*'))"), "")
+                        attrs = attrs.replace(Regex("\\s+stroke-linecap=((\"[^\"]*\")|('[^']*'))"), "")
+
+                        "$tagStart$attrs fill='none' stroke='$strokeHex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round'$tagEnd"
+                    }
+                }
+            } else if (isSilhouetteOrShadow) {
                 // Shadow, motion shadow, long shadow, or neon silhouette pass
+                val includeEmbeddedStrokes = if (isDrawingShadowPass) isDropShadowIncludeStroke else true
                 val tags = listOf("<path", "<circle", "<ellipse", "<rect", "<polygon")
                 for (tag in tags) {
                     val pattern = Regex("($tag)(\\s+[^>]*?)(\\s*/?>)")
@@ -2612,10 +2647,36 @@ class ShapeLayer(
                             attrs = attrs.replace(Regex("fill='[^']*'"), "fill='$shadowHex'")
                             attrs = attrs.replace(Regex("fill=\"[^\"]*\""), "fill=\"$shadowHex\"")
                         }
+
                         if (hasNonNoneStroke) {
-                            attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$shadowHex'")
-                            attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$shadowHex\"")
+                            if (includeEmbeddedStrokes) {
+                                attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$shadowHex'")
+                                attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$shadowHex\"")
+                                if (strokeW > 0f) {
+                                    val swMatch = Regex("stroke-width=(?:'([^']*)'|\"([^\"]*)\")").find(attrs)
+                                    val origSw = swMatch?.groupValues?.get(1)?.ifEmpty { null }
+                                        ?: swMatch?.groupValues?.get(2)?.ifEmpty { null }
+                                    val baseSw = origSw?.toFloatOrNull() ?: 1f
+                                    val newSw = baseSw + strokeW
+                                    if (swMatch != null) {
+                                        attrs = attrs.replace(Regex("stroke-width='[^']*'"), "stroke-width='$newSw'")
+                                        attrs = attrs.replace(Regex("stroke-width=\"[^\"]*\""), "stroke-width=\"$newSw\"")
+                                    } else {
+                                        attrs += " stroke-width='$newSw'"
+                                    }
+                                }
+                            } else {
+                                // Strip embedded strokes
+                                attrs = attrs.replace(Regex("\\s+stroke=((\"[^\"]*\")|('[^']*'))"), " stroke='none'")
+                                attrs = attrs.replace(Regex("\\s+stroke-width=((\"[^\"]*\")|('[^']*'))"), "")
+                            }
                         }
+
+                        // If element has no stroke (or stroke was stripped) and strokeW > 0f, add expanded stroke
+                        if (strokeW > 0f && (!hasNonNoneStroke || !includeEmbeddedStrokes)) {
+                            attrs += " stroke='$shadowHex' stroke-width='$strokeW' stroke-linejoin='round' stroke-linecap='round'"
+                        }
+
                         if (!attrs.contains("fill=") && !attrs.contains("stroke=")) {
                             attrs += " fill='$shadowHex'"
                         }

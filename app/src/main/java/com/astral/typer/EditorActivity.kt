@@ -491,12 +491,16 @@ class EditorActivity : AppCompatActivity() {
         autosaveTimerJob?.cancel()
         val settingsPrefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
         val enableAutosave = settingsPrefs.getBoolean("enable_autosave", false)
-        val intervalMinutes = settingsPrefs.getInt("autosave_interval_minutes", 0)
+        val intervalSeconds = if (settingsPrefs.contains("autosave_interval_seconds")) {
+            settingsPrefs.getInt("autosave_interval_seconds", 0)
+        } else {
+            settingsPrefs.getInt("autosave_interval_minutes", 0) * 60
+        }
 
-        if (enableAutosave && intervalMinutes > 0) {
+        if (enableAutosave && intervalSeconds > 0) {
             autosaveTimerJob = lifecycleScope.launch {
                 while (coroutineContext.isActive) {
-                    kotlinx.coroutines.delay(intervalMinutes * 60 * 1000L)
+                    kotlinx.coroutines.delay(intervalSeconds * 1000L)
                     performAutosave()
                 }
             }
