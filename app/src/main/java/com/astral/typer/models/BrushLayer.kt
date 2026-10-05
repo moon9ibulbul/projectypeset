@@ -733,8 +733,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             val cropW = (cropRight - cropLeft).coerceAtLeast(1f)
             val cropH = (cropBottom - cropTop).coerceAtLeast(1f)
 
-            val maxDim = kotlin.math.max(cropW, cropH)
-            val scale = if (maxDim > 1200f) 1200f / maxDim else 1.0f
+            val scale = 1.0f
 
             val bmpW = Math.ceil((cropW * scale).toDouble()).toInt().coerceAtLeast(1)
             val bmpH = Math.ceil((cropH * scale).toDouble()).toInt().coerceAtLeast(1)
@@ -838,7 +837,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                         isFilterBitmap = true
                         if (isGradient && isGradientShadow) {
                             color = Color.WHITE
-                            shader = getGradientShader(w, h)
+                            val sh = getGradientShader(w, h)
+                            sh?.let {
+                                val mat = Matrix()
+                                mat.setTranslate(-(dx + cropLeft + shadowDx + offset[0] / scale), -(dy + cropTop + shadowDy + offset[1] / scale))
+                                it.setLocalMatrix(mat)
+                            }
+                            shader = sh
                         } else {
                             color = shadowColor
                         }
@@ -860,7 +865,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                     1f, 0f, 0f, 0f, 0f,
                     0f, 1f, 0f, 0f, 0f,
                     0f, 0f, 1f, 0f, 0f,
-                    0f, 0f, 0f, 100f, -250f
+                    0f, 0f, 0f, 18f, -45f
                 )))
 
                 // 3rd stroke
@@ -876,7 +881,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke3) {
                                 color = Color.WHITE
-                                shader = getGradientShader(w, h)
+                                val sh = getGradientShader(w, h)
+                                sh?.let {
+                                    val mat = Matrix()
+                                    mat.setTranslate(-(dx + cropLeft + offset[0] / scale), -(dy + cropTop + offset[1] / scale))
+                                    it.setLocalMatrix(mat)
+                                }
+                                shader = sh
                             } else {
                                 color = tripleStrokeColor
                             }
@@ -904,7 +915,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke2) {
                                 color = Color.WHITE
-                                shader = getGradientShader(w, h)
+                                val sh = getGradientShader(w, h)
+                                sh?.let {
+                                    val mat = Matrix()
+                                    mat.setTranslate(-(dx + cropLeft + offset[0] / scale), -(dy + cropTop + offset[1] / scale))
+                                    it.setLocalMatrix(mat)
+                                }
+                                shader = sh
                             } else {
                                 color = doubleStrokeColor
                             }
@@ -932,7 +949,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                             isFilterBitmap = true
                             if (isGradient && isGradientStroke1) {
                                 color = Color.WHITE
-                                shader = getGradientShader(w, h)
+                                val sh = getGradientShader(w, h)
+                                sh?.let {
+                                    val mat = Matrix()
+                                    mat.setTranslate(-(dx + cropLeft + offset[0] / scale), -(dy + cropTop + offset[1] / scale))
+                                    it.setLocalMatrix(mat)
+                                }
+                                shader = sh
                             } else {
                                 color = strokeColor
                             }
@@ -971,6 +994,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             if (isGradient && isGradientText) {
                 val gradShader = getGradientShader(w, h)
                 if (gradShader != null) {
+                    val mat = Matrix()
+                    mat.setTranslate(-(dx + cropLeft), -(dy + cropTop))
+                    gradShader.setLocalMatrix(mat)
                     val saveCount = canvas.saveLayer(0f, 0f, contentBmp.width.toFloat(), contentBmp.height.toFloat(), null)
                     canvas.drawBitmap(contentBmp, 0f, 0f, layerPaint)
                     val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1056,8 +1082,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         w: Float, h: Float, angle: Int, startColor: Int, endColor: Int, hasMid: Boolean = false, midColor: Int = 0,
         startPos: Float = 0f, midPos: Float = 0.5f, endPos: Float = 1f
     ): Shader {
-        val cx = w / 2f
-        val cy = h / 2f
+        val cx = 0f
+        val cy = 0f
         val halfW = w / 2f
         val halfH = h / 2f
         val angleRad = Math.toRadians(angle.toDouble())
