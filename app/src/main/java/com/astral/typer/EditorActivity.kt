@@ -7057,7 +7057,7 @@ class EditorActivity : AppCompatActivity() {
                         if (layer is com.astral.typer.models.ShapeLayer) {
                             layer.color = color; layer.isGradient = false
                         } else if (layer is com.astral.typer.models.BrushLayer) {
-                            layer.brushColor = color
+                            layer.brushColor = color; layer.isGradient = false
                         }
                         canvasView.invalidate()
                         Toast.makeText(context, "Color Picked", Toast.LENGTH_SHORT).show()
@@ -7085,7 +7085,7 @@ class EditorActivity : AppCompatActivity() {
                         if (layer is com.astral.typer.models.ShapeLayer) {
                             layer.color = color; layer.isGradient = false
                         } else if (layer is com.astral.typer.models.BrushLayer) {
-                            layer.brushColor = color
+                            layer.brushColor = color; layer.isGradient = false
                         }
                         canvasView.invalidate()
                         showColorPicker()
@@ -7101,7 +7101,7 @@ class EditorActivity : AppCompatActivity() {
                     if (layer is com.astral.typer.models.ShapeLayer) {
                         layer.color = color; layer.isGradient = false
                     } else if (layer is com.astral.typer.models.BrushLayer) {
-                        layer.brushColor = color
+                        layer.brushColor = color; layer.isGradient = false
                     }
                     canvasView.invalidate()
                     showColorPicker()

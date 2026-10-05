@@ -824,7 +824,45 @@ object ProjectManager {
                         brushSmudgeLength = layer.brushSmudgeLength,
                         brushSlowTracking = layer.brushSlowTracking,
                         eraseMaskPath = erasePath,
-                        erasePaths = erasePathModels
+                        erasePaths = erasePathModels,
+                        isGradient = layer.isGradient,
+                        gradientStartColor = layer.gradientStartColor,
+                        gradientEndColor = layer.gradientEndColor,
+                        gradientAngle = layer.gradientAngle,
+                        hasMiddleColor = layer.hasMiddleColor,
+                        gradientMiddleColor = layer.gradientMiddleColor,
+                        gradientStartPos = layer.gradientStartPos,
+                        gradientMiddlePos = layer.gradientMiddlePos,
+                        gradientEndPos = layer.gradientEndPos,
+                        gradientStrength = layer.gradientStrength,
+                        isGradientText = layer.isGradientText,
+                        isGradientStroke1 = layer.isGradientStroke1,
+                        isGradientStroke2 = layer.isGradientStroke2,
+                        isGradientStroke3 = layer.isGradientStroke3,
+                        isGradientShadow = layer.isGradientShadow,
+                        strokeColor = layer.strokeColor,
+                        strokeWidth = layer.strokeWidth,
+                        doubleStrokeColor = layer.doubleStrokeColor,
+                        doubleStrokeWidth = layer.doubleStrokeWidth,
+                        tripleStrokeColor = layer.tripleStrokeColor,
+                        tripleStrokeWidth = layer.tripleStrokeWidth,
+                        isRoughStroke = layer.isRoughStroke,
+                        roughStrokeRoughness = layer.roughStrokeRoughness,
+                        shadowColor = layer.shadowColor,
+                        shadowRadius = layer.shadowRadius,
+                        shadowDx = layer.shadowDx,
+                        shadowDy = layer.shadowDy,
+                        isDropShadowIncludeStroke = layer.isDropShadowIncludeStroke,
+                        isMotionShadow = layer.isMotionShadow,
+                        isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke,
+                        motionShadowAngle = layer.motionShadowAngle,
+                        motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowDx = layer.motionShadowDx,
+                        motionShadowDy = layer.motionShadowDy,
+                        motionShadowThickness = layer.motionShadowThickness,
+                        motionShadowSmoothness = layer.motionShadowSmoothness,
+                        motionShadowKernelSize = layer.motionShadowKernelSize,
+                        shadowThickness = layer.shadowThickness
                     ))
                 }
             }
@@ -1204,6 +1242,48 @@ object ProjectManager {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
             restoreErasePaths(layer, model)
+
+            model.shadowColor?.let { layer.shadowColor = it }
+            model.shadowRadius?.let { layer.shadowRadius = it }
+            model.shadowDx?.let { layer.shadowDx = it }
+            model.shadowDy?.let { layer.shadowDy = it }
+            model.isDropShadowIncludeStroke?.let { layer.isDropShadowIncludeStroke = it }
+
+            model.isMotionShadow?.let { layer.isMotionShadow = it }
+            model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.motionShadowAngle?.let { layer.motionShadowAngle = it }
+            model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.motionShadowDx?.let { layer.motionShadowDx = it }
+            model.motionShadowDy?.let { layer.motionShadowDy = it }
+            model.motionShadowThickness?.let { layer.motionShadowThickness = it }
+            model.motionShadowSmoothness?.let { layer.motionShadowSmoothness = it }
+            model.motionShadowKernelSize?.let { layer.motionShadowKernelSize = it }
+            model.shadowThickness?.let { layer.shadowThickness = it }
+
+            model.isGradient?.let { layer.isGradient = it }
+            model.gradientStartColor?.let { layer.gradientStartColor = it }
+            model.gradientEndColor?.let { layer.gradientEndColor = it }
+            model.gradientAngle?.let { layer.gradientAngle = it }
+            model.hasMiddleColor?.let { layer.hasMiddleColor = it }
+            model.gradientMiddleColor?.let { layer.gradientMiddleColor = it }
+            model.gradientStartPos?.let { layer.gradientStartPos = it }
+            model.gradientMiddlePos?.let { layer.gradientMiddlePos = it }
+            model.gradientEndPos?.let { layer.gradientEndPos = it }
+            model.gradientStrength?.let { layer.gradientStrength = it }
+            model.isGradientText?.let { layer.isGradientText = it }
+            model.isGradientStroke1?.let { layer.isGradientStroke1 = it }
+            model.isGradientStroke2?.let { layer.isGradientStroke2 = it }
+            model.isGradientStroke3?.let { layer.isGradientStroke3 = it }
+            model.isGradientShadow?.let { layer.isGradientShadow = it }
+
+            model.strokeColor?.let { layer.strokeColor = it }
+            model.strokeWidth?.let { layer.strokeWidth = it }
+            model.doubleStrokeColor?.let { layer.doubleStrokeColor = it }
+            model.doubleStrokeWidth?.let { layer.doubleStrokeWidth = it }
+            model.tripleStrokeColor?.let { layer.tripleStrokeColor = it }
+            model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
+            model.isRoughStroke?.let { layer.isRoughStroke = it }
+            model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
 
             applyCommonProperties(layer, model)
             return layer
@@ -3385,7 +3465,45 @@ object ProjectManager {
                         brushSmudgeLength = layer.brushSmudgeLength,
                         brushSlowTracking = layer.brushSlowTracking,
                         eraseMaskPath = erasePath,
-                        erasePaths = erasePathModels
+                        erasePaths = erasePathModels,
+                        isGradient = layer.isGradient,
+                        gradientStartColor = layer.gradientStartColor,
+                        gradientEndColor = layer.gradientEndColor,
+                        gradientAngle = layer.gradientAngle,
+                        hasMiddleColor = layer.hasMiddleColor,
+                        gradientMiddleColor = layer.gradientMiddleColor,
+                        gradientStartPos = layer.gradientStartPos,
+                        gradientMiddlePos = layer.gradientMiddlePos,
+                        gradientEndPos = layer.gradientEndPos,
+                        gradientStrength = layer.gradientStrength,
+                        isGradientText = layer.isGradientText,
+                        isGradientStroke1 = layer.isGradientStroke1,
+                        isGradientStroke2 = layer.isGradientStroke2,
+                        isGradientStroke3 = layer.isGradientStroke3,
+                        isGradientShadow = layer.isGradientShadow,
+                        strokeColor = layer.strokeColor,
+                        strokeWidth = layer.strokeWidth,
+                        doubleStrokeColor = layer.doubleStrokeColor,
+                        doubleStrokeWidth = layer.doubleStrokeWidth,
+                        tripleStrokeColor = layer.tripleStrokeColor,
+                        tripleStrokeWidth = layer.tripleStrokeWidth,
+                        isRoughStroke = layer.isRoughStroke,
+                        roughStrokeRoughness = layer.roughStrokeRoughness,
+                        shadowColor = layer.shadowColor,
+                        shadowRadius = layer.shadowRadius,
+                        shadowDx = layer.shadowDx,
+                        shadowDy = layer.shadowDy,
+                        isDropShadowIncludeStroke = layer.isDropShadowIncludeStroke,
+                        isMotionShadow = layer.isMotionShadow,
+                        isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke,
+                        motionShadowAngle = layer.motionShadowAngle,
+                        motionShadowDistance = layer.motionShadowDistance,
+                        motionShadowDx = layer.motionShadowDx,
+                        motionShadowDy = layer.motionShadowDy,
+                        motionShadowThickness = layer.motionShadowThickness,
+                        motionShadowSmoothness = layer.motionShadowSmoothness,
+                        motionShadowKernelSize = layer.motionShadowKernelSize,
+                        shadowThickness = layer.shadowThickness
                     ))
                 }
             }

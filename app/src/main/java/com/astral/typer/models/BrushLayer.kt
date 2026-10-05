@@ -29,8 +29,12 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     private val TILE_SIZE = 1024
     val tiles = HashMap<Pair<Int, Int>, BrushTile>()
 
-    private var dummyBitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    internal var drawCanvas: Canvas = Canvas(dummyBitmap)
+    private var dummyBitmap: Bitmap? = try {
+        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    } catch (e: Throwable) {
+        null
+    }
+    internal var drawCanvas: Canvas = dummyBitmap?.let { try { Canvas(it) } catch (e: Throwable) { Canvas() } } ?: Canvas()
 
     var bitmap: Bitmap
         get() = getCompositeBitmap()
@@ -54,6 +58,81 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         }
     }
 
+    private var cachedContentBounds: RectF? = null
+    private var isBoundsDirty: Boolean = true
+
+    fun invalidateContentBounds() {
+        isBoundsDirty = true
+    }
+
+    fun getContentBounds(): RectF {
+        if (!isBoundsDirty && cachedContentBounds != null) {
+            return cachedContentBounds!!
+        }
+
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = -Float.MAX_VALUE
+        var maxY = -Float.MAX_VALUE
+
+        var hasPixels = false
+
+        for ((key, tile) in tiles) {
+            if (tile.bitmap.isRecycled) continue
+            val bmp = tile.bitmap
+            val tw = bmp.width
+            val th = bmp.height
+            val tileLeft = key.first * TILE_SIZE
+            val tileTop = key.second * TILE_SIZE
+
+            val pixels = IntArray(tw * th)
+            bmp.getPixels(pixels, 0, tw, 0, 0, tw, th)
+
+            var tileHasPixels = false
+            var tMinX = tw
+            var tMaxX = -1
+            var tMinY = th
+            var tMaxY = -1
+
+            for (y in 0 until th) {
+                val rowOffset = y * tw
+                for (x in 0 until tw) {
+                    val alpha = (pixels[rowOffset + x] ushr 24) and 0xFF
+                    if (alpha > 0) {
+                        tileHasPixels = true
+                        if (x < tMinX) tMinX = x
+                        if (x > tMaxX) tMaxX = x
+                        if (y < tMinY) tMinY = y
+                        if (y > tMaxY) tMaxY = y
+                    }
+                }
+            }
+
+            if (tileHasPixels) {
+                hasPixels = true
+                val absMinX = (tileLeft + tMinX).toFloat()
+                val absMaxX = (tileLeft + tMaxX + 1).toFloat()
+                val absMinY = (tileTop + tMinY).toFloat()
+                val absMaxY = (tileTop + tMaxY + 1).toFloat()
+
+                if (absMinX < minX) minX = absMinX
+                if (absMaxX > maxX) maxX = absMaxX
+                if (absMinY < minY) minY = absMinY
+                if (absMaxY > maxY) maxY = absMaxY
+            }
+        }
+
+        val bounds = if (hasPixels) {
+            RectF(minX, minY, maxX, maxY)
+        } else {
+            RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat())
+        }
+
+        cachedContentBounds = bounds
+        isBoundsDirty = false
+        return bounds
+    }
+
     fun initTilesFromBitmap(source: Bitmap) {
         recycleTiles()
         val w = source.width
@@ -73,6 +152,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 }
             }
         }
+        invalidateContentBounds()
     }
 
     private fun isTileEmpty(bitmap: Bitmap): Boolean {
@@ -93,6 +173,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             }
         }
         tiles.clear()
+        invalidateContentBounds()
     }
 
     private fun getOrCreateTile(tx: Int, ty: Int): BrushTile {
@@ -147,6 +228,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 tileCanvas.restore()
             }
         }
+        invalidateContentBounds()
     }
 
     // Brush State Properties
@@ -521,12 +603,14 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         }
         erasePaths.add(ErasePathData(path, size, opacity, hardness, points))
         rebuildEraseMask(eraseMask)
+        invalidateContentBounds()
     }
 
     override fun undoLastErasePath(baseMask: Bitmap?) {
         if (erasePaths.isNotEmpty()) {
             erasePaths.removeAt(erasePaths.size - 1)
             rebuildEraseMask(baseMask)
+            invalidateContentBounds()
         }
     }
 
@@ -612,9 +696,49 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             brushSmudge = this@BrushLayer.brushSmudge
             brushSmudgeLength = this@BrushLayer.brushSmudgeLength
             brushSlowTracking = this@BrushLayer.brushSlowTracking
-            shadowThickness = this@BrushLayer.shadowThickness
+            // Gradient properties
+            isGradient = this@BrushLayer.isGradient
+            gradientStartColor = this@BrushLayer.gradientStartColor
+            gradientEndColor = this@BrushLayer.gradientEndColor
+            gradientAngle = this@BrushLayer.gradientAngle
+            hasMiddleColor = this@BrushLayer.hasMiddleColor
+            gradientMiddleColor = this@BrushLayer.gradientMiddleColor
+            gradientStartPos = this@BrushLayer.gradientStartPos
+            gradientMiddlePos = this@BrushLayer.gradientMiddlePos
+            gradientEndPos = this@BrushLayer.gradientEndPos
+            gradientStrength = this@BrushLayer.gradientStrength
+            isGradientText = this@BrushLayer.isGradientText
+            isGradientStroke1 = this@BrushLayer.isGradientStroke1
+            isGradientStroke2 = this@BrushLayer.isGradientStroke2
+            isGradientStroke3 = this@BrushLayer.isGradientStroke3
+            isGradientShadow = this@BrushLayer.isGradientShadow
+
+            // Stroke properties
+            strokeColor = this@BrushLayer.strokeColor
+            strokeWidth = this@BrushLayer.strokeWidth
+            doubleStrokeColor = this@BrushLayer.doubleStrokeColor
+            doubleStrokeWidth = this@BrushLayer.doubleStrokeWidth
+            tripleStrokeColor = this@BrushLayer.tripleStrokeColor
+            tripleStrokeWidth = this@BrushLayer.tripleStrokeWidth
             isRoughStroke = this@BrushLayer.isRoughStroke
             roughStrokeRoughness = this@BrushLayer.roughStrokeRoughness
+
+            // Shadow properties
+            shadowColor = this@BrushLayer.shadowColor
+            shadowRadius = this@BrushLayer.shadowRadius
+            shadowDx = this@BrushLayer.shadowDx
+            shadowDy = this@BrushLayer.shadowDy
+            isDropShadowIncludeStroke = this@BrushLayer.isDropShadowIncludeStroke
+            isMotionShadow = this@BrushLayer.isMotionShadow
+            isMotionShadowIncludeStroke = this@BrushLayer.isMotionShadowIncludeStroke
+            motionShadowAngle = this@BrushLayer.motionShadowAngle
+            motionShadowDistance = this@BrushLayer.motionShadowDistance
+            motionShadowDx = this@BrushLayer.motionShadowDx
+            motionShadowDy = this@BrushLayer.motionShadowDy
+            motionShadowThickness = this@BrushLayer.motionShadowThickness
+            motionShadowSmoothness = this@BrushLayer.motionShadowSmoothness
+            motionShadowKernelSize = this@BrushLayer.motionShadowKernelSize
+            shadowThickness = this@BrushLayer.shadowThickness
 
             // Speed Line
             speedLineType = this@BrushLayer.speedLineType
@@ -1075,17 +1199,31 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         val adjustedStartColor = com.astral.typer.utils.GradationHelper.applyStrength(gradientStartColor, gradientStrength, avgColor)
         val adjustedMidColor = if (hasMiddleColor) com.astral.typer.utils.GradationHelper.applyStrength(gradientMiddleColor, gradientStrength, avgColor) else gradientMiddleColor
         val adjustedEndColor = com.astral.typer.utils.GradationHelper.applyStrength(gradientEndColor, gradientStrength, avgColor)
-        return createGradient(w, h, gradientAngle, adjustedStartColor, adjustedEndColor, hasMiddleColor, adjustedMidColor, gradientStartPos, gradientMiddlePos, gradientEndPos)
+        val bounds = getContentBounds()
+        return createGradient(w, h, gradientAngle, adjustedStartColor, adjustedEndColor, hasMiddleColor, adjustedMidColor, gradientStartPos, gradientMiddlePos, gradientEndPos, bounds)
     }
 
     private fun createGradient(
         w: Float, h: Float, angle: Int, startColor: Int, endColor: Int, hasMid: Boolean = false, midColor: Int = 0,
-        startPos: Float = 0f, midPos: Float = 0.5f, endPos: Float = 1f
+        startPos: Float = 0f, midPos: Float = 0.5f, endPos: Float = 1f, bounds: RectF? = null
     ): Shader {
-        val cx = 0f
-        val cy = 0f
-        val halfW = w / 2f
-        val halfH = h / 2f
+        val dx = -w / 2f
+        val dy = -h / 2f
+
+        val (cx, cy, halfW, halfH) = if (bounds != null) {
+            val left = dx + bounds.left
+            val top = dy + bounds.top
+            val right = dx + bounds.right
+            val bottom = dy + bounds.bottom
+            val cX = (left + right) / 2f
+            val cY = (top + bottom) / 2f
+            val hW = ((right - left) / 2f).coerceAtLeast(1f)
+            val hH = ((bottom - top) / 2f).coerceAtLeast(1f)
+            listOf(cX, cY, hW, hH)
+        } else {
+            listOf(0f, 0f, w / 2f, h / 2f)
+        }
+
         val angleRad = Math.toRadians(angle.toDouble())
         val cos = Math.cos(angleRad).toFloat()
         val sin = Math.sin(angleRad).toFloat()
@@ -2188,6 +2326,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override fun doubleResolution() {
         canvasWidth *= 2
         canvasHeight *= 2
+        invalidateContentBounds()
 
         val oldTiles = HashMap(tiles)
         tiles.clear()
