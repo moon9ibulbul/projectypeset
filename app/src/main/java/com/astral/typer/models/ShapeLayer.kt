@@ -1532,26 +1532,34 @@ class ShapeLayer(
                     val dx = d * cos + motionShadowDx
                     val dy = d * sin + motionShadowDy
 
-                    val c = (shadowColor and 0x00FFFFFF) or (shadowAlpha shl 24)
-                    val strokeC = if (motionShadowThickness > 0f) c else null
+                    val strokeC = if (motionShadowThickness > 0f) shadowColor else null
                     val strokeW = if (motionShadowThickness > 0f) motionShadowThickness * 0.5f else 0f
+
+                    val iterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        alpha = shadowAlpha
+                        if (blur > 0.5f) {
+                            maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                        }
+                    }
+
                     try {
                         isDrawingShadowPass = true
-                        targetCanvas.save()
+
+                        targetCanvas.saveLayer(null, iterPaint)
                         targetCanvas.translate(dx, dy)
                         if (isMotionShadowIncludeStroke) {
                             drawMain(targetCanvas)
                         } else {
-                            renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
+                            renderSvgManipulated(targetCanvas, fill = shadowColor, stroke = strokeC, strokeW = strokeW)
                         }
                         targetCanvas.restore()
 
-                        targetCanvas.save()
+                        targetCanvas.saveLayer(null, iterPaint)
                         targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
                         if (isMotionShadowIncludeStroke) {
                             drawMain(targetCanvas)
                         } else {
-                            renderSvgManipulated(targetCanvas, fill = c, stroke = strokeC, strokeW = strokeW)
+                            renderSvgManipulated(targetCanvas, fill = shadowColor, stroke = strokeC, strokeW = strokeW)
                         }
                         targetCanvas.restore()
                     } finally {
@@ -2617,6 +2625,12 @@ class ShapeLayer(
                         var attrs = match.groupValues[2]
                         val tagEnd = match.groupValues[3]
 
+                        val swMatch = Regex("stroke-width=(?:'([^']*)'|\"([^\"]*)\")").find(attrs)
+                        val origSwStr = swMatch?.groupValues?.get(1)?.ifEmpty { null }
+                            ?: swMatch?.groupValues?.get(2)?.ifEmpty { null }
+                        val origSw = origSwStr?.toFloatOrNull() ?: 0f
+                        val effectiveSw = origSw + sw
+
                         // Strip existing fill/stroke attributes
                         attrs = attrs.replace(Regex("\\s+fill=((\"[^\"]*\")|('[^']*'))"), "")
                         attrs = attrs.replace(Regex("\\s+fill-opacity=((\"[^\"]*\")|('[^']*'))"), "")
@@ -2626,7 +2640,7 @@ class ShapeLayer(
                         attrs = attrs.replace(Regex("\\s+stroke-linejoin=((\"[^\"]*\")|('[^']*'))"), "")
                         attrs = attrs.replace(Regex("\\s+stroke-linecap=((\"[^\"]*\")|('[^']*'))"), "")
 
-                        "$tagStart$attrs fill='none' stroke='$strokeHex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round'$tagEnd"
+                        "$tagStart$attrs fill='none' stroke='$strokeHex' stroke-width='$effectiveSw' stroke-linejoin='round' stroke-linecap='round'$tagEnd"
                     }
                 }
             } else if (isSilhouetteOrShadow) {
@@ -2650,8 +2664,12 @@ class ShapeLayer(
 
                         if (hasNonNoneStroke) {
                             if (includeEmbeddedStrokes) {
-                                attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$shadowHex'")
-                                attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$shadowHex\"")
+                                val effectiveStrokeColor = stroke ?: if (strokeWidth > 0f) strokeColor else null
+                                if (effectiveStrokeColor != null) {
+                                    val strokeHexToUse = String.format("#%06X", 0xFFFFFF and effectiveStrokeColor)
+                                    attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$strokeHexToUse'")
+                                    attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$strokeHexToUse\"")
+                                }
                                 if (strokeW > 0f) {
                                     val swMatch = Regex("stroke-width=(?:'([^']*)'|\"([^\"]*)\")").find(attrs)
                                     val origSw = swMatch?.groupValues?.get(1)?.ifEmpty { null }
@@ -2674,7 +2692,8 @@ class ShapeLayer(
 
                         // If element has no stroke (or stroke was stripped) and strokeW > 0f, add expanded stroke
                         if (strokeW > 0f && (!hasNonNoneStroke || !includeEmbeddedStrokes)) {
-                            attrs += " stroke='$shadowHex' stroke-width='$strokeW' stroke-linejoin='round' stroke-linecap='round'"
+                            val strokeHexToUse = if (stroke != null) String.format("#%06X", 0xFFFFFF and stroke) else shadowHex
+                            attrs += " stroke='$strokeHexToUse' stroke-width='$strokeW' stroke-linejoin='round' stroke-linecap='round'"
                         }
 
                         if (!attrs.contains("fill=") && !attrs.contains("stroke=")) {
@@ -2706,6 +2725,12 @@ class ShapeLayer(
                         var attrs = match.groupValues[2]
                         val tagEnd = match.groupValues[3]
 
+                        val swMatch = Regex("stroke-width=(?:'([^']*)'|\"([^\"]*)\")").find(attrs)
+                        val origSwStr = swMatch?.groupValues?.get(1)?.ifEmpty { null }
+                            ?: swMatch?.groupValues?.get(2)?.ifEmpty { null }
+                        val origSw = origSwStr?.toFloatOrNull() ?: 0f
+                        val effectiveSw = origSw + sw
+
                         // Strip existing fill/stroke attributes
                         attrs = attrs.replace(Regex("\\s+fill=((\"[^\"]*\")|('[^']*'))"), "")
                         attrs = attrs.replace(Regex("\\s+fill-opacity=((\"[^\"]*\")|('[^']*'))"), "")
@@ -2715,7 +2740,7 @@ class ShapeLayer(
                         attrs = attrs.replace(Regex("\\s+stroke-linejoin=((\"[^\"]*\")|('[^']*'))"), "")
                         attrs = attrs.replace(Regex("\\s+stroke-linecap=((\"[^\"]*\")|('[^']*'))"), "")
 
-                        "$tagStart$attrs fill='none' stroke='$strokeHex' stroke-width='$sw' stroke-linejoin='round' stroke-linecap='round'$tagEnd"
+                        "$tagStart$attrs fill='none' stroke='$strokeHex' stroke-width='$effectiveSw' stroke-linejoin='round' stroke-linecap='round'$tagEnd"
                     }
                 }
             }
