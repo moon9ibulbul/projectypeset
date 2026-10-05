@@ -171,6 +171,31 @@ class RecentActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showRenameSelectedItemDialog(mode: ActionMode) {
+        val file = adapter.selectedItems.firstOrNull() ?: return
+        val currentName = if (file.isDirectory) file.name else file.nameWithoutExtension
+        val input = android.widget.EditText(this).apply {
+            setText(currentName)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Rename Project")
+            .setView(input)
+            .setPositiveButton("Rename") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    if (ProjectManager.renameFile(file, newName)) {
+                        Toast.makeText(this@RecentActivity, "Renamed to $newName", Toast.LENGTH_SHORT).show()
+                        mode.finish()
+                        loadProjects()
+                    } else {
+                        Toast.makeText(this@RecentActivity, "Failed to rename", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showRenameFolderDialog() {
         val folder = currentFolder ?: return
         val input = android.widget.EditText(this)
@@ -375,6 +400,7 @@ class RecentActivity : AppCompatActivity() {
 
     private val actionModeCallback = object : ActionMode.Callback {
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+            menu.add(0, 4, 0, "Rename").setIcon(android.R.drawable.ic_menu_edit).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 1, 0, "Share").setIcon(android.R.drawable.ic_menu_share).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 3, 0, "Export to PDF").setIcon(android.R.drawable.ic_menu_save).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 2, 0, "Remove").setIcon(android.R.drawable.ic_menu_delete).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
@@ -385,6 +411,7 @@ class RecentActivity : AppCompatActivity() {
             val selectedFiles = adapter.selectedItems
             val allFolders = selectedFiles.isNotEmpty() && selectedFiles.all { it.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, it) }
             menu.findItem(3)?.isVisible = allFolders
+            menu.findItem(4)?.isVisible = selectedFiles.size == 1
             return true
         }
 
@@ -404,6 +431,10 @@ class RecentActivity : AppCompatActivity() {
                     val selectedFolders = adapter.selectedItems.filter { it.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, it) }
                     exportMultipleFoldersToPdf(selectedFolders)
                     mode.finish()
+                    true
+                }
+                4 -> { // Rename
+                    showRenameSelectedItemDialog(mode)
                     true
                 }
                 else -> false

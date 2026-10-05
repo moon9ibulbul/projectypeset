@@ -504,6 +504,55 @@ class MainActivity : AppCompatActivity() {
                                             openProject(file)
                                         }
                                     }
+
+                                    holder.itemView.setOnLongClickListener {
+                                        val options = arrayOf("Rename Project", "Delete Project")
+                                        android.app.AlertDialog.Builder(this@MainActivity)
+                                            .setTitle(name)
+                                            .setItems(options) { _, which ->
+                                                when (which) {
+                                                    0 -> { // Rename
+                                                        val input = android.widget.EditText(this@MainActivity).apply {
+                                                            setText(name)
+                                                        }
+                                                        android.app.AlertDialog.Builder(this@MainActivity)
+                                                            .setTitle("Rename Project")
+                                                            .setView(input)
+                                                            .setPositiveButton("Rename") { dialogInterface, whichButton ->
+                                                                val newName = input.text.toString().trim()
+                                                                if (newName.isNotEmpty() && newName != name) {
+                                                                    if (ProjectManager.renameFile(file, newName)) {
+                                                                        Toast.makeText(this@MainActivity, "Project Renamed", Toast.LENGTH_SHORT).show()
+                                                                        setupRecentProjects()
+                                                                    } else {
+                                                                        Toast.makeText(this@MainActivity, "Failed to rename", Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                }
+                                                            }
+                                                            .setNegativeButton("Cancel", null)
+                                                            .show()
+                                                    }
+                                                    1 -> { // Delete
+                                                        android.app.AlertDialog.Builder(this@MainActivity)
+                                                            .setTitle("Delete Project")
+                                                            .setMessage("Delete '$name'?")
+                                                            .setPositiveButton("Delete") { _, _ ->
+                                                                lifecycleScope.launch(Dispatchers.IO) {
+                                                                    ProjectManager.deleteProjectFolder(this@MainActivity, file)
+                                                                    withContext(Dispatchers.Main) {
+                                                                        Toast.makeText(this@MainActivity, "Project Deleted", Toast.LENGTH_SHORT).show()
+                                                                        setupRecentProjects()
+                                                                    }
+                                                                }
+                                                            }
+                                                            .setNegativeButton("Cancel", null)
+                                                            .show()
+                                                    }
+                                                }
+                                            }
+                                            .show()
+                                        true
+                                    }
                                 }
                             }
                         }
