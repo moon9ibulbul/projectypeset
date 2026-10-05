@@ -1984,8 +1984,14 @@ object ProjectManager {
     }
 
     fun renameFile(file: File, newName: String): Boolean {
-        val ext = if (file.isDirectory) "" else "." + file.extension
-        val target = File(file.parentFile, newName + ext)
+        val cleanName = newName.trim()
+        if (cleanName.isEmpty()) return false
+        val currentName = if (file.isDirectory) file.name else file.nameWithoutExtension
+        if (cleanName == currentName) return true
+
+        val ext = if (file.isDirectory) "" else if (file.extension.isNotEmpty()) "." + file.extension else ""
+        val target = File(file.parentFile, cleanName + ext)
+        if (target.exists() && target != file) return false
         return file.renameTo(target)
     }
 

@@ -5263,7 +5263,6 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropFormat.visibility = View.GONE
             binding.btnPropSpacing.visibility = View.GONE
             binding.btnPropDoubleStroke.visibility = View.GONE
-            binding.btnPropGradation.visibility = View.GONE
             binding.btnPropEffect.visibility = View.GONE
             binding.btnPropTexture.visibility = View.GONE
             binding.btnPropOpacity.visibility = View.GONE
@@ -5274,6 +5273,7 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropBrush.visibility = View.VISIBLE
             binding.btnPropColor.visibility = View.VISIBLE
             binding.btnPropErase.visibility = View.VISIBLE
+            binding.btnPropGradation.visibility = View.VISIBLE
         } else if (layer is ImageLayer) {
             // Task: Saat layer berupa ImageLayer, buat agar dia bisa melakukan operasi 'Opacity', 'Erase', 'Perspective', dan 'Warp'.
             // Selain itu (Quick edit, style, font, dan lain-lain) buat menjadi hidden
@@ -9025,13 +9025,8 @@ class EditorActivity : AppCompatActivity() {
     private fun showGradationControls() {
         val container = prepareContainer()
         val layer = canvasView.getSelectedLayer() ?: return
-        val layerAsText = layer as? TextLayer
-        val layerAsShape = layer as? com.astral.typer.models.ShapeLayer
-        if (layerAsText == null && layerAsShape == null) return
+        val stylableLayer = layer as? StylableLayer ?: return
         val isGradationMode = canvasView.currentModeName() == "GRADATION"
-        // Do not auto-apply gradient
-        // layer.isGradient = true
-        // canvasView.invalidate()
 
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val mainLayout = LinearLayout(this).apply {
@@ -9054,15 +9049,15 @@ class EditorActivity : AppCompatActivity() {
                 val isActive = canvasView.currentModeName() == "GRADATION"
                 canvasView.setGradationMode(!isActive)
                 if (!isActive) {
-                    canvasView.pendingGradientStart = if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor
-                    canvasView.pendingGradientEnd = if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor
-                    canvasView.pendingHasMiddleColor = if (layerAsText != null) layerAsText.hasMiddleColor else layerAsShape!!.hasMiddleColor
-                    canvasView.pendingGradientMiddleColor = if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor
-                    canvasView.targetGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
-                    canvasView.targetGradientStroke1 = if (layerAsText != null) layerAsText.isGradientStroke1 else layerAsShape!!.isGradientStroke1
-                    canvasView.targetGradientStroke2 = if (layerAsText != null) layerAsText.isGradientStroke2 else layerAsShape!!.isGradientStroke2
-                    canvasView.targetGradientStroke3 = if (layerAsText != null) layerAsText.isGradientStroke3 else layerAsShape!!.isGradientStroke3
-                    canvasView.targetGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
+                    canvasView.pendingGradientStart = stylableLayer.gradientStartColor
+                    canvasView.pendingGradientEnd = stylableLayer.gradientEndColor
+                    canvasView.pendingHasMiddleColor = stylableLayer.hasMiddleColor
+                    canvasView.pendingGradientMiddleColor = stylableLayer.gradientMiddleColor
+                    canvasView.targetGradientText = stylableLayer.isGradientText
+                    canvasView.targetGradientStroke1 = stylableLayer.isGradientStroke1
+                    canvasView.targetGradientStroke2 = stylableLayer.isGradientStroke2
+                    canvasView.targetGradientStroke3 = stylableLayer.isGradientStroke3
+                    canvasView.targetGradientShadow = stylableLayer.isGradientShadow
                 }
                 showGradationControls()
             }
@@ -9156,27 +9151,27 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        val layerIsGradientText = if (layerAsText != null) layerAsText.isGradientText else layerAsShape!!.isGradientText
-        val layerIsGradientStroke1 = if (layerAsText != null) layerAsText.isGradientStroke1 else layerAsShape!!.isGradientStroke1
-        val layerIsGradientStroke2 = if (layerAsText != null) layerAsText.isGradientStroke2 else layerAsShape!!.isGradientStroke2
-        val layerIsGradientStroke3 = if (layerAsText != null) layerAsText.isGradientStroke3 else layerAsShape!!.isGradientStroke3
-        val layerIsGradientShadow = if (layerAsText != null) layerAsText.isGradientShadow else layerAsShape!!.isGradientShadow
+        val layerIsGradientText = stylableLayer.isGradientText
+        val layerIsGradientStroke1 = stylableLayer.isGradientStroke1
+        val layerIsGradientStroke2 = stylableLayer.isGradientStroke2
+        val layerIsGradientStroke3 = stylableLayer.isGradientStroke3
+        val layerIsGradientShadow = stylableLayer.isGradientShadow
 
-        row1.addView(createToggle(if (layerAsShape != null) "Fill" else "Text", if (isGradationMode) canvasView.targetGradientText else layerIsGradientText) { b ->
-            if (isGradationMode) canvasView.targetGradientText = b else { if (layerAsText != null) layerAsText.isGradientText = b else layerAsShape!!.isGradientText = b; canvasView.invalidate() }
+        row1.addView(createToggle(if (layer is ShapeLayer) "Fill" else "Text/Brush", if (isGradationMode) canvasView.targetGradientText else layerIsGradientText) { b ->
+            if (isGradationMode) canvasView.targetGradientText = b else { stylableLayer.isGradientText = b; canvasView.invalidate() }
         })
         row1.addView(createToggle("1st Stroke", if (isGradationMode) canvasView.targetGradientStroke1 else layerIsGradientStroke1) { b ->
-            if (isGradationMode) canvasView.targetGradientStroke1 = b else { if (layerAsText != null) layerAsText.isGradientStroke1 = b else layerAsShape!!.isGradientStroke1 = b; canvasView.invalidate() }
+            if (isGradationMode) canvasView.targetGradientStroke1 = b else { stylableLayer.isGradientStroke1 = b; canvasView.invalidate() }
         })
         row1.addView(createToggle("2nd Stroke", if (isGradationMode) canvasView.targetGradientStroke2 else layerIsGradientStroke2) { b ->
-            if (isGradationMode) canvasView.targetGradientStroke2 = b else { if (layerAsText != null) layerAsText.isGradientStroke2 = b else layerAsShape!!.isGradientStroke2 = b; canvasView.invalidate() }
+            if (isGradationMode) canvasView.targetGradientStroke2 = b else { stylableLayer.isGradientStroke2 = b; canvasView.invalidate() }
         })
 
         row2.addView(createToggle("3rd Stroke", if (isGradationMode) canvasView.targetGradientStroke3 else layerIsGradientStroke3) { b ->
-            if (isGradationMode) canvasView.targetGradientStroke3 = b else { if (layerAsText != null) layerAsText.isGradientStroke3 = b else layerAsShape!!.isGradientStroke3 = b; canvasView.invalidate() }
+            if (isGradationMode) canvasView.targetGradientStroke3 = b else { stylableLayer.isGradientStroke3 = b; canvasView.invalidate() }
         })
         row2.addView(createToggle("Shadow", if (isGradationMode) canvasView.targetGradientShadow else layerIsGradientShadow) { b ->
-            if (isGradationMode) canvasView.targetGradientShadow = b else { if (layerAsText != null) layerAsText.isGradientShadow = b else layerAsShape!!.isGradientShadow = b; canvasView.invalidate() }
+            if (isGradationMode) canvasView.targetGradientShadow = b else { stylableLayer.isGradientShadow = b; canvasView.invalidate() }
         })
         row2.addView(FrameLayout(this).apply { layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
 
@@ -9186,7 +9181,7 @@ class EditorActivity : AppCompatActivity() {
         contentLayout.addView(togglesLayout)
 
         // Auto Gradation
-        val isLayerGradient = if (layerAsText != null) layerAsText.isGradient else layerAsShape!!.isGradient
+        val isLayerGradient = stylableLayer.isGradient
         if (!isGradationMode && !isLayerGradient) {
             val autoGradationToggleLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -9200,7 +9195,7 @@ class EditorActivity : AppCompatActivity() {
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
                 setOnCheckedChangeListener { _, b ->
                     if (b) {
-                        val baseColor = if (layerAsText != null) layerAsText.color else layerAsShape!!.color
+                        val baseColor = stylableLayer.color
                         val hsv = FloatArray(3)
                         android.graphics.Color.colorToHSV(baseColor, hsv)
 
@@ -9215,15 +9210,10 @@ class EditorActivity : AppCompatActivity() {
                         hsvEnd[2] = (hsvEnd[2] + (1f - hsvEnd[2]) * 0.5f).coerceIn(0f, 1f)
                         val endColor = android.graphics.Color.HSVToColor(hsvEnd)
 
-                        if (layerAsText != null) {
-                            layerAsText.gradientStartColor = startColor
-                            layerAsText.gradientEndColor = endColor
-                            layerAsText.isGradient = true
-                        } else if (layerAsShape != null) {
-                            layerAsShape.gradientStartColor = startColor
-                            layerAsShape.gradientEndColor = endColor
-                            layerAsShape.isGradient = true
-                        }
+                        stylableLayer.gradientStartColor = startColor
+                        stylableLayer.gradientEndColor = endColor
+                        stylableLayer.isGradient = true
+
                         canvasView.invalidate()
                         showGradationControls()
                     }
@@ -9234,7 +9224,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Middle Color Toggle
-        val hasMiddleColorCurrent = if (isGradationMode) canvasView.pendingHasMiddleColor else (if (layerAsText != null) layerAsText.hasMiddleColor else layerAsShape!!.hasMiddleColor)
+        val hasMiddleColorCurrent = if (isGradationMode) canvasView.pendingHasMiddleColor else stylableLayer.hasMiddleColor
         val middleColorToggleLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -9249,13 +9239,8 @@ class EditorActivity : AppCompatActivity() {
                 if (isGradationMode) {
                     canvasView.pendingHasMiddleColor = b
                 } else {
-                    if (layerAsText != null) {
-                        layerAsText.hasMiddleColor = b
-                        if (!layerAsText.isGradient) layerAsText.isGradient = true
-                    } else if (layerAsShape != null) {
-                        layerAsShape.hasMiddleColor = b
-                        if (!layerAsShape.isGradient) layerAsShape.isGradient = true
-                    }
+                    stylableLayer.hasMiddleColor = b
+                    if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                 }
                 canvasView.invalidate()
                 showGradationControls()
@@ -9269,27 +9254,27 @@ class EditorActivity : AppCompatActivity() {
 
         // Start Color
         mainLayout.addView(TextView(this).apply { text = "Start Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)) })
-        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else (if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor),
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientStart else stylableLayer.gradientStartColor,
              { c ->
                  if (isGradationMode) {
                      canvasView.pendingGradientStart = c
                      canvasView.invalidate()
                  } else {
-                     if (layerAsText != null) { layerAsText.gradientStartColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
-                     else if (layerAsShape != null) { layerAsShape.gradientStartColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                     stylableLayer.gradientStartColor = c
+                     if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                      canvasView.invalidate()
                  }
                  showGradationControls()
              },
              {
-                 val current = if (isGradationMode) canvasView.pendingGradientStart else (if (layerAsText != null) layerAsText.gradientStartColor else layerAsShape!!.gradientStartColor)
+                 val current = if (isGradationMode) canvasView.pendingGradientStart else stylableLayer.gradientStartColor
                  showColorWheelDialogForProperty(current) { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientStart = c
                          canvasView.invalidate()
                      } else {
-                         if (layerAsText != null) { layerAsText.gradientStartColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
-                         else if (layerAsShape != null) { layerAsShape.gradientStartColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                         stylableLayer.gradientStartColor = c
+                         if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                          canvasView.invalidate()
                      }
                      showGradationControls()
@@ -9299,9 +9284,9 @@ class EditorActivity : AppCompatActivity() {
 
         val (pStart, pMid, pEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(
             hasMiddleColorCurrent,
-            if (isGradationMode) canvasView.pendingGradientStartPos else (if (layerAsText != null) layerAsText.gradientStartPos else layerAsShape?.gradientStartPos ?: 0.0f),
-            if (isGradationMode) canvasView.pendingGradientMiddlePos else (if (layerAsText != null) layerAsText.gradientMiddlePos else layerAsShape?.gradientMiddlePos ?: 0.5f),
-            if (isGradationMode) canvasView.pendingGradientEndPos else (if (layerAsText != null) layerAsText.gradientEndPos else layerAsShape?.gradientEndPos ?: 1.0f)
+            if (isGradationMode) canvasView.pendingGradientStartPos else stylableLayer.gradientStartPos,
+            if (isGradationMode) canvasView.pendingGradientMiddlePos else stylableLayer.gradientMiddlePos,
+            if (isGradationMode) canvasView.pendingGradientEndPos else stylableLayer.gradientEndPos
         )
 
         val initialStartProgress = (pStart * 100f).toInt().coerceIn(0, 100)
@@ -9330,9 +9315,9 @@ class EditorActivity : AppCompatActivity() {
                 // Read current helper portions
                 val (currStart, currMid, currEnd) = com.astral.typer.utils.GradationHelper.getSafePortions(
                     hasMiddleColorCurrent,
-                    if (isGradationMode) canvasView.pendingGradientStartPos else (if (layerAsText != null) layerAsText.gradientStartPos else layerAsShape?.gradientStartPos ?: 0.0f),
-                    if (isGradationMode) canvasView.pendingGradientMiddlePos else (if (layerAsText != null) layerAsText.gradientMiddlePos else layerAsShape?.gradientMiddlePos ?: 0.5f),
-                    if (isGradationMode) canvasView.pendingGradientEndPos else (if (layerAsText != null) layerAsText.gradientEndPos else layerAsShape?.gradientEndPos ?: 1.0f)
+                    if (isGradationMode) canvasView.pendingGradientStartPos else stylableLayer.gradientStartPos,
+                    if (isGradationMode) canvasView.pendingGradientMiddlePos else stylableLayer.gradientMiddlePos,
+                    if (isGradationMode) canvasView.pendingGradientEndPos else stylableLayer.gradientEndPos
                 )
 
                 if (hasMiddleColorCurrent) {
@@ -9401,16 +9386,9 @@ class EditorActivity : AppCompatActivity() {
                     if (hasMiddleColorCurrent) canvasView.pendingGradientMiddlePos = newMid
                     canvasView.pendingGradientEndPos = newEnd
                 } else {
-                    layerAsText?.let {
-                        it.gradientStartPos = newStart
-                        if (hasMiddleColorCurrent) it.gradientMiddlePos = newMid
-                        it.gradientEndPos = newEnd
-                    }
-                    layerAsShape?.let {
-                        it.gradientStartPos = newStart
-                        if (hasMiddleColorCurrent) it.gradientMiddlePos = newMid
-                        it.gradientEndPos = newEnd
-                    }
+                    stylableLayer.gradientStartPos = newStart
+                    if (hasMiddleColorCurrent) stylableLayer.gradientMiddlePos = newMid
+                    stylableLayer.gradientEndPos = newEnd
                 }
 
                 // Update seekbars and labels programmatically
@@ -9446,27 +9424,27 @@ class EditorActivity : AppCompatActivity() {
         // Middle Color palette (Only if active/hasMiddleColorCurrent is true)
         if (hasMiddleColorCurrent) {
             mainLayout.addView(TextView(this).apply { text = "Middle Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) })
-            mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientMiddleColor else (if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor),
+            mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientMiddleColor else stylableLayer.gradientMiddleColor,
                  { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientMiddleColor = c
                          canvasView.invalidate()
                      } else {
-                         if (layerAsText != null) { layerAsText.gradientMiddleColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
-                         else if (layerAsShape != null) { layerAsShape.gradientMiddleColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                         stylableLayer.gradientMiddleColor = c
+                         if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                          canvasView.invalidate()
                      }
                      showGradationControls()
                  },
                  {
-                     val current = if (isGradationMode) canvasView.pendingGradientMiddleColor else (if (layerAsText != null) layerAsText.gradientMiddleColor else layerAsShape!!.gradientMiddleColor)
+                     val current = if (isGradationMode) canvasView.pendingGradientMiddleColor else stylableLayer.gradientMiddleColor
                      showColorWheelDialogForProperty(current) { c ->
                          if (isGradationMode) {
                              canvasView.pendingGradientMiddleColor = c
                              canvasView.invalidate()
                          } else {
-                             if (layerAsText != null) { layerAsText.gradientMiddleColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
-                             else if (layerAsShape != null) { layerAsShape.gradientMiddleColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                             stylableLayer.gradientMiddleColor = c
+                             if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                              canvasView.invalidate()
                          }
                          showGradationControls()
@@ -9488,27 +9466,27 @@ class EditorActivity : AppCompatActivity() {
 
         // End Color
         mainLayout.addView(TextView(this).apply { text = "End Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,16,0,0) })
-        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else (if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor),
+        mainLayout.addView(createColorScroll(if (isGradationMode) canvasView.pendingGradientEnd else stylableLayer.gradientEndColor,
              { c ->
                  if (isGradationMode) {
                      canvasView.pendingGradientEnd = c
                      canvasView.invalidate()
                  } else {
-                     if (layerAsText != null) { layerAsText.gradientEndColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
-                     else if (layerAsShape != null) { layerAsShape.gradientEndColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                     stylableLayer.gradientEndColor = c
+                     if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                      canvasView.invalidate()
                  }
                  showGradationControls()
              },
              {
-                 val current = if (isGradationMode) canvasView.pendingGradientEnd else (if (layerAsText != null) layerAsText.gradientEndColor else layerAsShape!!.gradientEndColor)
+                 val current = if (isGradationMode) canvasView.pendingGradientEnd else stylableLayer.gradientEndColor
                  showColorWheelDialogForProperty(current) { c ->
                      if (isGradationMode) {
                          canvasView.pendingGradientEnd = c
                          canvasView.invalidate()
                      } else {
-                         if (layerAsText != null) { layerAsText.gradientEndColor = c; if (!layerAsText.isGradient) layerAsText.isGradient = true }
-                         else if (layerAsShape != null) { layerAsShape.gradientEndColor = c; if (!layerAsShape.isGradient) layerAsShape.isGradient = true }
+                         stylableLayer.gradientEndColor = c
+                         if (!stylableLayer.isGradient) stylableLayer.isGradient = true
                          canvasView.invalidate()
                      }
                      showGradationControls()
@@ -9527,7 +9505,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Strength
         if (!isGradationMode) {
-            val currentStrength = if (layerAsText != null) layerAsText.gradientStrength else layerAsShape!!.gradientStrength
+            val currentStrength = stylableLayer.gradientStrength
             val initialStrengthProgress = (currentStrength * 100f).toInt().coerceIn(0, 200)
 
             val strengthLabelText = when {
@@ -9538,14 +9516,14 @@ class EditorActivity : AppCompatActivity() {
 
             val strengthSlider = createSlider(strengthLabelText, initialStrengthProgress, 200) {
                 val newStrength = it / 100f
-                if (layerAsText != null) layerAsText.gradientStrength = newStrength else layerAsShape!!.gradientStrength = newStrength
+                stylableLayer.gradientStrength = newStrength
                 canvasView.invalidate()
             }
             val strengthLabel = strengthSlider.findViewWithTag<TextView>("SLIDER_LABEL")
             strengthSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                     val newStrength = p / 100f
-                    if (layerAsText != null) layerAsText.gradientStrength = newStrength else layerAsShape!!.gradientStrength = newStrength
+                    stylableLayer.gradientStrength = newStrength
                     strengthLabel?.text = when {
                         p < 100 -> "Gradation Strength: Low"
                         p == 100 -> "Gradation Strength: As Defined"
@@ -9561,16 +9539,16 @@ class EditorActivity : AppCompatActivity() {
 
         // Angle
         if (!isGradationMode) {
-            val currentGradAngle = if (layerAsText != null) layerAsText.gradientAngle else layerAsShape!!.gradientAngle
+            val currentGradAngle = stylableLayer.gradientAngle
             val angleSlider = createSlider("Gradient Angle: ${currentGradAngle}°", currentGradAngle, 360) {
-                 if (layerAsText != null) layerAsText.gradientAngle = it else layerAsShape!!.gradientAngle = it
+                 stylableLayer.gradientAngle = it
                  canvasView.invalidate()
             }
             val angleLabel = angleSlider.findViewWithTag<TextView>("SLIDER_LABEL")
             val angleSeekBar = angleSlider.findViewWithTag<SeekBar>("SLIDER_BAR")
             angleSeekBar?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    if (layerAsText != null) layerAsText.gradientAngle = p else layerAsShape!!.gradientAngle = p
+                    stylableLayer.gradientAngle = p
                     angleLabel?.text = "Gradient Angle: $p°"
                     canvasView.invalidate()
                 }
@@ -9598,7 +9576,7 @@ class EditorActivity : AppCompatActivity() {
                         setMargins(8, 0, 8, 0)
                     }
                     setOnClickListener {
-                        if (layerAsText != null) layerAsText.gradientAngle = targetAngle else layerAsShape!!.gradientAngle = targetAngle
+                        stylableLayer.gradientAngle = targetAngle
                         angleSeekBar?.progress = targetAngle
                         angleLabel?.text = "Gradient Angle: $targetAngle°"
                         canvasView.invalidate()
