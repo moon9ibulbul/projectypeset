@@ -2099,10 +2099,8 @@ class AstralCanvasView @JvmOverloads constructor(
             }
 
             // First, draw the base layer normally (with strokes, shadows, fill, etc.)
-            val saveNormal = canvas.saveLayer(null, null)
             layer.isDrawingClippingMask = false
             layer.draw(canvas, skipEffects, viewScale)
-            canvas.restoreToCount(saveNormal)
 
             // Now draw the clipping mask and clipped layers on top of it
             val saveCount = canvas.saveLayer(null, null)
@@ -2120,10 +2118,8 @@ class AstralCanvasView @JvmOverloads constructor(
             return finalIndex
         } else {
             if (isVisibleInViewport) {
-                val saveCount = canvas.saveLayer(null, null)
                 layer.isDrawingClippingMask = false
                 layer.draw(canvas, skipEffects, viewScale)
-                canvas.restoreToCount(saveCount)
             }
 
             if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {

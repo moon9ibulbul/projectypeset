@@ -2321,10 +2321,8 @@ object ProjectManager {
         val hasClippedChildren = nextIndex < layersList.size && layersList[nextIndex].isClipped && layersList[nextIndex].isVisible
 
         if (hasClippedChildren) {
-            val saveNormal = canvas.saveLayer(null, null)
             layer.isDrawingClippingMask = false
             layer.draw(canvas)
-            canvas.restoreToCount(saveNormal)
 
             val saveCount = canvas.saveLayer(null, null)
             layer.isDrawingClippingMask = true
@@ -2340,10 +2338,8 @@ object ProjectManager {
             canvas.restoreToCount(saveCount)
             return finalIndex
         } else {
-            val saveCount = canvas.saveLayer(null, null)
             layer.isDrawingClippingMask = false
             layer.draw(canvas)
-            canvas.restoreToCount(saveCount)
 
             if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
                 var scan = nextIndex

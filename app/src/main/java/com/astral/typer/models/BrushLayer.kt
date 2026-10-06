@@ -1121,8 +1121,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                     val mat = Matrix()
                     mat.setTranslate(-(dx + cropLeft), -(dy + cropTop))
                     gradShader.setLocalMatrix(mat)
-                    val saveCount = canvas.saveLayer(0f, 0f, contentBmp.width.toFloat(), contentBmp.height.toFloat(), null)
-                    canvas.drawBitmap(contentBmp, 0f, 0f, layerPaint)
+                    val saveCount = canvas.saveLayer(0f, 0f, contentBmp.width.toFloat(), contentBmp.height.toFloat(), layerPaint)
+                    canvas.drawBitmap(contentBmp, 0f, 0f, null)
                     val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         shader = gradShader
                         xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
@@ -1140,8 +1140,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             contentBmp.recycle()
         } else if (eraseMask != null || activeErasePath != null) {
             // Draw to a temp layer to apply non-destructive erase masking
-            val saveCount = canvas.saveLayer(dx, dy, dx + w, dy + h, null)
-            drawBaseContentWithGradient(canvas, dx, dy, layerPaint, w, h)
+            val saveCount = canvas.saveLayer(dx, dy, dx + w, dy + h, layerPaint)
+            drawBaseContentWithGradient(canvas, dx, dy, Paint(Paint.ANTI_ALIAS_FLAG), w, h)
 
             val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
@@ -1179,8 +1179,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         if (isGradient && isGradientText) {
             val gradShader = getGradientShader(w, h)
             if (gradShader != null) {
-                val saveCount = canvas.saveLayer(dx, dy, dx + w, dy + h, null)
-                drawTiles(canvas, dx, dy, layerPaint)
+                val saveCount = canvas.saveLayer(dx, dy, dx + w, dy + h, layerPaint)
+                drawTiles(canvas, dx, dy, Paint(Paint.ANTI_ALIAS_FLAG))
                 val gPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     shader = gradShader
                     xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
