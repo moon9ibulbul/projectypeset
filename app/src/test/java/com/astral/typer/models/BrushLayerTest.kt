@@ -15,6 +15,23 @@ import org.junit.Assert.assertTrue
 class BrushLayerTest {
 
     @Test
+    fun testBrushLayerBlendModePropertyAndClone() {
+        val modes = listOf("NORMAL", "OVERLAY", "ADD", "MULTIPLY", "SCREEN", "DARKEN", "LIGHTEN")
+        for (mode in modes) {
+            val layer = BrushLayer(1080, 1080).apply {
+                blendMode = mode
+                opacity = 180
+            }
+            assertEquals(mode, layer.blendMode)
+            assertEquals(180, layer.opacity)
+
+            val cloned = layer.clone() as BrushLayer
+            assertEquals(mode, cloned.blendMode)
+            assertEquals(180, cloned.opacity)
+        }
+    }
+
+    @Test
     fun testBrushLayerCloneGradientAndStylingProperties() {
         val layer = BrushLayer(1080, 1080).apply {
             brushColor = Color.RED
