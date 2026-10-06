@@ -1341,9 +1341,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     }
 
     private fun getBrushScale(preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset): Float {
-        val baseRadiusLog = getBaseValue(preset, "radius_logarithmic")
-        val baseRadiusScale = Math.exp(baseRadiusLog.toDouble()).toFloat() * 15f
-        return if (baseRadiusScale > 0f) brushSize / baseRadiusScale else 1.0f
+        return (brushSize / 20.0f).coerceAtLeast(0.05f)
     }
 
     private fun calculateSpeedMappings(preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset) {
@@ -1806,9 +1804,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     }
 
     private fun prepareAndDrawDab(preset: com.astral.typer.utils.MyPaintBrushHelper.BrushPreset): Boolean {
-        val opaqueFac = settingsValue["opaque_multiply"] ?: 1.0f
+        val opaqueFac = settingsValue["opaque_multiply"] ?: 0.0f
         var opaque = (settingsValue["opaque"] ?: 1.0f).coerceAtLeast(0.0f)
-        opaque = (opaque * opaqueFac).coerceIn(0.0f, 1.0f)
+        if (opaqueFac > 0f) {
+            opaque = (opaque + (1.0f - opaque) * opaqueFac).coerceIn(0.0f, 1.0f)
+        } else if (opaqueFac < 0f) {
+            opaque = (opaque * (1.0f + opaqueFac)).coerceIn(0.0f, 1.0f)
+        }
 
         val opaqueLinearize = getBaseValue(preset, "opaque_linearize")
         if (opaqueLinearize != 0f) {
@@ -1867,11 +1869,39 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         var gFloat = Color.green(brushColor) / 255f
         var bFloat = Color.blue(brushColor) / 255f
 
+        if (rFloat == 0f && gFloat == 0f && bFloat == 0f) {
+            val presetH = settingsValue["color_h"] ?: getBaseValue(preset, "color_h")
+            val presetS = settingsValue["color_s"] ?: getBaseValue(preset, "color_s")
+            val presetV = settingsValue["color_v"] ?: getBaseValue(preset, "color_v")
+            if (presetS > 0f || presetV > 0f) {
+                val rgb = FloatArray(3)
+                hsvToRgb(presetH.coerceIn(0f, 1f), presetS.coerceIn(0f, 1f), presetV.coerceIn(0f, 1f), rgb)
+                rFloat = rgb[0]
+                gFloat = rgb[1]
+                bFloat = rgb[2]
+            }
+        }
+
         // Smudge
         val smudgeLength = settingsValue["smudge_length"] ?: 0.5f
         val smudgeValue = settingsValue["smudge"] ?: 0f
+        val restoreColor = settingsValue["restore_color"] ?: 0f
 
         val smudgeOffset = getSmudgeBucketOffset(preset, settingsValue)
+
+        if (restoreColor > 0f && smudgeOffset >= 0) {
+            val stepDdab = 1.0f
+            val restFac = (restoreColor * 0.1f * stepDdab).coerceIn(0f, 1f)
+            val curR = getBucketVal(smudgeOffset, BUCKET_SMUDGE_R)
+            val curG = getBucketVal(smudgeOffset, BUCKET_SMUDGE_G)
+            val curB = getBucketVal(smudgeOffset, BUCKET_SMUDGE_B)
+            val curA = getBucketVal(smudgeOffset, BUCKET_SMUDGE_A)
+
+            setBucketVal(smudgeOffset, BUCKET_SMUDGE_R, curR + (rFloat - curR) * restFac)
+            setBucketVal(smudgeOffset, BUCKET_SMUDGE_G, curG + (gFloat - curG) * restFac)
+            setBucketVal(smudgeOffset, BUCKET_SMUDGE_B, curB + (bFloat - curB) * restFac)
+            setBucketVal(smudgeOffset, BUCKET_SMUDGE_A, (curA + (1.0f - curA) * restFac).coerceIn(0f, 1f))
+        }
 
         if (smudgeLength < 1.0f && (smudgeValue != 0f || preset.settings["smudge"] != null)) {
             val px = Math.round(x)
@@ -1956,10 +1986,6 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 rFloat = (smudgeFactor * getBucketVal(smudgeOffset, BUCKET_SMUDGE_R) + colFactor * rFloat) / eraserTargetAlpha
                 gFloat = (smudgeFactor * getBucketVal(smudgeOffset, BUCKET_SMUDGE_G) + colFactor * gFloat) / eraserTargetAlpha
                 bFloat = (smudgeFactor * getBucketVal(smudgeOffset, BUCKET_SMUDGE_B) + colFactor * bFloat) / eraserTargetAlpha
-            } else {
-                rFloat = 1.0f
-                gFloat = 0.0f
-                bFloat = 0.0f
             }
         }
 
