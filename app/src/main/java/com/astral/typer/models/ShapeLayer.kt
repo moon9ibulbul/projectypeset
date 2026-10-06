@@ -1588,27 +1588,40 @@ class ShapeLayer(
                     isDrawingShadowPass = false
                 }
 
-                val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    if (shadowRadius > 0f) {
-                        maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
-                    }
-                }
-                val offset = IntArray(2)
-                val alphaBmp = shadowBmp.extractAlpha(blurPaint, offset)
-                if (alphaBmp != null && !alphaBmp.isRecycled) {
-                    val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                if (isDropShadowIncludeStroke) {
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
-                        if (isGradient && isGradientShadow) {
-                            shader = gradientShader
-                        } else {
-                            color = shadowColor
+                        if (shadowRadius > 0f) {
+                            maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
                         }
                     }
-                    targetCanvas.save()
-                    targetCanvas.translate(shadowDx - pad + offset[0], shadowDy - pad + offset[1])
-                    targetCanvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                    targetCanvas.saveLayer(null, blurPaint)
+                    targetCanvas.translate(shadowDx - pad, shadowDy - pad)
+                    targetCanvas.drawBitmap(shadowBmp, 0f, 0f, null)
                     targetCanvas.restore()
-                    alphaBmp.recycle()
+                } else {
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        if (shadowRadius > 0f) {
+                            maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                        }
+                    }
+                    val offset = IntArray(2)
+                    val alphaBmp = shadowBmp.extractAlpha(blurPaint, offset)
+                    if (alphaBmp != null && !alphaBmp.isRecycled) {
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            if (isGradient && isGradientShadow) {
+                                shader = gradientShader
+                            } else {
+                                color = shadowColor
+                            }
+                        }
+                        targetCanvas.save()
+                        targetCanvas.translate(shadowDx - pad + offset[0], shadowDy - pad + offset[1])
+                        targetCanvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        targetCanvas.restore()
+                        alphaBmp.recycle()
+                    }
                 }
                 shadowBmp.recycle()
             }
