@@ -864,6 +864,11 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun setEraseLayerMode(enabled: Boolean) {
+        (selectedLayer as? com.astral.typer.models.BrushLayer)?.let {
+            if (it.isDrawingStroke) {
+                it.endStroke()
+            }
+        }
         isEraseLayerMode = enabled
         if (enabled) {
             currentMode = Mode.ERASE_LAYER
@@ -1308,6 +1313,11 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun selectLayer(layer: Layer?) {
+        (selectedLayer as? com.astral.typer.models.BrushLayer)?.let {
+            if (it.isDrawingStroke) {
+                it.endStroke()
+            }
+        }
         if (selectedLayer != layer) {
             selectedLayer = layer
             layers.forEach { it.isSelected = (it == layer) }
@@ -2484,6 +2494,9 @@ class AstralCanvasView @JvmOverloads constructor(
         val brushLayer = selectedLayer as? com.astral.typer.models.BrushLayer
         if (brushLayer != null && !isEraseLayerMode && currentMode != Mode.EYEDROPPER && !isInpaintMode && !isGradationMode && !isTyperActive) {
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                if (brushLayer.isDrawingStroke) {
+                    brushLayer.endStroke()
+                }
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
@@ -2725,6 +2738,9 @@ class AstralCanvasView @JvmOverloads constructor(
         if (isEraseLayerMode && selectedLayer is com.astral.typer.models.BrushLayer) {
             val brushLayer = selectedLayer as com.astral.typer.models.BrushLayer
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                if (brushLayer.isDrawingStroke) {
+                    brushLayer.endStroke()
+                }
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
                 gestureDetector.onTouchEvent(event)
@@ -2766,7 +2782,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     brushLayer.endStroke()
-                    currentMode = Mode.NONE
+                    currentMode = Mode.ERASE_LAYER
                     invalidate()
                 }
             }
