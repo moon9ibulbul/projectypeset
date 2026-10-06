@@ -18,7 +18,10 @@ object MyPaintBrushHelper {
 
             for ((inputName, points) in inputs) {
                 if (points.isEmpty()) continue
-                val x = inputValues[inputName] ?: 0f
+                val minX = points.first().x
+                val maxX = points.last().x
+                val rawX = inputValues[inputName] ?: 0f
+                val x = rawX.coerceIn(minX, maxX)
                 if (points.size < 2) {
                     result += points[0].y
                     continue
