@@ -155,6 +155,113 @@ class BrushLayerTest {
     }
 
     @Test
+    fun testCreateLayerFromModelRestoresBrushLayerStyling() {
+        val model = LayerModel(
+            type = "BRUSH",
+            x = 100f, y = 200f, rotation = 15f, scaleX = 1f, scaleY = 1f,
+            isVisible = true, isLocked = false, name = "Brush Test",
+            opacity = 255, blendMode = "NORMAL",
+            isOpacityGradient = false, opacityStart = 255, opacityEnd = 0, opacityAngle = 0,
+            brushPath = "images/brush_0.png",
+            brushName = "pencil",
+            brushColor = Color.RED,
+            brushSize = 25f,
+            isGradient = true,
+            gradientStartColor = Color.RED,
+            gradientEndColor = Color.BLUE,
+            gradientAngle = 90,
+            hasMiddleColor = true,
+            gradientMiddleColor = Color.GREEN,
+            gradientStartPos = 0.1f,
+            gradientMiddlePos = 0.5f,
+            gradientEndPos = 0.9f,
+            gradientStrength = 0.8f,
+            isGradientText = true,
+            isGradientStroke1 = true,
+            isGradientStroke2 = false,
+            isGradientStroke3 = false,
+            isGradientShadow = true,
+            strokeColor = Color.BLACK,
+            strokeWidth = 10f,
+            doubleStrokeColor = Color.YELLOW,
+            doubleStrokeWidth = 5f,
+            tripleStrokeColor = Color.CYAN,
+            tripleStrokeWidth = 2f,
+            shadowColor = Color.GRAY,
+            shadowRadius = 8f,
+            shadowDx = 4f,
+            shadowDy = 4f,
+            isDropShadowIncludeStroke = true,
+            isMotionShadow = true,
+            isMotionShadowIncludeStroke = true,
+            motionShadowAngle = 45,
+            motionShadowDistance = 20f,
+            motionShadowDx = 2f,
+            motionShadowDy = 3f,
+            motionShadowThickness = 12f,
+            motionShadowSmoothness = 50,
+            motionShadowKernelSize = 3
+        )
+
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        val unsafe = field.get(null)
+        val allocateInstance = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val dummyBitmap = allocateInstance.invoke(unsafe, android.graphics.Bitmap::class.java) as android.graphics.Bitmap
+        val imageMap = mapOf("images/brush_0.png" to dummyBitmap)
+
+        val layer = com.astral.typer.utils.ProjectManager.createLayerFromModel(model, imageMap) as? BrushLayer
+
+        assertNotNull(layer)
+        layer!!
+
+        assertEquals("pencil", layer.brushName)
+        assertEquals(Color.RED, layer.brushColor)
+
+        // Verify restored gradient
+        assertEquals(true, layer.isGradient)
+        assertEquals(Color.RED, layer.gradientStartColor)
+        assertEquals(Color.BLUE, layer.gradientEndColor)
+        assertEquals(90, layer.gradientAngle)
+        assertEquals(true, layer.hasMiddleColor)
+        assertEquals(Color.GREEN, layer.gradientMiddleColor)
+        assertEquals(0.1f, layer.gradientStartPos, 0.001f)
+        assertEquals(0.5f, layer.gradientMiddlePos, 0.001f)
+        assertEquals(0.9f, layer.gradientEndPos, 0.001f)
+        assertEquals(0.8f, layer.gradientStrength, 0.001f)
+        assertEquals(true, layer.isGradientText)
+        assertEquals(true, layer.isGradientStroke1)
+        assertEquals(false, layer.isGradientStroke2)
+        assertEquals(false, layer.isGradientStroke3)
+        assertEquals(true, layer.isGradientShadow)
+
+        // Verify restored strokes
+        assertEquals(Color.BLACK, layer.strokeColor)
+        assertEquals(10f, layer.strokeWidth, 0.001f)
+        assertEquals(Color.YELLOW, layer.doubleStrokeColor)
+        assertEquals(5f, layer.doubleStrokeWidth, 0.001f)
+        assertEquals(Color.CYAN, layer.tripleStrokeColor)
+        assertEquals(2f, layer.tripleStrokeWidth, 0.001f)
+
+        // Verify restored shadows
+        assertEquals(Color.GRAY, layer.shadowColor)
+        assertEquals(8f, layer.shadowRadius, 0.001f)
+        assertEquals(4f, layer.shadowDx, 0.001f)
+        assertEquals(4f, layer.shadowDy, 0.001f)
+        assertEquals(true, layer.isDropShadowIncludeStroke)
+        assertEquals(true, layer.isMotionShadow)
+        assertEquals(true, layer.isMotionShadowIncludeStroke)
+        assertEquals(45, layer.motionShadowAngle)
+        assertEquals(20f, layer.motionShadowDistance, 0.001f)
+        assertEquals(2f, layer.motionShadowDx, 0.001f)
+        assertEquals(3f, layer.motionShadowDy, 0.001f)
+        assertEquals(12f, layer.motionShadowThickness, 0.001f)
+        assertEquals(50, layer.motionShadowSmoothness)
+        assertEquals(3, layer.motionShadowKernelSize)
+    }
+
+    @Test
     fun testBrushLayerDefaultContentBounds() {
         val layer = BrushLayer(1080, 1080)
         val bounds = layer.getContentBounds()

@@ -1812,7 +1812,7 @@ object ProjectManager {
         } else if (model.type == "BRUSH" && model.brushPath != null) {
             val bmp = imageMap[model.brushPath] ?: return null
             val layer = com.astral.typer.models.BrushLayer(bmp.width, bmp.height)
-            layer.bitmap = bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            layer.bitmap = try { bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, true) } catch (e: Throwable) { bmp } ?: bmp
 
             model.brushName?.let { layer.brushName = it }
             model.brushColor?.let { layer.brushColor = it }
@@ -1833,6 +1833,52 @@ object ProjectManager {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
             restoreErasePaths(layer, model)
+
+            model.shadowColor?.let { layer.shadowColor = it }
+            model.shadowRadius?.let { layer.shadowRadius = it }
+            model.shadowDx?.let { layer.shadowDx = it }
+            model.shadowDy?.let { layer.shadowDy = it }
+            model.isDropShadowIncludeStroke?.let { layer.isDropShadowIncludeStroke = it }
+
+            model.isMotionShadow?.let { layer.isMotionShadow = it }
+            model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.motionShadowAngle?.let { layer.motionShadowAngle = it }
+            model.motionShadowDistance?.let { layer.motionShadowDistance = it }
+            model.motionShadowDx?.let { layer.motionShadowDx = it }
+            model.motionShadowDy?.let { layer.motionShadowDy = it }
+            model.motionShadowThickness?.let { layer.motionShadowThickness = it }
+            model.motionShadowSmoothness?.let { layer.motionShadowSmoothness = it }
+            model.motionShadowKernelSize?.let { layer.motionShadowKernelSize = it }
+            model.shadowThickness?.let { layer.shadowThickness = it }
+
+            model.isGradient?.let { layer.isGradient = it }
+            model.gradientStartColor?.let { layer.gradientStartColor = it }
+            model.gradientEndColor?.let { layer.gradientEndColor = it }
+            model.gradientAngle?.let { layer.gradientAngle = it }
+            model.hasMiddleColor?.let { layer.hasMiddleColor = it }
+            model.gradientMiddleColor?.let { layer.gradientMiddleColor = it }
+            model.gradientStartPos?.let { layer.gradientStartPos = it }
+            model.gradientMiddlePos?.let { layer.gradientMiddlePos = it }
+            model.gradientEndPos?.let { layer.gradientEndPos = it }
+            model.gradientStrength?.let { layer.gradientStrength = it }
+            model.isGradientText?.let { layer.isGradientText = it }
+            model.isGradientStroke1?.let { layer.isGradientStroke1 = it }
+            model.isGradientStroke2?.let { layer.isGradientStroke2 = it }
+            model.isGradientStroke3?.let { layer.isGradientStroke3 = it }
+            model.isGradientShadow?.let { layer.isGradientShadow = it }
+
+            if (layer.isGradient && !layer.isGradientText && !layer.isGradientStroke1 && !layer.isGradientStroke2 && !layer.isGradientStroke3 && !layer.isGradientShadow) {
+                layer.isGradientText = true
+            }
+
+            model.strokeColor?.let { layer.strokeColor = it }
+            model.strokeWidth?.let { layer.strokeWidth = it }
+            model.doubleStrokeColor?.let { layer.doubleStrokeColor = it }
+            model.doubleStrokeWidth?.let { layer.doubleStrokeWidth = it }
+            model.tripleStrokeColor?.let { layer.tripleStrokeColor = it }
+            model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
+            model.isRoughStroke?.let { layer.isRoughStroke = it }
+            model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
 
             applyCommonProperties(layer, model)
             return layer
