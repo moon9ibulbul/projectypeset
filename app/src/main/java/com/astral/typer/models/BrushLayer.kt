@@ -63,6 +63,22 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
     fun invalidateContentBounds() {
         isBoundsDirty = true
+        cachedContentBounds = null
+    }
+
+    fun updateBoundsWithDab(x: Float, y: Float, radius: Float) {
+        val r = radius + 5f
+        val left = (x - r).coerceIn(0f, canvasWidth.toFloat())
+        val top = (y - r).coerceIn(0f, canvasHeight.toFloat())
+        val right = (x + r).coerceIn(0f, canvasWidth.toFloat())
+        val bottom = (y + r).coerceIn(0f, canvasHeight.toFloat())
+        val current = cachedContentBounds
+        if (current == null || isBoundsDirty) {
+            cachedContentBounds = RectF(left, top, right, bottom)
+            isBoundsDirty = false
+        } else {
+            current.union(left, top, right, bottom)
+        }
     }
 
     fun getContentBounds(): RectF {
@@ -74,55 +90,23 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         var minY = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
-
-        var hasPixels = false
+        var hasTiles = false
 
         for ((key, tile) in tiles) {
             if (tile.bitmap.isRecycled) continue
-            val bmp = tile.bitmap
-            val tw = bmp.width
-            val th = bmp.height
-            val tileLeft = key.first * TILE_SIZE
-            val tileTop = key.second * TILE_SIZE
+            hasTiles = true
+            val tileLeft = (key.first * TILE_SIZE).toFloat()
+            val tileTop = (key.second * TILE_SIZE).toFloat()
+            val tileRight = ((key.first + 1) * TILE_SIZE).toFloat().coerceAtMost(canvasWidth.toFloat())
+            val tileBottom = ((key.second + 1) * TILE_SIZE).toFloat().coerceAtMost(canvasHeight.toFloat())
 
-            val pixels = IntArray(tw * th)
-            bmp.getPixels(pixels, 0, tw, 0, 0, tw, th)
-
-            var tileHasPixels = false
-            var tMinX = tw
-            var tMaxX = -1
-            var tMinY = th
-            var tMaxY = -1
-
-            for (y in 0 until th) {
-                val rowOffset = y * tw
-                for (x in 0 until tw) {
-                    val alpha = (pixels[rowOffset + x] ushr 24) and 0xFF
-                    if (alpha > 0) {
-                        tileHasPixels = true
-                        if (x < tMinX) tMinX = x
-                        if (x > tMaxX) tMaxX = x
-                        if (y < tMinY) tMinY = y
-                        if (y > tMaxY) tMaxY = y
-                    }
-                }
-            }
-
-            if (tileHasPixels) {
-                hasPixels = true
-                val absMinX = (tileLeft + tMinX).toFloat()
-                val absMaxX = (tileLeft + tMaxX + 1).toFloat()
-                val absMinY = (tileTop + tMinY).toFloat()
-                val absMaxY = (tileTop + tMaxY + 1).toFloat()
-
-                if (absMinX < minX) minX = absMinX
-                if (absMaxX > maxX) maxX = absMaxX
-                if (absMinY < minY) minY = absMinY
-                if (absMaxY > maxY) maxY = absMaxY
-            }
+            if (tileLeft < minX) minX = tileLeft
+            if (tileTop < minY) minY = tileTop
+            if (tileRight > maxX) maxX = tileRight
+            if (tileBottom > maxY) maxY = tileBottom
         }
 
-        val bounds = if (hasPixels) {
+        val bounds = if (hasTiles) {
             RectF(minX, minY, maxX, maxY)
         } else {
             RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat())
@@ -228,7 +212,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 tileCanvas.restore()
             }
         }
-        invalidateContentBounds()
+        updateBoundsWithDab(x, y, radius * maxOf(1f, scaleY))
     }
 
     // Brush State Properties
@@ -816,11 +800,39 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         val hasShadow = (isMotionShadow && motionShadowDistance > 0f) || (!isMotionShadow && shadowRadius > 0f)
         val hasStrokes = strokeWidth > 0f || doubleStrokeWidth > 0f || tripleStrokeWidth > 0f
 
-        if (hasShadow || hasStrokes) {
+        if ((hasShadow || hasStrokes) && !isDrawingStroke && !skipEffects) {
             val activeTiles = tiles.filter { !it.value.bitmap.isRecycled }
             if (activeTiles.isEmpty()) {
                 canvas.restore()
                 return
+            }
+
+            val clipBounds = android.graphics.Rect()
+            val hasClip = canvas.getClipBounds(clipBounds)
+            val clipRectF = RectF(clipBounds)
+
+            val strokePad = strokeWidth + doubleStrokeWidth * 2f + tripleStrokeWidth * 2f
+            val shadowPad = if (isMotionShadow && motionShadowDistance > 0f) {
+                motionShadowDistance + motionShadowThickness + kotlin.math.max(kotlin.math.abs(motionShadowDx), kotlin.math.abs(motionShadowDy))
+            } else if (shadowRadius > 0f) {
+                shadowRadius + kotlin.math.max(kotlin.math.abs(shadowDx), kotlin.math.abs(shadowDy))
+            } else 0f
+            val erasePad = if (activeErasePath != null) activeEraseSize else 0f
+            val maxPad = kotlin.math.max(strokePad, kotlin.math.max(shadowPad, erasePad)) + 20f
+
+            val visibleTiles = if (hasClip && !clipRectF.isEmpty) {
+                val expandedClip = RectF(clipRectF)
+                expandedClip.inset(-maxPad, -maxPad)
+                val filtered = activeTiles.filter { (key, _) ->
+                    val tL = dx + (key.first * TILE_SIZE).toFloat()
+                    val tT = dy + (key.second * TILE_SIZE).toFloat()
+                    val tR = dx + ((key.first + 1) * TILE_SIZE).toFloat().coerceAtMost(w)
+                    val tB = dy + ((key.second + 1) * TILE_SIZE).toFloat().coerceAtMost(h)
+                    RectF.intersects(expandedClip, RectF(tL, tT, tR, tB))
+                }
+                if (filtered.isNotEmpty()) filtered else activeTiles
+            } else {
+                activeTiles
             }
 
             var minTx = Int.MAX_VALUE
@@ -828,7 +840,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             var minTy = Int.MAX_VALUE
             var maxTy = Int.MIN_VALUE
 
-            for ((key, _) in activeTiles) {
+            for ((key, _) in visibleTiles) {
                 if (key.first < minTx) minTx = key.first
                 if (key.first > maxTx) maxTx = key.first
                 if (key.second < minTy) minTy = key.second
@@ -839,15 +851,6 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             val tileTop = (minTy * TILE_SIZE).toFloat()
             val tileRight = ((maxTx + 1) * TILE_SIZE).toFloat().coerceAtMost(w)
             val tileBottom = ((maxTy + 1) * TILE_SIZE).toFloat().coerceAtMost(h)
-
-            val strokePad = strokeWidth + doubleStrokeWidth * 2f + tripleStrokeWidth * 2f
-            val shadowPad = if (isMotionShadow && motionShadowDistance > 0f) {
-                motionShadowDistance + motionShadowThickness + kotlin.math.max(kotlin.math.abs(motionShadowDx), kotlin.math.abs(motionShadowDy))
-            } else if (shadowRadius > 0f) {
-                shadowRadius + kotlin.math.max(kotlin.math.abs(shadowDx), kotlin.math.abs(shadowDy))
-            } else 0f
-            val erasePad = if (activeErasePath != null) activeEraseSize else 0f
-            val maxPad = kotlin.math.max(strokePad, kotlin.math.max(shadowPad, erasePad)) + 20f
 
             val cropLeft = (tileLeft - maxPad).coerceAtLeast(0f)
             val cropTop = (tileTop - maxPad).coerceAtLeast(0f)
@@ -1278,8 +1281,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
     // Touch Stroke Processing
     private var strokeHasMoved = false
+    var isDrawingStroke = false
 
     fun startStroke(x: Float, y: Float) {
+        isDrawingStroke = true
         lastX = x
         lastY = y
         strokeHasMoved = false
@@ -1553,27 +1558,31 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     }
 
     fun endStroke() {
-        if (!strokeHasMoved) {
-            val context = TyperApplication.instance ?: return
-            val preset = getPreset(context)
+        try {
+            if (!strokeHasMoved) {
+                val context = TyperApplication.instance ?: return
+                val preset = getPreset(context)
 
-            updateStatesAndSettingValues(
-                preset = preset,
-                stepDdab = 0f,
-                stepDx = 0f,
-                stepDy = 0f,
-                stepDpressure = 1f,
-                stepDeclination = 0f,
-                stepAscension = 0f,
-                stepDtime = 0.016f,
-                stepViewzoom = 1f,
-                stepViewrotation = 0f,
-                stepDeclinationx = 0f,
-                stepDeclinationy = 0f,
-                stepBarrelRotation = 0f
-            )
+                updateStatesAndSettingValues(
+                    preset = preset,
+                    stepDdab = 0f,
+                    stepDx = 0f,
+                    stepDy = 0f,
+                    stepDpressure = 1f,
+                    stepDeclination = 0f,
+                    stepAscension = 0f,
+                    stepDtime = 0.016f,
+                    stepViewzoom = 1f,
+                    stepViewrotation = 0f,
+                    stepDeclinationx = 0f,
+                    stepDeclinationy = 0f,
+                    stepBarrelRotation = 0f
+                )
 
-            prepareAndDrawDab(preset)
+                prepareAndDrawDab(preset)
+            }
+        } finally {
+            isDrawingStroke = false
         }
     }
 
