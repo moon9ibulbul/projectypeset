@@ -377,7 +377,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var gradientMiddlePos: Float = 0.5f
     override var gradientEndPos: Float = 1.0f
     override var gradientStrength: Float = 1.0f
-    override var isGradientText: Boolean = false
+    override var isGradientText: Boolean = true
     override var isGradientStroke1: Boolean = false
     override var isGradientStroke2: Boolean = false
     override var isGradientStroke3: Boolean = false

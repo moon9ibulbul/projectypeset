@@ -161,6 +161,9 @@ class BrushLayerTest {
 
         // Verify getContentBounds returns a non-null RectF instance for empty layer
         assertNotNull(bounds)
+
+        // Verify default gradient target on primary brush content is enabled
+        assertEquals(true, layer.isGradientText)
     }
 
     @Test

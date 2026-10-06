@@ -1276,6 +1276,10 @@ object ProjectManager {
             model.isGradientStroke3?.let { layer.isGradientStroke3 = it }
             model.isGradientShadow?.let { layer.isGradientShadow = it }
 
+            if (layer.isGradient && !layer.isGradientText && !layer.isGradientStroke1 && !layer.isGradientStroke2 && !layer.isGradientStroke3 && !layer.isGradientShadow) {
+                layer.isGradientText = true
+            }
+
             model.strokeColor?.let { layer.strokeColor = it }
             model.strokeWidth?.let { layer.strokeWidth = it }
             model.doubleStrokeColor?.let { layer.doubleStrokeColor = it }
