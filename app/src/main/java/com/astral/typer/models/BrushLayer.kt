@@ -1280,7 +1280,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     }
 
     // Touch Stroke Processing
-    private var strokeHasMoved = false
+    var strokeHasMoved = false
     var isDrawingStroke = false
 
     fun startStroke(x: Float, y: Float) {
@@ -1314,8 +1314,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         states[STATE_STROKE] = 1.0f
         states[STATE_VIEWZOOM] = 1.0f
 
-        val context = TyperApplication.instance ?: return
-        val preset = getPreset(context)
+        val context = try { com.astral.typer.TyperApplication.instance } catch (e: Throwable) { null }
+        val preset = activePreset ?: (context?.let { getPreset(it) }) ?: return
         calculateSpeedMappings(preset)
 
         // Evaluate default base values for spacing
@@ -1559,9 +1559,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
     fun endStroke() {
         try {
-            if (!strokeHasMoved) {
-                val context = TyperApplication.instance ?: return
-                val preset = getPreset(context)
+            if (isDrawingStroke && !strokeHasMoved) {
+                val context = try { com.astral.typer.TyperApplication.instance } catch (e: Throwable) { null }
+                val preset = activePreset ?: (context?.let { getPreset(it) }) ?: return
 
                 updateStatesAndSettingValues(
                     preset = preset,
@@ -1584,6 +1584,11 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         } finally {
             isDrawingStroke = false
         }
+    }
+
+    fun cancelStroke() {
+        isDrawingStroke = false
+        strokeHasMoved = false
     }
 
     private fun updateStatesAndSettingValues(
