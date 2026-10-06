@@ -1049,7 +1049,8 @@ class ShapeLayer(
             commonPaint.reset()
             commonPaint.isAntiAlias = true
 
-            val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f) shadowThickness else 0f
+            val hasLayerStrokes = tripleStrokeWidthToUse > 0f || doubleStrokeWidthToUse > 0f || strokeWidthToUse > 0f
+            val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f && (!isDropShadowIncludeStroke || !hasLayerStrokes)) shadowThickness else 0f
 
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
@@ -1078,7 +1079,6 @@ class ShapeLayer(
             } else if (isDrawingShadowPass) {
                 val colorToUse = shadowColor
                 val shaderToUse = if (isGradient && isGradientShadow) gradientShader else null
-                val hasLayerStrokes = tripleStrokeWidthToUse > 0f || doubleStrokeWidthToUse > 0f || strokeWidthToUse > 0f
                 val (shadowStroke, shadowStrokeW) = if (shadowThickness > 0f && (!isDropShadowIncludeStroke || !hasLayerStrokes)) {
                     Pair(colorToUse, shadowThickness * 0.5f)
                 } else {
@@ -1569,48 +1569,110 @@ class ShapeLayer(
             }
 
             if (!isMotionShadow && (shadowRadius > 0f || shadowThickness > 0f)) {
-                val pad = calculatePadding()
-                val bmpW = ceil(w + pad * 2f).toInt().coerceAtLeast(1)
-                val bmpH = ceil(h + pad * 2f).toInt().coerceAtLeast(1)
-                val shadowBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-                val c = Canvas(shadowBmp)
-                c.translate(pad, pad)
-                try {
-                    isDrawingShadowPass = true
-                    if (isDropShadowIncludeStroke) {
-                        drawMain(c)
-                    } else if (shadowThickness > 0f) {
-                        renderSvgManipulated(c, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 0.5f)
-                    } else {
-                        renderSvgManipulated(c, fill = Color.BLACK, stroke = null)
-                    }
-                } finally {
-                    isDrawingShadowPass = false
-                }
-
-                val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    if (shadowRadius > 0f) {
-                        maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
-                    }
-                }
-                val offset = IntArray(2)
-                val alphaBmp = shadowBmp.extractAlpha(blurPaint, offset)
-                if (alphaBmp != null && !alphaBmp.isRecycled) {
-                    val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        isFilterBitmap = true
-                        if (isGradient && isGradientShadow) {
-                            shader = gradientShader
-                        } else {
-                            color = shadowColor
+                if (isDropShadowIncludeStroke) {
+                    var useRenderNode = false
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && targetCanvas.isHardwareAccelerated) {
+                        try {
+                            val pad = calculatePadding()
+                            val nodeW = (w + pad * 2f).toInt().coerceAtLeast(1)
+                            val nodeH = (h + pad * 2f).toInt().coerceAtLeast(1)
+                            val node = android.graphics.RenderNode("DropShadowIncludeStrokeNode")
+                            node.setPosition(0, 0, nodeW, nodeH)
+                            val rc = node.beginRecording()
+                            rc.translate(pad, pad)
+                            try {
+                                isDrawingShadowPass = true
+                                drawMain(rc)
+                            } finally {
+                                isDrawingShadowPass = false
+                            }
+                            node.endRecording()
+                            if (shadowRadius > 0f) {
+                                node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(shadowRadius, shadowRadius, Shader.TileMode.CLAMP))
+                            }
+                            targetCanvas.save()
+                            targetCanvas.translate(shadowDx - pad, shadowDy - pad)
+                            targetCanvas.drawRenderNode(node)
+                            targetCanvas.restore()
+                            useRenderNode = true
+                        } catch (e: Exception) {
+                            useRenderNode = false
                         }
                     }
-                    targetCanvas.save()
-                    targetCanvas.translate(shadowDx - pad + offset[0], shadowDy - pad + offset[1])
-                    targetCanvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
-                    targetCanvas.restore()
-                    alphaBmp.recycle()
+
+                    if (!useRenderNode) {
+                        val pad = calculatePadding()
+                        val bmpW = ceil(w + pad * 2f).toInt().coerceAtLeast(1)
+                        val bmpH = ceil(h + pad * 2f).toInt().coerceAtLeast(1)
+                        val shadowBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        val c = Canvas(shadowBmp)
+                        c.translate(pad, pad)
+                        try {
+                            isDrawingShadowPass = true
+                            drawMain(c)
+                        } finally {
+                            isDrawingShadowPass = false
+                        }
+
+                        val outputBmp = if (shadowRadius > 0f) {
+                            blurBitmapSoftware(shadowBmp, shadowRadius)
+                        } else {
+                            shadowBmp
+                        }
+
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+                        targetCanvas.save()
+                        targetCanvas.translate(shadowDx - pad, shadowDy - pad)
+                        targetCanvas.drawBitmap(outputBmp, 0f, 0f, sPaint)
+                        targetCanvas.restore()
+
+                        if (outputBmp != shadowBmp) {
+                            outputBmp.recycle()
+                        }
+                        shadowBmp.recycle()
+                    }
+                } else {
+                    val pad = calculatePadding()
+                    val bmpW = ceil(w + pad * 2f).toInt().coerceAtLeast(1)
+                    val bmpH = ceil(h + pad * 2f).toInt().coerceAtLeast(1)
+                    val shadowBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                    val c = Canvas(shadowBmp)
+                    c.translate(pad, pad)
+                    try {
+                        isDrawingShadowPass = true
+                        if (shadowThickness > 0f) {
+                            renderSvgManipulated(c, fill = Color.BLACK, stroke = Color.BLACK, strokeW = shadowThickness * 0.5f)
+                        } else {
+                            renderSvgManipulated(c, fill = Color.BLACK, stroke = null)
+                        }
+                    } finally {
+                        isDrawingShadowPass = false
+                    }
+
+                    val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        if (shadowRadius > 0f) {
+                            maskFilter = BlurMaskFilter(shadowRadius, BlurMaskFilter.Blur.NORMAL)
+                        }
+                    }
+                    val offset = IntArray(2)
+                    val alphaBmp = shadowBmp.extractAlpha(blurPaint, offset)
+                    if (alphaBmp != null && !alphaBmp.isRecycled) {
+                        val sPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            isFilterBitmap = true
+                            if (isGradient && isGradientShadow) {
+                                shader = gradientShader
+                            } else {
+                                color = shadowColor
+                            }
+                        }
+                        targetCanvas.save()
+                        targetCanvas.translate(shadowDx - pad + offset[0], shadowDy - pad + offset[1])
+                        targetCanvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                        targetCanvas.restore()
+                        alphaBmp.recycle()
+                    }
+                    shadowBmp.recycle()
                 }
-                shadowBmp.recycle()
             }
         }
 
@@ -2664,12 +2726,10 @@ class ShapeLayer(
 
                         if (hasNonNoneStroke) {
                             if (includeEmbeddedStrokes) {
-                                val effectiveStrokeColor = stroke ?: if (strokeWidth > 0f) strokeColor else null
-                                if (effectiveStrokeColor != null) {
-                                    val strokeHexToUse = String.format("#%06X", 0xFFFFFF and effectiveStrokeColor)
-                                    attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$strokeHexToUse'")
-                                    attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$strokeHexToUse\"")
-                                }
+                                val effectiveStrokeColor = stroke ?: strokeColor
+                                val strokeHexToUse = String.format("#%06X", 0xFFFFFF and effectiveStrokeColor)
+                                attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$strokeHexToUse'")
+                                attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$strokeHexToUse\"")
                                 if (strokeW > 0f) {
                                     val swMatch = Regex("stroke-width=(?:'([^']*)'|\"([^\"]*)\")").find(attrs)
                                     val origSw = swMatch?.groupValues?.get(1)?.ifEmpty { null }
@@ -3279,6 +3339,72 @@ class ShapeLayer(
 
         scaleX /= 2f
         scaleY /= 2f
+    }
+
+    companion object {
+        fun blurBitmapSoftware(src: Bitmap, radius: Float): Bitmap {
+            val r = radius.toInt().coerceIn(1, 100)
+            val w = src.width
+            val h = src.height
+            if (w <= 0 || h <= 0) return src
+
+            val pixels = IntArray(w * h)
+            src.getPixels(pixels, 0, w, 0, 0, w, h)
+
+            val outPixels = IntArray(w * h)
+            val wm = w - 1
+            val hm = h - 1
+            val div = r + r + 1
+
+            for (y in 0 until h) {
+                var a = 0; var red = 0; var g = 0; var b = 0
+                for (i in -r..r) {
+                    val px = pixels[y * w + i.coerceIn(0, wm)]
+                    a += (px ushr 24)
+                    red += (px ushr 16 and 0xFF)
+                    g += (px ushr 8 and 0xFF)
+                    b += (px and 0xFF)
+                }
+                for (x in 0 until w) {
+                    outPixels[y * w + x] = ((a / div) shl 24) or ((red / div) shl 16) or ((g / div) shl 8) or (b / div)
+
+                    val p1 = pixels[y * w + (x + r + 1).coerceAtMost(wm)]
+                    val p2 = pixels[y * w + (x - r).coerceAtLeast(0)]
+
+                    a += (p1 ushr 24) - (p2 ushr 24)
+                    red += (p1 ushr 16 and 0xFF) - (p2 ushr 16 and 0xFF)
+                    g += (p1 ushr 8 and 0xFF) - (p2 ushr 8 and 0xFF)
+                    b += (p1 and 0xFF) - (p2 and 0xFF)
+                }
+            }
+
+            val finalPixels = IntArray(w * h)
+            for (x in 0 until w) {
+                var a = 0; var red = 0; var g = 0; var b = 0
+                for (i in -r..r) {
+                    val px = outPixels[i.coerceIn(0, hm) * w + x]
+                    a += (px ushr 24)
+                    red += (px ushr 16 and 0xFF)
+                    g += (px ushr 8 and 0xFF)
+                    b += (px and 0xFF)
+                }
+                for (y in 0 until h) {
+                    finalPixels[y * w + x] = ((a / div) shl 24) or ((red / div) shl 16) or ((g / div) shl 8) or (b / div)
+
+                    val p1 = outPixels[(y + r + 1).coerceAtMost(hm) * w + x]
+                    val p2 = outPixels[(y - r).coerceAtLeast(0) * w + x]
+
+                    a += (p1 ushr 24) - (p2 ushr 24)
+                    red += (p1 ushr 16 and 0xFF) - (p2 ushr 16 and 0xFF)
+                    g += (p1 ushr 8 and 0xFF) - (p2 ushr 8 and 0xFF)
+                    b += (p1 and 0xFF) - (p2 and 0xFF)
+                }
+            }
+
+            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            result.setPixels(finalPixels, 0, w, 0, 0, w, h)
+            return result
+        }
     }
 }
 
