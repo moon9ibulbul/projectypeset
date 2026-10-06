@@ -866,7 +866,11 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setEraseLayerMode(enabled: Boolean) {
         (selectedLayer as? com.astral.typer.models.BrushLayer)?.let {
             if (it.isDrawingStroke) {
-                it.endStroke()
+                val hadMoved = it.strokeHasMoved
+                it.cancelStroke()
+                if (!hadMoved) {
+                    com.astral.typer.utils.UndoManager.discardLastState()
+                }
             }
         }
         isEraseLayerMode = enabled
@@ -1315,7 +1319,11 @@ class AstralCanvasView @JvmOverloads constructor(
     fun selectLayer(layer: Layer?) {
         (selectedLayer as? com.astral.typer.models.BrushLayer)?.let {
             if (it.isDrawingStroke) {
-                it.endStroke()
+                val hadMoved = it.strokeHasMoved
+                it.cancelStroke()
+                if (!hadMoved) {
+                    com.astral.typer.utils.UndoManager.discardLastState()
+                }
             }
         }
         if (selectedLayer != layer) {
@@ -2473,6 +2481,15 @@ class AstralCanvasView @JvmOverloads constructor(
         val pointerCount = event.pointerCount
 
         if (pointerCount >= 2) {
+            (selectedLayer as? com.astral.typer.models.BrushLayer)?.let { brushLayer ->
+                if (brushLayer.isDrawingStroke) {
+                    val hadMoved = brushLayer.strokeHasMoved
+                    brushLayer.cancelStroke()
+                    if (!hadMoved) {
+                        com.astral.typer.utils.UndoManager.discardLastState()
+                    }
+                }
+            }
             if (currentMode != Mode.EYEDROPPER) {
                 currentMode = Mode.PAN_ZOOM
             }
@@ -2495,7 +2512,11 @@ class AstralCanvasView @JvmOverloads constructor(
         if (brushLayer != null && !isEraseLayerMode && currentMode != Mode.EYEDROPPER && !isInpaintMode && !isGradationMode && !isTyperActive) {
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 if (brushLayer.isDrawingStroke) {
-                    brushLayer.endStroke()
+                    val hadMoved = brushLayer.strokeHasMoved
+                    brushLayer.cancelStroke()
+                    if (!hadMoved) {
+                        com.astral.typer.utils.UndoManager.discardLastState()
+                    }
                 }
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)
@@ -2739,7 +2760,11 @@ class AstralCanvasView @JvmOverloads constructor(
             val brushLayer = selectedLayer as com.astral.typer.models.BrushLayer
             if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
                 if (brushLayer.isDrawingStroke) {
-                    brushLayer.endStroke()
+                    val hadMoved = brushLayer.strokeHasMoved
+                    brushLayer.cancelStroke()
+                    if (!hadMoved) {
+                        com.astral.typer.utils.UndoManager.discardLastState()
+                    }
                 }
                 currentMode = Mode.PAN_ZOOM
                 scaleDetector.onTouchEvent(event)

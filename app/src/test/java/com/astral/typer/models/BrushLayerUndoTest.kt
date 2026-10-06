@@ -3,6 +3,7 @@ package com.astral.typer.models
 import android.graphics.Canvas
 import com.astral.typer.utils.UndoManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -69,5 +70,19 @@ class BrushLayerUndoTest {
         assertTrue(selectedRedone is TestLayer)
         assertEquals("Active Layer", selectedRedone!!.name)
         assertEquals(50f, selectedRedone.x, 0.001f)
+    }
+
+    @Test
+    fun testDiscardLastStateRemovesTopState() {
+        UndoManager.clearMemory()
+
+        val layer1 = TestLayer("Layer 1")
+        val layersList = listOf(layer1)
+
+        UndoManager.saveState(layersList)
+        assertTrue(UndoManager.canUndo())
+
+        UndoManager.discardLastState()
+        assertFalse(UndoManager.canUndo())
     }
 }

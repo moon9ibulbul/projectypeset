@@ -9,6 +9,7 @@ import android.graphics.RectF
 import com.astral.typer.utils.ProjectManager.LayerModel
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 
@@ -336,5 +337,21 @@ class BrushLayerTest {
         // Non-zero RGB values expected (colorful yellow/green base)
         assertTrue(rgb[0] > 0f)
         assertTrue(rgb[1] > 0f)
+    }
+
+    @Test
+    fun testCancelStrokePreventsDabCreation() {
+        val layer = BrushLayer(1080, 1080)
+        layer.activePreset = com.astral.typer.utils.MyPaintBrushHelper.BrushPreset("pencil")
+        layer.startStroke(500f, 500f)
+        assertTrue(layer.isDrawingStroke)
+
+        layer.cancelStroke()
+        assertFalse(layer.isDrawingStroke)
+        assertFalse(layer.strokeHasMoved)
+
+        // Calling endStroke after cancelStroke should do nothing and produce no tiles
+        layer.endStroke()
+        assertTrue(layer.tiles.isEmpty())
     }
 }

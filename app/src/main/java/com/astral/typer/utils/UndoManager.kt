@@ -13,6 +13,21 @@ object UndoManager {
     private val bitmapRedoStack = java.util.Stack<android.graphics.Bitmap>()
     private const val MAX_BITMAP_HISTORY = 5 // Bitmaps are large
 
+    fun discardLastState() {
+        if (history.isNotEmpty()) {
+            val removed = history.pop()
+            removed.forEach { layer ->
+                if (layer is TextLayer) {
+                    layer.eraseMask?.recycle()
+                    layer.recycleCache()
+                } else if (layer is com.astral.typer.models.BrushLayer) {
+                    layer.bitmap.recycle()
+                    layer.eraseMask?.recycle()
+                }
+            }
+        }
+    }
+
     fun saveState(layers: List<Layer>) {
         var snapshot: List<Layer>? = null
         try {
