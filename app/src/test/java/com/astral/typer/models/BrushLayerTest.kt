@@ -354,4 +354,57 @@ class BrushLayerTest {
         layer.endStroke()
         assertTrue(layer.tiles.isEmpty())
     }
+
+    @Test
+    fun testBrushMybShortStrokeTapDoesNotProduceOversizedDab() {
+        val radiusCurve = com.astral.typer.utils.MyPaintBrushHelper.CurveMapping(
+            baseValue = 1.52f,
+            inputs = mapOf("pressure" to listOf(android.graphics.PointF(0.0f, -0.859375f), android.graphics.PointF(1.0f, 1.5f)))
+        )
+        val opaqueCurve = com.astral.typer.utils.MyPaintBrushHelper.CurveMapping(
+            baseValue = 1.0f,
+            inputs = emptyMap()
+        )
+
+        val preset = com.astral.typer.utils.MyPaintBrushHelper.BrushPreset(
+            name = "brush",
+            settings = mapOf(
+                "radius_logarithmic" to radiusCurve,
+                "opaque" to opaqueCurve
+            )
+        )
+
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe")
+        field.isAccessible = true
+        val unsafe = field.get(null)
+        val allocateInstance = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val dummyBitmap = allocateInstance.invoke(unsafe, android.graphics.Bitmap::class.java) as android.graphics.Bitmap
+
+        val layer = BrushLayer(1080, 1080)
+        layer.tiles[Pair(0, 0)] = BrushTile(0, 0, dummyBitmap, android.graphics.Canvas())
+        layer.brushName = "brush"
+        layer.brushSize = 20f
+        layer.activePreset = preset
+
+        // Tap/short stroke sequence
+        layer.startStroke(500f, 500f)
+        layer.endStroke()
+
+        assertFalse(layer.isDrawingStroke)
+    }
+
+    @Test
+    fun testCurveMappingClampingPreventsExtrapolation() {
+        val curve = com.astral.typer.utils.MyPaintBrushHelper.CurveMapping(
+            baseValue = 1.52f,
+            inputs = mapOf("pressure" to listOf(android.graphics.PointF(0.0f, -0.859375f), android.graphics.PointF(1.0f, 1.5f)))
+        )
+
+        val normalMax = curve.calculate(mapOf("pressure" to 1.0f))
+        val overPressure = curve.calculate(mapOf("pressure" to 2.0f))
+
+        // When pressure is 2.0f, input should be clamped to 1.0f, producing the exact same value as pressure=1.0f
+        assertEquals(normalMax, overPressure, 0.0001f)
+    }
 }

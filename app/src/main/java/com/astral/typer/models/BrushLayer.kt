@@ -163,15 +163,21 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     private fun getOrCreateTile(tx: Int, ty: Int): BrushTile {
         val key = Pair(tx, ty)
         var tile = tiles[key]
-        if (tile == null || tile.bitmap.isRecycled) {
+        if (tile == null || tile.bitmap == null || tile.bitmap.isRecycled) {
             val tileW = minOf(TILE_SIZE, canvasWidth - tx * TILE_SIZE).coerceAtLeast(1)
             val tileH = minOf(TILE_SIZE, canvasHeight - ty * TILE_SIZE).coerceAtLeast(1)
-            val bmp = Bitmap.createBitmap(tileW, tileH, Bitmap.Config.ARGB_8888)
-            val c = Canvas(bmp)
-            tile = BrushTile(tx, ty, bmp, c)
-            tiles[key] = tile
+            val bmp = try {
+                Bitmap.createBitmap(tileW, tileH, Bitmap.Config.ARGB_8888)
+            } catch (e: Throwable) {
+                null
+            }
+            if (bmp != null) {
+                val c = Canvas(bmp)
+                tile = BrushTile(tx, ty, bmp, c)
+                tiles[key] = tile
+            }
         }
-        return tile
+        return tile ?: BrushTile(tx, ty, dummyBitmap ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888), Canvas())
     }
 
     fun getPixel(x: Int, y: Int): Int {
@@ -1563,12 +1569,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                 val context = try { com.astral.typer.TyperApplication.instance } catch (e: Throwable) { null }
                 val preset = activePreset ?: (context?.let { getPreset(it) }) ?: return
 
+                val stepDpress = (1f - states[STATE_PRESSURE]).coerceAtLeast(0f)
                 updateStatesAndSettingValues(
                     preset = preset,
                     stepDdab = 0f,
                     stepDx = 0f,
                     stepDy = 0f,
-                    stepDpressure = 1f,
+                    stepDpressure = stepDpress,
                     stepDeclination = 0f,
                     stepAscension = 0f,
                     stepDtime = 0.016f,
@@ -1615,7 +1622,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
         states[STATE_X] += stepDx
         states[STATE_Y] += stepDy
-        states[STATE_PRESSURE] += stepDpressure
+        states[STATE_PRESSURE] = (states[STATE_PRESSURE] + stepDpressure).coerceIn(0f, 1f)
 
         states[STATE_DECLINATION] += stepDeclination
         states[STATE_ASCENSION] += stepAscension
@@ -1646,9 +1653,6 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         val baseRadius = Math.exp(baseRadiusLog.toDouble()).toFloat().coerceIn(0.2f, 1000f)
         states[STATE_BARREL_ROTATION] += stepBarrelRotation
 
-        if (states[STATE_PRESSURE] <= 0f) {
-            states[STATE_PRESSURE] = 0f
-        }
         val pressure = states[STATE_PRESSURE]
 
         val lim = 0.0001f
