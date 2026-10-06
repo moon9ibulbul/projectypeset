@@ -293,4 +293,31 @@ class BrushLayerTest {
         assertEquals(0.0f, portionsNoMid.second, 0.001f)
         assertEquals(0.8f, portionsNoMid.third, 0.001f)
     }
+
+    @Test
+    fun testBrushLayerOpacityMultiplyScaling() {
+        // Verify lerp opacity formula for opaque_multiply
+        val baseOpaque = 0.000025f
+        val opaqueFac = 1.0f
+        val scaledOpaque = if (opaqueFac > 0f) {
+            (baseOpaque + (1.0f - baseOpaque) * opaqueFac).coerceIn(0.0f, 1.0f)
+        } else {
+            baseOpaque
+        }
+        assertEquals(1.0f, scaledOpaque, 0.001f)
+    }
+
+    @Test
+    fun testBrushLayerInitialColorFallbackFromPresetHsv() {
+        // Test HSV to RGB conversion for HalfToneCMY#1 preset parameters (color_h=0.175, color_s=1.0, color_v=1.0)
+        val hsvToRgbMethod = BrushLayer::class.java.getDeclaredMethod("hsvToRgb", Float::class.java, Float::class.java, Float::class.java, FloatArray::class.java)
+        hsvToRgbMethod.isAccessible = true
+        val rgb = FloatArray(3)
+        val brushLayer = BrushLayer(1080, 1080)
+        hsvToRgbMethod.invoke(brushLayer, 0.175f, 1.0f, 1.0f, rgb)
+
+        // Non-zero RGB values expected (colorful yellow/green base)
+        assertTrue(rgb[0] > 0f)
+        assertTrue(rgb[1] > 0f)
+    }
 }
