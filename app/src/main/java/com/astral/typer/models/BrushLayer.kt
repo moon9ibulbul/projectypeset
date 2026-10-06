@@ -820,24 +820,19 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             val erasePad = if (activeErasePath != null) activeEraseSize else 0f
             val maxPad = kotlin.math.max(strokePad, kotlin.math.max(shadowPad, erasePad)) + 20f
 
-            val visibleTiles = if (hasClip) {
+            val visibleTiles = if (hasClip && !clipRectF.isEmpty) {
                 val expandedClip = RectF(clipRectF)
-                expandedClip.offset(-dx, -dy)
                 expandedClip.inset(-maxPad, -maxPad)
-                activeTiles.filter { (key, _) ->
-                    val tL = (key.first * TILE_SIZE).toFloat()
-                    val tT = (key.second * TILE_SIZE).toFloat()
-                    val tR = ((key.first + 1) * TILE_SIZE).toFloat()
-                    val tB = ((key.second + 1) * TILE_SIZE).toFloat()
+                val filtered = activeTiles.filter { (key, _) ->
+                    val tL = dx + (key.first * TILE_SIZE).toFloat()
+                    val tT = dy + (key.second * TILE_SIZE).toFloat()
+                    val tR = dx + ((key.first + 1) * TILE_SIZE).toFloat().coerceAtMost(w)
+                    val tB = dy + ((key.second + 1) * TILE_SIZE).toFloat().coerceAtMost(h)
                     RectF.intersects(expandedClip, RectF(tL, tT, tR, tB))
                 }
+                if (filtered.isNotEmpty()) filtered else activeTiles
             } else {
                 activeTiles
-            }
-
-            if (visibleTiles.isEmpty()) {
-                canvas.restore()
-                return
             }
 
             var minTx = Int.MAX_VALUE
