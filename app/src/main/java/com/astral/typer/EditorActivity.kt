@@ -8764,7 +8764,7 @@ class EditorActivity : AppCompatActivity() {
                 stylableLayer.shadowDy = (it - 50).toFloat()
                 canvasView.invalidate()
             })
-            val thickSlider = createSlider("Thickness: ${stylableLayer.shadowThickness.toInt()}", stylableLayer.shadowThickness.toInt(), 50) { p ->
+            val thickSlider = createSlider("Thickness: ${stylableLayer.shadowThickness.toInt()}", stylableLayer.shadowThickness.toInt(), 150) { p ->
                 stylableLayer.shadowThickness = p.toFloat()
                 canvasView.invalidate()
             }
