@@ -1742,7 +1742,7 @@ class ShapeLayer(
             val pad = calculatePadding()
             if (eraseMask != null) {
                 val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
-                canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
+                canvas.drawBitmap(eraseMask!!, -w / 2f - pad, -h / 2f - pad, maskPaint)
             }
             if (activeErasePath != null) {
                 val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1753,10 +1753,7 @@ class ShapeLayer(
                         if (b > 0.5f) maskFilter = BlurMaskFilter(b, BlurMaskFilter.Blur.NORMAL)
                     }
                 }
-                canvas.save()
-                canvas.translate(-pad, -pad)
                 canvas.drawPath(activeErasePath!!, p)
-                canvas.restore()
             }
         }
     }
