@@ -436,7 +436,7 @@ class ImageLayer(
                     }
                 }
                 canvas.save()
-                canvas.translate(-pad, -pad)
+                canvas.translate(w / 2f, h / 2f)
                 canvas.drawPath(activeErasePath!!, p)
                 canvas.restore()
             }
