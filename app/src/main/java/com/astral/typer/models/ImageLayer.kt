@@ -414,7 +414,7 @@ class ImageLayer(
             if (eraseMask != null) {
                 val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
                 maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                canvas.drawBitmap(eraseMask!!, -pad, -pad, maskPaint)
+                canvas.drawBitmap(eraseMask!!, -w / 2f - pad, -h / 2f - pad, maskPaint)
             }
 
             // Apply active erase path preview
@@ -435,10 +435,7 @@ class ImageLayer(
                         }
                     }
                 }
-                canvas.save()
-                canvas.translate(-pad, -pad)
                 canvas.drawPath(activeErasePath!!, p)
-                canvas.restore()
             }
         }
     }

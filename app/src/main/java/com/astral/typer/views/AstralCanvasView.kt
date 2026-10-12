@@ -2855,8 +2855,8 @@ class AstralCanvasView @JvmOverloads constructor(
                         invertedMatrix.mapPoints(hpt)
                         val hLocalPoint = floatArrayOf(hpt[0], hpt[1])
                         globalToLocal.mapPoints(hLocalPoint)
-                        val hmX = hLocalPoint[0] + pad
-                        val hmY = hLocalPoint[1] + pad
+                        val hmX = hLocalPoint[0]
+                        val hmY = hLocalPoint[1]
                         currentLayerErasePath.lineTo(hmX, hmY)
                         currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(hmX, hmY))
                     }
