@@ -849,6 +849,7 @@ class TextLayer(
                     }
                     c.save()
                     c.scale(qualityScale, qualityScale)
+                    c.translate(w / 2f + pad, ch / 2f + pad)
                     c.drawPath(activeErasePath!!, p)
                     c.restore()
                 }
