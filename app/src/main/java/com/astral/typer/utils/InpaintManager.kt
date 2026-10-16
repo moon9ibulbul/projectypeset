@@ -508,15 +508,116 @@ class InpaintManager(private val context: Context) {
             }
         }
 
-        // Reconstruction pass: write hole pixels from best matching NNF source patches
-        for (i in pixels.indices) {
-            if (hole[i]) {
-                val srcIdx = nnf[i]
-                pixels[i] = pixels[srcIdx]
+        // Reconstruction pass: Overlapping patch voting to eliminate grain noise
+        val newPixels = pixels.clone()
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val targetIdx = y * w + x
+                if (hole[targetIdx]) {
+                    var sumR = 0.0
+                    var sumG = 0.0
+                    var sumB = 0.0
+                    var sumA = 0.0
+                    var count = 0
+
+                    for (dy in -patchRadius..patchRadius) {
+                        val py = y + dy
+                        if (py < 0 || py >= h) continue
+                        for (dx in -patchRadius..patchRadius) {
+                            val px = x + dx
+                            if (px < 0 || px >= w) continue
+
+                            val patchIdx = py * w + px
+                            if (hole[patchIdx]) {
+                                val srcIdx = nnf[patchIdx]
+                                val sx = srcIdx % w
+                                val sy = srcIdx / w
+
+                                val srcX = sx - dx
+                                val srcY = sy - dy
+
+                                if (srcX in 0 until w && srcY in 0 until h) {
+                                    val p = pixels[srcY * w + srcX]
+                                    sumA += Color.alpha(p)
+                                    sumR += Color.red(p)
+                                    sumG += Color.green(p)
+                                    sumB += Color.blue(p)
+                                    count++
+                                }
+                            }
+                        }
+                    }
+
+                    if (count > 0) {
+                        val finalA = (sumA / count).toInt().coerceIn(0, 255)
+                        val finalR = (sumR / count).toInt().coerceIn(0, 255)
+                        val finalG = (sumG / count).toInt().coerceIn(0, 255)
+                        val finalB = (sumB / count).toInt().coerceIn(0, 255)
+                        newPixels[targetIdx] = Color.argb(finalA, finalR, finalG, finalB)
+                    } else {
+                        val srcIdx = nnf[targetIdx]
+                        newPixels[targetIdx] = pixels[srcIdx]
+                    }
+                }
             }
         }
 
-        result.setPixels(pixels, 0, w, 0, 0, w, h)
+        // Edge-preserving bilateral smoothing pass over hole pixels to remove residual noise
+        val smoothedPixels = newPixels.clone()
+        val filterRadius = 2
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val idx = y * w + x
+                if (hole[idx]) {
+                    var rSum = 0.0
+                    var gSum = 0.0
+                    var bSum = 0.0
+                    var aSum = 0.0
+                    var wSum = 0.0
+
+                    val centerCol = newPixels[idx]
+                    val cr = Color.red(centerCol)
+                    val cg = Color.green(centerCol)
+                    val cb = Color.blue(centerCol)
+
+                    for (dy in -filterRadius..filterRadius) {
+                        val ny = y + dy
+                        if (ny < 0 || ny >= h) continue
+                        for (dx in -filterRadius..filterRadius) {
+                            val nx = x + dx
+                            if (nx < 0 || nx >= w) continue
+
+                            val nIdx = ny * w + nx
+                            val col = newPixels[nIdx]
+
+                            val dr = Color.red(col) - cr
+                            val dg = Color.green(col) - cg
+                            val db = Color.blue(col) - cb
+                            val colorDistSq = dr * dr + dg * dg + db * db
+
+                            val spatialDistSq = dx * dx + dy * dy
+                            val weight = Math.exp(-spatialDistSq / 4.0 - colorDistSq / 1600.0)
+
+                            aSum += Color.alpha(col) * weight
+                            rSum += Color.red(col) * weight
+                            gSum += Color.green(col) * weight
+                            bSum += Color.blue(col) * weight
+                            wSum += weight
+                        }
+                    }
+
+                    if (wSum > 0) {
+                        val fa = (aSum / wSum).toInt().coerceIn(0, 255)
+                        val fr = (rSum / wSum).toInt().coerceIn(0, 255)
+                        val fg = (gSum / wSum).toInt().coerceIn(0, 255)
+                        val fb = (bSum / wSum).toInt().coerceIn(0, 255)
+                        smoothedPixels[idx] = Color.argb(fa, fr, fg, fb)
+                    }
+                }
+            }
+        }
+
+        result.setPixels(smoothedPixels, 0, w, 0, 0, w, h)
         return result
     }
 

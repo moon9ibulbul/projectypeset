@@ -78,6 +78,7 @@ object ProjectManager {
         val brushSmudge: Float? = null,
         val brushSmudgeLength: Float? = null,
         val brushSlowTracking: Float? = null,
+        val brushCorrection: Int? = null,
 
         // Shape Layer
         val shapeName: String? = null,
@@ -823,6 +824,7 @@ object ProjectManager {
                         brushSmudge = layer.brushSmudge,
                         brushSmudgeLength = layer.brushSmudgeLength,
                         brushSlowTracking = layer.brushSlowTracking,
+                        brushCorrection = layer.brushCorrection,
                         eraseMaskPath = erasePath,
                         erasePaths = erasePathModels,
                         isGradient = layer.isGradient,
@@ -1829,6 +1831,7 @@ object ProjectManager {
             model.brushSmudge?.let { layer.brushSmudge = it }
             model.brushSmudgeLength?.let { layer.brushSmudgeLength = it }
             model.brushSlowTracking?.let { layer.brushSlowTracking = it }
+            model.brushCorrection?.let { layer.brushCorrection = it }
             if (model.eraseMaskPath != null) {
                 layer.eraseMask = imageMap[model.eraseMaskPath]?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
             }
@@ -3510,6 +3513,7 @@ object ProjectManager {
                         brushSmudge = layer.brushSmudge,
                         brushSmudgeLength = layer.brushSmudgeLength,
                         brushSlowTracking = layer.brushSlowTracking,
+                        brushCorrection = layer.brushCorrection,
                         eraseMaskPath = erasePath,
                         erasePaths = erasePathModels,
                         isGradient = layer.isGradient,
