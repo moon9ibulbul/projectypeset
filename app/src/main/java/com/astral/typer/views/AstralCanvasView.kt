@@ -2532,7 +2532,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 MotionEvent.ACTION_DOWN -> {
                     currentMode = Mode.NONE
                     com.astral.typer.utils.UndoManager.saveState(layers)
-                    brushLayer.startStroke(cx, cy)
+                    brushLayer.startStroke(cx, cy, event.getPressure())
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -2540,9 +2540,9 @@ class AstralCanvasView @JvmOverloads constructor(
                     for (h in 0 until historySize) {
                         val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
                         invertedMatrix.mapPoints(hpt)
-                        brushLayer.continueStroke(hpt[0], hpt[1])
+                        brushLayer.continueStroke(hpt[0], hpt[1], event.getHistoricalPressure(h))
                     }
-                    brushLayer.continueStroke(cx, cy)
+                    brushLayer.continueStroke(cx, cy, event.getPressure())
                     invalidate()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -2788,7 +2788,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     brushLayer.brushHardness = layerEraseHardness / 100f
                     brushLayer.brushOpacity = layerEraseOpacity
 
-                    brushLayer.startStroke(cx, cy)
+                    brushLayer.startStroke(cx, cy, event.getPressure())
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -2800,9 +2800,9 @@ class AstralCanvasView @JvmOverloads constructor(
                     for (h in 0 until historySize) {
                         val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
                         invertedMatrix.mapPoints(hpt)
-                        brushLayer.continueStroke(hpt[0], hpt[1])
+                        brushLayer.continueStroke(hpt[0], hpt[1], event.getHistoricalPressure(h))
                     }
-                    brushLayer.continueStroke(cx, cy)
+                    brushLayer.continueStroke(cx, cy, event.getPressure())
                     invalidate()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {

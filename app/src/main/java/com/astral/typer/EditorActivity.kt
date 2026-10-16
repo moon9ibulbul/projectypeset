@@ -7285,6 +7285,8 @@ class EditorActivity : AppCompatActivity() {
         var opacityLabel: TextView? = null
         var slowTrackingSliderBar: SeekBar? = null
         var slowTrackingLabel: TextView? = null
+        var brushCorrectionSliderBar: SeekBar? = null
+        var brushCorrectionLabel: TextView? = null
 
         fun loadTabBrushes() {
             brushListLayout.removeAllViews()
@@ -7418,6 +7420,9 @@ class EditorActivity : AppCompatActivity() {
 
                     slowTrackingSliderBar?.progress = (layer.brushSlowTracking * 10).toInt()
                     slowTrackingLabel?.text = "Slow Tracking: ${String.format(java.util.Locale.US, "%.1f", layer.brushSlowTracking)}"
+
+                    brushCorrectionSliderBar?.progress = layer.brushCorrection.coerceIn(0, 5)
+                    brushCorrectionLabel?.text = "Brush Correction: ${layer.brushCorrection}"
 
                     selectBrushItem(name)
                     canvasView.invalidate()
@@ -7675,6 +7680,62 @@ class EditorActivity : AppCompatActivity() {
         slowTrackingContainer.addView(slowTrackingSliderBar)
         slowTrackingContainer.addView(btnPlusSlowTracking)
         mainLayout.addView(slowTrackingContainer)
+
+        // 6. Brush Correction Slider (5 level from 0 to 5)
+        val brushCorrectionContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = 8
+            }
+        }
+        brushCorrectionLabel = TextView(this).apply {
+            text = "Brush Correction: ${layer.brushCorrection}"
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 12f
+            layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        brushCorrectionSliderBar = SeekBar(this).apply {
+            max = 5
+            progress = layer.brushCorrection.coerceIn(0, 5)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val level = progress.coerceIn(0, 5)
+                    layer.brushCorrection = level
+                    brushCorrectionLabel?.text = "Brush Correction: $level"
+                    layer.reapplyLastStrokeWithCorrection(level)
+                    canvasView.invalidate()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        val btnMinusBrushCorrection = TextView(this).apply {
+            text = "−"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (brushCorrectionSliderBar!!.progress > 0) brushCorrectionSliderBar!!.progress -= 1 }
+        }
+        val btnPlusBrushCorrection = TextView(this).apply {
+            text = "+"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            background = androidx.core.content.ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_button_dynamic)
+            val btnSize = dpToPx(28)
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setOnClickListener { if (brushCorrectionSliderBar!!.progress < brushCorrectionSliderBar!!.max) brushCorrectionSliderBar!!.progress += 1 }
+        }
+        brushCorrectionContainer.addView(brushCorrectionLabel)
+        brushCorrectionContainer.addView(btnMinusBrushCorrection)
+        brushCorrectionContainer.addView(brushCorrectionSliderBar)
+        brushCorrectionContainer.addView(btnPlusBrushCorrection)
+        mainLayout.addView(brushCorrectionContainer)
 
         scroll.addView(mainLayout)
         container.addView(scroll)

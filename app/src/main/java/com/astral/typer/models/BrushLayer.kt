@@ -18,6 +18,8 @@ import com.astral.typer.TyperApplication
 
 class BrushTile(val tileX: Int, val tileY: Int, var bitmap: Bitmap, var canvas: Canvas)
 
+data class StrokePoint(val x: Float, val y: Float, val pressure: Float)
+
 class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), StylableLayer {
 
     init {
@@ -208,6 +210,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
         for (tx in minTx..maxTx) {
             for (ty in minTy..maxTy) {
+                if (isDrawingStroke) {
+                    backupTileStateIfNeeded(tx, ty)
+                }
                 val tile = getOrCreateTile(tx, ty)
                 val tileCanvas = tile.canvas
                 tileCanvas.save()
@@ -239,6 +244,45 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     var brushSmudge: Float = 0.0f
     var brushSmudgeLength: Float = 0.5f
     var brushSlowTracking: Float = 1.0f
+    var brushCorrection: Int = 0
+
+    // Stroke Correction Snapshots
+    private var isReapplying = false
+    private val lastStrokePoints = ArrayList<StrokePoint>()
+    private val preStrokeTileSnapshots = HashMap<Pair<Int, Int>, Bitmap>()
+
+    private fun backupTileStateIfNeeded(tx: Int, ty: Int) {
+        val key = Pair(tx, ty)
+        if (!preStrokeTileSnapshots.containsKey(key)) {
+            val tile = tiles[key]
+            if (tile != null && !tile.bitmap.isRecycled) {
+                val copyBmp = try {
+                    val cfg = tile.bitmap.config ?: Bitmap.Config.ARGB_8888
+                    tile.bitmap.copy(cfg, true)
+                } catch (e: Throwable) {
+                    null
+                }
+                if (copyBmp != null) {
+                    preStrokeTileSnapshots[key] = copyBmp
+                }
+            } else {
+                val empty = try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (e: Throwable) { null }
+                if (empty != null) {
+                    preStrokeTileSnapshots[key] = empty
+                }
+            }
+        }
+    }
+
+    private fun clearLastStrokeSnapshots() {
+        for (bmp in preStrokeTileSnapshots.values) {
+            if (!bmp.isRecycled) {
+                bmp.recycle()
+            }
+        }
+        preStrokeTileSnapshots.clear()
+        lastStrokePoints.clear()
+    }
 
     // Standard touch stroke points
     private var lastX: Float = 0f
@@ -686,6 +730,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             brushSmudge = this@BrushLayer.brushSmudge
             brushSmudgeLength = this@BrushLayer.brushSmudgeLength
             brushSlowTracking = this@BrushLayer.brushSlowTracking
+            brushCorrection = this@BrushLayer.brushCorrection
             // Gradient properties
             isGradient = this@BrushLayer.isGradient
             gradientStartColor = this@BrushLayer.gradientStartColor
@@ -1289,12 +1334,17 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     var strokeHasMoved = false
     var isDrawingStroke = false
 
-    fun startStroke(x: Float, y: Float) {
+    fun startStroke(x: Float, y: Float, pressure: Float = 0.5f) {
         isDrawingStroke = true
         lastX = x
         lastY = y
         strokeHasMoved = false
         lastEventTime = System.currentTimeMillis()
+
+        if (!isReapplying) {
+            clearLastStrokeSnapshots()
+            lastStrokePoints.add(StrokePoint(x, y, pressure.coerceIn(0f, 1f)))
+        }
 
         // Reset state variables
         skip = 0f
@@ -1407,10 +1457,15 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         return kotlin.math.max(res4, minDabs)
     }
 
-    fun continueStroke(x: Float, y: Float) {
+    fun continueStroke(x: Float, y: Float, pressure: Float = 1.0f) {
         val now = System.currentTimeMillis()
         val dtime = if (lastEventTime == 0L) 0.016f else ((now - lastEventTime) / 1000f).coerceIn(0.001f, 1.0f)
         lastEventTime = now
+
+        val press = pressure.coerceIn(0f, 1f)
+        if (!isReapplying) {
+            lastStrokePoints.add(StrokePoint(x, y, press))
+        }
 
         val context = TyperApplication.instance ?: return
         val preset = getPreset(context)
@@ -1483,7 +1538,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
         var totalDabsTodo = dabsTodo
 
-        val pressure = 1.0f
+        val currPressure = press
 
         var iterations = 0
         while (dabsMoved + totalDabsTodo >= 1.0f) {
@@ -1504,7 +1559,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
             val stepDx = frac * (actualX - states[STATE_X])
             val stepDy = frac * (actualY - states[STATE_Y])
-            val stepDpressure = frac * (pressure - states[STATE_PRESSURE])
+            val stepDpressure = frac * (currPressure - states[STATE_PRESSURE])
             val stepDtime = frac * dtimeLeft
 
             updateStatesAndSettingValues(
@@ -1538,7 +1593,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         val stepDdab = totalDabsTodo
         val stepDx = actualX - states[STATE_X]
         val stepDy = actualY - states[STATE_Y]
-        val stepDpressure = pressure - states[STATE_PRESSURE]
+        val stepDpressure = currPressure - states[STATE_PRESSURE]
         val stepDtime = dtimeLeft
 
         updateStatesAndSettingValues(
@@ -1588,8 +1643,92 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
                 prepareAndDrawDab(preset)
             }
+
+            if (!isReapplying && brushCorrection > 0 && lastStrokePoints.size > 2) {
+                reapplyLastStrokeWithCorrection(brushCorrection)
+            }
         } finally {
             isDrawingStroke = false
+        }
+    }
+
+    fun reapplyLastStrokeWithCorrection(level: Int) {
+        if (isReapplying || lastStrokePoints.size < 2 || preStrokeTileSnapshots.isEmpty()) return
+        isReapplying = true
+        val strokePointsCopy = lastStrokePoints.toList()
+        val snapshotsCopy = HashMap(preStrokeTileSnapshots)
+
+        try {
+            // Restore pre-stroke tile state
+            for ((key, snapshot) in snapshotsCopy) {
+                val tile = tiles[key]
+                if (tile != null && !tile.bitmap.isRecycled) {
+                    val c = tile.canvas
+                    try {
+                        tile.bitmap.eraseColor(Color.TRANSPARENT)
+                        if (!(snapshot.width == 1 && snapshot.height == 1 && snapshot.getPixel(0, 0) == 0)) {
+                            c.drawBitmap(snapshot, 0f, 0f, null)
+                        }
+                    } catch (e: Throwable) {
+                        // Ignore JVM mock bitmap drawing errors in unit tests
+                    }
+                }
+            }
+            invalidateContentBounds()
+
+            val pointsToRender = if (level <= 0) {
+                strokePointsCopy
+            } else {
+                smoothStrokePoints(strokePointsCopy, level)
+            }
+            renderStrokeFromPoints(pointsToRender)
+
+            lastStrokePoints.clear()
+            lastStrokePoints.addAll(strokePointsCopy)
+            preStrokeTileSnapshots.clear()
+            preStrokeTileSnapshots.putAll(snapshotsCopy)
+        } finally {
+            isReapplying = false
+        }
+    }
+
+    private fun smoothStrokePoints(pts: List<StrokePoint>, passes: Int): List<StrokePoint> {
+        if (pts.size <= 2) return pts
+        var current = pts.toList()
+        val numPasses = passes.coerceIn(1, 5)
+        for (pass in 0 until numPasses) {
+            val next = ArrayList<StrokePoint>(current.size)
+            next.add(current.first())
+            for (i in 1 until current.size - 1) {
+                val pPrev = current[i - 1]
+                val pCurr = current[i]
+                val pNext = current[i + 1]
+
+                val sx = 0.25f * pPrev.x + 0.5f * pCurr.x + 0.25f * pNext.x
+                val sy = 0.25f * pPrev.y + 0.5f * pCurr.y + 0.25f * pNext.y
+                val sp = 0.25f * pPrev.pressure + 0.5f * pCurr.pressure + 0.25f * pNext.pressure
+
+                next.add(StrokePoint(sx, sy, sp))
+            }
+            next.add(current.last())
+            current = next
+        }
+        return current
+    }
+
+    private fun renderStrokeFromPoints(pts: List<StrokePoint>) {
+        if (pts.isEmpty()) return
+        val wasDrawing = isDrawingStroke
+        isDrawingStroke = true
+        try {
+            val p0 = pts.first()
+            startStroke(p0.x, p0.y, p0.pressure)
+            for (i in 1 until pts.size) {
+                val pt = pts[i]
+                continueStroke(pt.x, pt.y, pt.pressure)
+            }
+        } finally {
+            isDrawingStroke = wasDrawing
         }
     }
 
