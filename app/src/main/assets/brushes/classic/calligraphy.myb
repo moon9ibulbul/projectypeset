@@ -82,7 +82,7 @@
             "inputs": {}
         },
         "hardness": {
-            "base_value": 0.74,
+            "base_value": 0.88,
             "inputs": {
                 "pressure": [
                     [
@@ -191,7 +191,7 @@
             "inputs": {}
         },
         "slow_tracking": {
-            "base_value": 0.65,
+            "base_value": 0.15,
             "inputs": {}
         },
         "slow_tracking_per_dab": {
