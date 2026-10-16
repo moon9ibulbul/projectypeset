@@ -7421,7 +7421,7 @@ class EditorActivity : AppCompatActivity() {
                     slowTrackingSliderBar?.progress = (layer.brushSlowTracking * 10).toInt()
                     slowTrackingLabel?.text = "Slow Tracking: ${String.format(java.util.Locale.US, "%.1f", layer.brushSlowTracking)}"
 
-                    brushCorrectionSliderBar?.progress = layer.brushCorrection.coerceIn(0, 5)
+                    brushCorrectionSliderBar?.progress = layer.brushCorrection.coerceIn(0, 10)
                     brushCorrectionLabel?.text = "Brush Correction: ${layer.brushCorrection}"
 
                     selectBrushItem(name)
@@ -7681,7 +7681,7 @@ class EditorActivity : AppCompatActivity() {
         slowTrackingContainer.addView(btnPlusSlowTracking)
         mainLayout.addView(slowTrackingContainer)
 
-        // 6. Brush Correction Slider (5 level from 0 to 5)
+        // 6. Brush Correction Slider (10 levels from 0 to 10)
         val brushCorrectionContainer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -7696,12 +7696,12 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dpToPx(100), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         brushCorrectionSliderBar = SeekBar(this).apply {
-            max = 5
-            progress = layer.brushCorrection.coerceIn(0, 5)
+            max = 10
+            progress = layer.brushCorrection.coerceIn(0, 10)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val level = progress.coerceIn(0, 5)
+                    val level = progress.coerceIn(0, 10)
                     layer.brushCorrection = level
                     brushCorrectionLabel?.text = "Brush Correction: $level"
                     layer.reapplyLastStrokeWithCorrection(level)

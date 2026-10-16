@@ -332,7 +332,11 @@ class InpaintManager(private val context: Context) {
      * PatchMatch (Content-Aware Fill): Randomized patch matching synthesis for texture and structure propagation.
      */
     private fun inpaintWithPatchMatch(original: Bitmap, mask: Bitmap): Bitmap {
-        val result = original.copy(Bitmap.Config.ARGB_8888, true)
+        val smartSolidBmp = inpaintWithSmartSolid(original, mask)
+        val result = smartSolidBmp.copy(Bitmap.Config.ARGB_8888, true)
+        if (smartSolidBmp != original) {
+            smartSolidBmp.recycle()
+        }
         val w = result.width
         val h = result.height
 
@@ -360,6 +364,7 @@ class InpaintManager(private val context: Context) {
         if (holeCount == 0) return result
 
         val patchRadius = 3
+        val isValidSource = BooleanArray(w * h)
         val validSources = ArrayList<Int>()
         for (y in patchRadius until h - patchRadius) {
             for (x in patchRadius until w - patchRadius) {
@@ -376,6 +381,7 @@ class InpaintManager(private val context: Context) {
                         if (!allValid) break
                     }
                     if (allValid) {
+                        isValidSource[idx] = true
                         validSources.add(idx)
                     }
                 }
@@ -383,7 +389,7 @@ class InpaintManager(private val context: Context) {
         }
 
         if (validSources.isEmpty()) {
-            return inpaintWithSmartSolid(original, mask)
+            return result
         }
 
         // Initialize Nearest Neighbor Field (NNF) maps pixel index -> source pixel index
@@ -413,8 +419,6 @@ class InpaintManager(private val context: Context) {
 
                     val idx1 = py1 * w + px1
                     val idx2 = py2 * w + px2
-
-                    if (hole[idx1]) continue // Skip hole pixels in target patch distance comparison
 
                     val p1 = pixels[idx1]
                     val p2 = pixels[idx2]
@@ -455,9 +459,9 @@ class InpaintManager(private val context: Context) {
                         val prevX = x - xStep
                         if (prevX in 0 until w) {
                             val candidateSrc = nnf[y * w + prevX] + xStep
-                            val candidateX = candidateSrc % w
-                            val candidateY = candidateSrc / w
-                            if (candidateX in patchRadius until w - patchRadius && candidateY in patchRadius until h - patchRadius) {
+                            if (candidateSrc in 0 until w * h && isValidSource[candidateSrc]) {
+                                val candidateX = candidateSrc % w
+                                val candidateY = candidateSrc / w
                                 val dist = patchDistance(x, y, candidateX, candidateY)
                                 if (dist < bestDist) {
                                     bestDist = dist
@@ -469,9 +473,9 @@ class InpaintManager(private val context: Context) {
                         val prevY = y - yStep
                         if (prevY in 0 until h) {
                             val candidateSrc = nnf[prevY * w + x] + yStep * w
-                            val candidateX = candidateSrc % w
-                            val candidateY = candidateSrc / w
-                            if (candidateX in patchRadius until w - patchRadius && candidateY in patchRadius until h - patchRadius) {
+                            if (candidateSrc in 0 until w * h && isValidSource[candidateSrc]) {
+                                val candidateX = candidateSrc % w
+                                val candidateY = candidateSrc / w
                                 val dist = patchDistance(x, y, candidateX, candidateY)
                                 if (dist < bestDist) {
                                     bestDist = dist
@@ -491,11 +495,14 @@ class InpaintManager(private val context: Context) {
                             val ry = currentY + ((random.nextDouble() * 2 - 1) * searchRadius).toInt()
                             val clampedX = rx.coerceIn(patchRadius, w - patchRadius - 1)
                             val clampedY = ry.coerceIn(patchRadius, h - patchRadius - 1)
+                            val candidateSrc = clampedY * w + clampedX
 
-                            val dist = patchDistance(x, y, clampedX, clampedY)
-                            if (dist < bestDist) {
-                                bestDist = dist
-                                currentSrc = clampedY * w + clampedX
+                            if (isValidSource[candidateSrc]) {
+                                val dist = patchDistance(x, y, clampedX, clampedY)
+                                if (dist < bestDist) {
+                                    bestDist = dist
+                                    currentSrc = candidateSrc
+                                }
                             }
                             searchRadius = (searchRadius * alpha).toInt()
                         }

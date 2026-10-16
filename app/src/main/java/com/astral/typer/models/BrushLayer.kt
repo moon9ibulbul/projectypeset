@@ -1363,7 +1363,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
         states[STATE_X] = x
         states[STATE_Y] = y
-        states[STATE_PRESSURE] = 0f
+        states[STATE_PRESSURE] = pressure.coerceIn(0.1f, 1f)
 
         states[STATE_ACTUAL_X] = x
         states[STATE_ACTUAL_Y] = y
@@ -1620,28 +1620,34 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
 
     fun endStroke() {
         try {
-            if (isDrawingStroke && !strokeHasMoved) {
+            if (isDrawingStroke) {
                 val context = try { com.astral.typer.TyperApplication.instance } catch (e: Throwable) { null }
-                val preset = activePreset ?: (context?.let { getPreset(it) }) ?: return
-
-                val stepDpress = (1f - states[STATE_PRESSURE]).coerceAtLeast(0f)
-                updateStatesAndSettingValues(
-                    preset = preset,
-                    stepDdab = 0f,
-                    stepDx = 0f,
-                    stepDy = 0f,
-                    stepDpressure = stepDpress,
-                    stepDeclination = 0f,
-                    stepAscension = 0f,
-                    stepDtime = 0.016f,
-                    stepViewzoom = 1f,
-                    stepViewrotation = 0f,
-                    stepDeclinationx = 0f,
-                    stepDeclinationy = 0f,
-                    stepBarrelRotation = 0f
-                )
-
-                prepareAndDrawDab(preset)
+                val preset = activePreset ?: (context?.let { getPreset(it) })
+                if (preset != null) {
+                    val remainingDist = Math.hypot((lastX - states[STATE_ACTUAL_X]).toDouble(), (lastY - states[STATE_ACTUAL_Y]).toDouble()).toFloat()
+                    if (remainingDist > 0.5f) {
+                        continueStroke(lastX, lastY, states[STATE_PRESSURE])
+                    }
+                    if (!strokeHasMoved) {
+                        val stepDpress = (1f - states[STATE_PRESSURE]).coerceAtLeast(0f)
+                        updateStatesAndSettingValues(
+                            preset = preset,
+                            stepDdab = 0f,
+                            stepDx = 0f,
+                            stepDy = 0f,
+                            stepDpressure = stepDpress,
+                            stepDeclination = 0f,
+                            stepAscension = 0f,
+                            stepDtime = 0.016f,
+                            stepViewzoom = 1f,
+                            stepViewrotation = 0f,
+                            stepDeclinationx = 0f,
+                            stepDeclinationy = 0f,
+                            stepBarrelRotation = 0f
+                        )
+                        prepareAndDrawDab(preset)
+                    }
+                }
             }
 
             if (!isReapplying && brushCorrection > 0 && lastStrokePoints.size > 2) {
@@ -1695,7 +1701,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     private fun smoothStrokePoints(pts: List<StrokePoint>, passes: Int): List<StrokePoint> {
         if (pts.size <= 2) return pts
         var current = pts.toList()
-        val numPasses = passes.coerceIn(1, 5)
+        val numPasses = (passes * 2).coerceIn(1, 20)
         for (pass in 0 until numPasses) {
             val next = ArrayList<StrokePoint>(current.size)
             next.add(current.first())
