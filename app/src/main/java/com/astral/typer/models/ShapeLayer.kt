@@ -534,7 +534,7 @@ class ShapeLayer(
             it == TextEffectType.NEON ||
             it == TextEffectType.DROP_SHADOW
         }
-        val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
+        val applyEffectsAfterTransform = hasTransform && activeEffects.isNotEmpty() && canvas.isHardwareAccelerated
 
         if (hasTransform) {
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !(isMotionShadow && motionShadowDistance > 0f)
@@ -543,7 +543,7 @@ class ShapeLayer(
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
 
         try {
-            if (useHardwareTransformEffects) {
+            if (applyEffectsAfterTransform) {
                 val drawTransformed = { targetCanvas: Canvas ->
                     if (isWarp && warpMesh != null) {
                         drawWarped(targetCanvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = true, bounds = bounds, viewScale = viewScale)
