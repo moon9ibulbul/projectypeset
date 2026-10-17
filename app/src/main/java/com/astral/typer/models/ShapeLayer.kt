@@ -362,6 +362,8 @@ class ShapeLayer(
 
     @Transient var morphedBmpCache: Bitmap? = null
     @Transient var morphedBmpHash: Int = 0
+    @Transient var solidMorphedBmpCache: Bitmap? = null
+    @Transient var solidMorphedBmpHash: Int = 0
 
     @Transient var stroke1BmpCache: Bitmap? = null
     @Transient var stroke1BmpHash: Int = 0
@@ -377,6 +379,7 @@ class ShapeLayer(
 
     fun recycleMorphedCaches() {
         morphedBmpCache?.recycle(); morphedBmpCache = null; morphedBmpHash = 0
+        solidMorphedBmpCache?.recycle(); solidMorphedBmpCache = null; solidMorphedBmpHash = 0
         stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
         stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
         stroke3BmpCache?.recycle(); stroke3BmpCache = null; stroke3BmpHash = 0
@@ -638,9 +641,30 @@ class ShapeLayer(
                 tempCanvas.restore()
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
+
+                // Generate solid silhouette cache
+                val solidMorphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
+                val solidCanvas = Canvas(solidMorphedBmp)
+                solidCanvas.scale(qualityScale, qualityScale)
+                solidCanvas.translate(-bounds.left, -bounds.top)
+                solidCanvas.save()
+                solidCanvas.concat(matrix)
+                solidCanvas.translate(-w / 2f, -h / 2f)
+                val prevSil = silhouetteColor
+                silhouetteColor = Color.BLACK
+                try {
+                    drawContent(solidCanvas, w, h, skipEffects = skipEffects)
+                } finally {
+                    silhouetteColor = prevSil
+                }
+                solidCanvas.restore()
+
+                solidMorphedBmpCache = solidMorphedBmp
+                solidMorphedBmpHash = shapeHash
             }
 
             val morphedBmp = morphedBmpCache!!
+            val solidMorphedBmp = solidMorphedBmpCache ?: morphedBmp
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
             val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
@@ -655,7 +679,7 @@ class ShapeLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke3BmpCache = morphedBmp.extractAlpha(blurPaint, stroke3Offset)
+                        stroke3BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke3Offset)
                         stroke3BmpHash = stroke3Hash
                     }
                     val blurredAlphaBmp = stroke3BmpCache
@@ -699,7 +723,7 @@ class ShapeLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke2BmpCache = morphedBmp.extractAlpha(blurPaint, stroke2Offset)
+                        stroke2BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke2Offset)
                         stroke2BmpHash = stroke2Hash
                     }
                     val blurredAlphaBmp = stroke2BmpCache
@@ -743,7 +767,7 @@ class ShapeLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke1BmpCache = morphedBmp.extractAlpha(blurPaint, stroke1Offset)
+                        stroke1BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke1Offset)
                         stroke1BmpHash = stroke1Hash
                     }
                     val blurredAlphaBmp = stroke1BmpCache
@@ -789,8 +813,7 @@ class ShapeLayer(
                     val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
                         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                        val maxAlpha = fillAlpha.toFloat().coerceAtLeast(1f)
-                        val alphaMultiplier = 255f / maxAlpha
+                        val alphaMultiplier = fillAlpha / 255f
                         val cm = android.graphics.ColorMatrix(floatArrayOf(
                             1f, 0f, 0f, 0f, 0f,
                             0f, 1f, 0f, 0f, 0f,
@@ -801,7 +824,7 @@ class ShapeLayer(
                     }
                     canvas.save()
                     canvas.scale(1f / qualityScale, 1f / qualityScale)
-                    canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
+                    canvas.drawBitmap(solidMorphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
                     canvas.restore()
                 }
                 canvas.restoreToCount(holeLayerId)
@@ -859,9 +882,33 @@ class ShapeLayer(
                 tempCanvas.drawBitmapMesh(bitmap, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
                 morphedBmpCache = morphedBmp
                 morphedBmpHash = shapeHash
+
+                // Generate solid silhouette cache
+                val solidUnwarpedBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val solidUnwarpedCanvas = Canvas(solidUnwarpedBmp)
+                solidUnwarpedCanvas.scale(qualityScale, qualityScale)
+                solidUnwarpedCanvas.translate(pad, pad)
+                val prevSil = silhouetteColor
+                silhouetteColor = Color.BLACK
+                try {
+                    drawContent(solidUnwarpedCanvas, w, h, skipEffects = skipEffects, viewScale = viewScale)
+                } finally {
+                    silhouetteColor = prevSil
+                }
+
+                val solidMorphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
+                val solidTempCanvas = Canvas(solidMorphedBmp)
+                solidTempCanvas.scale(qualityScale, qualityScale)
+                solidTempCanvas.translate(-bounds.left, -bounds.top)
+                solidTempCanvas.drawBitmapMesh(solidUnwarpedBmp, meshW, meshH, paddedVerts, 0, null, 0, tempPaint)
+                solidUnwarpedBmp.recycle()
+
+                solidMorphedBmpCache = solidMorphedBmp
+                solidMorphedBmpHash = shapeHash
             }
 
             val morphedBmp = morphedBmpCache!!
+            val solidMorphedBmp = solidMorphedBmpCache ?: morphedBmp
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
 
             val hasStrokes = !isDrawingClippingMask && strokeWidthToUse > 0f && !isRoughStroke && isDrawingStrokePass
@@ -876,7 +923,7 @@ class ShapeLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke3BmpCache = morphedBmp.extractAlpha(blurPaint, stroke3Offset)
+                        stroke3BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke3Offset)
                         stroke3BmpHash = stroke3Hash
                     }
                     val blurredAlphaBmp = stroke3BmpCache
@@ -920,7 +967,7 @@ class ShapeLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke2BmpCache = morphedBmp.extractAlpha(blurPaint, stroke2Offset)
+                        stroke2BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke2Offset)
                         stroke2BmpHash = stroke2Hash
                     }
                     val blurredAlphaBmp = stroke2BmpCache
@@ -964,7 +1011,7 @@ class ShapeLayer(
                         val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             maskFilter = android.graphics.BlurMaskFilter(Math.max(1f, radius), android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
-                        stroke1BmpCache = morphedBmp.extractAlpha(blurPaint, stroke1Offset)
+                        stroke1BmpCache = solidMorphedBmp.extractAlpha(blurPaint, stroke1Offset)
                         stroke1BmpHash = stroke1Hash
                     }
                     val blurredAlphaBmp = stroke1BmpCache
@@ -1010,8 +1057,7 @@ class ShapeLayer(
                     val erasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         isFilterBitmap = true
                         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
-                        val maxAlpha = fillAlpha.toFloat().coerceAtLeast(1f)
-                        val alphaMultiplier = 255f / maxAlpha
+                        val alphaMultiplier = fillAlpha / 255f
                         val cm = android.graphics.ColorMatrix(floatArrayOf(
                             1f, 0f, 0f, 0f, 0f,
                             0f, 1f, 0f, 0f, 0f,
@@ -1022,7 +1068,7 @@ class ShapeLayer(
                     }
                     canvas.save()
                     canvas.scale(1f / qualityScale, 1f / qualityScale)
-                    canvas.drawBitmap(morphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
+                    canvas.drawBitmap(solidMorphedBmp, bounds.left * qualityScale, bounds.top * qualityScale, erasePaint)
                     canvas.restore()
                 }
                 canvas.restoreToCount(holeLayerId)
