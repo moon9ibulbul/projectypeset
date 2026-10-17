@@ -1,0 +1,32 @@
+name: Windows Portable Release Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore Windows/AstralTyper/AstralTyper.csproj
+
+    - name: Build & Publish Portable Windows Single-File Executable
+      run: |
+        dotnet publish Windows/AstralTyper/AstralTyper.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o release-output
+
+    - name: Upload Portable Executable Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AstralTyper-Windows-Portable
+        path: release-output/AstralTyper.exe
