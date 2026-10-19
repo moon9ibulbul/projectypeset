@@ -4,21 +4,20 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import com.astral.typer.models.Layer
 import com.astral.typer.views.AstralCanvasView
-import java.io.ByteArrayOutputStream
+import java.io.BufferedOutputStream
 import java.io.DataOutputStream
 import java.io.OutputStream
 
 object PsdExporter {
 
-    data class PsdLayerInfo(
+    data class PsdLayerMeta(
         val name: String,
-        val bitmap: Bitmap?,
         val opacity: Int,
         val isVisible: Boolean,
         val blendMode: String,
-        val isClipped: Boolean = false
+        val isClipped: Boolean = false,
+        val renderAction: (Canvas) -> Unit
     )
 
     fun exportToPsd(
@@ -32,77 +31,61 @@ object PsdExporter {
 
             if (canvasW <= 0 || canvasH <= 0) return false
 
-            val psdLayers = mutableListOf<PsdLayerInfo>()
+            val layersMeta = mutableListOf<PsdLayerMeta>()
 
-            // 1. Background Layer
-            val bgBmp = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
-            val bgCanvas = Canvas(bgBmp)
-            bgCanvas.scale(scale, scale)
-
-            val bgPaint = Paint().apply {
-                color = canvasView.canvasColor
-                style = Paint.Style.FILL
-            }
-            bgCanvas.drawRect(0f, 0f, canvasView.canvasWidth.toFloat(), canvasView.canvasHeight.toFloat(), bgPaint)
-
-            val bgImage = canvasView.getBackgroundImage()
-            if (bgImage != null) {
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-                bgCanvas.drawBitmap(
-                    bgImage,
-                    null,
-                    android.graphics.RectF(0f, 0f, canvasView.canvasWidth.toFloat(), canvasView.canvasHeight.toFloat()),
-                    tilePaint
-                )
-            }
-
-            psdLayers.add(
-                PsdLayerInfo(
+            // 1. Background Layer Metadata
+            layersMeta.add(
+                PsdLayerMeta(
                     name = "Background",
-                    bitmap = bgBmp,
                     opacity = 255,
                     isVisible = true,
                     blendMode = "NORMAL",
-                    isClipped = false
+                    isClipped = false,
+                    renderAction = { canvas ->
+                        val bgPaint = Paint().apply {
+                            color = canvasView.canvasColor
+                            style = Paint.Style.FILL
+                        }
+                        canvas.drawRect(0f, 0f, canvasView.canvasWidth.toFloat(), canvasView.canvasHeight.toFloat(), bgPaint)
+
+                        val bgImage = canvasView.getBackgroundImage()
+                        if (bgImage != null) {
+                            val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+                            canvas.drawBitmap(
+                                bgImage,
+                                null,
+                                android.graphics.RectF(0f, 0f, canvasView.canvasWidth.toFloat(), canvasView.canvasHeight.toFloat()),
+                                tilePaint
+                            )
+                        }
+                    }
                 )
             )
 
-            // 2. Canvas Layers
+            // 2. Canvas Layers Metadata
             val layers = canvasView.getLayers()
             for ((idx, layer) in layers.withIndex()) {
-                val layerBmp = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
-                val layerCanvas = Canvas(layerBmp)
-                layerCanvas.scale(scale, scale)
-
-                // Render layer directly
-                layer.draw(layerCanvas)
-
                 val layerName = if (!layer.name.isNullOrBlank()) layer.name else "Layer ${idx + 1}"
                 val opacityVal = layer.opacity.coerceIn(0, 255)
 
-                psdLayers.add(
-                    PsdLayerInfo(
+                layersMeta.add(
+                    PsdLayerMeta(
                         name = layerName,
-                        bitmap = layerBmp,
                         opacity = opacityVal,
                         isVisible = layer.isVisible,
                         blendMode = layer.blendMode,
-                        isClipped = layer.isClipped
+                        isClipped = layer.isClipped,
+                        renderAction = { canvas ->
+                            layer.draw(canvas)
+                        }
                     )
                 )
             }
 
-            // 3. Composite Bitmap for Merged Image Section
-            val compositeBmp = canvasView.renderToBitmap(scale)
-
-            // Write PSD binary data
-            writePsdData(canvasW, canvasH, psdLayers, compositeBmp, outputStream)
-
-            // Clean up temporary bitmaps
-            for (l in psdLayers) {
-                l.bitmap?.recycle()
-            }
-            compositeBmp.recycle()
+            // Write PSD binary data via BufferedOutputStream directly
+            val bufferedStream = BufferedOutputStream(outputStream, 64 * 1024)
+            writePsdDataStreaming(canvasView, canvasW, canvasH, scale, layersMeta, bufferedStream)
+            bufferedStream.flush()
 
             true
         } catch (e: Exception) {
@@ -111,11 +94,12 @@ object PsdExporter {
         }
     }
 
-    private fun writePsdData(
+    private fun writePsdDataStreaming(
+        canvasView: AstralCanvasView,
         width: Int,
         height: Int,
-        layers: List<PsdLayerInfo>,
-        compositeBmp: Bitmap,
+        scale: Float,
+        layers: List<PsdLayerMeta>,
         outStream: OutputStream
     ) {
         val dos = DataOutputStream(outStream)
@@ -137,50 +121,68 @@ object PsdExporter {
         dos.writeInt(0) // Length = 0
 
         // ===== SECTION 4: LAYER AND MASK INFORMATION =====
-        val layerAndMaskStream = ByteArrayOutputStream()
-        val layerAndMaskDos = DataOutputStream(layerAndMaskStream)
-
-        val layerInfoStream = ByteArrayOutputStream()
-        val layerInfoDos = DataOutputStream(layerInfoStream)
-
-        // Layer Count (Int16)
-        layerInfoDos.writeShort(layers.size)
-
         val pixelCount = width * height
         val channelDataLen = 2 + pixelCount // 2 bytes format (0) + pixel bytes
 
+        // Pre-calculate Layer Records and Subsection Lengths
+        val recordLengths = IntArray(layers.size)
+        var totalRecordsLen = 0
+
+        for ((i, layer) in layers.withIndex()) {
+            val nameBytes = layer.name.toByteArray(Charsets.US_ASCII)
+            val nameLen = nameBytes.size.coerceAtMost(255)
+            val pascalLen = 1 + nameLen
+            val paddedPascalLen = ((pascalLen + 3) / 4) * 4
+
+            // Bounds (16) + Chans (2) + 4 Chans Meta (24) + Blend Sig (4) + Blend Key (4) + Opacity (1) + Clip (1) + Flags (1) + Filler (1) + ExtraLen (4) + MaskLen (4) + BlendRangeLen (4) + PaddedName
+            val recLen = 66 + paddedPascalLen
+            recordLengths[i] = recLen
+            totalRecordsLen += recLen
+        }
+
+        val totalChannelDataLenAllLayers = layers.size * (4 * channelDataLen)
+        val layerInfoSubsectionLen = 2 + totalRecordsLen + totalChannelDataLenAllLayers
+        val section4Len = 4 + layerInfoSubsectionLen
+
+        // Write Section 4 Header
+        dos.writeInt(section4Len)
+        dos.writeInt(layerInfoSubsectionLen)
+
+        // Layer Count (Int16)
+        dos.writeShort(layers.size)
+
         // Write Layer Records
         for (layer in layers) {
-            layerInfoDos.writeInt(0)      // Top
-            layerInfoDos.writeInt(0)      // Left
-            layerInfoDos.writeInt(height) // Bottom
-            layerInfoDos.writeInt(width)  // Right
-            layerInfoDos.writeShort(4)    // 4 channels (-1, 0, 1, 2)
+            dos.writeInt(0)      // Top
+            dos.writeInt(0)      // Left
+            dos.writeInt(height) // Bottom
+            dos.writeInt(width)  // Right
+            dos.writeShort(4)    // 4 channels (-1, 0, 1, 2)
 
             // Channel 0: Alpha (-1)
-            layerInfoDos.writeShort(-1)
-            layerInfoDos.writeInt(channelDataLen)
+            dos.writeShort(-1)
+            dos.writeInt(channelDataLen)
 
             // Channel 1: Red (0)
-            layerInfoDos.writeShort(0)
-            layerInfoDos.writeInt(channelDataLen)
+            dos.writeShort(0)
+            dos.writeInt(channelDataLen)
 
             // Channel 2: Green (1)
-            layerInfoDos.writeShort(1)
-            layerInfoDos.writeInt(channelDataLen)
+            dos.writeShort(1)
+            dos.writeInt(channelDataLen)
 
             // Channel 3: Blue (2)
-            layerInfoDos.writeShort(2)
-            layerInfoDos.writeInt(channelDataLen)
+            dos.writeShort(2)
+            dos.writeInt(channelDataLen)
 
             // Blend Mode
-            layerInfoDos.writeBytes("8BIM")
-            layerInfoDos.writeBytes(mapBlendModeKey(layer.blendMode))
+            dos.writeBytes("8BIM")
+            dos.writeBytes(mapBlendModeKey(layer.blendMode))
 
-            layerInfoDos.writeByte(layer.opacity) // Opacity
-            layerInfoDos.writeByte(if (layer.isClipped) 1 else 0) // Clipping
-            layerInfoDos.writeByte(if (layer.isVisible) 0x00 else 0x02) // Flags (bit 1 = hidden)
-            layerInfoDos.writeByte(0) // Filler
+            dos.writeByte(layer.opacity) // Opacity
+            dos.writeByte(if (layer.isClipped) 1 else 0) // Clipping
+            dos.writeByte(if (layer.isVisible) 0x00 else 0x02) // Flags (bit 1 = hidden)
+            dos.writeByte(0) // Filler
 
             // Extra Data
             val nameBytes = layer.name.toByteArray(Charsets.US_ASCII)
@@ -189,93 +191,121 @@ object PsdExporter {
             val paddedPascalLen = ((pascalLen + 3) / 4) * 4
 
             val extraLen = 4 + 4 + paddedPascalLen
-            layerInfoDos.writeInt(extraLen)
+            dos.writeInt(extraLen)
 
-            layerInfoDos.writeInt(0) // Mask Data Length = 0
-            layerInfoDos.writeInt(0) // Blending Ranges Length = 0
+            dos.writeInt(0) // Mask Data Length = 0
+            dos.writeInt(0) // Blending Ranges Length = 0
 
             // Pascal string for Layer Name
-            layerInfoDos.writeByte(nameLen)
-            layerInfoDos.write(nameBytes, 0, nameLen)
+            dos.writeByte(nameLen)
+            dos.write(nameBytes, 0, nameLen)
             val padBytes = paddedPascalLen - pascalLen
             if (padBytes > 0) {
-                layerInfoDos.write(ByteArray(padBytes))
+                dos.write(ByteArray(padBytes))
             }
         }
 
-        // Write Channel Image Data for each layer
-        val pixels = IntArray(pixelCount)
-        val rBytes = ByteArray(pixelCount)
-        val gBytes = ByteArray(pixelCount)
-        val bBytes = ByteArray(pixelCount)
-        val aBytes = ByteArray(pixelCount)
+        // Stream Channel Image Data for each layer (render 1 bitmap at a time, stream row by row)
+        val rowPixels = IntArray(width)
+        val rowA = ByteArray(width)
+        val rowR = ByteArray(width)
+        val rowG = ByteArray(width)
+        val rowB = ByteArray(width)
 
         for (layer in layers) {
-            if (layer.bitmap != null) {
-                layer.bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-            } else {
-                pixels.fill(0)
-            }
+            val layerBmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val layerCanvas = Canvas(layerBmp)
+            layerCanvas.scale(scale, scale)
 
-            for (i in 0 until pixelCount) {
-                val p = pixels[i]
-                aBytes[i] = ((p shr 24) and 0xFF).toByte()
-                rBytes[i] = ((p shr 16) and 0xFF).toByte()
-                gBytes[i] = ((p shr 8) and 0xFF).toByte()
-                bBytes[i] = (p and 0xFF).toByte()
-            }
+            // Render layer
+            layer.renderAction(layerCanvas)
 
             // Write Alpha (-1)
-            layerInfoDos.writeShort(0) // Format 0 = Raw
-            layerInfoDos.write(aBytes)
+            dos.writeShort(0) // Format 0 = Raw
+            for (y in 0 until height) {
+                layerBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+                for (x in 0 until width) {
+                    rowA[x] = ((rowPixels[x] shr 24) and 0xFF).toByte()
+                }
+                dos.write(rowA)
+            }
 
             // Write Red (0)
-            layerInfoDos.writeShort(0)
-            layerInfoDos.write(rBytes)
+            dos.writeShort(0)
+            for (y in 0 until height) {
+                layerBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+                for (x in 0 until width) {
+                    rowR[x] = ((rowPixels[x] shr 16) and 0xFF).toByte()
+                }
+                dos.write(rowR)
+            }
 
             // Write Green (1)
-            layerInfoDos.writeShort(0)
-            layerInfoDos.write(gBytes)
+            dos.writeShort(0)
+            for (y in 0 until height) {
+                layerBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+                for (x in 0 until width) {
+                    rowG[x] = ((rowPixels[x] shr 8) and 0xFF).toByte()
+                }
+                dos.write(rowG)
+            }
 
             // Write Blue (2)
-            layerInfoDos.writeShort(0)
-            layerInfoDos.write(bBytes)
+            dos.writeShort(0)
+            for (y in 0 until height) {
+                layerBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+                for (x in 0 until width) {
+                    rowB[x] = (rowPixels[x] and 0xFF).toByte()
+                }
+                dos.write(rowB)
+            }
+
+            // Recycle bitmap immediately before rendering next layer
+            layerBmp.recycle()
         }
-
-        layerInfoDos.flush()
-        val layerInfoBytes = layerInfoStream.toByteArray()
-
-        // Write Layer Info Subsection Length (must be even length)
-        layerAndMaskDos.writeInt(layerInfoBytes.size)
-        layerAndMaskDos.write(layerInfoBytes)
-
-        layerAndMaskDos.flush()
-        val layerAndMaskBytes = layerAndMaskStream.toByteArray()
-
-        // Section 4 Total Length
-        dos.writeInt(layerAndMaskBytes.size)
-        dos.write(layerAndMaskBytes)
 
         // ===== SECTION 5: MERGED IMAGE DATA =====
         dos.writeShort(0) // Compression Format = 0 (Raw)
 
-        val compPixels = IntArray(pixelCount)
-        compositeBmp.getPixels(compPixels, 0, width, 0, 0, width, height)
+        val compositeBmp = canvasView.renderToBitmap(scale)
 
-        for (i in 0 until pixelCount) {
-            val p = compPixels[i]
-            rBytes[i] = ((p shr 16) and 0xFF).toByte()
-            gBytes[i] = ((p shr 8) and 0xFF).toByte()
-            bBytes[i] = (p and 0xFF).toByte()
-            aBytes[i] = ((p shr 24) and 0xFF).toByte()
+        // Red channel
+        for (y in 0 until height) {
+            compositeBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+            for (x in 0 until width) {
+                rowR[x] = ((rowPixels[x] shr 16) and 0xFF).toByte()
+            }
+            dos.write(rowR)
         }
 
-        // Section 5 channel order: Red, Green, Blue, Alpha
-        dos.write(rBytes)
-        dos.write(gBytes)
-        dos.write(bBytes)
-        dos.write(aBytes)
+        // Green channel
+        for (y in 0 until height) {
+            compositeBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+            for (x in 0 until width) {
+                rowG[x] = ((rowPixels[x] shr 8) and 0xFF).toByte()
+            }
+            dos.write(rowG)
+        }
 
+        // Blue channel
+        for (y in 0 until height) {
+            compositeBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+            for (x in 0 until width) {
+                rowB[x] = (rowPixels[x] and 0xFF).toByte()
+            }
+            dos.write(rowB)
+        }
+
+        // Alpha channel
+        for (y in 0 until height) {
+            compositeBmp.getPixels(rowPixels, 0, width, 0, y, width, 1)
+            for (x in 0 until width) {
+                rowA[x] = ((rowPixels[x] shr 24) and 0xFF).toByte()
+            }
+            dos.write(rowA)
+        }
+
+        compositeBmp.recycle()
         dos.flush()
     }
 

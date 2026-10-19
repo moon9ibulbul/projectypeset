@@ -24,21 +24,20 @@ class PsdExporterTest {
     }
 
     @Test
-    fun testPsdLayerInfoStruct() {
-        // Test PSD Layer Info class fields
-        val info = PsdExporter.PsdLayerInfo(
+    fun testPsdLayerMetaStruct() {
+        val meta = PsdExporter.PsdLayerMeta(
             name = "Text Layer 1",
-            bitmap = null as android.graphics.Bitmap?,
             opacity = 200,
             isVisible = true,
             blendMode = "MULTIPLY",
-            isClipped = true
+            isClipped = true,
+            renderAction = {}
         )
 
-        assertEquals("Text Layer 1", info.name)
-        assertEquals(200, info.opacity)
-        assertTrue(info.isVisible)
-        assertEquals("MULTIPLY", info.blendMode)
-        assertTrue(info.isClipped)
+        assertEquals("Text Layer 1", meta.name)
+        assertEquals(200, meta.opacity)
+        assertTrue(meta.isVisible)
+        assertEquals("MULTIPLY", meta.blendMode)
+        assertTrue(meta.isClipped)
     }
 }
