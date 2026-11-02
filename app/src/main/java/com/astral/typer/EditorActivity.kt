@@ -3799,7 +3799,7 @@ class EditorActivity : AppCompatActivity() {
             }
 
             // Setup Spinner
-            val formats = arrayOf("PNG", "JPG", "WEBP")
+            val formats = arrayOf("PNG", "JPG", "WEBP", "PSD")
             val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, formats)
             adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
             sidebarBinding.spinnerFormat.adapter = adapter
@@ -3807,7 +3807,7 @@ class EditorActivity : AppCompatActivity() {
             sidebarBinding.spinnerFormat.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
                     val fmt = formats[pos]
-                    if (fmt == "PNG") sidebarBinding.qualityContainer.visibility = View.GONE
+                    if (fmt == "PNG" || fmt == "PSD") sidebarBinding.qualityContainer.visibility = View.GONE
                     else sidebarBinding.qualityContainer.visibility = View.VISIBLE
                 }
                 override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
@@ -4054,50 +4054,86 @@ class EditorActivity : AppCompatActivity() {
             // Show Loading
             binding.loadingOverlay.visibility = View.VISIBLE
 
-            // Export
-            val bitmap = canvasView.renderToBitmap(scale) // Upscaled resolution - Main Thread
-
-            val compressFormat = when(formatStr) {
-                "JPG" -> android.graphics.Bitmap.CompressFormat.JPEG
-                "WEBP" -> if (android.os.Build.VERSION.SDK_INT >= 30) android.graphics.Bitmap.CompressFormat.WEBP_LOSSLESS else android.graphics.Bitmap.CompressFormat.WEBP
-                else -> android.graphics.Bitmap.CompressFormat.PNG
-            }
             val ext = formatStr.lowercase()
-
             val filename = "$name.$ext"
+            val mimeType = if (formatStr == "PSD") "image/vnd.adobe.photoshop" else "image/$ext"
+
             val contentValues = android.content.ContentValues().apply {
                 put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, filename)
-                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/$ext")
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, mimeType)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
                 }
             }
 
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                    if (uri != null) {
-                        contentResolver.openOutputStream(uri).use { stream ->
-                            if (stream != null) {
-                                bitmap.compress(compressFormat, quality, stream)
+            if (formatStr == "PSD") {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    var success = false
+                    try {
+                        val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                        if (uri != null) {
+                            contentResolver.openOutputStream(uri).use { stream ->
+                                if (stream != null) {
+                                    success = com.astral.typer.utils.PsdExporter.exportToPsd(canvasView, stream, scale)
+                                }
                             }
                         }
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@EditorActivity, "File Exported!", Toast.LENGTH_SHORT).show()
-                            binding.saveSidebar.root.visibility = View.GONE
+                            if (success) {
+                                Toast.makeText(this@EditorActivity, "PSD Exported with preserved layers!", Toast.LENGTH_SHORT).show()
+                                binding.saveSidebar.root.visibility = View.GONE
+                            } else {
+                                Toast.makeText(this@EditorActivity, "Failed to export PSD", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                    } else {
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@EditorActivity, "Failed to create file", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@EditorActivity, "Export Failed", Toast.LENGTH_SHORT).show()
+                        }
+                    } finally {
+                        withContext(Dispatchers.Main) {
+                            binding.loadingOverlay.visibility = View.GONE
                         }
                     }
-                } catch (e: Exception) {
-                     withContext(Dispatchers.Main) {
-                         Toast.makeText(this@EditorActivity, "Export Failed", Toast.LENGTH_SHORT).show()
-                     }
-                } finally {
-                    withContext(Dispatchers.Main) {
-                        binding.loadingOverlay.visibility = View.GONE
+                }
+            } else {
+                // Export raster image (PNG, JPG, WEBP)
+                val bitmap = canvasView.renderToBitmap(scale) // Upscaled resolution - Main Thread
+
+                val compressFormat = when(formatStr) {
+                    "JPG" -> android.graphics.Bitmap.CompressFormat.JPEG
+                    "WEBP" -> if (android.os.Build.VERSION.SDK_INT >= 30) android.graphics.Bitmap.CompressFormat.WEBP_LOSSLESS else android.graphics.Bitmap.CompressFormat.WEBP
+                    else -> android.graphics.Bitmap.CompressFormat.PNG
+                }
+
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                        if (uri != null) {
+                            contentResolver.openOutputStream(uri).use { stream ->
+                                if (stream != null) {
+                                    bitmap.compress(compressFormat, quality, stream)
+                                }
+                            }
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@EditorActivity, "File Exported!", Toast.LENGTH_SHORT).show()
+                                binding.saveSidebar.root.visibility = View.GONE
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@EditorActivity, "Failed to create file", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@EditorActivity, "Export Failed", Toast.LENGTH_SHORT).show()
+                        }
+                    } finally {
+                        bitmap.recycle()
+                        withContext(Dispatchers.Main) {
+                            binding.loadingOverlay.visibility = View.GONE
+                        }
                     }
                 }
             }
