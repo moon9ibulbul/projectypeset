@@ -2,6 +2,7 @@ package com.astral.typer.models
 
 import com.astral.typer.utils.CustomTypefaceSpan
 import com.astral.typer.utils.LetterSpacingSpan
+import com.astral.typer.utils.StrokeSpan
 import android.text.Spannable
 import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
@@ -586,6 +587,7 @@ class TextLayer(
                 is CustomTypefaceSpan -> span.fontPath?.hashCode() ?: 0
                 is android.text.style.AbsoluteSizeSpan -> span.size
                 is LetterSpacingSpan -> span.spacing.hashCode()
+                is StrokeSpan -> span.strokeColor.hashCode() + span.strokeWidth.hashCode()
                 is com.astral.typer.utils.PositionShiftSpan -> span.shiftX.hashCode() + span.shiftY.hashCode()
                 is com.astral.typer.utils.BaselineShiftSpan -> span.shiftY.hashCode()
                 else -> span.hashCode()
@@ -1510,7 +1512,10 @@ class TextLayer(
     }
 
     override fun calculatePadding(): Float {
-        var p = strokeWidthToUse + doubleStrokeWidthToUse + tripleStrokeWidthToUse
+        val maxSpanStroke = (_text as? Spannable)?.let {
+            it.getSpans(0, it.length, StrokeSpan::class.java).maxOfOrNull { s -> s.strokeWidth } ?: 0f
+        } ?: 0f
+        var p = Math.max(strokeWidthToUse, maxSpanStroke) + doubleStrokeWidthToUse + tripleStrokeWidthToUse
         val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
         p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
@@ -2773,6 +2778,7 @@ class TextLayer(
                         is CustomTypefaceSpan -> CustomTypefaceSpan(span.typeface, span.fontPath ?: "")
                         is android.text.style.AbsoluteSizeSpan -> android.text.style.AbsoluteSizeSpan(span.size)
                         is LetterSpacingSpan -> LetterSpacingSpan(span.spacing)
+                        is StrokeSpan -> StrokeSpan(span.strokeColor, span.strokeWidth)
                         else -> null
                     }
                     if (copiedSpan != null) {
@@ -3375,11 +3381,12 @@ class TextLayer(
                     val t = i.toFloat() / steps
                     val d = t * tailLength
 
-                    // 3. Masukkan phase offset ke dalam gelombang agar bentuknya berubah saat seed diganti
-                    val wave1 = Math.sin(d * 0.15 + phase1)
-                    val wave2 = Math.sin(d * 0.4 + phase2) * 0.5
-                    val wave3 = Math.sin(d * 0.05 + phase3) * 1.5
-                    val waveOffset = (wave1 + wave2 + wave3).toFloat() * tailWavyIntensity * 4f
+                    // 3. Masukkan phase offset ke dalam gelombang dengan frekuensi dan amplop yang dinormalisasi agar gelombang proporsional dan tidak radikal
+                    val envelope = (t * 3f).coerceAtMost(1f)
+                    val wave1 = Math.sin(d * 0.035 + phase1)
+                    val wave2 = Math.sin(d * 0.08 + phase2) * 0.35
+                    val wave3 = Math.sin(d * 0.015 + phase3) * 0.5
+                    val waveOffset = (wave1 + wave2 + wave3).toFloat() * envelope * (tailWavyIntensity * 0.6f)
 
                     val px = startX + d * dirX + waveOffset * perpX
                     val py = startY + d * dirY + waveOffset * perpY
@@ -3578,10 +3585,17 @@ class TextLayer(
             }
 
             // 2. Stroke
-            if (!isDrawingClippingMask && !isDrawingStrokePass && strokeWidthToUse > 0f) {
+            val hasStrokeSpans = (layout.text as? Spannable)?.let {
+                it.getSpans(0, it.length, StrokeSpan::class.java).isNotEmpty()
+            } ?: false
+
+            if (!isDrawingClippingMask && !isDrawingStrokePass && (strokeWidthToUse > 0f || hasStrokeSpans)) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = strokeWidthToUse + extraShadowThickness
-                if (silhouetteColor != null) {
+                if (strokeWidthToUse == 0f && hasStrokeSpans) {
+                    paint.shader = null
+                    paint.color = Color.TRANSPARENT
+                } else if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
                 } else if (isGradient && isGradientStroke1) {
@@ -3600,7 +3614,23 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                drawLayoutSafe(targetCanvas, true, suppressFg = true)
+
+                val prevOverride = StrokeSpan.overrideColor
+                val prevExtra = StrokeSpan.extraWidth
+                try {
+                    if (silhouetteColor != null) {
+                        StrokeSpan.overrideColor = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
+                    } else if (isDrawingShadowPass) {
+                        StrokeSpan.overrideColor = modulateColor(shadowColor, ignoreOriginalAlpha = isDrawingShadowPass)
+                    } else {
+                        StrokeSpan.overrideColor = null
+                    }
+                    StrokeSpan.extraWidth = extraShadowThickness
+                    drawLayoutSafe(targetCanvas, true, suppressFg = true)
+                } finally {
+                    StrokeSpan.overrideColor = prevOverride
+                    StrokeSpan.extraWidth = prevExtra
+                }
                 drawTailPath(targetCanvas, paint)
             }
 

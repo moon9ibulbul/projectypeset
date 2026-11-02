@@ -41,6 +41,7 @@ import com.astral.typer.models.TextEffectType
 import com.astral.typer.utils.ColorPickerHelper
 import com.astral.typer.utils.CustomTypefaceSpan
 import com.astral.typer.utils.FontManager
+import com.astral.typer.utils.StrokeSpan
 import com.astral.typer.views.AstralCanvasView
 import android.widget.GridLayout
 import com.astral.typer.utils.StyleManager
@@ -4655,6 +4656,9 @@ class EditorActivity : AppCompatActivity() {
 
             // Notify Canvas to show/hide tool handles
             canvasView.setPerspectiveMode(enabled)
+            if (!enabled) {
+                canvasView.setPerspectiveSkewMode(false)
+            }
             canvasView.invalidate()
         }
     }
@@ -5914,6 +5918,10 @@ class EditorActivity : AppCompatActivity() {
             et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         } else if (span is com.astral.typer.utils.LetterSpacingSpan) {
             val existing = et.editableText.getSpans(actualStart, actualEnd, com.astral.typer.utils.LetterSpacingSpan::class.java)
+            for (s in existing) et.editableText.removeSpan(s)
+            et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else if (span is com.astral.typer.utils.StrokeSpan) {
+            val existing = et.editableText.getSpans(actualStart, actualEnd, com.astral.typer.utils.StrokeSpan::class.java)
             for (s in existing) et.editableText.removeSpan(s)
             et.editableText.setSpan(span, actualStart, actualEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         } else {
@@ -9758,19 +9766,57 @@ class EditorActivity : AppCompatActivity() {
              layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
+        if (layer is TextLayer) {
+            mainLayout.addView(createInputView(layer, false))
+        }
+
+        val activeStrokeColor = activeEditText?.let { et ->
+            if (et.selectionStart != et.selectionEnd) {
+                et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java).firstOrNull()?.strokeColor
+            } else null
+        } ?: stylableLayer.strokeColor
+
         // ==================== 1st Stroke ====================
-        val colorList = createColorScroll(stylableLayer.strokeColor,
+        val colorList = createColorScroll(activeStrokeColor,
              { c ->
-                 if (stylableLayer.strokeColor == c && stylableLayer.strokeWidth > 0) stylableLayer.strokeWidth = 0f
-                 else { stylableLayer.strokeColor = c; if (stylableLayer.strokeWidth == 0f) stylableLayer.strokeWidth = 5f }
-                 canvasView.invalidate()
+                 val et = activeEditText
+                 if (et != null && et.selectionStart != et.selectionEnd && layer is TextLayer) {
+                     val spans = et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java)
+                     val existingSpan = spans.firstOrNull()
+                     if (existingSpan != null && existingSpan.strokeColor == c && existingSpan.strokeWidth > 0f) {
+                         for (s in spans) et.editableText.removeSpan(s)
+                         layer.text = SpannableStringBuilder(et.editableText)
+                         canvasView.invalidate()
+                     } else {
+                         val w = existingSpan?.strokeWidth ?: (if (stylableLayer.strokeWidth > 0f) stylableLayer.strokeWidth else 5f)
+                         applySpanToSelection(com.astral.typer.utils.StrokeSpan(c, w))
+                     }
+                 } else {
+                     if (stylableLayer.strokeColor == c && stylableLayer.strokeWidth > 0) stylableLayer.strokeWidth = 0f
+                     else { stylableLayer.strokeColor = c; if (stylableLayer.strokeWidth == 0f) stylableLayer.strokeWidth = 5f }
+                     canvasView.invalidate()
+                 }
                  showStrokeMenu()
              },
-             { showColorWheelDialogForProperty(stylableLayer.strokeColor) { c ->
-                 stylableLayer.strokeColor = c; if(stylableLayer.strokeWidth==0f) stylableLayer.strokeWidth=5f
-                 canvasView.invalidate()
-                 showStrokeMenu()
-             } }
+             {
+                 val currentColor = activeEditText?.let { et ->
+                     if (et.selectionStart != et.selectionEnd) {
+                         et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java).firstOrNull()?.strokeColor
+                     } else null
+                 } ?: stylableLayer.strokeColor
+                 showColorWheelDialogForProperty(currentColor) { c ->
+                     val et = activeEditText
+                     if (et != null && et.selectionStart != et.selectionEnd && layer is TextLayer) {
+                         val existingSpan = et.editableText.getSpans(et.selectionStart, et.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java).firstOrNull()
+                         val w = existingSpan?.strokeWidth ?: (if (stylableLayer.strokeWidth > 0f) stylableLayer.strokeWidth else 5f)
+                         applySpanToSelection(com.astral.typer.utils.StrokeSpan(c, w))
+                     } else {
+                         stylableLayer.strokeColor = c; if (stylableLayer.strokeWidth == 0f) stylableLayer.strokeWidth = 5f
+                         canvasView.invalidate()
+                     }
+                     showStrokeMenu()
+                 }
+             }
         )
         mainLayout.addView(colorList)
 
@@ -9787,7 +9833,10 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
-        val currentStrokeWidth = stylableLayer.strokeWidth
+        val etForWidth = activeEditText
+        val isSelectionActive = etForWidth != null && etForWidth.selectionStart != etForWidth.selectionEnd && layer is TextLayer
+        val currentStrokeSpan = if (isSelectionActive) etForWidth!!.editableText.getSpans(etForWidth.selectionStart, etForWidth.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java).firstOrNull() else null
+        val currentStrokeWidth = if (isSelectionActive) (currentStrokeSpan?.strokeWidth ?: stylableLayer.strokeWidth) else stylableLayer.strokeWidth
         val tvValue = TextView(this).apply {
             tag = "STROKE_WIDTH_VAL"
             text = "${currentStrokeWidth.toInt()} pt"
@@ -9808,9 +9857,27 @@ class EditorActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
             setOnClickListener {
-                stylableLayer.strokeWidth = (stylableLayer.strokeWidth - 1).coerceAtLeast(0f)
-                tvValue.text = "${stylableLayer.strokeWidth.toInt()} pt"
-                canvasView.invalidate()
+                val etCurrent = activeEditText
+                if (etCurrent != null && etCurrent.selectionStart != etCurrent.selectionEnd && layer is TextLayer) {
+                    val span = etCurrent.editableText.getSpans(etCurrent.selectionStart, etCurrent.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java).firstOrNull()
+                    val currentColor = span?.strokeColor ?: stylableLayer.strokeColor
+                    val curW = span?.strokeWidth ?: stylableLayer.strokeWidth
+                    val newW = (curW - 1).coerceAtLeast(0f)
+                    if (newW == 0f) {
+                        for (s in etCurrent.editableText.getSpans(etCurrent.selectionStart, etCurrent.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java)) {
+                            etCurrent.editableText.removeSpan(s)
+                        }
+                        layer.text = SpannableStringBuilder(etCurrent.editableText)
+                        canvasView.invalidate()
+                    } else {
+                        applySpanToSelection(com.astral.typer.utils.StrokeSpan(currentColor, newW))
+                    }
+                    tvValue.text = "${newW.toInt()} pt"
+                } else {
+                    stylableLayer.strokeWidth = (stylableLayer.strokeWidth - 1).coerceAtLeast(0f)
+                    tvValue.text = "${stylableLayer.strokeWidth.toInt()} pt"
+                    canvasView.invalidate()
+                }
             }
         }
 
@@ -9826,9 +9893,19 @@ class EditorActivity : AppCompatActivity() {
             }
             layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
             setOnClickListener {
-                stylableLayer.strokeWidth += 1
-                tvValue.text = "${stylableLayer.strokeWidth.toInt()} pt"
-                canvasView.invalidate()
+                val etCurrent = activeEditText
+                if (etCurrent != null && etCurrent.selectionStart != etCurrent.selectionEnd && layer is TextLayer) {
+                    val span = etCurrent.editableText.getSpans(etCurrent.selectionStart, etCurrent.selectionEnd, com.astral.typer.utils.StrokeSpan::class.java).firstOrNull()
+                    val currentColor = span?.strokeColor ?: stylableLayer.strokeColor
+                    val curW = span?.strokeWidth ?: (if (stylableLayer.strokeWidth > 0f) stylableLayer.strokeWidth else 0f)
+                    val newW = curW + 1
+                    applySpanToSelection(com.astral.typer.utils.StrokeSpan(currentColor, newW))
+                    tvValue.text = "${newW.toInt()} pt"
+                } else {
+                    stylableLayer.strokeWidth += 1
+                    tvValue.text = "${stylableLayer.strokeWidth.toInt()} pt"
+                    canvasView.invalidate()
+                }
             }
         }
 
@@ -10592,13 +10669,15 @@ class EditorActivity : AppCompatActivity() {
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             background = GradientDrawable().apply {
                 setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                    setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
-                    cornerRadius = dpToPx(8).toFloat()
+                setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                cornerRadius = dpToPx(8).toFloat()
             }
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+            ).apply {
+                setMargins(dpToPx(8), 0, dpToPx(8), 0)
+            }
             setOnClickListener {
                 val stylable = canvasView.getSelectedLayer() as? StylableLayer ?: return@setOnClickListener
                 val layer = stylable as Layer
@@ -10608,7 +10687,41 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
+        val btnSkew = android.widget.Button(this).apply {
+            text = "Skew"
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(dpToPx(8), 0, dpToPx(8), 0)
+            }
+            val updateStyle = {
+                val isActive = canvasView.isPerspectiveSkewMode
+                if (isActive) {
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#00838F"))
+                        setStroke(dpToPx(1), Color.CYAN)
+                        cornerRadius = dpToPx(8).toFloat()
+                    }
+                    setTextColor(Color.WHITE)
+                } else {
+                    background = GradientDrawable().apply {
+                        setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                        setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                        cornerRadius = dpToPx(8).toFloat()
+                    }
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                }
+            }
+            updateStyle()
+            setOnClickListener {
+                canvasView.setPerspectiveSkewMode(!canvasView.isPerspectiveSkewMode)
+                updateStyle()
+            }
+        }
+
         layout.addView(btnReset)
+        layout.addView(btnSkew)
         container.addView(layout)
     }
 
