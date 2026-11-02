@@ -4337,7 +4337,7 @@ class EditorActivity : AppCompatActivity() {
 
         val modes = ArrayList<String>()
         modes.add("OpenCV (Telea)")
-        modes.add("Content-Aware Fill")
+        // modes.add("Content-Aware Fill") // Hidden for now as it is not ready
         modes.add("Smart Solid Fill")
         if (isLamaAvailable) {
             modes.add("LaMa (AI)")
@@ -8836,18 +8836,22 @@ class EditorActivity : AppCompatActivity() {
             // Color
             layout.addView(createColorScroll(stylableLayer.shadowColor,
                 { c ->
-                    if (stylableLayer.shadowColor == c && stylableLayer.shadowRadius > 0) stylableLayer.shadowRadius = 0f
-                    else {
+                    if (stylableLayer.shadowColor == c && (stylableLayer.shadowRadius > 0 || stylableLayer.shadowThickness > 0)) {
+                        stylableLayer.shadowRadius = 0f
+                        stylableLayer.shadowThickness = 0f
+                    } else {
                         stylableLayer.shadowColor = c
-                        if (stylableLayer.shadowRadius == 0f) stylableLayer.shadowRadius = 10f
+                        if (stylableLayer.shadowRadius == 0f && stylableLayer.shadowThickness == 0f) stylableLayer.shadowRadius = 10f
                     }
                     canvasView.invalidate()
+                    showShadowControls()
                 },
                 {
                     showColorWheelDialogForProperty(stylableLayer.shadowColor) { c ->
                         stylableLayer.shadowColor = c
-                        if (stylableLayer.shadowRadius == 0f) stylableLayer.shadowRadius = 10f
+                        if (stylableLayer.shadowRadius == 0f && stylableLayer.shadowThickness == 0f) stylableLayer.shadowRadius = 10f
                         canvasView.invalidate()
+                        showShadowControls()
                     }
                 }
             ))
@@ -8931,18 +8935,22 @@ class EditorActivity : AppCompatActivity() {
             // Color
             layout.addView(createColorScroll(stylableLayer.shadowColor,
                 { c ->
-                    if (stylableLayer.shadowColor == c && stylableLayer.motionShadowDistance > 0) stylableLayer.motionShadowDistance = 0f
-                    else {
+                    if (stylableLayer.shadowColor == c && (stylableLayer.motionShadowDistance > 0 || stylableLayer.motionShadowThickness > 0)) {
+                        stylableLayer.motionShadowDistance = 0f
+                        stylableLayer.motionShadowThickness = 0f
+                    } else {
                         stylableLayer.shadowColor = c
-                        if (stylableLayer.motionShadowDistance == 0f) stylableLayer.motionShadowDistance = 20f
+                        if (stylableLayer.motionShadowDistance == 0f && stylableLayer.motionShadowThickness == 0f) stylableLayer.motionShadowDistance = 20f
                     }
                     canvasView.invalidate()
+                    showShadowControls()
                 },
                 {
                     showColorWheelDialogForProperty(stylableLayer.shadowColor) { c ->
                         stylableLayer.shadowColor = c
-                        if (stylableLayer.motionShadowDistance == 0f) stylableLayer.motionShadowDistance = 20f
+                        if (stylableLayer.motionShadowDistance == 0f && stylableLayer.motionShadowThickness == 0f) stylableLayer.motionShadowDistance = 20f
                         canvasView.invalidate()
+                        showShadowControls()
                     }
                 }
             ))
