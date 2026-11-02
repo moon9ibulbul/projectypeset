@@ -7017,22 +7017,97 @@ class EditorActivity : AppCompatActivity() {
             contentLayout.addView(scrollHighlight)
 
             if (currentHighlightColor != Color.TRANSPARENT) {
-                val currentCorner = layer.highlightCornerRadius
-                val cornerSlider = createSlider("Highlight Corner Radius: ${currentCorner.toInt()}", currentCorner.toInt(), 100) { p ->
-                    layer.highlightCornerRadius = p.toFloat()
-                    canvasView.invalidate()
+                val highlightOptionsLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
                 }
-                val tvLabel = cornerSlider.findViewWithTag<TextView>("SLIDER_LABEL")
-                cornerSlider.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        layer.highlightCornerRadius = progress.toFloat()
-                        tvLabel?.text = "Highlight Corner Radius: $progress"
+
+                // Highlight Corner Radius (plus-minus control)
+                val cornerRow = createControl("Highlight Corner Radius", "${layer.highlightCornerRadius.toInt()}", "VAL_HIGHLIGHT_CORNER",
+                    onMinus = {
+                        val current = (layer.highlightCornerRadius - 1f).coerceAtLeast(0f)
+                        layer.highlightCornerRadius = current
                         canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_CORNER")?.text = "${current.toInt()}"
+                    },
+                    onPlus = {
+                        val current = layer.highlightCornerRadius + 1f
+                        layer.highlightCornerRadius = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_CORNER")?.text = "${current.toInt()}"
                     }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-                })
-                contentLayout.addView(cornerSlider)
+                )
+                highlightOptionsLayout.addView(cornerRow)
+
+                // Highlight Padding Top
+                val padTopRow = createControl("Padding Top", "${layer.highlightPaddingTop.toInt()}", "VAL_HIGHLIGHT_PAD_TOP",
+                    onMinus = {
+                        val current = (layer.highlightPaddingTop - 1f).coerceAtLeast(0f)
+                        layer.highlightPaddingTop = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_TOP")?.text = "${current.toInt()}"
+                    },
+                    onPlus = {
+                        val current = layer.highlightPaddingTop + 1f
+                        layer.highlightPaddingTop = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_TOP")?.text = "${current.toInt()}"
+                    }
+                )
+                highlightOptionsLayout.addView(padTopRow)
+
+                // Highlight Padding Right
+                val padRightRow = createControl("Padding Right", "${layer.highlightPaddingRight.toInt()}", "VAL_HIGHLIGHT_PAD_RIGHT",
+                    onMinus = {
+                        val current = (layer.highlightPaddingRight - 1f).coerceAtLeast(0f)
+                        layer.highlightPaddingRight = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_RIGHT")?.text = "${current.toInt()}"
+                    },
+                    onPlus = {
+                        val current = layer.highlightPaddingRight + 1f
+                        layer.highlightPaddingRight = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_RIGHT")?.text = "${current.toInt()}"
+                    }
+                )
+                highlightOptionsLayout.addView(padRightRow)
+
+                // Highlight Padding Bottom
+                val padBottomRow = createControl("Padding Bottom", "${layer.highlightPaddingBottom.toInt()}", "VAL_HIGHLIGHT_PAD_BOTTOM",
+                    onMinus = {
+                        val current = (layer.highlightPaddingBottom - 1f).coerceAtLeast(0f)
+                        layer.highlightPaddingBottom = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_BOTTOM")?.text = "${current.toInt()}"
+                    },
+                    onPlus = {
+                        val current = layer.highlightPaddingBottom + 1f
+                        layer.highlightPaddingBottom = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_BOTTOM")?.text = "${current.toInt()}"
+                    }
+                )
+                highlightOptionsLayout.addView(padBottomRow)
+
+                // Highlight Padding Left
+                val padLeftRow = createControl("Padding Left", "${layer.highlightPaddingLeft.toInt()}", "VAL_HIGHLIGHT_PAD_LEFT",
+                    onMinus = {
+                        val current = (layer.highlightPaddingLeft - 1f).coerceAtLeast(0f)
+                        layer.highlightPaddingLeft = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_LEFT")?.text = "${current.toInt()}"
+                    },
+                    onPlus = {
+                        val current = layer.highlightPaddingLeft + 1f
+                        layer.highlightPaddingLeft = current
+                        canvasView.invalidate()
+                        highlightOptionsLayout.findViewWithTag<TextView>("VAL_HIGHLIGHT_PAD_LEFT")?.text = "${current.toInt()}"
+                    }
+                )
+                highlightOptionsLayout.addView(padLeftRow)
+
+                contentLayout.addView(highlightOptionsLayout)
             }
 
         } else {

@@ -48,6 +48,10 @@ class ShapeLayer(
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
     override var highlightCornerRadius: Float = 0f
+    override var highlightPaddingTop: Float = 0f
+    override var highlightPaddingRight: Float = 0f
+    override var highlightPaddingBottom: Float = 0f
+    override var highlightPaddingLeft: Float = 0f
     override var blendingStrength: Float = 50f
 
     // Gradient

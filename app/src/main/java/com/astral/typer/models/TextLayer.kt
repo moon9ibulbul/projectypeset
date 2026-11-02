@@ -102,7 +102,7 @@ class TextLayer(
         }
     }
     var fontSize: Float = 100f
-    var typeface: Typeface = Typeface.DEFAULT
+    var typeface: Typeface = Typeface.DEFAULT ?: (Typeface.create(Typeface.DEFAULT, Typeface.NORMAL) ?: createDefaultTypeface())
     var fontPath: String? = null // Identifier for the font (e.g., "Standard:Serif" or "/path/to/font.ttf")
     var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_CENTER
     var isJustified: Boolean = false
@@ -131,6 +131,10 @@ class TextLayer(
     override var shadowThickness: Float = 0f
     override var isTextBlending: Boolean = false
     override var highlightCornerRadius: Float = 0f
+    override var highlightPaddingTop: Float = 0f
+    override var highlightPaddingRight: Float = 0f
+    override var highlightPaddingBottom: Float = 0f
+    override var highlightPaddingLeft: Float = 0f
     override var blendingStrength: Float = 50f
 
     // Gradient
@@ -634,6 +638,10 @@ class TextLayer(
         result = 31 * result + motionShadowKernelSize
         result = 31 * result + shadowThickness.hashCode()
         result = 31 * result + highlightCornerRadius.hashCode()
+        result = 31 * result + highlightPaddingTop.hashCode()
+        result = 31 * result + highlightPaddingRight.hashCode()
+        result = 31 * result + highlightPaddingBottom.hashCode()
+        result = 31 * result + highlightPaddingLeft.hashCode()
         result = 31 * result + isGradient.hashCode()
         result = 31 * result + gradientStartColor
         result = 31 * result + gradientEndColor
@@ -1194,6 +1202,10 @@ class TextLayer(
         newLayer.shadowThickness = this.shadowThickness
         newLayer.isTextBlending = this.isTextBlending
         newLayer.highlightCornerRadius = this.highlightCornerRadius
+        newLayer.highlightPaddingTop = this.highlightPaddingTop
+        newLayer.highlightPaddingRight = this.highlightPaddingRight
+        newLayer.highlightPaddingBottom = this.highlightPaddingBottom
+        newLayer.highlightPaddingLeft = this.highlightPaddingLeft
         newLayer.blendingStrength = this.blendingStrength
 
         newLayer.isGradient = this.isGradient
@@ -3422,17 +3434,28 @@ class TextLayer(
         }
 
 
-        fun drawLayoutSafe(canvas: android.graphics.Canvas, suppressBg: Boolean) {
+        fun drawLayoutSafe(canvas: android.graphics.Canvas, suppressBg: Boolean, suppressFg: Boolean = false) {
             val spannable = layout.text as? android.text.Spannable
-            val bgSpans = spannable?.getSpans(0, spannable.length, android.text.style.BackgroundColorSpan::class.java)
+            val bgSpans = if (suppressBg) spannable?.getSpans(0, spannable.length, android.text.style.BackgroundColorSpan::class.java) else null
+            val fgSpans = if (suppressFg) spannable?.getSpans(0, spannable.length, android.text.style.ForegroundColorSpan::class.java) else null
 
-            if (suppressBg && bgSpans != null && bgSpans.isNotEmpty()) {
-                val spanData = bgSpans.map { it to Pair(spannable.getSpanStart(it), spannable.getSpanEnd(it)) }
-                bgSpans.forEach { spannable.removeSpan(it) }
+            val bgSpanData = if (bgSpans != null && bgSpans.isNotEmpty()) {
+                val data = bgSpans.map { it to Pair(spannable!!.getSpanStart(it), spannable.getSpanEnd(it)) }
+                bgSpans.forEach { spannable!!.removeSpan(it) }
+                data
+            } else null
+
+            val fgSpanData = if (fgSpans != null && fgSpans.isNotEmpty()) {
+                val data = fgSpans.map { it to Pair(spannable!!.getSpanStart(it), spannable.getSpanEnd(it)) }
+                fgSpans.forEach { spannable!!.removeSpan(it) }
+                data
+            } else null
+
+            try {
                 layout.draw(canvas)
-                spanData.forEach { spannable.setSpan(it.first, it.second.first, it.second.second, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) }
-            } else {
-                layout.draw(canvas)
+            } finally {
+                fgSpanData?.forEach { spannable!!.setSpan(it.first, it.second.first, it.second.second, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) }
+                bgSpanData?.forEach { spannable!!.setSpan(it.first, it.second.first, it.second.second, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE) }
             }
         }
 
@@ -3466,7 +3489,12 @@ class TextLayer(
                                 val right = layout.getPrimaryHorizontal(selEnd)
                                 val top = layout.getLineTop(l).toFloat()
                                 val bottom = layout.getLineBottom(l).toFloat()
-                                val rect = RectF(Math.min(left, right), top, Math.max(left, right), bottom)
+                                val rect = RectF(
+                                    Math.min(left, right) - highlightPaddingLeft,
+                                    top - highlightPaddingTop,
+                                    Math.max(left, right) + highlightPaddingRight,
+                                    bottom + highlightPaddingBottom
+                                )
                                 targetCanvas.drawRoundRect(rect, highlightCornerRadius, highlightCornerRadius, bgPaint)
                             }
                         }
@@ -3520,7 +3548,7 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                drawLayoutSafe(targetCanvas, true)
+                drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             }
 
@@ -3545,7 +3573,7 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                drawLayoutSafe(targetCanvas, true)
+                drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             }
 
@@ -3572,7 +3600,7 @@ class TextLayer(
                         android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
                     )
                 } else null
-                drawLayoutSafe(targetCanvas, true)
+                drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             }
 
@@ -3584,7 +3612,7 @@ class TextLayer(
                 paint.shader = null
                 paint.color = modulateColor(silhouetteColor!!)
                 paint.clearShadowLayer()
-                drawLayoutSafe(targetCanvas, true)
+                drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             } else if (isDrawingShadowPass) {
                 paint.shader = if (isGradient && isGradientShadow) gradientShader else null
@@ -3600,7 +3628,7 @@ class TextLayer(
                     paint.strokeWidth = 0f
                     paint.pathEffect = null
                 }
-                drawLayoutSafe(targetCanvas, true)
+                drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             } else {
                 val drawFillContent = { fillCanvas: Canvas ->
@@ -4108,7 +4136,7 @@ class TextLayer(
                             drawMain(canvas)
                             isDrawingShadowPass = false
                         } else {
-                            drawLayoutSafe(canvas, true)
+                            drawLayoutSafe(canvas, true, suppressFg = true)
                             drawTailPath(canvas, paint)
                         }
                     }
@@ -4157,14 +4185,14 @@ class TextLayer(
                         paint.style = Paint.Style.FILL_AND_STROKE
                         paint.strokeWidth = shadowThickness * 0.5f
                         paint.pathEffect = if (isRough) android.graphics.DiscretePathEffect(6f, roughStrokeRoughness) else null
-                        drawLayoutSafe(targetCanvas, true)
+                        drawLayoutSafe(targetCanvas, true, suppressFg = true)
                         drawTailPath(targetCanvas, paint)
 
                         paint.style = shadowStyle
                         paint.strokeWidth = shadowStrokeWidth
                         paint.pathEffect = null
                     } else {
-                        drawLayoutSafe(targetCanvas, true)
+                        drawLayoutSafe(targetCanvas, true, suppressFg = true)
                         drawTailPath(targetCanvas, paint)
                     }
                     targetCanvas.restore()
@@ -4191,7 +4219,7 @@ class TextLayer(
                         paint.strokeWidth = 0f
                         paint.pathEffect = null
                     }
-                    drawLayoutSafe(targetCanvas, true)
+                    drawLayoutSafe(targetCanvas, true, suppressFg = true)
                     drawTailPath(targetCanvas, paint)
 
                     targetCanvas.restore()
@@ -5582,6 +5610,15 @@ class TextLayer(
     }
 
     companion object {
+        private fun createDefaultTypeface(): Typeface {
+            return try {
+                Typeface.DEFAULT
+            } catch (e: Throwable) {
+                val constructor = Typeface::class.java.getDeclaredConstructor()
+                constructor.isAccessible = true
+                constructor.newInstance()
+            }
+        }
 
         const val DROP_SHADOW_SHADER = """
             uniform shader content;
