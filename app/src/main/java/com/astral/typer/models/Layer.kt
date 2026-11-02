@@ -31,6 +31,10 @@ interface StylableLayer {
 
     // Highlight
     var highlightCornerRadius: Float
+    var highlightPaddingTop: Float
+    var highlightPaddingRight: Float
+    var highlightPaddingBottom: Float
+    var highlightPaddingLeft: Float
 
     // Gradient
     var isGradient: Boolean

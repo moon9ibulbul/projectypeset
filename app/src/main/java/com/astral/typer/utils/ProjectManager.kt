@@ -106,6 +106,10 @@ object ProjectManager {
         val motionShadowThickness: Float? = null, val motionShadowSmoothness: Int? = null, val motionShadowKernelSize: Int? = null,
         val shadowThickness: Float? = null, val isTextBlending: Boolean? = null, val blendingStrength: Float? = null,
         val highlightCornerRadius: Float? = null,
+        val highlightPaddingTop: Float? = null,
+        val highlightPaddingRight: Float? = null,
+        val highlightPaddingBottom: Float? = null,
+        val highlightPaddingLeft: Float? = null,
 
         // Gradient
         val isGradient: Boolean? = null, val gradientStartColor: Int? = null, val gradientEndColor: Int? = null, val gradientAngle: Int? = null,
@@ -486,6 +490,10 @@ object ProjectManager {
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
                         highlightCornerRadius = layer.highlightCornerRadius,
+                        highlightPaddingTop = layer.highlightPaddingTop,
+                        highlightPaddingRight = layer.highlightPaddingRight,
+                        highlightPaddingBottom = layer.highlightPaddingBottom,
+                        highlightPaddingLeft = layer.highlightPaddingLeft,
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,
@@ -1412,6 +1420,10 @@ object ProjectManager {
             model.isTextBlending?.let { layer.isTextBlending = it }
             model.blendingStrength?.let { layer.blendingStrength = it }
             model.highlightCornerRadius?.let { layer.highlightCornerRadius = it }
+            model.highlightPaddingTop?.let { layer.highlightPaddingTop = it }
+            model.highlightPaddingRight?.let { layer.highlightPaddingRight = it }
+            model.highlightPaddingBottom?.let { layer.highlightPaddingBottom = it }
+            model.highlightPaddingLeft?.let { layer.highlightPaddingLeft = it }
 
             model.isGradient?.let { layer.isGradient = it }
             model.gradientStartColor?.let { layer.gradientStartColor = it }
@@ -3189,6 +3201,10 @@ object ProjectManager {
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
                         highlightCornerRadius = layer.highlightCornerRadius,
+                        highlightPaddingTop = layer.highlightPaddingTop,
+                        highlightPaddingRight = layer.highlightPaddingRight,
+                        highlightPaddingBottom = layer.highlightPaddingBottom,
+                        highlightPaddingLeft = layer.highlightPaddingLeft,
 
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
                         hasMiddleColor = layer.hasMiddleColor, gradientMiddleColor = layer.gradientMiddleColor,

@@ -267,6 +267,10 @@ object StyleManager {
         val isTextBlending: Boolean = false,
         val blendingStrength: Float = 50f,
         val highlightCornerRadius: Float = 0f,
+        val highlightPaddingTop: Float = 0f,
+        val highlightPaddingRight: Float = 0f,
+        val highlightPaddingBottom: Float = 0f,
+        val highlightPaddingLeft: Float = 0f,
         // Opacity
         val blendMode: String?,
         val isOpacityGradient: Boolean,
@@ -464,6 +468,10 @@ object StyleManager {
             isTextBlending = l.isTextBlending,
             blendingStrength = l.blendingStrength,
             highlightCornerRadius = l.highlightCornerRadius,
+            highlightPaddingTop = l.highlightPaddingTop,
+            highlightPaddingRight = l.highlightPaddingRight,
+            highlightPaddingBottom = l.highlightPaddingBottom,
+            highlightPaddingLeft = l.highlightPaddingLeft,
             blendMode = l.blendMode,
             isOpacityGradient = l.isOpacityGradient,
             opacityStart = l.opacityStart,
@@ -641,6 +649,10 @@ object StyleManager {
         l.isTextBlending = m.isTextBlending
         l.blendingStrength = m.blendingStrength
         l.highlightCornerRadius = m.highlightCornerRadius
+        l.highlightPaddingTop = m.highlightPaddingTop
+        l.highlightPaddingRight = m.highlightPaddingRight
+        l.highlightPaddingBottom = m.highlightPaddingBottom
+        l.highlightPaddingLeft = m.highlightPaddingLeft
 
         l.blendMode = m.blendMode ?: "NORMAL"
         l.isOpacityGradient = m.isOpacityGradient
