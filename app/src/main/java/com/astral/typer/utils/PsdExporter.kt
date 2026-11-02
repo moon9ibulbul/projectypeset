@@ -19,12 +19,41 @@ object PsdExporter {
         val totalByteSize: Int
     )
 
+    data class PsdTextMeta(
+        val text: String,
+        val fontSize: Float,
+        val fontName: String,
+        val color: Int,
+        val x: Float,
+        val y: Float,
+        val rotation: Float,
+        val scaleX: Float,
+        val scaleY: Float,
+        val isBold: Boolean = false,
+        val isItalic: Boolean = false,
+        val isUnderline: Boolean = false,
+        val isStrikethrough: Boolean = false,
+        val justification: Int = 0, // 0 = left, 1 = right, 2 = center
+        val isWarp: Boolean = false,
+        val warpRows: Int = 2,
+        val warpCols: Int = 2
+    )
+
+    data class PsdShadowMeta(
+        val blur: Float,
+        val dx: Float,
+        val dy: Float,
+        val color: Int
+    )
+
     data class PsdLayerMeta(
         val name: String,
         val opacity: Int,
         val isVisible: Boolean,
         val blendMode: String,
         val isClipped: Boolean = false,
+        val textMeta: PsdTextMeta? = null,
+        val shadowMeta: PsdShadowMeta? = null,
         val renderAction: (Canvas) -> Unit
     )
 
@@ -42,6 +71,7 @@ object PsdExporter {
         val redChan: CompressedChannel,
         val greenChan: CompressedChannel,
         val blueChan: CompressedChannel,
+        val extraData: ByteArray? = null,
         val recordLen: Int
     )
 
@@ -93,6 +123,46 @@ object PsdExporter {
                 val layerName = if (!layer.name.isNullOrBlank()) layer.name else "Layer ${idx + 1}"
                 val opacityVal = layer.opacity.coerceIn(0, 255)
 
+                val textMeta = if (layer is com.astral.typer.models.TextLayer) {
+                    val fontName = extractFontName(layer.fontPath)
+                    val just = when (layer.textAlign) {
+                        android.text.Layout.Alignment.ALIGN_NORMAL -> 0
+                        android.text.Layout.Alignment.ALIGN_OPPOSITE -> 1
+                        android.text.Layout.Alignment.ALIGN_CENTER -> 2
+                        else -> 0
+                    }
+                    PsdTextMeta(
+                        text = layer.text.toString(),
+                        fontSize = layer.fontSize * scale,
+                        fontName = fontName,
+                        color = layer.color,
+                        x = layer.x * scale,
+                        y = layer.y * scale,
+                        rotation = layer.rotation,
+                        scaleX = layer.scaleX,
+                        scaleY = layer.scaleY,
+                        isBold = layer.isBold,
+                        isItalic = layer.isItalic,
+                        isUnderline = layer.isUnderline,
+                        isStrikethrough = layer.isStrikethrough,
+                        justification = just,
+                        isWarp = layer.isWarpActive,
+                        warpRows = layer.warpRows,
+                        warpCols = layer.warpCols
+                    )
+                } else null
+
+                val shadowMeta = if (layer is com.astral.typer.models.StylableLayer &&
+                    (layer.shadowRadius > 0f || layer.shadowDx != 0f || layer.shadowDy != 0f) &&
+                    Color.alpha(layer.shadowColor) > 0) {
+                    PsdShadowMeta(
+                        blur = layer.shadowRadius * scale,
+                        dx = layer.shadowDx * scale,
+                        dy = layer.shadowDy * scale,
+                        color = layer.shadowColor
+                    )
+                } else null
+
                 layersMeta.add(
                     PsdLayerMeta(
                         name = layerName,
@@ -100,6 +170,8 @@ object PsdExporter {
                         isVisible = layer.isVisible,
                         blendMode = layer.blendMode,
                         isClipped = layer.isClipped,
+                        textMeta = textMeta,
+                        shadowMeta = shadowMeta,
                         renderAction = { canvas ->
                             layer.draw(canvas)
                         }
@@ -146,7 +218,9 @@ object PsdExporter {
                     opacity = meta.opacity,
                     isVisible = meta.isVisible,
                     blendMode = meta.blendMode,
-                    isClipped = meta.isClipped
+                    isClipped = meta.isClipped,
+                    textMeta = meta.textMeta,
+                    shadowMeta = meta.shadowMeta
                 )
             )
             layerBmp.recycle()
@@ -234,7 +308,8 @@ object PsdExporter {
             val pascalLen = 1 + nameLen
             val paddedPascalLen = ((pascalLen + 3) / 4) * 4
 
-            val extraLen = 4 + 4 + paddedPascalLen
+            val extraDataLen = l.extraData?.size ?: 0
+            val extraLen = 4 + 4 + paddedPascalLen + extraDataLen
             dos.writeInt(extraLen)
 
             dos.writeInt(0) // Mask Data Length = 0
@@ -246,6 +321,11 @@ object PsdExporter {
             val padBytes = paddedPascalLen - pascalLen
             if (padBytes > 0) {
                 dos.write(ByteArray(padBytes))
+            }
+
+            // Tagged blocks (Additional Layer Information)
+            if (l.extraData != null && l.extraData.isNotEmpty()) {
+                dos.write(l.extraData)
             }
         }
 
@@ -318,7 +398,9 @@ object PsdExporter {
         opacity: Int,
         isVisible: Boolean,
         blendMode: String,
-        isClipped: Boolean
+        isClipped: Boolean,
+        textMeta: PsdTextMeta? = null,
+        shadowMeta: PsdShadowMeta? = null
     ): PreparedLayer {
         val cropW = bounds.width().coerceAtLeast(1)
         val cropH = bounds.height().coerceAtLeast(1)
@@ -389,7 +471,58 @@ object PsdExporter {
         val pascalLen = 1 + nameLen
         val paddedPascalLen = ((pascalLen + 3) / 4) * 4
 
-        val recLen = 66 + paddedPascalLen
+        // Build tagged blocks (Additional Layer Information)
+        val taggedBlocksBaos = ByteArrayOutputStream()
+        val taggedDos = DataOutputStream(taggedBlocksBaos)
+
+        // 1. TySh Tagged Block (for editable text in Photoshop)
+        if (textMeta != null) {
+            val tyshBytes = buildTyShBlock(textMeta)
+            taggedDos.writeBytes("8BIM")
+            taggedDos.writeBytes("TySh")
+            taggedDos.writeInt(tyshBytes.size)
+            taggedDos.write(tyshBytes)
+            if (tyshBytes.size % 2 != 0) {
+                taggedDos.writeByte(0) // Pad to 2 bytes
+            }
+        }
+
+        // 2. lrFX Tagged Block (Layer Effects, e.g. Drop Shadow)
+        if (shadowMeta != null) {
+            val lrfxBytes = buildLrfxBlock(shadowMeta)
+            taggedDos.writeBytes("8BIM")
+            taggedDos.writeBytes("lrFX")
+            taggedDos.writeInt(lrfxBytes.size)
+            taggedDos.write(lrfxBytes)
+            if (lrfxBytes.size % 2 != 0) {
+                taggedDos.writeByte(0) // Pad to 2 bytes
+            }
+        }
+
+        // 2. luni Tagged Block (Unicode layer name)
+        val luniBaos = ByteArrayOutputStream()
+        val luniDos = DataOutputStream(luniBaos)
+        val nameChars = name.toCharArray()
+        luniDos.writeInt(nameChars.size)
+        for (c in nameChars) {
+            luniDos.writeShort(c.code)
+        }
+        val rawLuniData = luniBaos.toByteArray()
+        val luniPaddedLen = ((rawLuniData.size + 3) / 4) * 4 // Padded to 4 bytes
+        val luniFinalBaos = ByteArrayOutputStream()
+        luniFinalBaos.write(rawLuniData)
+        if (luniPaddedLen > rawLuniData.size) {
+            luniFinalBaos.write(ByteArray(luniPaddedLen - rawLuniData.size))
+        }
+        val luniData = luniFinalBaos.toByteArray()
+
+        taggedDos.writeBytes("8BIM")
+        taggedDos.writeBytes("luni")
+        taggedDos.writeInt(luniData.size)
+        taggedDos.write(luniData)
+
+        val extraDataBytes = taggedBlocksBaos.toByteArray()
+        val recLen = 66 + paddedPascalLen + extraDataBytes.size
 
         return PreparedLayer(
             name = name,
@@ -405,6 +538,7 @@ object PsdExporter {
             redChan = rChan,
             greenChan = gChan,
             blueChan = bChan,
+            extraData = extraDataBytes,
             recordLen = recLen
         )
     }
@@ -480,6 +614,464 @@ object PsdExporter {
             }
         }
         return out.toByteArray()
+    }
+
+    fun extractFontName(fontPath: String?): String {
+        if (fontPath.isNullOrBlank()) return "ArialMT"
+        val base = fontPath.substringAfterLast("/").substringAfterLast(":").substringBeforeLast(".")
+        return if (base.isNotBlank()) base else "ArialMT"
+    }
+
+    private fun writeAsciiStringOrClassId(baos: ByteArrayOutputStream, value: String) {
+        val dos = DataOutputStream(baos)
+        val ascii = value.toByteArray(Charsets.US_ASCII)
+        if (ascii.size == 4 && value != "warp" && value != "time" && value != "hold" && value != "list" && value != "json") {
+            dos.writeInt(0)
+            dos.write(ascii)
+        } else {
+            dos.writeInt(ascii.size)
+            dos.write(ascii)
+        }
+    }
+
+    private fun writeUnicodeString(baos: ByteArrayOutputStream, text: String) {
+        val dos = DataOutputStream(baos)
+        dos.writeInt(text.length)
+        for (ch in text) {
+            dos.writeShort(ch.code)
+        }
+    }
+
+    private fun encodeEngineString(text: String): ByteArray {
+        val baos = ByteArrayOutputStream()
+        baos.write(" (".toByteArray(Charsets.US_ASCII))
+        baos.write(0xFE)
+        baos.write(0xFF)
+        for (ch in text) {
+            val code = ch.code
+            val b1 = (code shr 8) and 0xFF
+            val b2 = code and 0xFF
+            if (b1 == 40 || b1 == 41 || b1 == 92) {
+                baos.write(92)
+            }
+            baos.write(b1)
+            if (b2 == 40 || b2 == 41 || b2 == 92) {
+                baos.write(92)
+            }
+            baos.write(b2)
+        }
+        baos.write(")".toByteArray(Charsets.US_ASCII))
+        return baos.toByteArray()
+    }
+
+    fun buildEngineData(textMeta: PsdTextMeta): ByteArray {
+        val baos = ByteArrayOutputStream()
+        val normText = textMeta.text.replace("\r\n", "\r").replace("\n", "\r") + "\r"
+        val normTextLen = normText.length
+
+        val r = (Color.red(textMeta.color) / 255f)
+        val g = (Color.green(textMeta.color) / 255f)
+        val b = (Color.blue(textMeta.color) / 255f)
+
+        val textEnc = encodeEngineString(normText)
+        val normalRgbEnc = encodeEngineString("Normal RGB")
+        val invisFontEnc = encodeEngineString("AdobeInvisFont")
+        val fontNameEnc = encodeEngineString(textMeta.fontName)
+
+        val sb = StringBuilder()
+        sb.append("\n\n<<\n")
+        sb.append("\t/EngineDict\n\t<<\n")
+        sb.append("\t\t/Editor\n\t\t<<\n\t\t\t/Text ")
+        baos.write(sb.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(textEnc)
+
+        val sb2 = StringBuilder()
+        sb2.append("\n\t\t>>\n")
+        sb2.append("\t\t/ParagraphRun\n\t\t<<\n")
+        sb2.append("\t\t\t/DefaultRunData\n\t\t\t<<\n")
+        sb2.append("\t\t\t\t/ParagraphSheet\n\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t/DefaultStyleSheet 0\n")
+        sb2.append("\t\t\t\t\t/Properties\n\t\t\t\t\t<<\n\t\t\t\t\t>>\n")
+        sb2.append("\t\t\t\t>>\n")
+        sb2.append("\t\t\t\t/Adjustments\n\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t/Axis [ 1.0 0.0 1.0 ]\n")
+        sb2.append("\t\t\t\t\t/XY [ 0.0 0.0 ]\n")
+        sb2.append("\t\t\t\t>>\n")
+        sb2.append("\t\t\t>>\n")
+        sb2.append("\t\t\t/RunArray [\n\t\t\t<<\n")
+        sb2.append("\t\t\t\t/ParagraphSheet\n\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t/DefaultStyleSheet 0\n")
+        sb2.append("\t\t\t\t\t/Properties\n\t\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t\t/Justification ${textMeta.justification}\n")
+        sb2.append("\t\t\t\t\t\t/FirstLineIndent 0.0\n")
+        sb2.append("\t\t\t\t\t\t/StartIndent 0.0\n")
+        sb2.append("\t\t\t\t\t\t/EndIndent 0.0\n")
+        sb2.append("\t\t\t\t\t\t/SpaceBefore 0.0\n")
+        sb2.append("\t\t\t\t\t\t/SpaceAfter 0.0\n")
+        sb2.append("\t\t\t\t\t\t/AutoHyphenate true\n")
+        sb2.append("\t\t\t\t\t\t/HyphenatedWordSize 6\n")
+        sb2.append("\t\t\t\t\t\t/PreHyphen 2\n")
+        sb2.append("\t\t\t\t\t\t/PostHyphen 2\n")
+        sb2.append("\t\t\t\t\t\t/ConsecutiveHyphens 8\n")
+        sb2.append("\t\t\t\t\t\t/Zone 36.0\n")
+        sb2.append("\t\t\t\t\t\t/WordSpacing [ 0.8 1.0 1.33 ]\n")
+        sb2.append("\t\t\t\t\t\t/LetterSpacing [ 0.0 0.0 0.0 ]\n")
+        sb2.append("\t\t\t\t\t\t/GlyphSpacing [ 1.0 1.0 1.0 ]\n")
+        sb2.append("\t\t\t\t\t\t/AutoLeading 1.2\n")
+        sb2.append("\t\t\t\t\t\t/LeadingType 0\n")
+        sb2.append("\t\t\t\t\t\t/Hanging false\n")
+        sb2.append("\t\t\t\t\t\t/Burasagari false\n")
+        sb2.append("\t\t\t\t\t\t/KinsokuOrder 0\n")
+        sb2.append("\t\t\t\t\t\t/EveryLineComposer false\n")
+        sb2.append("\t\t\t\t\t>>\n\t\t\t\t>>\n")
+        sb2.append("\t\t\t\t/Adjustments\n\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t/Axis [ 1.0 0.0 1.0 ]\n")
+        sb2.append("\t\t\t\t\t/XY [ 0.0 0.0 ]\n")
+        sb2.append("\t\t\t\t>>\n\t\t\t>>\n\t\t\t]\n")
+        sb2.append("\t\t\t/RunLengthArray [ $normTextLen ]\n")
+        sb2.append("\t\t\t/IsJoinable 1\n")
+        sb2.append("\t\t>>\n")
+        sb2.append("\t\t/StyleRun\n\t\t<<\n")
+        sb2.append("\t\t\t/DefaultRunData\n\t\t\t<<\n")
+        sb2.append("\t\t\t\t/StyleSheet\n\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t/StyleSheetData\n\t\t\t\t\t<<\n\t\t\t\t\t>>\n")
+        sb2.append("\t\t\t\t>>\n\t\t\t>>\n")
+        sb2.append("\t\t\t/RunArray [\n\t\t\t<<\n")
+        sb2.append("\t\t\t\t/StyleSheet\n\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t/StyleSheetData\n\t\t\t\t\t<<\n")
+        sb2.append(String.format(java.util.Locale.US, "\t\t\t\t\t\t/Font 1\n\t\t\t\t\t\t/FontSize %.1f\n", textMeta.fontSize))
+        sb2.append("\t\t\t\t\t\t/FauxBold ${if (textMeta.isBold) "true" else "false"}\n")
+        sb2.append("\t\t\t\t\t\t/FauxItalic ${if (textMeta.isItalic) "true" else "false"}\n")
+        sb2.append("\t\t\t\t\t\t/Underline ${if (textMeta.isUnderline) "true" else "false"}\n")
+        sb2.append("\t\t\t\t\t\t/Strikethrough ${if (textMeta.isStrikethrough) "true" else "false"}\n")
+        sb2.append("\t\t\t\t\t\t/AutoLeading true\n")
+        sb2.append("\t\t\t\t\t\t/Leading 0.0\n")
+        sb2.append("\t\t\t\t\t\t/HorizontalScale 1.0\n")
+        sb2.append("\t\t\t\t\t\t/VerticalScale 1.0\n")
+        sb2.append("\t\t\t\t\t\t/Tracking 0\n")
+        sb2.append("\t\t\t\t\t\t/AutoKerning true\n")
+        sb2.append("\t\t\t\t\t\t/Kerning 0\n")
+        sb2.append("\t\t\t\t\t\t/BaselineShift 0.0\n")
+        sb2.append("\t\t\t\t\t\t/FontCaps 0\n")
+        sb2.append("\t\t\t\t\t\t/FontBaseline 0\n")
+        sb2.append("\t\t\t\t\t\t/Ligatures true\n")
+        sb2.append("\t\t\t\t\t\t/DLigatures false\n")
+        sb2.append("\t\t\t\t\t\t/BaselineDirection 2\n")
+        sb2.append("\t\t\t\t\t\t/Tsume 0.0\n")
+        sb2.append("\t\t\t\t\t\t/StyleRunAlignment 2\n")
+        sb2.append("\t\t\t\t\t\t/Language 0\n")
+        sb2.append("\t\t\t\t\t\t/NoBreak false\n")
+        sb2.append("\t\t\t\t\t\t/FillColor\n\t\t\t\t\t\t<<\n")
+        sb2.append(String.format(java.util.Locale.US, "\t\t\t\t\t\t\t/Type 1\n\t\t\t\t\t\t\t/Values [ 1.0 %.5f %.5f %.5f ]\n", r, g, b))
+        sb2.append("\t\t\t\t\t\t>>\n")
+        sb2.append("\t\t\t\t\t\t/StrokeColor\n\t\t\t\t\t\t<<\n")
+        sb2.append("\t\t\t\t\t\t\t/Type 1\n\t\t\t\t\t\t\t/Values [ 1.0 0.0 0.0 0.0 ]\n\t\t\t\t\t\t>>\n")
+        sb2.append("\t\t\t\t\t\t/FillFlag true\n")
+        sb2.append("\t\t\t\t\t\t/StrokeFlag false\n")
+        sb2.append("\t\t\t\t\t\t/FillFirst true\n")
+        sb2.append("\t\t\t\t\t\t/YUnderline 1\n")
+        sb2.append("\t\t\t\t\t\t/OutlineWidth 1.0\n")
+        sb2.append("\t\t\t\t\t\t/CharacterDirection 0\n")
+        sb2.append("\t\t\t\t\t\t/HindiNumbers false\n")
+        sb2.append("\t\t\t\t\t\t/Kashida 1\n")
+        sb2.append("\t\t\t\t\t\t/DiacriticPos 2\n")
+        sb2.append("\t\t\t\t\t>>\n\t\t\t\t>>\n\t\t\t>>\n\t\t\t]\n")
+        sb2.append("\t\t\t/RunLengthArray [ $normTextLen ]\n")
+        sb2.append("\t\t\t/IsJoinable 2\n")
+        sb2.append("\t\t>>\n")
+        sb2.append("\t\t/AntiAlias 4\n")
+        sb2.append("\t\t/UseFractionalGlyphWidths true\n")
+        sb2.append("\t>>\n")
+
+        sb2.append("\t/ResourceDict\n\t<<\n")
+        sb2.append("\t\t/TheNormalStyleSheet 0\n")
+        sb2.append("\t\t/TheNormalParagraphSheet 0\n")
+        sb2.append("\t\t/ParagraphSheetSet [\n\t\t<<\n")
+        sb2.append("\t\t\t/Name ")
+        baos.write(sb2.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(normalRgbEnc)
+
+        val sb3 = StringBuilder()
+        sb3.append("\n\t\t\t/DefaultStyleSheet 0\n")
+        sb3.append("\t\t\t/Properties\n\t\t\t<<\n")
+        sb3.append("\t\t\t\t/Justification ${textMeta.justification}\n")
+        sb3.append("\t\t\t>>\n\t\t>>\n\t\t]\n")
+        sb3.append("\t\t/StyleSheetSet [\n\t\t<<\n")
+        sb3.append("\t\t\t/Name ")
+        baos.write(sb3.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(normalRgbEnc)
+
+        val sb4 = StringBuilder()
+        sb4.append("\n\t\t\t/StyleSheetData\n\t\t\t<<\n")
+        sb4.append("\t\t\t\t/Font 1\n")
+        sb4.append("\t\t\t\t/FontSize 12.0\n")
+        sb4.append("\t\t\t>>\n\t\t>>\n\t\t]\n")
+        sb4.append("\t\t/FontSet [\n\t\t<<\n")
+        sb4.append("\t\t\t/Name ")
+        baos.write(sb4.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(invisFontEnc)
+
+        val sb5 = StringBuilder()
+        sb5.append("\n\t\t\t/Script 0\n\t\t\t/FontType 0\n\t\t\t/Synthetic 0\n\t\t>>\n\t\t<<\n")
+        sb5.append("\t\t\t/Name ")
+        baos.write(sb5.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(fontNameEnc)
+
+        val sb6 = StringBuilder()
+        sb6.append("\n\t\t\t/Script 0\n\t\t\t/FontType 0\n\t\t\t/Synthetic 0\n\t\t>>\n\t\t]\n")
+        sb6.append("\t>>\n")
+
+        sb6.append("\t/DocumentResources\n\t<<\n")
+        sb6.append("\t\t/TheNormalStyleSheet 0\n")
+        sb6.append("\t\t/TheNormalParagraphSheet 0\n")
+        sb6.append("\t\t/ParagraphSheetSet [\n\t\t<<\n")
+        sb6.append("\t\t\t/Name ")
+        baos.write(sb6.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(normalRgbEnc)
+
+        val sb7 = StringBuilder()
+        sb7.append("\n\t\t\t/DefaultStyleSheet 0\n")
+        sb7.append("\t\t\t/Properties\n\t\t\t<<\n")
+        sb7.append("\t\t\t\t/Justification ${textMeta.justification}\n")
+        sb7.append("\t\t\t>>\n\t\t>>\n\t\t]\n")
+        sb7.append("\t\t/StyleSheetSet [\n\t\t<<\n")
+        sb7.append("\t\t\t/Name ")
+        baos.write(sb7.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(normalRgbEnc)
+
+        val sb8 = StringBuilder()
+        sb8.append("\n\t\t\t/StyleSheetData\n\t\t\t<<\n")
+        sb8.append("\t\t\t\t/Font 1\n")
+        sb8.append("\t\t\t\t/FontSize 12.0\n")
+        sb8.append("\t\t\t>>\n\t\t>>\n\t\t]\n")
+        sb8.append("\t\t/FontSet [\n\t\t<<\n")
+        sb8.append("\t\t\t/Name ")
+        baos.write(sb8.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(invisFontEnc)
+
+        val sb9 = StringBuilder()
+        sb9.append("\n\t\t\t/Script 0\n\t\t\t/FontType 0\n\t\t\t/Synthetic 0\n\t\t>>\n\t\t<<\n")
+        sb9.append("\t\t\t/Name ")
+        baos.write(sb9.toString().toByteArray(Charsets.US_ASCII))
+        baos.write(fontNameEnc)
+
+        val sb10 = StringBuilder()
+        sb10.append("\n\t\t\t/Script 0\n\t\t\t/FontType 0\n\t\t\t/Synthetic 0\n\t\t>>\n\t\t]\n")
+        sb10.append("\t>>\n>>\n")
+        baos.write(sb10.toString().toByteArray(Charsets.US_ASCII))
+
+        return baos.toByteArray()
+    }
+
+    fun buildTyShBlock(textMeta: PsdTextMeta): ByteArray {
+        val baos = ByteArrayOutputStream()
+        val dos = DataOutputStream(baos)
+
+        // 1. TySh version = 1
+        dos.writeShort(1)
+
+        // 2. Transform matrix: 6 double (xx, xy, yx, yy, tx, ty)
+        val rad = Math.toRadians(textMeta.rotation.toDouble())
+        val cosA = Math.cos(rad)
+        val sinA = Math.sin(rad)
+        val xx = textMeta.scaleX.toDouble() * cosA
+        val xy = -textMeta.scaleX.toDouble() * sinA
+        val yx = textMeta.scaleY.toDouble() * sinA
+        val yy = textMeta.scaleY.toDouble() * cosA
+        val tx = textMeta.x.toDouble()
+        val ty = textMeta.y.toDouble()
+        dos.writeDouble(xx)
+        dos.writeDouble(xy)
+        dos.writeDouble(yx)
+        dos.writeDouble(yy)
+        dos.writeDouble(tx)
+        dos.writeDouble(ty)
+
+        // 3. Text version = 50
+        dos.writeShort(50)
+
+        // 4. Descriptor TxLr
+        dos.writeInt(16) // version = 16
+        writeUnicodeString(baos, "")
+        writeAsciiStringOrClassId(baos, "TxLr")
+        dos.writeInt(6) // 6 items
+
+        // Item 1: 'Txt ' (TEXT)
+        writeAsciiStringOrClassId(baos, "Txt ")
+        dos.writeBytes("TEXT")
+        writeUnicodeString(baos, textMeta.text)
+
+        // Item 2: 'textGridding' (enum)
+        writeAsciiStringOrClassId(baos, "textGridding")
+        dos.writeBytes("enum")
+        writeAsciiStringOrClassId(baos, "textGridding")
+        writeAsciiStringOrClassId(baos, "None")
+
+        // Item 3: 'Ornt' (enum)
+        writeAsciiStringOrClassId(baos, "Ornt")
+        dos.writeBytes("enum")
+        writeAsciiStringOrClassId(baos, "Ornt")
+        writeAsciiStringOrClassId(baos, "Hrzn")
+
+        // Item 4: 'AntA' (enum)
+        writeAsciiStringOrClassId(baos, "AntA")
+        dos.writeBytes("enum")
+        writeAsciiStringOrClassId(baos, "Annt")
+        writeAsciiStringOrClassId(baos, "antiAliasSharp")
+
+        // Item 5: 'TextIndex' (long)
+        writeAsciiStringOrClassId(baos, "TextIndex")
+        dos.writeBytes("long")
+        dos.writeInt(0)
+
+        // Item 6: 'EngineData' (tdta)
+        writeAsciiStringOrClassId(baos, "EngineData")
+        dos.writeBytes("tdta")
+        val edBytes = buildEngineData(textMeta)
+        dos.writeInt(edBytes.size)
+        dos.write(edBytes)
+
+        // 5. Warp version = 1
+        dos.writeShort(1)
+
+        // 6. Descriptor warp
+        dos.writeInt(16) // version = 16
+        writeUnicodeString(baos, "")
+        writeAsciiStringOrClassId(baos, "warp")
+        val warpItemCount = if (textMeta.isWarp) 10 else 8
+        dos.writeInt(warpItemCount)
+
+        // Item 1: 'warpStyle' (enum)
+        writeAsciiStringOrClassId(baos, "warpStyle")
+        dos.writeBytes("enum")
+        writeAsciiStringOrClassId(baos, "warpStyle")
+        writeAsciiStringOrClassId(baos, if (textMeta.isWarp) "warpCustom" else "warpNone")
+
+        // Item 2: 'warpValue' (doub)
+        writeAsciiStringOrClassId(baos, "warpValue")
+        dos.writeBytes("doub")
+        dos.writeDouble(0.0)
+
+        // Item 3: 'warpPerspective' (doub)
+        writeAsciiStringOrClassId(baos, "warpPerspective")
+        dos.writeBytes("doub")
+        dos.writeDouble(0.0)
+
+        // Item 4: 'warpPerspectiveOther' (doub)
+        writeAsciiStringOrClassId(baos, "warpPerspectiveOther")
+        dos.writeBytes("doub")
+        dos.writeDouble(0.0)
+
+        // Item 5: 'warpRotate' (enum)
+        writeAsciiStringOrClassId(baos, "warpRotate")
+        dos.writeBytes("enum")
+        writeAsciiStringOrClassId(baos, "Ornt")
+        writeAsciiStringOrClassId(baos, "Hrzn")
+
+        // Item 6: 'bounds' (Objc)
+        writeAsciiStringOrClassId(baos, "bounds")
+        dos.writeBytes("Objc")
+        writeUnicodeString(baos, "")
+        writeAsciiStringOrClassId(baos, "Rctn")
+        dos.writeInt(4) // 4 items: Top , Left, Btom, Rght
+
+        for (corner in listOf("Top ", "Left", "Btom", "Rght")) {
+            writeAsciiStringOrClassId(baos, corner)
+            dos.writeBytes("UntF")
+            dos.writeBytes("#Pxl")
+            dos.writeDouble(0.0)
+        }
+
+        // Item 7: 'uOrder' (long)
+        writeAsciiStringOrClassId(baos, "uOrder")
+        dos.writeBytes("long")
+        dos.writeInt(0)
+
+        // Item 8: 'vOrder' (long)
+        writeAsciiStringOrClassId(baos, "vOrder")
+        dos.writeBytes("long")
+        dos.writeInt(0)
+
+        if (textMeta.isWarp) {
+            // Item 9: 'deformNumRows' (long)
+            writeAsciiStringOrClassId(baos, "deformNumRows")
+            dos.writeBytes("long")
+            dos.writeInt(textMeta.warpRows)
+
+            // Item 10: 'deformNumCols' (long)
+            writeAsciiStringOrClassId(baos, "deformNumCols")
+            dos.writeBytes("long")
+            dos.writeInt(textMeta.warpCols)
+        }
+
+        // 7. Bounding box coordinates: 4 floats (0f, 0f, 0f, 0f)
+        dos.writeFloat(0f)
+        dos.writeFloat(0f)
+        dos.writeFloat(0f)
+        dos.writeFloat(0f)
+
+        return baos.toByteArray()
+    }
+
+
+    fun buildLrfxBlock(shadowMeta: PsdShadowMeta): ByteArray {
+        val baos = ByteArrayOutputStream()
+        val dos = DataOutputStream(baos)
+
+        // EffectsLayer header: version = 0, count = 2
+        dos.writeShort(0)
+        dos.writeShort(2)
+
+        // Effect 1: Common State (cmnS)
+        dos.writeBytes("8BIM")
+        dos.writeBytes("cmnS")
+        dos.writeInt(7) // size = 7
+        dos.writeInt(0) // version = 0
+        dos.writeByte(1) // visible = 1
+        dos.writeShort(0) // 2 unused bytes
+
+        // Effect 2: Drop Shadow (dsdw)
+        dos.writeBytes("8BIM")
+        dos.writeBytes("dsdw")
+        dos.writeInt(51) // size = 51
+
+        val dist = Math.hypot(shadowMeta.dx.toDouble(), shadowMeta.dy.toDouble()).toInt()
+        val angle = Math.toDegrees(Math.atan2(shadowMeta.dy.toDouble(), shadowMeta.dx.toDouble())).toInt()
+
+        dos.writeInt(2) // version = 2
+        dos.writeInt(shadowMeta.blur.toInt().coerceAtLeast(0))
+        dos.writeInt(0) // intensity
+        dos.writeInt(angle)
+        dos.writeInt(dist)
+
+        // Color (RGB space ID = 0, 4 short values: R*257, G*257, B*257, 0)
+        val a = Color.alpha(shadowMeta.color)
+        val r = Color.red(shadowMeta.color)
+        val g = Color.green(shadowMeta.color)
+        val b = Color.blue(shadowMeta.color)
+
+        dos.writeShort(0) // RGB color space
+        dos.writeShort(r * 257)
+        dos.writeShort(g * 257)
+        dos.writeShort(b * 257)
+        dos.writeShort(0)
+
+        // Blend mode signature and key
+        dos.writeBytes("8BIM")
+        dos.writeBytes("mul ")
+
+        dos.writeByte(1) // enabled = 1
+        dos.writeByte(0) // useGlobalAngle = 0
+        dos.writeByte(a) // opacity
+
+        // native_color
+        dos.writeShort(0)
+        dos.writeShort(r * 257)
+        dos.writeShort(g * 257)
+        dos.writeShort(b * 257)
+        dos.writeShort(0)
+
+        return baos.toByteArray()
     }
 
     private fun mapBlendModeKey(blendMode: String?): String {

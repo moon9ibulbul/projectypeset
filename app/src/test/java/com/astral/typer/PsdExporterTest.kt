@@ -81,4 +81,93 @@ class PsdExporterTest {
         assertEquals("MULTIPLY", meta.blendMode)
         assertTrue(meta.isClipped)
     }
+
+    @Test
+    fun testExtractFontName() {
+        assertEquals("ArialMT", PsdExporter.extractFontName(null))
+        assertEquals("ArialMT", PsdExporter.extractFontName(""))
+        assertEquals("Roboto-Bold", PsdExporter.extractFontName("/storage/emulated/0/fonts/Roboto-Bold.ttf"))
+        assertEquals("Pacifico", PsdExporter.extractFontName("std_cache:Pacifico.otf"))
+        assertEquals("Montserrat", PsdExporter.extractFontName("Montserrat"))
+    }
+
+    @Test
+    fun testBuildEngineDataAndTyShBlock() {
+        val textMeta = PsdExporter.PsdTextMeta(
+            text = "Hello World",
+            fontSize = 32f,
+            fontName = "Roboto-Bold",
+            color = android.graphics.Color.RED,
+            x = 100f,
+            y = 150f,
+            rotation = 0f,
+            scaleX = 1f,
+            scaleY = 1f,
+            isBold = true,
+            isItalic = false,
+            justification = 0
+        )
+
+        val engineData = PsdExporter.buildEngineData(textMeta)
+        assertTrue("EngineData should not be empty", engineData.isNotEmpty())
+        val engineStr = String(engineData, Charsets.US_ASCII)
+        assertTrue(engineStr.contains("/EngineDict"))
+        assertTrue(engineStr.contains("/ResourceDict"))
+        assertTrue(engineStr.contains("/FontSet"))
+        assertTrue(engineStr.contains("/StyleSheetSet"))
+        assertTrue(engineStr.contains("/ParagraphSheetSet"))
+
+        val tyshBlock = PsdExporter.buildTyShBlock(textMeta)
+        assertTrue("TySh block should not be empty", tyshBlock.isNotEmpty())
+
+        // Check header: version 1 (Int16 = 0x0001)
+        assertEquals(0.toByte(), tyshBlock[0])
+        assertEquals(1.toByte(), tyshBlock[1])
+
+        // Verify classId TxLr signature inside TySh block
+        val tyshStr = String(tyshBlock, Charsets.US_ASCII)
+        assertTrue(tyshStr.contains("TxLr"))
+        assertTrue(tyshStr.contains("EngineData"))
+        assertTrue(tyshStr.contains("warp"))
+    }
+
+    @Test
+    fun testBuildTyShBlockWithWarp() {
+        val textMeta = PsdExporter.PsdTextMeta(
+            text = "Warped Text",
+            fontSize = 40f,
+            fontName = "ArialMT",
+            color = android.graphics.Color.BLUE,
+            x = 50f,
+            y = 50f,
+            rotation = 0f,
+            scaleX = 1f,
+            scaleY = 1f,
+            isWarp = true,
+            warpRows = 3,
+            warpCols = 3
+        )
+
+        val tyshBlock = PsdExporter.buildTyShBlock(textMeta)
+        val tyshStr = String(tyshBlock, Charsets.US_ASCII)
+        assertTrue(tyshStr.contains("warpCustom"))
+        assertTrue(tyshStr.contains("deformNumRows"))
+        assertTrue(tyshStr.contains("deformNumCols"))
+    }
+
+    @Test
+    fun testBuildLrfxBlock() {
+        val shadowMeta = PsdExporter.PsdShadowMeta(
+            blur = 15f,
+            dx = 10f,
+            dy = 10f,
+            color = android.graphics.Color.BLACK
+        )
+
+        val lrfxBlock = PsdExporter.buildLrfxBlock(shadowMeta)
+        assertTrue("lrFX block should not be empty", lrfxBlock.isNotEmpty())
+        val lrfxStr = String(lrfxBlock, Charsets.US_ASCII)
+        assertTrue(lrfxStr.contains("cmnS"))
+        assertTrue(lrfxStr.contains("dsdw"))
+    }
 }
