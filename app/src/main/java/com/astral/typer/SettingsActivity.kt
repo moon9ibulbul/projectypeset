@@ -406,6 +406,9 @@ class SettingsActivity : AppCompatActivity() {
 
         val cbInpaintDetectTextInside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextInside)
         val cbInpaintDetectTextOutside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextOutside)
+        val rgInpaintDetectButtonAction = findViewById<android.widget.RadioGroup>(R.id.rgInpaintDetectButtonAction)
+        val rbDetectAndInpaint = findViewById<android.widget.RadioButton>(R.id.rbDetectAndInpaint)
+        val rbDetectOnly = findViewById<android.widget.RadioButton>(R.id.rbDetectOnly)
         val rgInpaintMaskShape = findViewById<android.widget.RadioGroup>(R.id.rgInpaintMaskShape)
         val rbMaskRectangle = findViewById<android.widget.RadioButton>(R.id.rbMaskRectangle)
         val rbMaskRounded = findViewById<android.widget.RadioButton>(R.id.rbMaskRounded)
@@ -415,6 +418,13 @@ class SettingsActivity : AppCompatActivity() {
         // Setup Inpaint UI State
         cbInpaintDetectTextInside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_inside", true)
         cbInpaintDetectTextOutside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_outside", true)
+
+        val savedDetectAction = settingsPrefs.getString("inpaint_detect_button_action", "Detect + Inpaint")
+        if (savedDetectAction == "Detect Only") {
+            rbDetectOnly.isChecked = true
+        } else {
+            rbDetectAndInpaint.isChecked = true
+        }
 
         val savedShape = settingsPrefs.getString("inpaint_mask_shape", "Rectangle")
         if (savedShape == "Rounded") {
@@ -435,6 +445,11 @@ class SettingsActivity : AppCompatActivity() {
 
         cbInpaintDetectTextOutside.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("inpaint_detect_text_outside", isChecked).apply()
+        }
+
+        rgInpaintDetectButtonAction.setOnCheckedChangeListener { _, checkedId ->
+            val action = if (checkedId == R.id.rbDetectOnly) "Detect Only" else "Detect + Inpaint"
+            settingsPrefs.edit().putString("inpaint_detect_button_action", action).apply()
         }
 
         rgInpaintMaskShape.setOnCheckedChangeListener { _, checkedId ->

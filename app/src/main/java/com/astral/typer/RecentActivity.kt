@@ -125,6 +125,7 @@ class RecentActivity : AppCompatActivity() {
         val isFolder = currentFolder != null
         menu.findItem(R.id.action_rename).isVisible = isFolder
         menu.findItem(R.id.action_export_pdf).isVisible = isFolder
+        menu.findItem(R.id.action_auto_inpaint)?.isVisible = isFolder
         return true
     }
 
@@ -148,6 +149,13 @@ class RecentActivity : AppCompatActivity() {
             }
             R.id.action_export_pdf -> {
                 exportFolderToPdf()
+                return true
+            }
+            R.id.action_auto_inpaint -> {
+                val folder = currentFolder
+                if (folder != null) {
+                    confirmAndRunAutoInpaint(listOf(folder))
+                }
                 return true
             }
         }
@@ -398,9 +406,88 @@ class RecentActivity : AppCompatActivity() {
         }
     }
 
+    private fun confirmAndRunAutoInpaint(folders: List<File>) {
+        if (folders.isEmpty()) return
+
+        val bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this)
+        if (!bubbleProcessor.isModelAvailable()) {
+            Toast.makeText(this, "Text Detector Model is not downloaded. Please download it in Settings.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val message = if (folders.size == 1) {
+            "Run Auto Detect Text + Hybrid Inpainting on all images in folder '${folders[0].name}'?"
+        } else {
+            "Run Auto Detect Text + Hybrid Inpainting on all images across ${folders.size} folders?"
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Auto Inpaint (Hybrid)")
+            .setMessage(message)
+            .setPositiveButton("Start") { _, _ ->
+                runAutoInpaint(folders)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun runAutoInpaint(folders: List<File>) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
+        val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
+        val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
+        tvStatus.text = "Initializing Auto Inpaint..."
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this@RecentActivity)
+            val inpaintManager = com.astral.typer.utils.InpaintManager(this@RecentActivity)
+            inpaintManager.setEngine(com.astral.typer.utils.InpaintManager.Engine.HYBRID)
+
+            var totalProjectsProcessed = 0
+            var totalProjectsCount = 0
+
+            for ((folderIndex, folder) in folders.withIndex()) {
+                val folderNum = folderIndex + 1
+                val totalFolders = folders.size
+
+                val (processed, total) = ProjectManager.autoInpaintFolder(
+                    this@RecentActivity,
+                    folder,
+                    bubbleProcessor,
+                    inpaintManager
+                ) { current, folderTotal, currentName ->
+                    runOnUiThread {
+                        progressBar.max = folderTotal
+                        progressBar.progress = current
+                        val prefix = if (totalFolders > 1) "Folder $folderNum/$totalFolders: ${folder.name}\n" else ""
+                        tvStatus.text = "${prefix}Processing $current/$folderTotal: $currentName..."
+                    }
+                }
+                totalProjectsProcessed += processed
+                totalProjectsCount += total
+            }
+
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                loadProjects()
+                Toast.makeText(
+                    this@RecentActivity,
+                    "Auto Inpaint complete ($totalProjectsProcessed/$totalProjectsCount processed)",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     private val actionModeCallback = object : ActionMode.Callback {
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
             menu.add(0, 4, 0, "Rename").setIcon(android.R.drawable.ic_menu_edit).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            menu.add(0, 5, 0, "Auto Inpaint").setIcon(R.drawable.ic_magic_wand).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 1, 0, "Share").setIcon(android.R.drawable.ic_menu_share).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 3, 0, "Export to PDF").setIcon(android.R.drawable.ic_menu_save).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 2, 0, "Remove").setIcon(android.R.drawable.ic_menu_delete).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
@@ -412,6 +499,7 @@ class RecentActivity : AppCompatActivity() {
             val allFolders = selectedFiles.isNotEmpty() && selectedFiles.all { it.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, it) }
             menu.findItem(3)?.isVisible = allFolders
             menu.findItem(4)?.isVisible = selectedFiles.size == 1
+            menu.findItem(5)?.isVisible = allFolders
             return true
         }
 
@@ -435,6 +523,12 @@ class RecentActivity : AppCompatActivity() {
                 }
                 4 -> { // Rename
                     showRenameSelectedItemDialog(mode)
+                    true
+                }
+                5 -> { // Auto Inpaint
+                    val selectedFolders = adapter.selectedItems.filter { it.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, it) }
+                    mode.finish()
+                    confirmAndRunAutoInpaint(selectedFolders)
                     true
                 }
                 else -> false

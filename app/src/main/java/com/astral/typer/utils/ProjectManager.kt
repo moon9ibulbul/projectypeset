@@ -3646,6 +3646,235 @@ object ProjectManager {
             e.printStackTrace()
         }
     }
+
+    /**
+     * Executes the Auto Detect Text + Hybrid Inpainting pipeline on a single project file/directory.
+     * Replaces background.png with the inpainted image and regenerates the thumbnail.
+     * Returns true if processing succeeded (or if no text was detected, leaving it intact).
+     */
+    suspend fun autoInpaintProject(
+        context: Context,
+        projectFile: File,
+        bubbleProcessor: BubbleDetectorProcessor,
+        inpaintManager: InpaintManager,
+        allowedLabels: Set<Long>,
+        maskPadding: Int
+    ): Boolean {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            var tempLoadDir: File? = null
+            val projectDir: File
+
+            try {
+                var resolvedFile = projectFile
+                if (projectFile.isDirectory && !File(projectFile, "project.json").exists()) {
+                    val roots = mutableListOf<File>()
+                    val publicRoot = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AstralTyper/Project")
+                    roots.add(publicRoot)
+                    val rootPath = File(Environment.getExternalStorageDirectory(), "AstralTyper/Project")
+                    roots.add(rootPath)
+                    val privateRoot = context.getExternalFilesDir("Projects")
+                    if (privateRoot != null) {
+                        roots.add(privateRoot)
+                    }
+                    roots.add(File(context.filesDir, "Projects"))
+                    val uniqueRoots = roots.distinctBy { it.absolutePath }
+
+                    var relativePath: String? = null
+                    for (root in uniqueRoots.sortedByDescending { it.absolutePath.length }) {
+                        if (projectFile.absolutePath.startsWith(root.absolutePath)) {
+                            relativePath = projectFile.absolutePath.substring(root.absolutePath.length)
+                            break
+                        }
+                    }
+
+                    if (relativePath != null) {
+                        for (root in uniqueRoots) {
+                            val candidate = File(root, relativePath)
+                            if (File(candidate, "project.json").exists()) {
+                                resolvedFile = candidate
+                                break
+                            }
+                        }
+                    }
+                }
+
+                val isZip = !resolvedFile.isDirectory && (resolvedFile.extension.equals("atd", ignoreCase = true) || resolvedFile.extension.equals("zip", ignoreCase = true))
+
+                val imagesDir: File
+                if (isZip) {
+                    val temp = File(context.cacheDir, "temp_inpaint_${System.currentTimeMillis()}_${(0..9999).random()}")
+                    temp.mkdirs()
+                    if (!unzip(resolvedFile, temp)) {
+                        temp.deleteRecursively()
+                        return@withContext false
+                    }
+                    tempLoadDir = temp
+                    projectDir = temp
+                    imagesDir = File(temp, "images")
+                } else {
+                    projectDir = resolvedFile
+                    imagesDir = File(resolvedFile, "images")
+                }
+
+                val bgFile = File(imagesDir, "background.png")
+                if (!bgFile.exists()) {
+                    return@withContext false
+                }
+
+                val bgBitmap = BitmapFactory.decodeFile(bgFile.absolutePath) ?: return@withContext false
+
+                // Detect text boxes and bubble boxes
+                val textRects = bubbleProcessor.detect(bgBitmap, allowedLabels, 1.0f)
+                val bubbleRects = bubbleProcessor.detect(bgBitmap, setOf(0L), 1.0f)
+
+                if (textRects.isEmpty()) {
+                    bgBitmap.recycle()
+                    return@withContext true
+                }
+
+                // Generate tight text masks
+                val tightPaths = bubbleProcessor.generateTightTextMasks(bgBitmap, textRects, bubbleRects, maskPadding)
+                if (tightPaths.isEmpty()) {
+                    bgBitmap.recycle()
+                    return@withContext true
+                }
+
+                // Calculate bounding box across tight paths
+                val allBounds = android.graphics.RectF()
+                val tempRectF = android.graphics.RectF()
+                for (p in tightPaths) {
+                    p.computeBounds(tempRectF, true)
+                    allBounds.union(tempRectF)
+                }
+
+                val bounds = android.graphics.Rect()
+                allBounds.roundOut(bounds)
+                bounds.left = bounds.left.coerceIn(0, bgBitmap.width)
+                bounds.right = bounds.right.coerceIn(0, bgBitmap.width)
+                bounds.top = bounds.top.coerceIn(0, bgBitmap.height)
+                bounds.bottom = bounds.bottom.coerceIn(0, bgBitmap.height)
+
+                if (bounds.isEmpty) {
+                    bounds.set(0, 0, bgBitmap.width, bgBitmap.height)
+                }
+
+                // Create mask bitmap cropped to bounds
+                val maskW = bounds.width().coerceAtLeast(1)
+                val maskH = bounds.height().coerceAtLeast(1)
+                val maskBitmap = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
+                val maskCanvas = android.graphics.Canvas(maskBitmap)
+                maskCanvas.drawColor(Color.TRANSPARENT)
+                maskCanvas.translate(-bounds.left.toFloat(), -bounds.top.toFloat())
+
+                val maskPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                    style = android.graphics.Paint.Style.FILL
+                }
+                for (path in tightPaths) {
+                    maskCanvas.drawPath(path, maskPaint)
+                }
+
+                // Inpaint with Hybrid engine
+                inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+                val inpaintedBg = inpaintManager.inpaint(bgBitmap, maskBitmap, bounds)
+
+                maskBitmap.recycle()
+
+                if (inpaintedBg == null) {
+                    bgBitmap.recycle()
+                    return@withContext false
+                }
+
+                // Overwrite background.png
+                saveBitmap(inpaintedBg, bgFile)
+
+                // Regenerate thumbnail
+                val thumbFile = File(projectDir, "thumbnail.png")
+                val thumbBmp = decodeSampledBitmapFromFile(bgFile, 300, 300)
+                if (thumbBmp != null) {
+                    saveBitmap(thumbBmp, thumbFile)
+                    thumbBmp.recycle()
+                }
+
+                // Invalidate thumbnail cache
+                try {
+                    val cacheDir = File(context.cacheDir, "thumbnails")
+                    val cachePrefix = "${resolvedFile.name}.atd_"
+                    cacheDir.listFiles()?.forEach { f ->
+                        if (f.name.startsWith(cachePrefix) || f.name.startsWith(resolvedFile.name)) {
+                            f.delete()
+                        }
+                    }
+                    val legacyCacheFile = File(cacheDir, "${resolvedFile.name}.atd.png")
+                    if (legacyCacheFile.exists()) legacyCacheFile.delete()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                // If originally a zip, re-zip to target file
+                if (isZip && tempLoadDir != null) {
+                    val tempZip = File(context.cacheDir, "temp_rezip_${System.currentTimeMillis()}.atd")
+                    if (zipFolder(tempLoadDir, tempZip)) {
+                        tempZip.copyTo(resolvedFile, overwrite = true)
+                        tempZip.delete()
+                    } else {
+                        tempZip.delete()
+                        inpaintedBg.recycle()
+                        bgBitmap.recycle()
+                        return@withContext false
+                    }
+                }
+
+                inpaintedBg.recycle()
+                bgBitmap.recycle()
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            } finally {
+                tempLoadDir?.deleteRecursively()
+            }
+        }
+    }
+
+    /**
+     * Runs Auto Detect Text + Hybrid Inpaint on all project items inside the specified folder.
+     */
+    suspend fun autoInpaintFolder(
+        context: Context,
+        folder: File,
+        bubbleProcessor: BubbleDetectorProcessor,
+        inpaintManager: InpaintManager,
+        onProgress: (current: Int, total: Int, currentName: String) -> Unit = { _, _, _ -> }
+    ): Pair<Int, Int> {
+        val projects = getRecentProjects(context, folder).filter {
+            it.name.endsWith(".atd") || isProjectDirectory(context, it)
+        }.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
+
+        if (projects.isEmpty()) return Pair(0, 0)
+
+        val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
+        val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", true)
+        val maskPadding = prefs.getInt("inpaint_text_padding", 0)
+
+        val allowedLabels = mutableSetOf<Long>()
+        if (detectInside) allowedLabels.add(1L)
+        if (detectOutside) allowedLabels.add(2L)
+        if (allowedLabels.isEmpty()) {
+            allowedLabels.add(1L)
+            allowedLabels.add(2L)
+        }
+
+        var successCount = 0
+        for ((index, proj) in projects.withIndex()) {
+            onProgress(index + 1, projects.size, proj.name)
+            val success = autoInpaintProject(context, proj, bubbleProcessor, inpaintManager, allowedLabels, maskPadding)
+            if (success) successCount++
+        }
+
+        return Pair(successCount, projects.size)
+    }
 }
 
 object AlphanumComparator : java.util.Comparator<String> {

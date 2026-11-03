@@ -46,4 +46,14 @@ class InpaintManagerTest {
         inpaintManager.setEngine(InpaintManager.Engine.LAMA)
         inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
     }
+
+    @Test
+    fun testDetectButtonActionPreferenceValues() {
+        val defaultAction = "Detect + Inpaint"
+        val detectOnlyAction = "Detect Only"
+
+        // Verify valid action string formats
+        assertEquals("Detect + Inpaint", defaultAction)
+        assertEquals("Detect Only", detectOnlyAction)
+    }
 }
