@@ -464,6 +464,11 @@ object ProjectManager {
                     for (ps in positionShifts) {
                         spanModels.add(SpanModel("POSITION_SHIFT", spanStr.getSpanStart(ps), spanStr.getSpanEnd(ps), "${ps.shiftX},${ps.shiftY}"))
                     }
+                    val strokeSpans = spanStr.getSpans(0, spanStr.length, StrokeSpan::class.java)
+                    for (ss in strokeSpans) {
+                        val hexColor = String.format("#%08X", ss.strokeColor)
+                        spanModels.add(SpanModel("STROKE", spanStr.getSpanStart(ss), spanStr.getSpanEnd(ss), "$hexColor,${ss.strokeWidth}"))
+                    }
 
                     layerModels.add(LayerModel(
                         type = "TEXT",
@@ -1364,6 +1369,18 @@ object ProjectManager {
                                              val sx = parts[0].toFloat()
                                              val sy = parts[1].toFloat()
                                              sb.setSpan(PositionShiftSpan(sx, sy), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                         }
+                                     } catch (e: Exception) {}
+                                 }
+                             }
+                             "STROKE" -> {
+                                 span.value?.let { strokeVal ->
+                                     try {
+                                         val parts = strokeVal.split(",")
+                                         if (parts.isNotEmpty()) {
+                                             val color = Color.parseColor(parts[0])
+                                             val width = if (parts.size > 1) parts[1].toFloatOrNull() ?: 5f else 5f
+                                             sb.setSpan(StrokeSpan(color, width), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                          }
                                      } catch (e: Exception) {}
                                  }
@@ -3175,6 +3192,11 @@ object ProjectManager {
                     val positionShifts = spanStr.getSpans(0, spanStr.length, PositionShiftSpan::class.java)
                     for (ps in positionShifts) {
                         spanModels.add(SpanModel("POSITION_SHIFT", spanStr.getSpanStart(ps), spanStr.getSpanEnd(ps), "${ps.shiftX},${ps.shiftY}"))
+                    }
+                    val strokeSpans = spanStr.getSpans(0, spanStr.length, StrokeSpan::class.java)
+                    for (ss in strokeSpans) {
+                        val hexColor = String.format("#%08X", ss.strokeColor)
+                        spanModels.add(SpanModel("STROKE", spanStr.getSpanStart(ss), spanStr.getSpanEnd(ss), "$hexColor,${ss.strokeWidth}"))
                     }
 
                     layerModels.add(LayerModel(

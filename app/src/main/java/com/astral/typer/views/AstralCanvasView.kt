@@ -71,6 +71,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Modes
     private var isPerspectiveMode = false
+    var isPerspectiveSkewMode = false
+        private set
     private var isInpaintMode = false
     private var isWarpToolActive = false
     var isTyperActive = false
@@ -847,11 +849,17 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setPerspectiveMode(enabled: Boolean) {
         isPerspectiveMode = enabled
         if (!enabled) {
+            isPerspectiveSkewMode = false
             if (currentMode == Mode.PERSPECTIVE_DRAG_TL || currentMode == Mode.PERSPECTIVE_DRAG_TR ||
                 currentMode == Mode.PERSPECTIVE_DRAG_BR || currentMode == Mode.PERSPECTIVE_DRAG_BL) {
                 currentMode = Mode.NONE
             }
         }
+        invalidate()
+    }
+
+    fun setPerspectiveSkewMode(enabled: Boolean) {
+        isPerspectiveSkewMode = enabled
         invalidate()
     }
 
@@ -1331,6 +1339,7 @@ class AstralCanvasView @JvmOverloads constructor(
             layers.forEach { it.isSelected = (it == layer) }
             onLayerSelectedListener?.onLayerSelected(layer)
             isPerspectiveMode = false
+            isPerspectiveSkewMode = false
             exitCutMode()
             invalidate()
         } else {
@@ -3082,7 +3091,36 @@ class AstralCanvasView @JvmOverloads constructor(
                          globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
                          val mesh = layer.warpMesh
                          if (mesh != null && warpPointIndex != -1) {
-                             mesh[warpPointIndex*2] = localPoint[0]; mesh[warpPointIndex*2+1] = localPoint[1]
+                             if (isPerspectiveMode && isPerspectiveSkewMode && mesh.size == 8) {
+                                 val oldX = mesh[warpPointIndex * 2]
+                                 val oldY = mesh[warpPointIndex * 2 + 1]
+                                 val dx = localPoint[0] - oldX
+                                 val dy = localPoint[1] - oldY
+                                 when (warpPointIndex) {
+                                     0 -> { // TL
+                                         mesh[0] += dx; mesh[1] += dy
+                                         mesh[2] += dx // TR moves horizontally
+                                         mesh[5] += dy // BL moves vertically
+                                     }
+                                     1 -> { // TR
+                                         mesh[2] += dx; mesh[3] += dy
+                                         mesh[0] += dx // TL moves horizontally
+                                         mesh[7] += dy // BR moves vertically
+                                     }
+                                     2 -> { // BL
+                                         mesh[4] += dx; mesh[5] += dy
+                                         mesh[6] += dx // BR moves horizontally
+                                         mesh[1] += dy // TL moves vertically
+                                     }
+                                     3 -> { // BR
+                                         mesh[6] += dx; mesh[7] += dy
+                                         mesh[4] += dx // BL moves horizontally
+                                         mesh[3] += dy // TR moves vertically
+                                     }
+                                 }
+                             } else {
+                                 mesh[warpPointIndex*2] = localPoint[0]; mesh[warpPointIndex*2+1] = localPoint[1]
+                             }
                              layer.updateDenseWarpMesh()
                              invalidate()
                          }
