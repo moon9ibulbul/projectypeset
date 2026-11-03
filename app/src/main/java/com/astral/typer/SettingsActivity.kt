@@ -489,7 +489,8 @@ class SettingsActivity : AppCompatActivity() {
         lamaSpinnerAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinnerLamaModelSelect.adapter = lamaSpinnerAdapter
 
-        val savedLamaModelVersion = settingsPrefs.getString("lama_model_version", "Int8")
+        val defaultLamaVersion = if (lamaProcessor.isOriginalModelAvailable()) "FP32" else "Int8"
+        val savedLamaModelVersion = settingsPrefs.getString("lama_model_version", defaultLamaVersion)
         val lamaModelIndex = modelVersions.indexOf(savedLamaModelVersion).coerceAtLeast(0)
         spinnerLamaModelSelect.setSelection(lamaModelIndex)
 

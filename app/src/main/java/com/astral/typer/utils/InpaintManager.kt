@@ -148,150 +148,325 @@ class InpaintManager(private val context: Context) {
     }
 
     /**
-     * Hybrid Inpainting (matching AstralCleaner clean strategy):
-     * Samples the ring of background pixels surrounding the mask hole.
-     * If the background is uniform/solid (e.g. speech bubbles with uniformity >= 80%),
-     * fills directly using Smart Solid Fill for clean, 100% artifact-free results.
-     * Otherwise, uses LaMa if available (or falls back to Smart Solid Fill if LaMa is uninstalled).
+     * Hybrid Inpainting (matching AstralCleaner clean() strategy):
+     * Groups nearby mask regions into connected component blobs.
+     * For each blob, samples the surrounding outer ring of background pixels (ring = 8, tol = 22, min_frac = 0.85).
+     * If the background around the blob is uniform (e.g. speech bubbles with uniformity >= 85%),
+     * fills directly using Smart Solid Fill (+1px dilation) for clean, 100% artifact-free results.
+     * Complex/artwork areas are routed to LaMa (or Smart Solid Fill fallback if LaMa is unavailable).
      */
     suspend fun inpaintHybrid(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
-        val isSolid = isMaskBackgroundUniform(originalBitmap, maskBitmap, tolerance = 24, minFraction = 0.80f)
-        if (isSolid) {
-            Log.d("InpaintManager", "Hybrid: Uniform background detected -> using Smart Solid Fill")
-            return inpaintWithSmartSolid(originalBitmap, maskBitmap)
-        }
-
-        if (lamaProcessor.isModelAvailable()) {
-            Log.d("InpaintManager", "Hybrid: Complex background detected -> using LaMa")
-            val lamaResult = lamaProcessor.inpaint(originalBitmap, maskBitmap)
-            if (lamaResult != null) return lamaResult
-            Log.w("InpaintManager", "Hybrid: LaMa failed, falling back to Smart Solid Fill")
-        } else {
-            Log.d("InpaintManager", "Hybrid: LaMa not installed -> using Smart Solid Fill fallback")
-        }
-
-        return inpaintWithSmartSolid(originalBitmap, maskBitmap)
-    }
-
-    private fun isMaskBackgroundUniform(
-        original: Bitmap,
-        mask: Bitmap,
-        tolerance: Int = 24,
-        minFraction: Float = 0.80f
-    ): Boolean {
-        val w = original.width
-        val h = original.height
+        val w = originalBitmap.width
+        val h = originalBitmap.height
         val total = w * h
 
         val maskPixels = IntArray(total)
-        if (mask.width != w || mask.height != h) {
-            val scaled = Bitmap.createScaledBitmap(mask, w, h, false)
+        if (maskBitmap.width != w || maskBitmap.height != h) {
+            val scaled = Bitmap.createScaledBitmap(maskBitmap, w, h, false)
             scaled.getPixels(maskPixels, 0, w, 0, 0, w, h)
             scaled.recycle()
         } else {
-            mask.getPixels(maskPixels, 0, w, 0, 0, w, h)
+            maskBitmap.getPixels(maskPixels, 0, w, 0, 0, w, h)
         }
-
-        val hole = BooleanArray(total)
-        var holeCount = 0
-        for (i in 0 until total) {
-            val alpha = (maskPixels[i] ushr 24) and 0xFF
-            val red = (maskPixels[i] ushr 16) and 0xFF
-            if (alpha > 0 && (red > 10 || maskPixels[i] != 0)) {
-                hole[i] = true
-                holeCount++
-            }
-        }
-        if (holeCount == 0) return true
 
         val origPixels = IntArray(total)
-        original.getPixels(origPixels, 0, w, 0, 0, w, h)
+        originalBitmap.getPixels(origPixels, 0, w, 0, 0, w, h)
 
-        // Fast morphological dilation of hole pixels to obtain the background ring
-        val ringInner = 2
-        val ringOuter = 8
+        // 1. Grow mask by 2px (matching AstralCleaner: if grow > 0: mask = cv2.dilate(mask, ellipse(grow)))
+        val binm = BooleanArray(total)
+        var hasMask = false
+        for (i in 0 until total) {
+            if ((maskPixels[i] ushr 24) > 0) {
+                binm[i] = true
+                hasMask = true
+            }
+        }
+        if (!hasMask) return originalBitmap
 
-        // Step 1: Collect boundary coordinate points of hole pixels (pixels bordering non-hole)
-        val holeBoundary = ArrayList<Int>()
+        val grownMask = dilateBooleanMask(binm, w, h, 2)
+
+        // 2. Merge nearby blobs with 4px dilation
+        val blob = dilateBooleanMask(grownMask, w, h, 4)
+
+        // 3. Label connected components of blob
+        val labels = IntArray(total)
+        var labelCount = 0
+        val queue: java.util.Queue<Int> = java.util.LinkedList()
+
+        // Bounding boxes for each component
+        class BlobInfo(val id: Int, var minX: Int, var maxX: Int, var minY: Int, var maxY: Int, var area: Int)
+        val blobMap = HashMap<Int, BlobInfo>()
+
+        for (i in 0 until total) {
+            if (blob[i] && labels[i] == 0) {
+                labelCount++
+                val curLabel = labelCount
+                labels[i] = curLabel
+                queue.add(i)
+
+                val bx = i % w
+                val by = i / w
+                val info = BlobInfo(curLabel, bx, bx, by, by, 1)
+
+                while (!queue.isEmpty()) {
+                    val curr = queue.remove()
+                    val cx = curr % w
+                    val cy = curr / w
+
+                    if (cx < info.minX) info.minX = cx
+                    if (cx > info.maxX) info.maxX = cx
+                    if (cy < info.minY) info.minY = cy
+                    if (cy > info.maxY) info.maxY = cy
+
+                    // 4-connectivity
+                    if (cx > 0) {
+                        val n = curr - 1
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                    }
+                    if (cx < w - 1) {
+                        val n = curr + 1
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                    }
+                    if (cy > 0) {
+                        val n = curr - w
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                    }
+                    if (cy < h - 1) {
+                        val n = curr + w
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                    }
+                }
+
+                if (info.area >= 8) {
+                    blobMap[curLabel] = info
+                }
+            }
+        }
+
+        val outPixels = origPixels.clone()
+        val lamaBlobs = ArrayList<BlobInfo>()
+        val ring = 8
+        val tol = 22
+        val minFrac = 0.85f
+
+        for ((_, info) in blobMap) {
+            val m = ring * 3 + 2
+            val ex1 = (info.minX - m).coerceIn(0, w)
+            val ey1 = (info.minY - m).coerceIn(0, h)
+            val ex2 = (info.maxX + m + 1).coerceIn(0, w)
+            val ey2 = (info.maxY + m + 1).coerceIn(0, h)
+
+            val bgCol = estimateComponentBackground(origPixels, labels, blob, w, h, info.id, ex1, ey1, ex2, ey2, ring, tol, minFrac)
+            if (bgCol != null) {
+                // Background is uniform -> fill component's mask with solid color + 1px dilation
+                val compMask = BooleanArray(total)
+                for (y in info.minY..info.maxY) {
+                    val yOff = y * w
+                    for (x in info.minX..info.maxX) {
+                        val idx = yOff + x
+                        if (grownMask[idx] && labels[idx] == info.id) {
+                            compMask[idx] = true
+                        }
+                    }
+                }
+                val filledMask = dilateBooleanMask(compMask, w, h, 1)
+                for (y in info.minY..info.maxY) {
+                    val yOff = y * w
+                    for (x in info.minX..info.maxX) {
+                        val idx = yOff + x
+                        if (filledMask[idx]) {
+                            outPixels[idx] = bgCol
+                        }
+                    }
+                }
+            } else {
+                lamaBlobs.add(info)
+            }
+        }
+
+        // Create base result bitmap
+        val resultBitmap = Bitmap.createBitmap(outPixels, w, h, Bitmap.Config.ARGB_8888)
+
+        // If there are complex background blobs, process via LaMa
+        if (lamaBlobs.isNotEmpty()) {
+            if (lamaProcessor.isModelAvailable()) {
+                // Build mask for only the LaMa blobs (+1px dilation matching AstralCleaner pending)
+                val lamaMaskBits = BooleanArray(total)
+                for (info in lamaBlobs) {
+                    for (y in info.minY..info.maxY) {
+                        val yOff = y * w
+                        for (x in info.minX..info.maxX) {
+                            val idx = yOff + x
+                            if (grownMask[idx] && labels[idx] == info.id) {
+                                lamaMaskBits[idx] = true
+                            }
+                        }
+                    }
+                }
+                val dilatedLamaMask = dilateBooleanMask(lamaMaskBits, w, h, 1)
+                val lamaMaskPixels = IntArray(total)
+                for (i in 0 until total) {
+                    if (dilatedLamaMask[i]) lamaMaskPixels[i] = Color.WHITE
+                }
+                val lamaMaskBitmap = Bitmap.createBitmap(lamaMaskPixels, w, h, Bitmap.Config.ARGB_8888)
+
+                val lamaResult = lamaProcessor.inpaint(resultBitmap, lamaMaskBitmap)
+                lamaMaskBitmap.recycle()
+                if (lamaResult != null) {
+                    resultBitmap.recycle()
+                    return lamaResult
+                }
+            }
+
+            // Fallback for remaining blobs if LaMa is unavailable or failed: Smart Solid Fill
+            val fallbackMaskPixels = IntArray(total)
+            for (info in lamaBlobs) {
+                for (y in info.minY..info.maxY) {
+                    val yOff = y * w
+                    for (x in info.minX..info.maxX) {
+                        val idx = yOff + x
+                        if (grownMask[idx] && labels[idx] == info.id) {
+                            fallbackMaskPixels[idx] = Color.WHITE
+                        }
+                    }
+                }
+            }
+            val fallbackMaskBmp = Bitmap.createBitmap(fallbackMaskPixels, w, h, Bitmap.Config.ARGB_8888)
+            val fallbackResult = inpaintWithSmartSolid(resultBitmap, fallbackMaskBmp)
+            fallbackMaskBmp.recycle()
+            resultBitmap.recycle()
+            return fallbackResult
+        }
+
+        return resultBitmap
+    }
+
+    private fun dilateBooleanMask(src: BooleanArray, w: Int, h: Int, radius: Int): BooleanArray {
+        if (radius <= 0) return src.clone()
+        val out = BooleanArray(w * h)
+        val rSq = radius * radius
         for (y in 0 until h) {
+            val yOff = y * w
             for (x in 0 until w) {
-                val idx = y * w + x
-                if (hole[idx]) {
-                    var isEdge = false
-                    if (x == 0 || x == w - 1 || y == 0 || y == h - 1) {
-                        isEdge = true
-                    } else {
-                        if (!hole[idx - 1] || !hole[idx + 1] || !hole[idx - w] || !hole[idx + w]) {
-                            isEdge = true
-                        }
-                    }
-                    if (isEdge) {
-                        holeBoundary.add(idx)
-                    }
-                }
-            }
-        }
-
-        if (holeBoundary.isEmpty()) return false
-
-        // Step 2: Dilate only from hole boundary outward to sample ring pixels
-        val inRing = BooleanArray(total)
-        val ringPixels = ArrayList<Int>()
-
-        for (bIdx in holeBoundary) {
-            val bx = bIdx % w
-            val by = bIdx / w
-            for (dy in -ringOuter..ringOuter) {
-                val ny = by + dy
-                if (ny !in 0 until h) continue
-                for (dx in -ringOuter..ringOuter) {
-                    val nx = bx + dx
-                    if (nx !in 0 until w) continue
-                    val distSq = dx * dx + dy * dy
-                    if (distSq in (ringInner * ringInner)..(ringOuter * ringOuter)) {
-                        val nIdx = ny * w + nx
-                        if (!hole[nIdx] && !inRing[nIdx]) {
-                            inRing[nIdx] = true
-                            ringPixels.add(origPixels[nIdx])
+                if (src[yOff + x]) {
+                    for (dy in -radius..radius) {
+                        val ny = y + dy
+                        if (ny !in 0 until h) continue
+                        val nyOff = ny * w
+                        for (dx in -radius..radius) {
+                            if (dx * dx + dy * dy <= rSq) {
+                                val nx = x + dx
+                                if (nx in 0 until w) {
+                                    out[nyOff + nx] = true
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+        return out
+    }
 
-        if (ringPixels.size < 20) return false
+    private fun estimateComponentBackground(
+        origPixels: IntArray,
+        labels: IntArray,
+        blobAll: BooleanArray,
+        w: Int,
+        h: Int,
+        blobId: Int,
+        ex1: Int,
+        ey1: Int,
+        ex2: Int,
+        ey2: Int,
+        ring: Int,
+        tol: Int,
+        minFrac: Float
+    ): Int? {
+        val subW = ex2 - ex1
+        val subH = ey2 - ey1
+        if (subW <= 0 || subH <= 0) return null
 
-        // Compute dominant color quantized by 16 as in AstralCleaner dominant_color()
-        val counts = HashMap<Int, Int>()
-        for (c in ringPixels) {
-            val r = ((c shr 16) and 0xFF) / 16
-            val g = ((c shr 8) and 0xFF) / 16
-            val b = (c and 0xFF) / 16
-            val code = (r shl 8) or (g shl 4) or b
-            counts[code] = (counts[code] ?: 0) + 1
-        }
-
-        val topCode = counts.maxByOrNull { it.value }?.key ?: return false
-        val centerR = ((topCode shr 8) and 0xF) * 16 + 8
-        val centerG = ((topCode shr 4) and 0xF) * 16 + 8
-        val centerB = (topCode and 0xF) * 16 + 8
-
-        var nearCount = 0
-        for (c in ringPixels) {
-            val r = (c shr 16) and 0xFF
-            val g = (c shr 8) and 0xFF
-            val b = c and 0xFF
-            val dr = r - centerR
-            val dg = g - centerG
-            val db = b - centerB
-            val dist = kotlin.math.sqrt((dr * dr + dg * dg + db * db).toDouble())
-            if (dist <= tolerance) {
-                nearCount++
+        val subBlob = BooleanArray(subW * subH)
+        for (y in ey1 until ey2) {
+            val yOff = y * w
+            val syOff = (y - ey1) * subW
+            for (x in ex1 until ex2) {
+                if (labels[yOff + x] == blobId) {
+                    subBlob[syOff + (x - ex1)] = true
+                }
             }
         }
 
-        val frac = nearCount.toFloat() / ringPixels.size
-        return frac >= minFraction
+        for (k in 1..3) {
+            val ringRadius = ring * k
+            val dilatedSubBlob = dilateBooleanMask(subBlob, subW, subH, ringRadius)
+            val sampledColors = ArrayList<Int>()
+
+            for (y in ey1 until ey2) {
+                val yOff = y * w
+                val syOff = (y - ey1) * subW
+                for (x in ex1 until ex2) {
+                    val sIdx = syOff + (x - ex1)
+                    val gIdx = yOff + x
+                    // Dilated sub blob but outside any blob
+                    if (dilatedSubBlob[sIdx] && !blobAll[gIdx]) {
+                        sampledColors.add(origPixels[gIdx])
+                    }
+                }
+            }
+
+            if (sampledColors.size >= 30) {
+                // Compute dominant color with 16-bin quantization
+                val counts = HashMap<Int, Int>()
+                for (c in sampledColors) {
+                    val r = ((c shr 16) and 0xFF) / 16
+                    val g = ((c shr 8) and 0xFF) / 16
+                    val b = (c and 0xFF) / 16
+                    val code = (r shl 8) or (g shl 4) or b
+                    counts[code] = (counts[code] ?: 0) + 1
+                }
+                val topCode = counts.maxByOrNull { it.value }?.key ?: continue
+                val centerR = ((topCode shr 8) and 0xF) * 16 + 8
+                val centerG = ((topCode shr 4) and 0xF) * 16 + 8
+                val centerB = (topCode and 0xF) * 16 + 8
+
+                // Find pixels within tol + 8
+                val nearPixels = ArrayList<Int>()
+                var withinTolCount = 0
+                for (c in sampledColors) {
+                    val r = (c shr 16) and 0xFF
+                    val g = (c shr 8) and 0xFF
+                    val b = c and 0xFF
+                    val dr = r - centerR
+                    val dg = g - centerG
+                    val db = b - centerB
+                    val dist = kotlin.math.sqrt((dr * dr + dg * dg + db * db).toDouble())
+                    if (dist <= tol + 8) {
+                        nearPixels.add(c)
+                    }
+                    if (dist <= tol) {
+                        withinTolCount++
+                    }
+                }
+
+                val frac = withinTolCount.toFloat() / sampledColors.size
+                if (frac >= minFrac) {
+                    // Compute median color of near pixels
+                    val pool = if (nearPixels.isNotEmpty()) nearPixels else sampledColors
+                    val rList = pool.map { (it shr 16) and 0xFF }.sorted()
+                    val gList = pool.map { (it shr 8) and 0xFF }.sorted()
+                    val bList = pool.map { it and 0xFF }.sorted()
+                    val mid = pool.size / 2
+                    val medR = rList[mid]
+                    val medG = gList[mid]
+                    val medB = bList[mid]
+                    return Color.rgb(medR, medG, medB)
+                }
+                return null
+            }
+        }
+        return null
     }
 
     private fun inpaintWithOpenCVOrFallback(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap {
