@@ -1063,37 +1063,6 @@
                 </RadioGroup>
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Text Mask Shape"
-                    android:textColor="?attr/appTextColorSecondary"
-                    android:textSize="12sp"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="4dp"/>
-
-                <RadioGroup
-                    android:id="@+id/rgInpaintMaskShape"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <RadioButton
-                        android:id="@+id/rbMaskRectangle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Rectangle"
-                        android:textColor="?attr/appTextColorPrimary"/>
-
-                    <RadioButton
-                        android:id="@+id/rbMaskRounded"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Rounded"
-                        android:textColor="?attr/appTextColorPrimary"
-                        android:layout_marginStart="16dp"/>
-                </RadioGroup>
-
-                <TextView
                     android:id="@+id/tvInpaintMaskPadding"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
