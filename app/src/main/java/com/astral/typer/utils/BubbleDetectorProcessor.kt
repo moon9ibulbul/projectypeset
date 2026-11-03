@@ -675,7 +675,7 @@ class BubbleDetectorProcessor(private val context: Context) {
 
     /**
      * Extracts tight ink mask paths from detected text boxes, constrained to bubble interior
-     * (matching AstralCleaner's ink_mask, bubble_interior, and text_polys logic), with user padding.
+     * (matching AstralCleaner's ink_mask, bubble_interior, and text_polys polygon logic), with user padding.
      */
     fun generateTightTextMasks(
         image: Bitmap,
@@ -687,12 +687,102 @@ class BubbleDetectorProcessor(private val context: Context) {
         val imgW = image.width
         val imgH = image.height
 
+        val interiorCache = mutableMapOf<RectF, BubbleInteriorResult?>()
+
+        fun computeBubbleInterior(bub: RectF): BubbleInteriorResult? {
+            if (interiorCache.containsKey(bub)) {
+                return interiorCache[bub]
+            }
+
+            val bx1 = bub.left.toInt().coerceIn(0, imgW)
+            val by1 = bub.top.toInt().coerceIn(0, imgH)
+            val bx2 = bub.right.toInt().coerceIn(0, imgW)
+            val by2 = bub.bottom.toInt().coerceIn(0, imgH)
+            val bw = bx2 - bx1
+            val bh = by2 - by1
+
+            if (bw < 12 || bh < 12) {
+                interiorCache[bub] = null
+                return null
+            }
+
+            val bPixels = IntArray(bw * bh)
+            image.getPixels(bPixels, 0, bw, bx1, by1, bw, bh)
+
+            // Quantize RGB to 16 bins: (r / 16) * 256 + (g / 16) * 16 + (b / 16)
+            val codeCounts = IntArray(4096)
+            for (p in bPixels) {
+                val r = (p shr 16) and 0xFF
+                val g = (p shr 8) and 0xFF
+                val b = p and 0xFF
+                val code = (r / 16) * 256 + (g / 16) * 16 + (b / 16)
+                codeCounts[code]++
+            }
+
+            var topCode = 0
+            var maxCount = 0
+            for (c in 0 until 4096) {
+                if (codeCounts[c] > maxCount) {
+                    maxCount = codeCounts[c]
+                    topCode = c
+                }
+            }
+
+            if (maxCount.toFloat() / (bw * bh) < 0.2f) {
+                interiorCache[bub] = null
+                return null
+            }
+
+            val paperR = (topCode / 256) * 16 + 8
+            val paperG = ((topCode / 16) % 16) * 16 + 8
+            val paperB = (topCode % 16) * 16 + 8
+
+            // Distance <= 40
+            val paperMask = BooleanArray(bw * bh)
+            for (i in bPixels.indices) {
+                val p = bPixels[i]
+                val dr = ((p shr 16) and 0xFF) - paperR
+                val dg = ((p shr 8) and 0xFF) - paperG
+                val db = (p and 0xFF) - paperB
+                if (dr * dr + dg * dg + db * db <= 40 * 40) {
+                    paperMask[i] = true
+                }
+            }
+
+            // Morphological close with 5x5 ellipse kernel (radius 2)
+            val closedPaper = morphClose(paperMask, bw, bh, 2)
+
+            // Connected components: find largest component
+            val largestComp = findLargestConnectedComponent(closedPaper, bw, bh)
+            if (largestComp == null) {
+                interiorCache[bub] = null
+                return null
+            }
+
+            // Fill holes (letters inside bubble)
+            val filledComp = fillHoles(largestComp, bw, bh)
+
+            // Check if filled area > 15%
+            var filledCount = 0
+            for (v in filledComp) if (v) filledCount++
+            if (filledCount.toFloat() / (bw * bh) <= 0.15f) {
+                interiorCache[bub] = null
+                return null
+            }
+
+            // Erode with ellipse radius 2
+            val erodedComp = morphErode(filledComp, bw, bh, 2)
+            val res = BubbleInteriorResult(erodedComp, bx1, by1, bw, bh)
+            interiorCache[bub] = res
+            return res
+        }
+
         for (box in textRects) {
-            val pad = 2
-            val left = (box.left.toInt() - pad).coerceIn(0, imgW)
-            val top = (box.top.toInt() - pad).coerceIn(0, imgH)
-            val right = (box.right.toInt() + pad).coerceIn(0, imgW)
-            val bottom = (box.bottom.toInt() + pad).coerceIn(0, imgH)
+            val p = 2
+            val left = (box.left.toInt() - p).coerceIn(0, imgW)
+            val top = (box.top.toInt() - p).coerceIn(0, imgH)
+            val right = (box.right.toInt() + p).coerceIn(0, imgW)
+            val bottom = (box.bottom.toInt() + p).coerceIn(0, imgH)
             val cropW = right - left
             val cropH = bottom - top
 
@@ -701,192 +791,87 @@ class BubbleDetectorProcessor(private val context: Context) {
             val cropPixels = IntArray(cropW * cropH)
             image.getPixels(cropPixels, 0, cropW, left, top, cropW, cropH)
 
-            // 1. Otsu thresholding on crop to extract ink
-            val gray = IntArray(cropW * cropH)
-            val hist = IntArray(256)
-            for (i in cropPixels.indices) {
-                val p = cropPixels[i]
-                val r = (p shr 16) and 0xFF
-                val g = (p shr 8) and 0xFF
-                val b = p and 0xFF
-                val y = (0.299f * r + 0.587f * g + 0.114f * b).toInt().coerceIn(0, 255)
-                gray[i] = y
-                hist[y]++
-            }
-
-            val totalPixels = cropW * cropH
-            var sum = 0.0
-            for (t in 0..255) sum += t * hist[t]
-
-            var sumB = 0.0
-            var wB = 0
-            var varMax = 0.0
-            var otsuThreshold = 128
-
-            for (t in 0..255) {
-                wB += hist[t]
-                if (wB == 0) continue
-                val wF = totalPixels - wB
-                if (wF == 0) break
-
-                sumB += t.toDouble() * hist[t]
-                val mB = sumB / wB
-                val mF = (sum - sumB) / wF
-                val varBetween = wB.toDouble() * wF.toDouble() * (mB - mF) * (mB - mF)
-
-                if (varBetween > varMax) {
-                    varMax = varBetween
-                    otsuThreshold = t
-                }
-            }
-
-            // Majority vs minority: ink is the minority class
-            var darkCount = 0
-            for (y in gray) {
-                if (y < otsuThreshold) darkCount++
-            }
-            val darkIsInk = darkCount < totalPixels / 2
-
-            val inkMask = BooleanArray(cropW * cropH)
-            var inkCount = 0
-            for (i in gray.indices) {
-                val isInk = if (darkIsInk) gray[i] < otsuThreshold else gray[i] >= otsuThreshold
-                inkMask[i] = isInk
-                if (isInk) inkCount++
-            }
-
-            val inkFrac = inkCount.toFloat() / totalPixels
-            // Valid ink check (0.4% to 55%) as in AstralCleaner
-            val isInkValid = inkFrac in 0.004f..0.55f
-
             // Find containing bubble if any
             val cx = box.centerX()
             val cy = box.centerY()
             val containingBubble = bubbleRects.filter { it.contains(cx, cy) }
                 .minByOrNull { it.width() * it.height() }
 
-            // Bubble interior constraint
-            val allowed = BooleanArray(cropW * cropH) { true }
+            // Bubble interior constraint (allowed mask)
+            val allowed = BooleanArray(cropW * cropH)
             if (containingBubble != null) {
-                // If inside bubble, constrain to bubble bounds minus 3px margin
-                val m = 3f
-                val minXAllowed = (containingBubble.left + m - left).toInt()
-                val maxXAllowed = (containingBubble.right - m - left).toInt()
-                val minYAllowed = (containingBubble.top + m - top).toInt()
-                val maxYAllowed = (containingBubble.bottom - m - top).toInt()
-
-                for (y in 0 until cropH) {
-                    val inY = y in minYAllowed until maxYAllowed
-                    for (x in 0 until cropW) {
-                        val inX = x in minXAllowed until maxXAllowed
-                        allowed[y * cropW + x] = inX && inY
-                    }
-                }
-            }
-
-            // Combine ink with allowed
-            val finalMask = BooleanArray(cropW * cropH)
-            var finalCount = 0
-            for (i in finalMask.indices) {
-                val v = if (isInkValid) (inkMask[i] && allowed[i]) else allowed[i]
-                finalMask[i] = v
-                if (v) finalCount++
-            }
-
-            // If empty or invalid, fallback to the text box
-            if (finalCount == 0) {
-                val p = android.graphics.Path()
-                val r = RectF(box)
-                if (extraPadding != 0) r.inset(-extraPadding.toFloat(), -extraPadding.toFloat())
-                p.addRect(r, android.graphics.Path.Direction.CW)
-                paths.add(p)
-                continue
-            }
-
-            // Dilate mask with extraPadding (default min 2px dilation for anti-alias coverage)
-            val dilateRadius = kotlin.math.max(1, 2 + extraPadding)
-            val dilatedMask = BooleanArray(cropW * cropH)
-            for (y in 0 until cropH) {
-                for (x in 0 until cropW) {
-                    if (finalMask[y * cropW + x]) {
-                        for (dy in -dilateRadius..dilateRadius) {
-                            for (dx in -dilateRadius..dilateRadius) {
-                                if (dx * dx + dy * dy <= dilateRadius * dilateRadius) {
-                                    val nx = x + dx
-                                    val ny = y + dy
-                                    if (nx in 0 until cropW && ny in 0 until cropH && allowed[ny * cropW + nx]) {
-                                        dilatedMask[ny * cropW + nx] = true
-                                    }
-                                }
+                val inter = computeBubbleInterior(containingBubble)
+                if (inter != null) {
+                    val im = inter.mask
+                    val ix = inter.x
+                    val iy = inter.y
+                    val ys = kotlin.math.max(top, iy)
+                    val xs = kotlin.math.max(left, ix)
+                    val ye = kotlin.math.min(bottom, iy + inter.h)
+                    val xe = kotlin.math.min(right, ix + inter.w)
+                    for (y in ys until ye) {
+                        val cyIdx = (y - top) * cropW
+                        val iyIdx = (y - iy) * inter.w
+                        for (x in xs until xe) {
+                            if (im[iyIdx + (x - ix)]) {
+                                allowed[cyIdx + (x - left)] = true
                             }
                         }
                     }
-                }
-            }
-
-            // Group into bounding rects of connected ink components or row runs
-            // To provide smooth vector Android Paths, find connected components of dilated mask
-            val visited = BooleanArray(cropW * cropH)
-            val queue = java.util.ArrayDeque<Int>()
-            var compCount = 0
-
-            for (i in dilatedMask.indices) {
-                if (dilatedMask[i] && !visited[i]) {
-                    visited[i] = true
-                    queue.add(i)
-
-                    var minCompX = cropW
-                    var maxCompX = 0
-                    var minCompY = cropH
-                    var maxCompY = 0
-                    var pixelArea = 0
-
-                    while (!queue.isEmpty()) {
-                        val curr = queue.poll() ?: continue
-                        val qx = curr % cropW
-                        val qy = curr / cropW
-                        pixelArea++
-
-                        if (qx < minCompX) minCompX = qx
-                        if (qx > maxCompX) maxCompX = qx
-                        if (qy < minCompY) minCompY = qy
-                        if (qy > maxCompY) maxCompY = qy
-
-                        // 4-neighborhood
-                        if (qx > 0) {
-                            val nIdx = curr - 1
-                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
-                        }
-                        if (qx < cropW - 1) {
-                            val nIdx = curr + 1
-                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
-                        }
-                        if (qy > 0) {
-                            val nIdx = curr - cropW
-                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
-                        }
-                        if (qy < cropH - 1) {
-                            val nIdx = curr + cropW
-                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
+                } else {
+                    val m = 3
+                    val ax1 = (containingBubble.left.toInt() + m - left).coerceIn(0, cropW)
+                    val ay1 = (containingBubble.top.toInt() + m - top).coerceIn(0, cropH)
+                    val ax2 = (containingBubble.right.toInt() - m - left).coerceIn(0, cropW)
+                    val ay2 = (containingBubble.bottom.toInt() - m - top).coerceIn(0, cropH)
+                    for (y in ay1 until ay2) {
+                        val yOffset = y * cropW
+                        for (x in ax1 until ax2) {
+                            allowed[yOffset + x] = true
                         }
                     }
+                }
+            } else {
+                allowed.fill(true)
+            }
 
-                    if (pixelArea >= 4) {
+            // Otsu ink extraction
+            val ink = extractInkMask(cropPixels, cropW, cropH, strict = (containingBubble != null))
+            val baseInk = ink ?: allowed.clone()
+
+            // ink = ink & allowed
+            val combinedInk = BooleanArray(cropW * cropH)
+            for (i in combinedInk.indices) {
+                combinedInk[i] = baseInk[i] && allowed[i]
+            }
+
+            // Dilation with ellipse kernel
+            val dilateR = kotlin.math.max(1, 2 + extraPadding)
+            val dilatedInk = if (dilateR > 0) {
+                val dilated = morphDilate(combinedInk, cropW, cropH, dilateR)
+                for (i in dilated.indices) {
+                    dilated[i] = dilated[i] && allowed[i]
+                }
+                dilated
+            } else combinedInk
+
+            // Find external contours & approximate polygons
+            val polys = findPolygonsFromMask(dilatedInk, cropW, cropH, minArea = 6.0, epsilon = 1.0)
+
+            if (polys.isNotEmpty()) {
+                for (poly in polys) {
+                    if (poly.size >= 3) {
                         val path = android.graphics.Path()
-                        val absRect = RectF(
-                            (left + minCompX).toFloat(),
-                            (top + minCompY).toFloat(),
-                            (left + maxCompX + 1).toFloat(),
-                            (top + maxCompY + 1).toFloat()
-                        )
-                        path.addRoundRect(absRect, 4f, 4f, android.graphics.Path.Direction.CW)
+                        path.moveTo((poly[0].x + left).toFloat(), (poly[0].y + top).toFloat())
+                        for (k in 1 until poly.size) {
+                            path.lineTo((poly[k].x + left).toFloat(), (poly[k].y + top).toFloat())
+                        }
+                        path.close()
                         paths.add(path)
-                        compCount++
                     }
                 }
-            }
-
-            if (compCount == 0) {
+            } else {
+                // Fallback to bounding rectangle
                 val fallbackPath = android.graphics.Path()
                 val r = RectF(box)
                 if (extraPadding != 0) r.inset(-extraPadding.toFloat(), -extraPadding.toFloat())
@@ -896,5 +881,443 @@ class BubbleDetectorProcessor(private val context: Context) {
         }
 
         return paths
+    }
+
+    private data class BubbleInteriorResult(
+        val mask: BooleanArray,
+        val x: Int,
+        val y: Int,
+        val w: Int,
+        val h: Int
+    )
+
+    private data class PointInt(val x: Int, val y: Int)
+
+    private fun extractInkMask(cropPixels: IntArray, w: Int, h: Int, strict: Boolean): BooleanArray? {
+        val total = w * h
+        if (total == 0) return null
+
+        val gray = IntArray(total)
+        val hist = IntArray(256)
+        var sumGray = 0L
+
+        for (i in 0 until total) {
+            val p = cropPixels[i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            val y = (0.299f * r + 0.587f * g + 0.114f * b).toInt().coerceIn(0, 255)
+            gray[i] = y
+            hist[y]++
+            sumGray += y
+        }
+
+        // Otsu threshold
+        var sumB = 0.0
+        var wB = 0
+        var varMax = 0.0
+        var otsuThreshold = 128
+
+        for (t in 0..255) {
+            wB += hist[t]
+            if (wB == 0) continue
+            val wF = total - wB
+            if (wF == 0) break
+
+            sumB += t.toDouble() * hist[t]
+            val mB = sumB / wB
+            val mF = (sumGray - sumB) / wF
+            val varBetween = wB.toDouble() * wF.toDouble() * (mB - mF) * (mB - mF)
+
+            if (varBetween > varMax) {
+                varMax = varBetween
+                otsuThreshold = t
+            }
+        }
+
+        // AstralCleaner: bw = crop > otsu. If bw.mean() > 127: bw = 255 - bw
+        val meanGray = sumGray.toDouble() / total
+        val bw = BooleanArray(total)
+        var bwCount = 0
+        val invert = meanGray > 127.0 // or (bw > 0).mean > 127
+
+        for (i in 0 until total) {
+            val isWhite = gray[i] > otsuThreshold
+            val ink = if (invert) !isWhite else isWhite
+            bw[i] = ink
+            if (ink) bwCount++
+        }
+
+        val inkFrac = bwCount.toFloat() / total
+        if (inkFrac <= 0.004f || inkFrac >= 0.55f) {
+            return null
+        }
+
+        if (strict) {
+            // Remove outline components (bubble borders inside text crop)
+            val visited = BooleanArray(total)
+            val queue = java.util.ArrayDeque<Int>()
+            val out = BooleanArray(total)
+
+            for (i in 0 until total) {
+                if (bw[i] && !visited[i]) {
+                    visited[i] = true
+                    queue.add(i)
+
+                    var minX = w
+                    var maxX = 0
+                    var minY = h
+                    var maxY = 0
+                    var compArea = 0
+                    val compPixels = mutableListOf<Int>()
+
+                    while (!queue.isEmpty()) {
+                        val curr = queue.poll() ?: continue
+                        compPixels.add(curr)
+                        val qx = curr % w
+                        val qy = curr / w
+                        compArea++
+
+                        if (qx < minX) minX = qx
+                        if (qx > maxX) maxX = qx
+                        if (qy < minY) minY = qy
+                        if (qy > maxY) maxY = qy
+
+                        for (dy in -1..1) {
+                            for (dx in -1..1) {
+                                if (dx == 0 && dy == 0) continue
+                                val nx = qx + dx
+                                val ny = qy + dy
+                                if (nx in 0 until w && ny in 0 until h) {
+                                    val nIdx = ny * w + nx
+                                    if (bw[nIdx] && !visited[nIdx]) {
+                                        visited[nIdx] = true
+                                        queue.add(nIdx)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val cw = maxX - minX + 1
+                    val ch = maxY - minY + 1
+                    val isOutline = ((cw > 0.8f * w && ch > 0.6f * h) || (ch > 0.8f * h && cw > 0.6f * w)) &&
+                            (compArea.toFloat() / (cw * ch) < 0.2f)
+
+                    if (!isOutline) {
+                        for (idx in compPixels) {
+                            out[idx] = true
+                        }
+                    }
+                }
+            }
+            return out
+        }
+
+        return bw
+    }
+
+    private fun morphDilate(mask: BooleanArray, w: Int, h: Int, r: Int): BooleanArray {
+        if (r <= 0) return mask.clone()
+        val out = BooleanArray(w * h)
+        val rSq = r * r
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                if (mask[y * w + x]) {
+                    for (dy in -r..r) {
+                        val ny = y + dy
+                        if (ny !in 0 until h) continue
+                        val nyOffset = ny * w
+                        for (dx in -r..r) {
+                            if (dx * dx + dy * dy <= rSq) {
+                                val nx = x + dx
+                                if (nx in 0 until w) {
+                                    out[nyOffset + nx] = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    private fun morphErode(mask: BooleanArray, w: Int, h: Int, r: Int): BooleanArray {
+        if (r <= 0) return mask.clone()
+        val out = BooleanArray(w * h)
+        val rSq = r * r
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                var keep = true
+                for (dy in -r..r) {
+                    if (!keep) break
+                    val ny = y + dy
+                    if (ny !in 0 until h) { keep = false; break }
+                    val nyOffset = ny * w
+                    for (dx in -r..r) {
+                        if (dx * dx + dy * dy <= rSq) {
+                            val nx = x + dx
+                            if (nx !in 0 until w || !mask[nyOffset + nx]) {
+                                keep = false
+                                break
+                            }
+                        }
+                    }
+                }
+                out[y * w + x] = keep
+            }
+        }
+        return out
+    }
+
+    private fun morphClose(mask: BooleanArray, w: Int, h: Int, r: Int): BooleanArray {
+        val dilated = morphDilate(mask, w, h, r)
+        return morphErode(dilated, w, h, r)
+    }
+
+    private fun findLargestConnectedComponent(mask: BooleanArray, w: Int, h: Int): BooleanArray? {
+        val total = w * h
+        val visited = BooleanArray(total)
+        val queue = java.util.ArrayDeque<Int>()
+
+        var maxArea = 0
+        var bestComponent: List<Int>? = null
+
+        for (i in 0 until total) {
+            if (mask[i] && !visited[i]) {
+                visited[i] = true
+                queue.add(i)
+
+                val comp = mutableListOf<Int>()
+                while (!queue.isEmpty()) {
+                    val curr = queue.poll() ?: continue
+                    comp.add(curr)
+                    val qx = curr % w
+                    val qy = curr / w
+
+                    for (dy in -1..1) {
+                        for (dx in -1..1) {
+                            if (dx == 0 && dy == 0) continue
+                            val nx = qx + dx
+                            val ny = qy + dy
+                            if (nx in 0 until w && ny in 0 until h) {
+                                val nIdx = ny * w + nx
+                                if (mask[nIdx] && !visited[nIdx]) {
+                                    visited[nIdx] = true
+                                    queue.add(nIdx)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (comp.size > maxArea) {
+                    maxArea = comp.size
+                    bestComponent = comp
+                }
+            }
+        }
+
+        if (bestComponent == null) return null
+        val out = BooleanArray(total)
+        for (idx in bestComponent) out[idx] = true
+        return out
+    }
+
+    private fun fillHoles(mask: BooleanArray, w: Int, h: Int): BooleanArray {
+        // Flood fill from border inverted mask
+        val total = w * h
+        val reachableFromBorder = BooleanArray(total)
+        val queue = java.util.ArrayDeque<Int>()
+
+        // Seed with all border pixels where mask is false
+        for (x in 0 until w) {
+            val topIdx = x
+            if (!mask[topIdx] && !reachableFromBorder[topIdx]) {
+                reachableFromBorder[topIdx] = true
+                queue.add(topIdx)
+            }
+            val botIdx = (h - 1) * w + x
+            if (!mask[botIdx] && !reachableFromBorder[botIdx]) {
+                reachableFromBorder[botIdx] = true
+                queue.add(botIdx)
+            }
+        }
+        for (y in 0 until h) {
+            val leftIdx = y * w
+            if (!mask[leftIdx] && !reachableFromBorder[leftIdx]) {
+                reachableFromBorder[leftIdx] = true
+                queue.add(leftIdx)
+            }
+            val rightIdx = y * w + (w - 1)
+            if (!mask[rightIdx] && !reachableFromBorder[rightIdx]) {
+                reachableFromBorder[rightIdx] = true
+                queue.add(rightIdx)
+            }
+        }
+
+        while (!queue.isEmpty()) {
+            val curr = queue.poll() ?: continue
+            val qx = curr % w
+            val qy = curr / w
+
+            if (qx > 0) {
+                val nIdx = curr - 1
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) { reachableFromBorder[nIdx] = true; queue.add(nIdx) }
+            }
+            if (qx < w - 1) {
+                val nIdx = curr + 1
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) { reachableFromBorder[nIdx] = true; queue.add(nIdx) }
+            }
+            if (qy > 0) {
+                val nIdx = curr - w
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) { reachableFromBorder[nIdx] = true; queue.add(nIdx) }
+            }
+            if (qy < h - 1) {
+                val nIdx = curr + w
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) { reachableFromBorder[nIdx] = true; queue.add(nIdx) }
+            }
+        }
+
+        // Any pixel that is NOT reachable from the border is part of the filled mask
+        val filled = BooleanArray(total)
+        for (i in 0 until total) {
+            filled[i] = !reachableFromBorder[i]
+        }
+        return filled
+    }
+
+    private fun findPolygonsFromMask(
+        mask: BooleanArray,
+        w: Int,
+        h: Int,
+        minArea: Double = 6.0,
+        epsilon: Double = 1.0
+    ): List<List<PointInt>> {
+        val contours = traceExternalContours(mask, w, h)
+        val polys = mutableListOf<List<PointInt>>()
+
+        for (c in contours) {
+            val area = calculateContourArea(c)
+            if (area < minArea) continue
+
+            val approx = ramerDouglasPeucker(c, epsilon)
+            if (approx.size >= 3) {
+                polys.add(approx)
+            }
+        }
+        return polys
+    }
+
+    private fun calculateContourArea(pts: List<PointInt>): Double {
+        if (pts.size < 3) return 0.0
+        var a = 0.0
+        val n = pts.size
+        for (i in 0 until n) {
+            val j = (i + 1) % n
+            a += pts[i].x.toDouble() * pts[j].y.toDouble() - pts[j].x.toDouble() * pts[i].y.toDouble()
+        }
+        return kotlin.math.abs(a) * 0.5
+    }
+
+    private fun ramerDouglasPeucker(pts: List<PointInt>, eps: Double): List<PointInt> {
+        if (pts.size <= 2) return pts
+        val first = pts[0]
+        val last = pts[pts.size - 1]
+
+        var maxDist = 0.0
+        var maxIndex = 0
+
+        val dx = (last.x - first.x).toDouble()
+        val dy = (last.y - first.y).toDouble()
+        val denom = kotlin.math.hypot(dx, dy)
+
+        for (i in 1 until pts.size - 1) {
+            val p = pts[i]
+            val dist = if (denom == 0.0) {
+                kotlin.math.hypot((p.x - first.x).toDouble(), (p.y - first.y).toDouble())
+            } else {
+                kotlin.math.abs(dy * p.x - dx * p.y + last.x * first.y - last.y * first.x) / denom
+            }
+            if (dist > maxDist) {
+                maxDist = dist
+                maxIndex = i
+            }
+        }
+
+        return if (maxDist > eps) {
+            val left = ramerDouglasPeucker(pts.subList(0, maxIndex + 1), eps)
+            val right = ramerDouglasPeucker(pts.subList(maxIndex, pts.size), eps)
+            left.dropLast(1) + right
+        } else {
+            listOf(first, last)
+        }
+    }
+
+    private fun traceExternalContours(mask: BooleanArray, w: Int, h: Int): List<List<PointInt>> {
+        val visited = BooleanArray(w * h)
+        val contours = mutableListOf<List<PointInt>>()
+
+        // 8-directions clockwise: right, down-right, down, down-left, left, up-left, up, up-right
+        val dx = intArrayOf(1, 1, 0, -1, -1, -1, 0, 1)
+        val dy = intArrayOf(0, 1, 1, 1, 0, -1, -1, -1)
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val idx = y * w + x
+                if (mask[idx] && !visited[idx]) {
+                    // Check if on an external edge (above pixel is not mask or border)
+                    if (y == 0 || !mask[(y - 1) * w + x]) {
+                        val contour = mutableListOf<PointInt>()
+                        var cx = x
+                        var cy = y
+                        var entryDir = 6 // coming from top
+                        val firstPt = PointInt(x, y)
+                        var secondPt: PointInt? = null
+
+                        contour.add(firstPt)
+                        visited[idx] = true
+
+                        var searchDir = (entryDir + 1) % 8
+                        var maxSteps = w * h
+                        while (maxSteps-- > 0) {
+                            var foundNext = false
+                            for (step in 0 until 8) {
+                                val ndir = (searchDir + step) % 8
+                                val nx = cx + dx[ndir]
+                                val ny = cy + dy[ndir]
+                                if (nx in 0 until w && ny in 0 until h && mask[ny * w + nx]) {
+                                    val nextPt = PointInt(nx, ny)
+                                    if (contour.size == 1) {
+                                        secondPt = nextPt
+                                    } else if (cx == firstPt.x && cy == firstPt.y && nextPt == secondPt) {
+                                        // Completed cycle
+                                        foundNext = false
+                                        break
+                                    }
+                                    contour.add(nextPt)
+                                    visited[ny * w + nx] = true
+                                    searchDir = (ndir + 5) % 8 // backtrack
+                                    cx = nx
+                                    cy = ny
+                                    foundNext = true
+                                    break
+                                }
+                            }
+                            if (!foundNext) break
+                            if (cx == firstPt.x && cy == firstPt.y && contour.size > 2) {
+                                break
+                            }
+                        }
+
+                        if (contour.size >= 3) {
+                            contours.add(contour)
+                        }
+                    }
+                }
+            }
+        }
+        return contours
     }
 }
