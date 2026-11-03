@@ -4268,6 +4268,8 @@ class EditorActivity : AppCompatActivity() {
             // Remove Toolbar
             removeInpaintToolbar()
             canvasView.clearInpaintMask()
+            canvasView.inpaintMaskExpand = 0
+            canvasView.magicWandExpand = 0
         }
     }
 
@@ -4437,7 +4439,8 @@ class EditorActivity : AppCompatActivity() {
         toolbar.addView(sizeLayout)
 
         // 1.5. Expand / Reduce Slider (-40 to +40)
-        var isExpandMenuOpen = false
+        var isExpandActive = canvasView.inpaintMaskExpand != 0
+        var savedExpandValue = if (canvasView.inpaintMaskExpand != 0) canvasView.inpaintMaskExpand else 5
 
         val expandLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -4445,24 +4448,26 @@ class EditorActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(dpToPx(200), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0,0,0,16)
             }
-            visibility = View.GONE
+            visibility = if (isExpandActive) View.VISIBLE else View.GONE
         }
         val tvExpand = TextView(this).apply {
-            val curExpand = canvasView.inpaintMaskExpand
-            text = if (curExpand < 0) "Reduce: $curExpand" else "Expand: $curExpand"
+            val curVal = savedExpandValue
+            text = if (curVal < 0) "Reduce: $curVal" else "Expand: $curVal"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             setPadding(0,0,8,0)
         }
         val sbExpand = SeekBar(this).apply {
             max = 80 // -40 to +40, mapped as (progress - 40)
-            progress = canvasView.inpaintMaskExpand + 40 // default 0 -> 40
+            progress = savedExpandValue + 40
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
                     val value = p - 40
-                    canvasView.inpaintMaskExpand = value
-                    canvasView.magicWandExpand = value
+                    savedExpandValue = value
+                    if (isExpandActive) {
+                        canvasView.inpaintMaskExpand = value
+                    }
                     tvExpand.text = if (value < 0) "Reduce: $value" else "Expand: $value"
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
@@ -4576,25 +4581,25 @@ class EditorActivity : AppCompatActivity() {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_hand, "Touch")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
-                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
+                     expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.LASSO -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_lasso, "Lasso")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
-                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
+                     expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.MAGIC_WAND -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_magic_wand, "Magic Wand")
                      tvSize.text = "Sensitivity"
                      sbSize.progress = canvasView.magicWandSensitivity
-                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
+                     expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.SMART_SELECT_TEXT -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_smart_select_text, "Smart")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
-                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
+                     expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
              }
 
@@ -4684,7 +4689,7 @@ class EditorActivity : AppCompatActivity() {
         btnExpandToggle.addView(tvExpandBtn)
 
         fun updateExpandToggleVisual() {
-            if (isExpandMenuOpen) {
+            if (isExpandActive) {
                 ivExpand.setColorFilter(Color.CYAN)
                 tvExpandBtn.setTextColor(Color.CYAN)
                 expandLayout.visibility = View.VISIBLE
@@ -4694,9 +4699,19 @@ class EditorActivity : AppCompatActivity() {
                 expandLayout.visibility = View.GONE
             }
         }
+        updateExpandToggleVisual()
 
         btnExpandToggle.setOnClickListener {
-            isExpandMenuOpen = !isExpandMenuOpen
+            isExpandActive = !isExpandActive
+            if (isExpandActive) {
+                if (savedExpandValue == 0) {
+                    savedExpandValue = 5
+                    sbExpand.progress = savedExpandValue + 40
+                }
+                canvasView.inpaintMaskExpand = savedExpandValue
+            } else {
+                canvasView.inpaintMaskExpand = 0
+            }
             updateExpandToggleVisual()
         }
 
