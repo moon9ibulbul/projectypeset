@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -11,45 +12,48 @@
         android:id="@+id/btnToolHand"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/ic_hand"
+        android:src="@drawable/ic_typer_hand"
         android:padding="8dp"
-        app:tint="?attr/appIconTint"
-        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+        app:tint="?attr/appIconTint" />
 
     <ImageView
         android:id="@+id/btnToolRect"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/ic_crop_square"
+        android:src="@drawable/ic_typer_rect"
         android:padding="8dp"
-        app:tint="?attr/appIconTint"
-        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+        app:tint="?attr/appIconTint" />
 
     <ImageView
         android:id="@+id/btnToolCircle"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/ic_circle"
+        android:src="@drawable/ic_typer_circle"
         android:padding="8dp"
-        app:tint="?attr/appIconTint"
-        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+        app:tint="?attr/appIconTint" />
 
     <ImageView
         android:id="@+id/btnToolLasso"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/ic_lasso"
+        android:src="@drawable/ic_typer_lasso"
         android:padding="8dp"
-        app:tint="?attr/appIconTint"
-        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+        app:tint="?attr/appIconTint" />
+
+    <ImageView
+        android:id="@+id/btnToolMagicWand"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/ic_typer_magic_wand"
+        android:padding="8dp"
+        app:tint="?attr/appIconTint" />
 
     <ImageView
         android:id="@+id/btnToolEraser"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/ic_eraser"
+        android:src="@drawable/ic_typer_eraser"
         android:padding="8dp"
-        app:tint="?attr/appIconTint"
-        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+        app:tint="?attr/appIconTint" />
 
 </LinearLayout>

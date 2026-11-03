@@ -704,107 +704,36 @@ class EditorActivity : AppCompatActivity() {
                     layer.color = Color.BLACK
                 }
 
-                // Box Width (Constraint)
-                val padding = 20f
-                val targetWidth = (rect.width() - padding).coerceAtLeast(50f)
-                val targetHeight = (rect.height() - padding).coerceAtLeast(50f)
-
-                // Calculate Max Word Width to prevent splitting
-                val paint = android.text.TextPaint().apply {
+                // Gunakan TyperLayoutSolver cerdas berbasis siluet intan/oval dan pemenggalan kata Indonesia
+                val basePaint = android.text.TextPaint().apply {
                     textSize = layer.fontSize
                     typeface = layer.typeface
                     letterSpacing = layer.letterSpacing
                 }
-                val textStr = layer.text.toString()
-                // Split by spaces to find longest word
-                val words = textStr.split("\\s+".toRegex())
-                var maxWordWidth = 0f
-                for (word in words) {
-                    val w = paint.measureText(word)
-                    if (w > maxWordWidth) maxWordWidth = w
+
+                val layoutSolution = com.astral.typer.utils.TyperLayoutSolver.solveLayout(
+                    rawText = text,
+                    bubbleRect = rect,
+                    isOval = layer.isOval,
+                    basePaint = basePaint,
+                    minScale = 0.70f
+                )
+
+                // Update teks yang sudah di-format / di-hyphenate rapi
+                if (layoutSolution.formattedText != text) {
+                    layer.text = SpannableStringBuilder(layoutSolution.formattedText)
+                    // Re-apply format spans jika style aktif
+                    if (style != null) {
+                        if (style.isBold) layer.text.setSpan(StyleSpan(Typeface.BOLD), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        if (style.isItalic) layer.text.setSpan(StyleSpan(Typeface.ITALIC), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        if (style.isUnderline) layer.text.setSpan(UnderlineSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        if (style.isStrike) layer.text.setSpan(StrikethroughSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
                 }
-                // Add padding to max word width
-                maxWordWidth += 40f
 
-                // 4. Determine if content is "Dense" (heuristic: length > 20 chars)
-                val isDense = layer.text.length > 20
-
-                if (isDense) {
-                    // Dense: Optimize boxWidth to match Aspect Ratio of Target
-
-                    // Measure Height at arbitrary large width to estimate Area
-                    layer.boxWidth = 1000f
-                    val refH = layer.getHeight()
-
-                    val estimatedArea = 1000f * refH
-                    val targetAspect = targetWidth / targetHeight
-
-                    // Ideal Width in Local Space
-                    var idealWidth = kotlin.math.sqrt(estimatedArea * targetAspect)
-
-                    // Constraint 1: Must be at least Max Word Width
-                    if (idealWidth < maxWordWidth) idealWidth = maxWordWidth
-
-                    // Constraint 2: Oval Adjustment
-                    // Ovals have less effective width at top/bottom.
-                    // Expanding width gives more room for text to flow without breaking.
-                    if (layer.isOval) {
-                        idealWidth *= 1.2f
-                    }
-
-                    // Apply Ideal Width
-                    layer.boxWidth = idealWidth
-
-                    // Recalculate dimensions (Local Space)
-                    val newH = layer.getHeight()
-
-                    // Calculate Scale to fit Target Box (Screen Space)
-                    val scaleX = targetWidth / idealWidth
-                    val scaleY = targetHeight / newH
-
-                    var finalScale = minOf(scaleX, scaleY)
-
-                    // If oval, boost scale slightly to fill better (resize permission)
-                    if (layer.isOval) {
-                         finalScale *= 1.15f
-                    }
-
-                    layer.scaleX = finalScale
-                    layer.scaleY = finalScale
-
-                } else {
-                    // Sparse
-                    layer.boxWidth = null
-                    val naturalWidth = layer.getWidth() // Local natural width
-
-                    var chosenWidth = naturalWidth + 40f // Padding
-
-                    // Ensure we accommodate maxWordWidth (Local)
-                    if (chosenWidth < maxWordWidth) chosenWidth = maxWordWidth
-
-                    if (layer.isOval) {
-                        chosenWidth *= 1.15f
-                    }
-
-                    layer.boxWidth = chosenWidth
-                    val newH = layer.getHeight()
-
-                    val scaleX = targetWidth / chosenWidth
-                    val scaleY = targetHeight / newH
-
-                    var finalScale = minOf(scaleX, scaleY)
-
-                    // Cap at 1.0 to prevent blowing up small text
-                    if (finalScale > 1f) finalScale = 1f
-
-                    if (layer.isOval) {
-                         // Allow slightly larger if oval to fill
-                         finalScale *= 1.15f
-                    }
-
-                    layer.scaleX = finalScale
-                    layer.scaleY = finalScale
-                }
+                layer.boxWidth = layoutSolution.boxWidth
+                layer.scaleX = layoutSolution.scale
+                layer.scaleY = layoutSolution.scale
 
                 // Save state before adding to allow step-by-step undo
                 com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
@@ -5650,6 +5579,7 @@ class EditorActivity : AppCompatActivity() {
         val btnRect = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolRect)
         val btnCircle = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolCircle)
         val btnLasso = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolLasso)
+        val btnMagicWand = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolMagicWand)
         val btnEraser = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolEraser)
 
         fun updateToolUI(tool: AstralCanvasView.TyperTool) {
@@ -5659,6 +5589,7 @@ class EditorActivity : AppCompatActivity() {
             btnRect.setColorFilter(if (tool == AstralCanvasView.TyperTool.RECT) Color.CYAN else iconTint)
             btnCircle.setColorFilter(if (tool == AstralCanvasView.TyperTool.CIRCLE) Color.CYAN else iconTint)
             btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else iconTint)
+            btnMagicWand?.setColorFilter(if (tool == AstralCanvasView.TyperTool.MAGIC_WAND) Color.CYAN else iconTint)
             btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else iconTint)
         }
 
@@ -5666,6 +5597,7 @@ class EditorActivity : AppCompatActivity() {
         btnRect.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.RECT) }
         btnCircle.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.CIRCLE) }
         btnLasso.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.LASSO) }
+        btnMagicWand?.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.MAGIC_WAND) }
         btnEraser.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.ERASER) }
 
         updateToolUI(AstralCanvasView.TyperTool.HAND)

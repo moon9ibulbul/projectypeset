@@ -121,7 +121,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     enum class TyperTool {
-        HAND, RECT, CIRCLE, LASSO, ERASER
+        HAND, RECT, CIRCLE, LASSO, MAGIC_WAND, ERASER
     }
 
     data class TyperBubble(val rect: RectF, val isOval: Boolean)
@@ -405,6 +405,100 @@ class AstralCanvasView @JvmOverloads constructor(
         if (!path.isEmpty) {
             inpaintOps.add(InpaintOp(path, currentInpaintTool, 0f))
             redoOps.clear()
+            invalidate()
+        }
+    }
+
+    fun performTyperMagicWand(startX: Int, startY: Int) {
+        if (backgroundTiles.isEmpty()) return
+
+        val originalW = canvasWidth
+        val originalH = canvasHeight
+        val sX = startX.coerceIn(0, originalW - 1)
+        val sY = startY.coerceIn(0, originalH - 1)
+
+        val pixelCache = TiledPixelCache(backgroundTiles, TILE_SIZE)
+        val targetColor = pixelCache.getPixel(sX, sY)
+
+        val maxDiff = (magicWandSensitivity / 100f * 300f).toInt().coerceAtLeast(30)
+
+        val r1 = (targetColor shr 16) and 0xFF
+        val g1 = (targetColor shr 8) and 0xFF
+        val b1 = targetColor and 0xFF
+
+        val visited = TiledVisitedTracker(TILE_SIZE)
+        val queue = IntQueue()
+
+        queue.enqueue((sX shl 16) or (sY and 0xFFFF))
+        visited.visit(sX, sY)
+
+        var minX = sX
+        var maxX = sX
+        var minY = sY
+        var maxY = sY
+
+        var pixelCount = 0
+        val maxPixels = 2000000
+
+        while (!queue.isEmpty() && pixelCount < maxPixels) {
+            val encoded = queue.dequeue()
+            val cx = encoded ushr 16
+            val cy = encoded and 0xFFFF
+            pixelCount++
+
+            if (cx < minX) minX = cx
+            if (cx > maxX) maxX = cx
+            if (cy < minY) minY = cy
+            if (cy > maxY) maxY = cy
+
+            // Left
+            if (cx > 0) {
+                val nx = cx - 1
+                val ny = cy
+                val c2 = pixelCache.getPixel(nx, ny)
+                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                if (diff <= maxDiff && visited.visit(nx, ny)) {
+                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                }
+            }
+            // Right
+            if (cx < originalW - 1) {
+                val nx = cx + 1
+                val ny = cy
+                val c2 = pixelCache.getPixel(nx, ny)
+                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                if (diff <= maxDiff && visited.visit(nx, ny)) {
+                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                }
+            }
+            // Top
+            if (cy > 0) {
+                val nx = cx
+                val ny = cy - 1
+                val c2 = pixelCache.getPixel(nx, ny)
+                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                if (diff <= maxDiff && visited.visit(nx, ny)) {
+                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                }
+            }
+            // Bottom
+            if (cy < originalH - 1) {
+                val nx = cx
+                val ny = cy + 1
+                val c2 = pixelCache.getPixel(nx, ny)
+                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                if (diff <= maxDiff && visited.visit(nx, ny)) {
+                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                }
+            }
+        }
+
+        val boxW = maxX - minX
+        val boxH = maxY - minY
+        if (boxW in 15..((originalW * 0.95f).toInt()) && boxH in 15..((originalH * 0.95f).toInt())) {
+            val rect = RectF(minX.toFloat(), minY.toFloat(), maxX.toFloat(), maxY.toFloat())
+            val newList = (detectedBubbles ?: emptyList()) + TyperBubble(rect, isOval = true)
+            setDetectedBubbles(newList)
             invalidate()
         }
     }
@@ -2794,7 +2888,24 @@ class AstralCanvasView @JvmOverloads constructor(
              return true
         }
 
-        if (isTyperActive && pointerCount == 1 && !isInpaintMode) {
+        if (isTyperActive && !isInpaintMode) {
+            // Multi-touch or active PAN_ZOOM gesture in Typer mode -> Pan and Zoom only, don't create bounding boxes
+            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                if (!currentTyperPath.isEmpty) {
+                    currentTyperPath.reset()
+                    invalidate()
+                }
+                currentMode = Mode.PAN_ZOOM
+                scaleDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    currentMode = Mode.TYPER
+                    invalidate()
+                }
+                return true
+            }
+
             if (currentTyperTool == TyperTool.HAND) {
                 // Pass through for Layer Controls check.
                 // If no layer is hit, we will handle Pan/Zoom in the fall-through logic.
@@ -2814,15 +2925,17 @@ class AstralCanvasView @JvmOverloads constructor(
                                  invalidate()
                             }
                             MotionEvent.ACTION_MOVE -> {
-                                 currentTyperPath.reset()
-                                 if (currentTyperTool == TyperTool.CIRCLE) {
-                                     val rect = RectF(startTouchX, startTouchY, cx, cy)
-                                     rect.sort()
-                                     currentTyperPath.addOval(rect, Path.Direction.CW)
-                                 } else {
-                                     currentTyperPath.addRect(startTouchX, startTouchY, cx, cy, Path.Direction.CW)
+                                 if (event.pointerCount == 1) {
+                                     currentTyperPath.reset()
+                                     if (currentTyperTool == TyperTool.CIRCLE) {
+                                         val rect = RectF(startTouchX, startTouchY, cx, cy)
+                                         rect.sort()
+                                         currentTyperPath.addOval(rect, Path.Direction.CW)
+                                     } else {
+                                         currentTyperPath.addRect(startTouchX, startTouchY, cx, cy, Path.Direction.CW)
+                                     }
+                                     invalidate()
                                  }
-                                 invalidate()
                             }
                             MotionEvent.ACTION_UP -> {
                                  val rect = RectF(startTouchX, startTouchY, cx, cy)
@@ -2832,6 +2945,10 @@ class AstralCanvasView @JvmOverloads constructor(
                                       val newList = (detectedBubbles ?: emptyList()) + TyperBubble(rect, isOval)
                                       setDetectedBubbles(newList)
                                  }
+                                 currentTyperPath.reset()
+                                 invalidate()
+                            }
+                            MotionEvent.ACTION_CANCEL -> {
                                  currentTyperPath.reset()
                                  invalidate()
                             }
@@ -2845,19 +2962,43 @@ class AstralCanvasView @JvmOverloads constructor(
                                  invalidate()
                              }
                              MotionEvent.ACTION_MOVE -> {
-                                 currentTyperPath.lineTo(cx, cy)
-                                 invalidate()
+                                 if (event.pointerCount == 1) {
+                                     currentTyperPath.lineTo(cx, cy)
+                                     invalidate()
+                                 }
                              }
                              MotionEvent.ACTION_UP -> {
                                  val bounds = RectF()
                                  currentTyperPath.computeBounds(bounds, true)
                                  if (bounds.width() > 10 && bounds.height() > 10) {
-                                      // Lasso creates Oval bubble as per requirement
                                       val newList = (detectedBubbles ?: emptyList()) + TyperBubble(bounds, true)
                                       setDetectedBubbles(newList)
                                  }
                                  currentTyperPath.reset()
                                  invalidate()
+                             }
+                             MotionEvent.ACTION_CANCEL -> {
+                                 currentTyperPath.reset()
+                                 invalidate()
+                             }
+                         }
+                    }
+                    TyperTool.MAGIC_WAND -> {
+                         when(event.actionMasked) {
+                             MotionEvent.ACTION_DOWN -> {
+                                 startTouchX = cx
+                                 startTouchY = cy
+                                 hasMoved = false
+                             }
+                             MotionEvent.ACTION_MOVE -> {
+                                 if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 10f) {
+                                     hasMoved = true
+                                 }
+                             }
+                             MotionEvent.ACTION_UP -> {
+                                 if (!hasMoved) {
+                                     performTyperMagicWand(cx.toInt(), cy.toInt())
+                                 }
                              }
                          }
                     }
