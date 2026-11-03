@@ -2810,7 +2810,7 @@ class AstralCanvasView @JvmOverloads constructor(
             scaleDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event)
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                currentMode = Mode.NONE
+                currentMode = if (isTyperActive) Mode.TYPER else Mode.NONE
                 invalidate()
             }
             return true
@@ -2884,8 +2884,8 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (isTyperActive && !isInpaintMode) {
-            // Multi-touch or active PAN_ZOOM gesture in Typer mode -> Pan and Zoom only, don't create bounding boxes
-            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+            // Multi-touch or active PAN_ZOOM gesture in Typer mode for box drawing tools -> Pan and Zoom only, don't create bounding boxes
+            if (pointerCount >= 2 || (currentTyperTool != TyperTool.HAND && currentMode == Mode.PAN_ZOOM)) {
                 if (!currentTyperPath.isEmpty) {
                     currentTyperPath.reset()
                     invalidate()
