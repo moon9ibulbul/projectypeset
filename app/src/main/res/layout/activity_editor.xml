@@ -318,7 +318,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@drawable/ic_menu_palette"
+                        android:src="@drawable/ic_menu_style"
                         app:tint="?attr/appIconTint" />
                     <TextView
                         android:layout_width="wrap_content"
@@ -578,7 +578,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@drawable/ic_magic_wand"
+                        android:src="@drawable/ic_menu_effect"
                         app:tint="?attr/appIconTint" />
                     <TextView
                         android:layout_width="wrap_content"
@@ -656,7 +656,7 @@
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@drawable/ic_eraser"
+                        android:src="@drawable/ic_menu_erase"
                         app:tint="?attr/appIconTint" />
                     <TextView
                         android:layout_width="wrap_content"
