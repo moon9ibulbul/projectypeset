@@ -839,6 +839,7 @@ class AstralCanvasView @JvmOverloads constructor(
         layers.addAll(newLayers)
         selectedLayer = layers.find { it.isSelected }
         layers.forEach { it.isSelected = (it == selectedLayer) }
+        onLayerSelectedListener?.onLayerSelected(selectedLayer)
         invalidate()
     }
 

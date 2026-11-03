@@ -85,4 +85,45 @@ class BrushLayerUndoTest {
         UndoManager.discardLastState()
         assertFalse(UndoManager.canUndo())
     }
+
+    @Test
+    fun testBrushLayerUndoPreservesSelectionAndAppliesBrushChanges() {
+        UndoManager.clearMemory()
+
+        val brushLayer = BrushLayer(1000, 1000).apply {
+            isSelected = true
+            brushName = "pencil"
+            brushSize = 20f
+        }
+        val layers = listOf<Layer>(brushLayer)
+
+        // Save State 1
+        UndoManager.saveState(layers)
+
+        // State 2: User drew a stroke (which saves state) or modified something
+        brushLayer.brushSize = 30f
+        UndoManager.saveState(listOf(brushLayer))
+
+        // State 3: User changed brush size again
+        brushLayer.brushSize = 40f
+        val currentLayers = listOf<Layer>(brushLayer)
+
+        // Perform Undo
+        val restoredLayers = UndoManager.undo(currentLayers)
+        assertNotNull(restoredLayers)
+
+        // Simulate AstralCanvasView.setLayers:
+        // selectedLayer = layers.find { it.isSelected }
+        val restoredSelected = restoredLayers!!.find { it.isSelected } as? BrushLayer
+        assertNotNull(restoredSelected)
+        assertEquals(30f, restoredSelected!!.brushSize, 0.001f)
+
+        // Changing brush size on the restored selected layer immediately updates it
+        restoredSelected.brushSize = 55f
+        assertEquals(55f, restoredSelected.brushSize, 0.001f)
+
+        // Changing brush preset/type on the restored selected layer immediately updates it
+        restoredSelected.brushName = "calligraphy"
+        assertEquals("calligraphy", restoredSelected.brushName)
+    }
 }
