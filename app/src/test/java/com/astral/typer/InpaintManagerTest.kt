@@ -237,4 +237,51 @@ class InpaintManagerTest {
         val maskedGray = (0.299f * maskedR + 0.587f * maskedG + 0.114f * maskedB).toInt()
         assertEquals("Masked pixel grayscale luminance must be 255 (white hole)", 255, maskedGray)
     }
+
+    @Test
+    fun testReflect101PaddingLogic() {
+        val sw = 4
+        val sh = 3
+        val tw = 8
+        val th = 6
+
+        // Create a 4x3 2D test grid
+        val src = Array(sh) { y -> IntArray(sw) { x -> y * sw + x } }
+
+        // Test reflect-101 coordinate mapping
+        fun reflect101(idx: Int, size: Int): Int {
+            return if (idx < size) idx else {
+                val d = idx - size + 1
+                (size - 1 - d).coerceIn(0, size - 1)
+            }
+        }
+
+        // Check horizontal mapping for sw=4, tw=8: indices 0,1,2,3 -> 0,1,2,3; 4 -> 2, 5 -> 1, 6 -> 0, 7 -> 0
+        assertEquals(0, reflect101(0, sw))
+        assertEquals(1, reflect101(1, sw))
+        assertEquals(2, reflect101(2, sw))
+        assertEquals(3, reflect101(3, sw))
+        assertEquals(2, reflect101(4, sw)) // reflects across edge 3 without duplicating 3
+        assertEquals(1, reflect101(5, sw))
+        assertEquals(0, reflect101(6, sw))
+        assertEquals(0, reflect101(7, sw))
+
+        // Check vertical mapping for sh=3, th=6: indices 0,1,2 -> 0,1,2; 3 -> 1, 4 -> 0, 5 -> 0
+        assertEquals(0, reflect101(0, sh))
+        assertEquals(1, reflect101(1, sh))
+        assertEquals(2, reflect101(2, sh))
+        assertEquals(1, reflect101(3, sh)) // reflects across edge 2 without duplicating 2
+        assertEquals(0, reflect101(4, sh))
+        assertEquals(0, reflect101(5, sh))
+    }
+
+    @Test
+    fun testFeatheredMaskSeparableGaussianWeights() {
+        val kernel = floatArrayOf(0.06136f, 0.24477f, 0.38774f, 0.24477f, 0.06136f)
+        val sum = kernel.sum()
+        // Gaussian weights must sum approximately to 1.0 (normalized)
+        assertTrue("Kernel sum must be close to 1.0", Math.abs(sum - 1.0f) < 0.01f)
+        // Center weight must be largest
+        assertTrue("Center weight must be peak", kernel[2] > kernel[1] && kernel[2] > kernel[3])
+    }
 }

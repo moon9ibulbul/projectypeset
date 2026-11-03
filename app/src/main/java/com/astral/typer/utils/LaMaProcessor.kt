@@ -60,7 +60,9 @@ class LaMaProcessor(private val context: Context) {
 
     fun isModelAvailable(): Boolean {
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val useInt8 = prefs.getString("lama_model_version", "Int8") == "Int8"
+        val defaultVersion = if (isOriginalModelAvailable()) "FP32" else "Int8"
+        val selectedVersion = prefs.getString("lama_model_version", defaultVersion)
+        val useInt8 = selectedVersion == "Int8"
         val activeFile = if (useInt8) modelInt8File else modelFile
 
         if (!activeFile.exists() || activeFile.length() <= 0) {
@@ -185,7 +187,9 @@ class LaMaProcessor(private val context: Context) {
         if (ortSession == null) {
             val sessionOptions = OrtSession.SessionOptions()
             val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-            val useInt8 = prefs.getString("lama_model_version", "Int8") == "Int8"
+            val defaultVersion = if (isOriginalModelAvailable()) "FP32" else "Int8"
+            val selectedVersion = prefs.getString("lama_model_version", defaultVersion)
+            val useInt8 = selectedVersion == "Int8"
             var activeFile = if (useInt8) modelInt8File else modelFile
 
             if (!activeFile.exists() || activeFile.length() <= 0) {
@@ -330,7 +334,13 @@ class LaMaProcessor(private val context: Context) {
 
         // 1. Create Crops
         val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropW, cropH)
-        val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropW, cropH)
+        val rawCropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropW, cropH)
+
+        // AstralCleaner pre-dilation (+1px): eat away font anti-aliasing edges before sending to LaMa
+        val cropMask = dilateMaskBitmap(rawCropMask, 1)
+        if (cropMask != rawCropMask) {
+            rawCropMask.recycle()
+        }
 
         // Determine if model has fixed or dynamic input shape
         val inputInfo = session.inputInfo
@@ -400,26 +410,13 @@ class LaMaProcessor(private val context: Context) {
         }
 
         val inputImage = if (targetW != scaledW || targetH != scaledH) {
-            val padded = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
-            val padCanvas = Canvas(padded)
-            padCanvas.drawBitmap(prepImage, 0f, 0f, null)
-            // Replicate right/bottom edge borders if padded
-            if (targetW > scaledW) {
-                val srcCol = android.graphics.Rect(scaledW - 1, 0, scaledW, scaledH)
-                val dstCol = android.graphics.Rect(scaledW, 0, targetW, scaledH)
-                padCanvas.drawBitmap(prepImage, srcCol, dstCol, null)
-            }
-            if (targetH > scaledH) {
-                val srcRow = android.graphics.Rect(0, scaledH - 1, targetW, scaledH)
-                val dstRow = android.graphics.Rect(0, scaledH, targetW, targetH)
-                padCanvas.drawBitmap(padded, srcRow, dstRow, null)
-            }
-            padded
+            padBitmapReflect101(prepImage, scaledW, scaledH, targetW, targetH)
         } else {
             prepImage
         }
 
         val inputMask = if (targetW != scaledW || targetH != scaledH) {
+            // Mask is zero-padded (BORDER_CONSTANT with value 0)
             val padded = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
             val padCanvas = Canvas(padded)
             padCanvas.drawBitmap(prepMask, 0f, 0f, null)
@@ -479,13 +476,15 @@ class LaMaProcessor(private val context: Context) {
             paint.xfermode = null
             canvas.drawBitmap(outputCrop, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
 
-            // Blend with mask to ensure surrounding pixels are untouched
+            // Blend with feathered mask to ensure surrounding pixels are untouched and edges are seamless
+            val featheredMask = createFeatheredMask(cropMask)
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-            canvas.drawBitmap(cropMask, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
+            canvas.drawBitmap(featheredMask, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
 
             // Restore
             paint.xfermode = null
             canvas.restoreToCount(sc)
+            if (featheredMask != cropMask) featheredMask.recycle()
 
             if (unpaddedBitmap != outputBitmap) unpaddedBitmap.recycle()
             if (outputCrop != unpaddedBitmap && outputCrop != outputBitmap) outputCrop.recycle()
@@ -640,10 +639,11 @@ class LaMaProcessor(private val context: Context) {
         for (i in 0 until channelSize) {
             val mVal = if (((maskPixels[i] shr 24) and 0xFF) > 0) 1f else 0f
             val p = imgPixels[i]
-            // If masked (mVal == 1f), masked image region is zeroed out
-            val r = if (mVal > 0f) 0f else (((p shr 16) and 0xFF) / 255f)
-            val g = if (mVal > 0f) 0f else (((p shr 8) and 0xFF) / 255f)
-            val b = if (mVal > 0f) 0f else ((p and 0xFF) / 255f)
+            // AstralCleaner matching: original image pixels are passed as-is (normalized 0..1)
+            // with 4th channel containing binary mask (1.0 for hole, 0.0 for valid bg)
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
 
             data[i] = r
             data[channelSize + i] = g
@@ -705,6 +705,169 @@ class LaMaProcessor(private val context: Context) {
             FloatBuffer.wrap(data),
             longArrayOf(1, 3, h.toLong(), w.toLong())
         )
+    }
+
+    /**
+     * Dilates a mask bitmap by radius r using an elliptical structuring element.
+     */
+    private fun dilateMaskBitmap(src: Bitmap, radius: Int): Bitmap {
+        if (radius <= 0) return src
+        val w = src.width
+        val h = src.height
+        val pixels = IntArray(w * h)
+        src.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val maskBits = BooleanArray(w * h)
+        var hasMask = false
+        for (i in pixels.indices) {
+            if ((pixels[i] ushr 24) > 0) {
+                maskBits[i] = true
+                hasMask = true
+            }
+        }
+        if (!hasMask) return src
+
+        val dilated = BooleanArray(w * h)
+        val rSq = radius * radius
+        for (y in 0 until h) {
+            val yOff = y * w
+            for (x in 0 until w) {
+                if (maskBits[yOff + x]) {
+                    for (dy in -radius..radius) {
+                        val ny = y + dy
+                        if (ny !in 0 until h) continue
+                        val nyOff = ny * w
+                        for (dx in -radius..radius) {
+                            if (dx * dx + dy * dy <= rSq) {
+                                val nx = x + dx
+                                if (nx in 0 until w) {
+                                    dilated[nyOff + nx] = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        val outPixels = IntArray(w * h)
+        for (i in outPixels.indices) {
+            if (dilated[i]) {
+                outPixels[i] = Color.WHITE
+            }
+        }
+        return Bitmap.createBitmap(outPixels, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    /**
+     * Pads a bitmap to target dimensions using BORDER_REFLECT_101 matching OpenCV:
+     * Reflects across the boundary pixel without repeating it.
+     */
+    private fun padBitmapReflect101(src: Bitmap, sw: Int, sh: Int, tw: Int, th: Int): Bitmap {
+        val srcPixels = IntArray(sw * sh)
+        src.getPixels(srcPixels, 0, sw, 0, 0, sw, sh)
+
+        val outPixels = IntArray(tw * th)
+        for (y in 0 until th) {
+            val sy = if (y < sh) y else {
+                val d = y - sh + 1
+                (sh - 1 - d).coerceIn(0, sh - 1)
+            }
+            val syOff = sy * sw
+            val dyOff = y * tw
+            for (x in 0 until tw) {
+                val sx = if (x < sw) x else {
+                    val d = x - sw + 1
+                    (sw - 1 - d).coerceIn(0, sw - 1)
+                }
+                outPixels[dyOff + x] = srcPixels[syOff + sx]
+            }
+        }
+        return Bitmap.createBitmap(outPixels, tw, th, Bitmap.Config.ARGB_8888)
+    }
+
+    /**
+     * Creates a feathered alpha mask matching AstralCleaner:
+     * soft = cv2.GaussianBlur(cv2.dilate(core, ellipse(2)), (0, 0), 1.2)
+     * alpha = np.maximum(core, soft)
+     */
+    private fun createFeatheredMask(mask: Bitmap): Bitmap {
+        val w = mask.width
+        val h = mask.height
+        val pixels = IntArray(w * h)
+        mask.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val origAlpha = FloatArray(w * h)
+        var hasMask = false
+        for (i in pixels.indices) {
+            val a = (pixels[i] ushr 24) and 0xFF
+            if (a > 0) {
+                origAlpha[i] = a / 255f
+                hasMask = true
+            }
+        }
+        if (!hasMask) return mask
+
+        // 1. Dilate with radius 2
+        val dilatedAlpha = FloatArray(w * h)
+        val r = 2
+        val rSq = r * r
+        for (y in 0 until h) {
+            val yOff = y * w
+            for (x in 0 until w) {
+                if (origAlpha[yOff + x] > 0f) {
+                    for (dy in -r..r) {
+                        val ny = y + dy
+                        if (ny !in 0 until h) continue
+                        val nyOff = ny * w
+                        for (dx in -r..r) {
+                            if (dx * dx + dy * dy <= rSq) {
+                                val nx = x + dx
+                                if (nx in 0 until w) {
+                                    dilatedAlpha[nyOff + nx] = 1f
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Gaussian blur with sigma = 1.2 (3x3 / 5x5 separable kernel)
+        val kernel = floatArrayOf(0.06136f, 0.24477f, 0.38774f, 0.24477f, 0.06136f)
+        val kRadius = 2
+        val tempAlpha = FloatArray(w * h)
+
+        // Horizontal pass
+        for (y in 0 until h) {
+            val yOff = y * w
+            for (x in 0 until w) {
+                var sum = 0f
+                for (k in -kRadius..kRadius) {
+                    val nx = (x + k).coerceIn(0, w - 1)
+                    sum += dilatedAlpha[yOff + nx] * kernel[k + kRadius]
+                }
+                tempAlpha[yOff + x] = sum
+            }
+        }
+
+        // Vertical pass + maximum(origAlpha, soft)
+        val outPixels = IntArray(w * h)
+        for (y in 0 until h) {
+            val yOff = y * w
+            for (x in 0 until w) {
+                var softSum = 0f
+                for (k in -kRadius..kRadius) {
+                    val ny = (y + k).coerceIn(0, h - 1)
+                    softSum += tempAlpha[ny * w + x] * kernel[k + kRadius]
+                }
+                val finalAlpha = kotlin.math.max(origAlpha[yOff + x], softSum).coerceIn(0f, 1f)
+                val aInt = (finalAlpha * 255f).toInt()
+                outPixels[yOff + x] = (aInt shl 24) or 0x00FFFFFF
+            }
+        }
+
+        return Bitmap.createBitmap(outPixels, w, h, Bitmap.Config.ARGB_8888)
     }
 
     private fun outputTensorToBitmap(tensor: OnnxTensor, width: Int = TRAINED_SIZE, height: Int = TRAINED_SIZE): Bitmap {
