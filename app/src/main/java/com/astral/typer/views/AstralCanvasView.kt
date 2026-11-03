@@ -506,11 +506,12 @@ class AstralCanvasView @JvmOverloads constructor(
         try {
             if (org.opencv.android.OpenCVLoader.initDebug()) {
                 val srcMat = org.opencv.core.Mat()
-                val grayMat = org.opencv.core.Mat()
+                val alphaMat = org.opencv.core.Mat()
                 val dstMat = org.opencv.core.Mat()
 
                 org.opencv.android.Utils.bitmapToMat(maskBitmap, srcMat)
-                org.opencv.imgproc.Imgproc.cvtColor(srcMat, grayMat, org.opencv.imgproc.Imgproc.COLOR_RGBA2GRAY)
+                // Extract Alpha channel (channel index 3 in RGBA Mat) so only actual mask ink is dilated/eroded
+                org.opencv.core.Core.extractChannel(srcMat, alphaMat, 3)
 
                 val radius = abs(expand)
                 val kernelSize = radius * 2 + 1
@@ -520,20 +521,29 @@ class AstralCanvasView @JvmOverloads constructor(
                 )
 
                 if (expand > 0) {
-                    org.opencv.imgproc.Imgproc.dilate(grayMat, dstMat, kernel)
+                    org.opencv.imgproc.Imgproc.dilate(alphaMat, dstMat, kernel)
                 } else {
-                    org.opencv.imgproc.Imgproc.erode(grayMat, dstMat, kernel)
+                    org.opencv.imgproc.Imgproc.erode(alphaMat, dstMat, kernel)
                 }
 
+                // Construct RGBA output Mat where R=255, G=255, B=255, and A=dstMat (transparent where A=0)
+                val whiteMat = org.opencv.core.Mat(dstMat.size(), org.opencv.core.CvType.CV_8UC1, org.opencv.core.Scalar(255.0))
+                val channels = java.util.ArrayList<org.opencv.core.Mat>(4)
+                channels.add(whiteMat)
+                channels.add(whiteMat)
+                channels.add(whiteMat)
+                channels.add(dstMat)
+
                 val outMat = org.opencv.core.Mat()
-                org.opencv.imgproc.Imgproc.cvtColor(dstMat, outMat, org.opencv.imgproc.Imgproc.COLOR_GRAY2RGBA)
+                org.opencv.core.Core.merge(channels, outMat)
 
                 val outputBmp = android.graphics.Bitmap.createBitmap(maskBitmap.width, maskBitmap.height, android.graphics.Bitmap.Config.ARGB_8888)
                 org.opencv.android.Utils.matToBitmap(outMat, outputBmp)
 
                 srcMat.release()
-                grayMat.release()
+                alphaMat.release()
                 dstMat.release()
+                whiteMat.release()
                 outMat.release()
                 kernel.release()
 
@@ -544,7 +554,7 @@ class AstralCanvasView @JvmOverloads constructor(
             android.util.Log.w("AstralCanvasView", "OpenCV morphology failed, using fallback", e)
         }
 
-        // Fallback morphology using BitSet
+        // Fallback morphology using BitSet with Euclidean/circular disk structuring element
         val w = maskBitmap.width
         val h = maskBitmap.height
         val pixels = IntArray(w * h)
@@ -557,45 +567,55 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
-        val iterations = abs(expand)
-        if (expand > 0) {
-            for (iter in 0 until iterations) {
-                val nextBitSet = java.util.BitSet(w * h)
-                for (y in 0 until h) {
-                    val yOff = y * w
-                    for (x in 0 until w) {
-                        val idx = yOff + x
-                        if (currentBitSet.get(idx)) {
-                            nextBitSet.set(idx)
-                            if (x > 0) nextBitSet.set(idx - 1)
-                            if (x < w - 1) nextBitSet.set(idx + 1)
-                            if (y > 0) nextBitSet.set(idx - w)
-                            if (y < h - 1) nextBitSet.set(idx + w)
-                        }
-                    }
+        val radius = abs(expand)
+        val offsets = mutableListOf<Pair<Int, Int>>()
+        for (dy in -radius..radius) {
+            for (dx in -radius..radius) {
+                if (dx * dx + dy * dy <= radius * radius) {
+                    offsets.add(Pair(dx, dy))
                 }
-                currentBitSet = nextBitSet
             }
-        } else {
-            for (iter in 0 until iterations) {
-                val nextBitSet = java.util.BitSet(w * h)
-                for (y in 0 until h) {
-                    val yOff = y * w
-                    for (x in 0 until w) {
-                        val idx = yOff + x
-                        if (currentBitSet.get(idx)) {
-                            val left = x > 0 && currentBitSet.get(idx - 1)
-                            val right = x < w - 1 && currentBitSet.get(idx + 1)
-                            val top = y > 0 && currentBitSet.get(idx - w)
-                            val bottom = y < h - 1 && currentBitSet.get(idx + w)
-                            if (left && right && top && bottom) {
-                                nextBitSet.set(idx)
+        }
+
+        val nextBitSet = java.util.BitSet(w * h)
+        if (expand > 0) {
+            for (y in 0 until h) {
+                val yOff = y * w
+                for (x in 0 until w) {
+                    if (currentBitSet.get(yOff + x)) {
+                        for (offset in offsets) {
+                            val nx = x + offset.first
+                            val ny = y + offset.second
+                            if (nx in 0 until w && ny in 0 until h) {
+                                nextBitSet.set(ny * w + nx)
                             }
                         }
                     }
                 }
-                currentBitSet = nextBitSet
             }
+            currentBitSet = nextBitSet
+        } else {
+            // Erosion: pixel remains set only if all disk neighbors are set
+            for (y in 0 until h) {
+                val yOff = y * w
+                for (x in 0 until w) {
+                    if (currentBitSet.get(yOff + x)) {
+                        var allSet = true
+                        for (offset in offsets) {
+                            val nx = x + offset.first
+                            val ny = y + offset.second
+                            if (nx !in 0 until w || ny !in 0 until h || !currentBitSet.get(ny * w + nx)) {
+                                allSet = false
+                                break
+                            }
+                        }
+                        if (allSet) {
+                            nextBitSet.set(yOff + x)
+                        }
+                    }
+                }
+            }
+            currentBitSet = nextBitSet
         }
 
         val outPixels = IntArray(w * h)
