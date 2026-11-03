@@ -40,11 +40,22 @@ class InpaintManagerTest {
         assertNotNull(inpaintManager)
 
         inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+        assertEquals(InpaintManager.Engine.HYBRID, inpaintManager.getEngine())
+
         inpaintManager.setEngine(InpaintManager.Engine.PATCHMATCH)
+        assertEquals(InpaintManager.Engine.PATCHMATCH, inpaintManager.getEngine())
+
         inpaintManager.setEngine(InpaintManager.Engine.SMART_SOLID)
+        assertEquals(InpaintManager.Engine.SMART_SOLID, inpaintManager.getEngine())
+
         inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+        assertEquals(InpaintManager.Engine.OPENCV, inpaintManager.getEngine())
+
         inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+        assertEquals(InpaintManager.Engine.LAMA, inpaintManager.getEngine())
+
         inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
+        assertEquals(InpaintManager.Engine.MIGAN, inpaintManager.getEngine())
     }
 
     @Test

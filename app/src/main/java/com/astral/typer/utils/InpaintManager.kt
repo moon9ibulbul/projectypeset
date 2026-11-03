@@ -48,6 +48,10 @@ class InpaintManager(private val context: Context) {
         currentEngine = engine
     }
 
+    fun getEngine(): Engine {
+        return currentEngine
+    }
+
     /**
      * Inpaints the original bitmap using the provided mask.
      * @param originalBitmap The source image (ARGB_8888 recommended).
