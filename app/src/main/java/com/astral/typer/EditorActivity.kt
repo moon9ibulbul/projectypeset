@@ -4305,6 +4305,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         val modes = ArrayList<String>()
+        modes.add("Hybrid (Auto)")
         modes.add("OpenCV (Telea)")
         // modes.add("Content-Aware Fill") // Hidden for now as it is not ready
         modes.add("Smart Solid Fill")
@@ -4320,14 +4321,17 @@ class EditorActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinner.adapter = adapter
 
-        // Set initial selection
+        // Set initial selection to Hybrid (Auto)
         spinner.setSelection(0)
-        inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
+        inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
 
         spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
                 val selectedMode = modes[pos]
                 when {
+                    selectedMode.contains("Hybrid") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+                    }
                     selectedMode.contains("OpenCV") -> {
                         inpaintManager.setEngine(InpaintManager.Engine.OPENCV)
                     }
@@ -5658,6 +5662,7 @@ class EditorActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
         val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", true)
+        val maskPadding = prefs.getInt("inpaint_text_padding", 0)
 
         val allowedLabels = mutableSetOf<Long>()
         if (detectInside) allowedLabels.add(1L)
@@ -5670,16 +5675,40 @@ class EditorActivity : AppCompatActivity() {
 
         loadingDialog?.show()
         lifecycleScope.launch {
-            // Use boxScale 1.0f to avoid shrinking the mask (we want to cover the text)
-            val rects = bubbleProcessor.detect(bg, allowedLabels, 1.0f)
-            withContext(Dispatchers.Main) {
-                loadingDialog?.dismiss()
-                if (rects.isNotEmpty()) {
-                    canvasView.addInpaintMask(rects)
-                    Toast.makeText(this@EditorActivity, "Added ${rects.size} text masks", Toast.LENGTH_SHORT).show()
-                } else {
+            // Detect text boxes and bubble boxes concurrently/efficiently
+            val textRects = bubbleProcessor.detect(bg, allowedLabels, 1.0f)
+            val bubbleRects = bubbleProcessor.detect(bg, setOf(0L), 1.0f)
+
+            if (textRects.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    loadingDialog?.dismiss()
                     Toast.makeText(this@EditorActivity, "No text detected", Toast.LENGTH_SHORT).show()
                 }
+                return@launch
+            }
+
+            // Generate tight text masks based on Otsu ink analysis, constrained to bubbles + padding
+            val tightPaths = bubbleProcessor.generateTightTextMasks(bg, textRects, bubbleRects, maskPadding)
+
+            withContext(Dispatchers.Main) {
+                // Add paths to canvas inpaint mask ops
+                for (path in tightPaths) {
+                    canvasView.addCustomInpaintPath(path)
+                }
+
+                // Execute Hybrid Inpaint automatically using full-canvas coordinates
+                val bounds = canvasView.getInpaintMaskBounds()
+                val croppedMask = canvasView.getInpaintMask(bounds)
+
+                // Use performInpaint with bounds to ensure cropped sub-region inpainting is properly mapped back to canvas
+                performInpaint(croppedMask, bounds) {
+                    canvasView.clearInpaintMask()
+                    val lamaInstalled = com.astral.typer.utils.LaMaProcessor(this@EditorActivity).isModelAvailable()
+                    val engineNote = if (lamaInstalled) "Hybrid (Solid / LaMa)" else "Smart Solid Fill"
+                    Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
+                }
+
+                loadingDialog?.dismiss()
             }
         }
     }

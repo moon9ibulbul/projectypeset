@@ -27,10 +27,12 @@ class LaMaProcessor(private val context: Context) {
 
     companion object {
         private const val TRAINED_SIZE = 512
-        private const val MODEL_URL = "https://huggingface.co/bulbulmoon/lama/resolve/main/LaMa_512.onnx"
-        private const val MODEL_FILENAME = "LaMa_512.onnx"
-        private const val MODEL_INT8_URL = "https://huggingface.co/g-ronimo/lama/resolve/main/lama_512_int8.onnx"
-        private const val MODEL_INT8_FILENAME = "lama_512_int8.onnx"
+        private const val MODEL_URL = "https://huggingface.co/ogkalu/lama-manga-onnx-dynamic/resolve/main/lama-manga-dynamic.onnx"
+        private const val MODEL_FILENAME = "lama-manga-dynamic.onnx"
+        private const val LEGACY_MODEL_FILENAME = "LaMa_512.onnx"
+        private const val MODEL_INT8_URL = "https://huggingface.co/othytenk/lama-int4-int8/resolve/main/lama_int4_int8_r4.onnx"
+        private const val MODEL_INT8_FILENAME = "lama_int4_int8_r4.onnx"
+        private const val LEGACY_MODEL_INT8_FILENAME = "lama_512_int8.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
@@ -41,10 +43,20 @@ class LaMaProcessor(private val context: Context) {
     }
 
     private val modelFile: File
-        get() = File(context.filesDir, "onnx/$MODEL_FILENAME")
+        get() {
+            val newFile = File(context.filesDir, "onnx/$MODEL_FILENAME")
+            if (newFile.exists() && newFile.length() > 0) return newFile
+            val legacyFile = File(context.filesDir, "onnx/$LEGACY_MODEL_FILENAME")
+            return if (legacyFile.exists() && legacyFile.length() > 0) legacyFile else newFile
+        }
 
     private val modelInt8File: File
-        get() = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+        get() {
+            val newFile = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+            if (newFile.exists() && newFile.length() > 0) return newFile
+            val legacyFile = File(context.filesDir, "onnx/$LEGACY_MODEL_INT8_FILENAME")
+            return if (legacyFile.exists() && legacyFile.length() > 0) legacyFile else newFile
+        }
 
     fun isModelAvailable(): Boolean {
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
@@ -232,15 +244,21 @@ class LaMaProcessor(private val context: Context) {
 
     fun deleteOriginalModel(): Boolean {
         closeSession()
-        return if (modelFile.exists()) {
-            modelFile.delete()
+        val legacy = File(context.filesDir, "onnx/$LEGACY_MODEL_FILENAME")
+        if (legacy.exists()) legacy.delete()
+        val curr = File(context.filesDir, "onnx/$MODEL_FILENAME")
+        return if (curr.exists()) {
+            curr.delete()
         } else false
     }
 
     fun deleteInt8Model(): Boolean {
         closeSession()
-        return if (modelInt8File.exists()) {
-            modelInt8File.delete()
+        val legacy = File(context.filesDir, "onnx/$LEGACY_MODEL_INT8_FILENAME")
+        if (legacy.exists()) legacy.delete()
+        val curr = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+        return if (curr.exists()) {
+            curr.delete()
         } else false
     }
 
@@ -294,71 +312,121 @@ class LaMaProcessor(private val context: Context) {
         canvas: Canvas,
         paint: Paint
     ) {
-        // Calculate padded square crop (smart crop) based on this specific maskRect
-        // 3x padding logic from original code
-        val size = (kotlin.math.max(maskRect.width(), maskRect.height()) * 3)
-        val cx = maskRect.centerX()
-        val cy = maskRect.centerY()
-        val halfSize = size / 2
-
-        var left = cx - halfSize
-        var top = cy - halfSize
-        var right = cx + halfSize
-        var bottom = cy + halfSize
-
+        // Adaptive margin matching AstralCleaner: max(64, 0.6 * max(w, h))
+        val margin = kotlin.math.max(64, (0.6f * kotlin.math.max(maskRect.width(), maskRect.height())).toInt())
         val imgW = originalImage.width
         val imgH = originalImage.height
 
-        // Adjust bounds to fit image
-        if (right - left > imgW) {
-            left = 0
-            right = imgW
-        } else {
-            if (left < 0) {
-                val diff = -left
-                left += diff
-                right += diff
-            }
-            if (right > imgW) {
-                val diff = right - imgW
-                left -= diff
-                right -= diff
-            }
-        }
-
-        if (bottom - top > imgH) {
-            top = 0
-            bottom = imgH
-        } else {
-            if (top < 0) {
-                val diff = -top
-                top += diff
-                bottom += diff
-            }
-            if (bottom > imgH) {
-                val diff = bottom - imgH
-                top -= diff
-                bottom -= diff
-            }
-        }
-
-        // Clamp final values just in case
-        left = left.coerceIn(0, imgW)
-        right = right.coerceIn(0, imgW)
-        top = top.coerceIn(0, imgH)
-        bottom = bottom.coerceIn(0, imgH)
+        val left = (maskRect.left - margin).coerceIn(0, imgW)
+        val top = (maskRect.top - margin).coerceIn(0, imgH)
+        val right = (maskRect.right + margin).coerceIn(0, imgW)
+        val bottom = (maskRect.bottom + margin).coerceIn(0, imgH)
 
         if (right <= left || bottom <= top) return // Invalid crop
 
         val cropRect = android.graphics.Rect(left, top, right, bottom)
+        val cropW = cropRect.width()
+        val cropH = cropRect.height()
 
         // 1. Create Crops
-        val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
-        val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+        val cropImage = Bitmap.createBitmap(originalImage, cropRect.left, cropRect.top, cropW, cropH)
+        val cropMask = Bitmap.createBitmap(originalMask, cropRect.left, cropRect.top, cropW, cropH)
 
-        // 2. Resize Input for Model
-        val inputImage = Bitmap.createScaledBitmap(cropImage, TRAINED_SIZE, TRAINED_SIZE, true)
-        val inputMask = Bitmap.createScaledBitmap(cropMask, TRAINED_SIZE, TRAINED_SIZE, false)
+        // Determine if model has fixed or dynamic input shape
+        val inputInfo = session.inputInfo
+        var isDynamic = true
+        var fixedW = 0
+        var fixedH = 0
+
+        for ((_, nodeInfo) in inputInfo) {
+            val tensorInfo = nodeInfo.info as? ai.onnxruntime.TensorInfo
+            if (tensorInfo != null) {
+                val shape = tensorInfo.shape
+                if (shape.size == 4) {
+                    val hDim = shape[2]
+                    val wDim = shape[3]
+                    if (hDim > 0 && wDim > 0) {
+                        isDynamic = false
+                        fixedH = hDim.toInt()
+                        fixedW = wDim.toInt()
+                        break
+                    }
+                }
+            }
+        }
+
+        val maxSide = 768
+        val scale = if (isDynamic) {
+            val maxCropSide = kotlin.math.max(cropW, cropH)
+            if (maxCropSide > maxSide) maxSide.toFloat() / maxCropSide else 1.0f
+        } else {
+            1.0f
+        }
+
+        val scaledW = if (isDynamic) {
+            (cropW * scale).toInt().coerceAtLeast(8)
+        } else {
+            if (fixedW > 0) fixedW else TRAINED_SIZE
+        }
+        val scaledH = if (isDynamic) {
+            (cropH * scale).toInt().coerceAtLeast(8)
+        } else {
+            if (fixedH > 0) fixedH else TRAINED_SIZE
+        }
+
+        // For dynamic models, pad to multiple of 8 using reflection/edge clamping
+        val targetW = if (isDynamic) {
+            val rem = scaledW % 8
+            if (rem == 0) scaledW else scaledW + (8 - rem)
+        } else {
+            scaledW
+        }
+        val targetH = if (isDynamic) {
+            val rem = scaledH % 8
+            if (rem == 0) scaledH else scaledH + (8 - rem)
+        } else {
+            scaledH
+        }
+
+        val prepImage = if (cropW != scaledW || cropH != scaledH) {
+            Bitmap.createScaledBitmap(cropImage, scaledW, scaledH, true)
+        } else {
+            cropImage
+        }
+        val prepMask = if (cropW != scaledW || cropH != scaledH) {
+            Bitmap.createScaledBitmap(cropMask, scaledW, scaledH, false)
+        } else {
+            cropMask
+        }
+
+        val inputImage = if (targetW != scaledW || targetH != scaledH) {
+            val padded = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+            val padCanvas = Canvas(padded)
+            padCanvas.drawBitmap(prepImage, 0f, 0f, null)
+            // Replicate right/bottom edge borders if padded
+            if (targetW > scaledW) {
+                val srcCol = android.graphics.Rect(scaledW - 1, 0, scaledW, scaledH)
+                val dstCol = android.graphics.Rect(scaledW, 0, targetW, scaledH)
+                padCanvas.drawBitmap(prepImage, srcCol, dstCol, null)
+            }
+            if (targetH > scaledH) {
+                val srcRow = android.graphics.Rect(0, scaledH - 1, targetW, scaledH)
+                val dstRow = android.graphics.Rect(0, scaledH, targetW, targetH)
+                padCanvas.drawBitmap(padded, srcRow, dstRow, null)
+            }
+            padded
+        } else {
+            prepImage
+        }
+
+        val inputMask = if (targetW != scaledW || targetH != scaledH) {
+            val padded = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
+            val padCanvas = Canvas(padded)
+            padCanvas.drawBitmap(prepMask, 0f, 0f, null)
+            padded
+        } else {
+            prepMask
+        }
 
         var tensorImg: OnnxTensor? = null
         var tensorMask: OnnxTensor? = null
@@ -366,7 +434,6 @@ class LaMaProcessor(private val context: Context) {
         var resultOrt: OrtSession.Result? = null
 
         try {
-            // Check session inputs to determine whether model uses single combined input or separate image+mask inputs
             val inputNames = session.inputNames
             val inputs = if (inputNames.contains("input") || inputNames.size == 1) {
                 tensorCombined = bitmapToCombined4DOnnxTensor(env, inputImage, inputMask)
@@ -382,13 +449,24 @@ class LaMaProcessor(private val context: Context) {
             resultOrt = session.run(inputs)
             val outputTensor = resultOrt[0] as OnnxTensor
 
-            // 5. Post Process
-            val outputBitmap = outputTensorToBitmap(outputTensor)
+            // 5. Post Process to targetW x targetH bitmap
+            val outputBitmap = outputTensorToBitmap(outputTensor, targetW, targetH)
+
+            // Crop back unpadded part
+            val unpaddedBitmap = if (targetW != scaledW || targetH != scaledH) {
+                Bitmap.createBitmap(outputBitmap, 0, 0, scaledW, scaledH)
+            } else {
+                outputBitmap
+            }
 
             // 6. Resize Output back to Crop Size
-            val outputCrop = Bitmap.createScaledBitmap(outputBitmap, cropRect.width(), cropRect.height(), true)
+            val outputCrop = if (unpaddedBitmap.width != cropW || unpaddedBitmap.height != cropH) {
+                Bitmap.createScaledBitmap(unpaddedBitmap, cropW, cropH, true)
+            } else {
+                unpaddedBitmap
+            }
 
-            // 7. Composite Logic (Paste back onto the accumulating canvas)
+            // 7. Composite Logic (Paste back onto accumulating canvas)
             val sc = canvas.saveLayer(
                 cropRect.left.toFloat(),
                 cropRect.top.toFloat(),
@@ -397,12 +475,11 @@ class LaMaProcessor(private val context: Context) {
                 null
             )
 
-            // Draw the inferred result at the crop position
-            paint.xfermode = null // Normal draw
+            // Draw inferred result at crop position
+            paint.xfermode = null
             canvas.drawBitmap(outputCrop, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
 
-            // DST_IN: Blend with the mask crop to ensure we only paste over the masked area
-            // This ensures we don't overwrite surrounding pixels that were outside the mask but inside the crop
+            // Blend with mask to ensure surrounding pixels are untouched
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
             canvas.drawBitmap(cropMask, cropRect.left.toFloat(), cropRect.top.toFloat(), paint)
 
@@ -410,16 +487,26 @@ class LaMaProcessor(private val context: Context) {
             paint.xfermode = null
             canvas.restoreToCount(sc)
 
+            if (unpaddedBitmap != outputBitmap) unpaddedBitmap.recycle()
+            if (outputCrop != unpaddedBitmap && outputCrop != outputBitmap) outputCrop.recycle()
+            outputBitmap.recycle()
+
         } catch (e: Exception) {
             Log.e("LaMaProcessor", "Error processing region $maskRect", e)
         } finally {
-            // Explicit cleanup of tensors for this loop iteration
             try {
                 resultOrt?.close()
                 tensorImg?.close()
                 tensorMask?.close()
                 tensorCombined?.close()
             } catch (e: Exception) { /* ignore */ }
+
+            if (inputImage != prepImage && inputImage != cropImage) inputImage.recycle()
+            if (inputMask != prepMask && inputMask != cropMask) inputMask.recycle()
+            if (prepImage != cropImage) prepImage.recycle()
+            if (prepMask != cropMask) prepMask.recycle()
+            cropImage.recycle()
+            cropMask.recycle()
         }
     }
 
@@ -620,13 +707,11 @@ class LaMaProcessor(private val context: Context) {
         )
     }
 
-    private fun outputTensorToBitmap(tensor: OnnxTensor): Bitmap {
+    private fun outputTensorToBitmap(tensor: OnnxTensor, width: Int = TRAINED_SIZE, height: Int = TRAINED_SIZE): Bitmap {
         val buffer = tensor.floatBuffer
         val data = FloatArray(buffer.capacity())
         buffer.get(data)
 
-        val width = TRAINED_SIZE
-        val height = TRAINED_SIZE
         val size = width * height
         val pixels = IntArray(size)
 

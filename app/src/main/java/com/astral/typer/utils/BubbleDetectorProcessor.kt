@@ -672,4 +672,229 @@ class BubbleDetectorProcessor(private val context: Context) {
 
         return intersection / (areaA + areaB - intersection)
     }
+
+    /**
+     * Extracts tight ink mask paths from detected text boxes, constrained to bubble interior
+     * (matching AstralCleaner's ink_mask, bubble_interior, and text_polys logic), with user padding.
+     */
+    fun generateTightTextMasks(
+        image: Bitmap,
+        textRects: List<RectF>,
+        bubbleRects: List<RectF> = emptyList(),
+        extraPadding: Int = 0
+    ): List<android.graphics.Path> {
+        val paths = mutableListOf<android.graphics.Path>()
+        val imgW = image.width
+        val imgH = image.height
+
+        for (box in textRects) {
+            val pad = 2
+            val left = (box.left.toInt() - pad).coerceIn(0, imgW)
+            val top = (box.top.toInt() - pad).coerceIn(0, imgH)
+            val right = (box.right.toInt() + pad).coerceIn(0, imgW)
+            val bottom = (box.bottom.toInt() + pad).coerceIn(0, imgH)
+            val cropW = right - left
+            val cropH = bottom - top
+
+            if (cropW <= 0 || cropH <= 0) continue
+
+            val cropPixels = IntArray(cropW * cropH)
+            image.getPixels(cropPixels, 0, cropW, left, top, cropW, cropH)
+
+            // 1. Otsu thresholding on crop to extract ink
+            val gray = IntArray(cropW * cropH)
+            val hist = IntArray(256)
+            for (i in cropPixels.indices) {
+                val p = cropPixels[i]
+                val r = (p shr 16) and 0xFF
+                val g = (p shr 8) and 0xFF
+                val b = p and 0xFF
+                val y = (0.299f * r + 0.587f * g + 0.114f * b).toInt().coerceIn(0, 255)
+                gray[i] = y
+                hist[y]++
+            }
+
+            val totalPixels = cropW * cropH
+            var sum = 0.0
+            for (t in 0..255) sum += t * hist[t]
+
+            var sumB = 0.0
+            var wB = 0
+            var varMax = 0.0
+            var otsuThreshold = 128
+
+            for (t in 0..255) {
+                wB += hist[t]
+                if (wB == 0) continue
+                val wF = totalPixels - wB
+                if (wF == 0) break
+
+                sumB += t.toDouble() * hist[t]
+                val mB = sumB / wB
+                val mF = (sum - sumB) / wF
+                val varBetween = wB.toDouble() * wF.toDouble() * (mB - mF) * (mB - mF)
+
+                if (varBetween > varMax) {
+                    varMax = varBetween
+                    otsuThreshold = t
+                }
+            }
+
+            // Majority vs minority: ink is the minority class
+            var darkCount = 0
+            for (y in gray) {
+                if (y < otsuThreshold) darkCount++
+            }
+            val darkIsInk = darkCount < totalPixels / 2
+
+            val inkMask = BooleanArray(cropW * cropH)
+            var inkCount = 0
+            for (i in gray.indices) {
+                val isInk = if (darkIsInk) gray[i] < otsuThreshold else gray[i] >= otsuThreshold
+                inkMask[i] = isInk
+                if (isInk) inkCount++
+            }
+
+            val inkFrac = inkCount.toFloat() / totalPixels
+            // Valid ink check (0.4% to 55%) as in AstralCleaner
+            val isInkValid = inkFrac in 0.004f..0.55f
+
+            // Find containing bubble if any
+            val cx = box.centerX()
+            val cy = box.centerY()
+            val containingBubble = bubbleRects.filter { it.contains(cx, cy) }
+                .minByOrNull { it.width() * it.height() }
+
+            // Bubble interior constraint
+            val allowed = BooleanArray(cropW * cropH) { true }
+            if (containingBubble != null) {
+                // If inside bubble, constrain to bubble bounds minus 3px margin
+                val m = 3f
+                val minXAllowed = (containingBubble.left + m - left).toInt()
+                val maxXAllowed = (containingBubble.right - m - left).toInt()
+                val minYAllowed = (containingBubble.top + m - top).toInt()
+                val maxYAllowed = (containingBubble.bottom - m - top).toInt()
+
+                for (y in 0 until cropH) {
+                    val inY = y in minYAllowed until maxYAllowed
+                    for (x in 0 until cropW) {
+                        val inX = x in minXAllowed until maxXAllowed
+                        allowed[y * cropW + x] = inX && inY
+                    }
+                }
+            }
+
+            // Combine ink with allowed
+            val finalMask = BooleanArray(cropW * cropH)
+            var finalCount = 0
+            for (i in finalMask.indices) {
+                val v = if (isInkValid) (inkMask[i] && allowed[i]) else allowed[i]
+                finalMask[i] = v
+                if (v) finalCount++
+            }
+
+            // If empty or invalid, fallback to the text box
+            if (finalCount == 0) {
+                val p = android.graphics.Path()
+                val r = RectF(box)
+                if (extraPadding != 0) r.inset(-extraPadding.toFloat(), -extraPadding.toFloat())
+                p.addRect(r, android.graphics.Path.Direction.CW)
+                paths.add(p)
+                continue
+            }
+
+            // Dilate mask with extraPadding (default min 2px dilation for anti-alias coverage)
+            val dilateRadius = kotlin.math.max(1, 2 + extraPadding)
+            val dilatedMask = BooleanArray(cropW * cropH)
+            for (y in 0 until cropH) {
+                for (x in 0 until cropW) {
+                    if (finalMask[y * cropW + x]) {
+                        for (dy in -dilateRadius..dilateRadius) {
+                            for (dx in -dilateRadius..dilateRadius) {
+                                if (dx * dx + dy * dy <= dilateRadius * dilateRadius) {
+                                    val nx = x + dx
+                                    val ny = y + dy
+                                    if (nx in 0 until cropW && ny in 0 until cropH && allowed[ny * cropW + nx]) {
+                                        dilatedMask[ny * cropW + nx] = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Group into bounding rects of connected ink components or row runs
+            // To provide smooth vector Android Paths, find connected components of dilated mask
+            val visited = BooleanArray(cropW * cropH)
+            val queue = java.util.ArrayDeque<Int>()
+            var compCount = 0
+
+            for (i in dilatedMask.indices) {
+                if (dilatedMask[i] && !visited[i]) {
+                    visited[i] = true
+                    queue.add(i)
+
+                    var minCompX = cropW
+                    var maxCompX = 0
+                    var minCompY = cropH
+                    var maxCompY = 0
+                    var pixelArea = 0
+
+                    while (!queue.isEmpty()) {
+                        val curr = queue.poll() ?: continue
+                        val qx = curr % cropW
+                        val qy = curr / cropW
+                        pixelArea++
+
+                        if (qx < minCompX) minCompX = qx
+                        if (qx > maxCompX) maxCompX = qx
+                        if (qy < minCompY) minCompY = qy
+                        if (qy > maxCompY) maxCompY = qy
+
+                        // 4-neighborhood
+                        if (qx > 0) {
+                            val nIdx = curr - 1
+                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
+                        }
+                        if (qx < cropW - 1) {
+                            val nIdx = curr + 1
+                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
+                        }
+                        if (qy > 0) {
+                            val nIdx = curr - cropW
+                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
+                        }
+                        if (qy < cropH - 1) {
+                            val nIdx = curr + cropW
+                            if (dilatedMask[nIdx] && !visited[nIdx]) { visited[nIdx] = true; queue.add(nIdx) }
+                        }
+                    }
+
+                    if (pixelArea >= 4) {
+                        val path = android.graphics.Path()
+                        val absRect = RectF(
+                            (left + minCompX).toFloat(),
+                            (top + minCompY).toFloat(),
+                            (left + maxCompX + 1).toFloat(),
+                            (top + maxCompY + 1).toFloat()
+                        )
+                        path.addRoundRect(absRect, 4f, 4f, android.graphics.Path.Direction.CW)
+                        paths.add(path)
+                        compCount++
+                    }
+                }
+            }
+
+            if (compCount == 0) {
+                val fallbackPath = android.graphics.Path()
+                val r = RectF(box)
+                if (extraPadding != 0) r.inset(-extraPadding.toFloat(), -extraPadding.toFloat())
+                fallbackPath.addRect(r, android.graphics.Path.Direction.CW)
+                paths.add(fallbackPath)
+            }
+        }
+
+        return paths
+    }
 }
