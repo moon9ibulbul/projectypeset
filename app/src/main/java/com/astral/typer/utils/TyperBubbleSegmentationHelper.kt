@@ -27,12 +27,7 @@ object TyperBubbleSegmentationHelper {
     }
 
     /**
-     * Checks if the boundary contains dashed gaps by finding if a dilation/closing
-     * of non-target (edge/background) pixels prevents flood-fill leakage, or closes small line gaps.
-     *
-     * In dashed panels (e.g., Panel 5), the border has small gaps (e.g. 5-25px).
-     * If a flood fill without closing expands excessively compared to a fill with line dilation,
-     * closing the gaps prevents leakage to the entire panel.
+     * Color similarity check based on RGB Manhattan distance.
      */
     fun isColorSimilar(c1: Int, c2: Int, maxDiff: Int): Boolean {
         val r1 = (c1 shr 16) and 0xFF
@@ -47,19 +42,62 @@ object TyperBubbleSegmentationHelper {
     }
 
     /**
-     * Segments a connected binary mask (represented by list of points or 2D boolean array)
-     * into one or more sub-bubbles.
-     * If there are multiple distinct peaks in the Euclidean distance transform with a neck / constriction,
+     * Determines whether a binary mask within a bounding box is oval (ellipse) or rectangular.
+     * Ellipses have a fill ratio of approx pi/4 (~0.785) and nearly empty corners (in an ellipse,
+     * corners of the bounding box are not filled). Rectangular panels/bubbles have high fill ratios (>0.85)
+     * and high corner occupancy (>0.25).
+     */
+    fun detectIsOval(
+        maskWidth: Int,
+        maskHeight: Int,
+        mask: BooleanArray,
+        minX: Int = 0,
+        maxX: Int = maskWidth - 1,
+        minY: Int = 0,
+        maxY: Int = maskHeight - 1
+    ): Boolean {
+        val w = maxX - minX + 1
+        val h = maxY - minY + 1
+        if (w <= 5 || h <= 5) return true
+
+        val totalArea = w * h
+        var filledCount = 0
+        var cornerFilled = 0
+        var cornerTotal = 0
+
+        val cornerThresholdX = (w * 0.12f).toInt().coerceAtLeast(1)
+        val cornerThresholdY = (h * 0.12f).toInt().coerceAtLeast(1)
+
+        for (y in minY..maxY) {
+            val isNearYCorner = (y - minY < cornerThresholdY) || (maxY - y < cornerThresholdY)
+            val rowOffset = y * maskWidth
+            for (x in minX..maxX) {
+                val isNearXCorner = (x - minX < cornerThresholdX) || (maxX - x < cornerThresholdX)
+                val inCorner = isNearXCorner && isNearYCorner
+                if (inCorner) {
+                    cornerTotal++
+                }
+
+                if (mask[rowOffset + x]) {
+                    filledCount++
+                    if (inCorner) {
+                        cornerFilled++
+                    }
+                }
+            }
+        }
+
+        val fillRatio = filledCount.toFloat() / totalArea.toFloat()
+        val cornerFillRatio = if (cornerTotal > 0) cornerFilled.toFloat() / cornerTotal.toFloat() else 0f
+
+        // Rectangles have high fill ratio (>= 0.86) and significant corner occupancy (>= 0.30)
+        return !(fillRatio >= 0.86f && cornerFillRatio >= 0.30f)
+    }
+
+    /**
+     * Segments a connected binary mask into one or more sub-bubbles.
+     * If there are multiple distinct peaks in the distance transform with a neck / constriction,
      * it splits them into separate bubble rects.
-     *
-     * @param maskWidth width of local bounding box
-     * @param maskHeight height of local bounding box
-     * @param mask boolean array where true indicates the flood-filled region
-     * @param offsetX offset to add to rect X
-     * @param offsetY offset to add to rect Y
-     * @param tapX optional original tap coordinate in canvas space to prioritize sub-bubble if desired
-     * @param tapY optional original tap coordinate in canvas space
-     * @return list of segmented BubbleResult
      */
     fun segmentConnectedMask(
         maskWidth: Int,
@@ -72,7 +110,7 @@ object TyperBubbleSegmentationHelper {
     ): List<BubbleResult> {
         if (maskWidth <= 0 || maskHeight <= 0) return emptyList()
 
-        // 1. Compute Distance Transform on binary mask (Manhattan / Chamfer approximation or exact Euclidean)
+        // 1. Compute Distance Transform on binary mask
         val dist = FloatArray(maskWidth * maskHeight)
         val INF = 1e7f
 
@@ -106,19 +144,15 @@ object TyperBubbleSegmentationHelper {
             }
         }
 
-        // Find local maxima / peaks in the distance transform
-        // Peaks represent bubble centers
         var maxD = 0f
         for (v in dist) {
             if (v > maxD) maxD = v
         }
 
-        // Minimum radius for a distinct bubble center to avoid noise
         val minPeakDist = max(15f, maxD * 0.35f)
 
         data class Peak(val x: Int, val y: Int, val dist: Float)
         val candidatePeaks = mutableListOf<Peak>()
-
         val peakSearchRadius = max(10, (maxD * 0.4f).toInt())
 
         for (y in 1 until maskHeight - 1) {
@@ -126,7 +160,6 @@ object TyperBubbleSegmentationHelper {
                 val d = dist[y * maskWidth + x]
                 if (d >= minPeakDist) {
                     var isLocalMax = true
-                    // Check local neighborhood
                     val r = min(peakSearchRadius, 8)
                     for (ny in max(0, y - r)..min(maskHeight - 1, y + r)) {
                         for (nx in max(0, x - r)..min(maskWidth - 1, x + r)) {
@@ -144,7 +177,6 @@ object TyperBubbleSegmentationHelper {
             }
         }
 
-        // Cluster candidate peaks that are close to each other
         val filteredPeaks = mutableListOf<Peak>()
         candidatePeaks.sortByDescending { it.dist }
         for (p in candidatePeaks) {
@@ -158,7 +190,6 @@ object TyperBubbleSegmentationHelper {
             }
         }
 
-        // If there's only 1 peak or distance between peaks is not deep enough, return single bounding box
         if (filteredPeaks.size <= 1) {
             var minX = maskWidth
             var maxX = 0
@@ -175,26 +206,23 @@ object TyperBubbleSegmentationHelper {
                 }
             }
             if (minX <= maxX && minY <= maxY) {
+                val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
                 return listOf(
                     BubbleResult(
                         minX + offsetX,
                         minY + offsetY,
                         maxX + offsetX,
                         maxY + offsetY,
-                        isOval = true
+                        isOval = isOval
                     )
                 )
             }
             return emptyList()
         }
 
-        // We have multiple peaks (e.g. double bubbles in Panel 7).
-        // Check if there is a constriction / neck between the peaks.
-        // Watershed or distance-based assignment to partition the mask pixels
         val label = IntArray(maskWidth * maskHeight) { 0 }
         val queue = ArrayDeque<Int>()
 
-        // Initialize queue with peak locations
         for (i in filteredPeaks.indices) {
             val p = filteredPeaks[i]
             val idx = p.y * maskWidth + p.x
@@ -202,14 +230,12 @@ object TyperBubbleSegmentationHelper {
             queue.add(idx)
         }
 
-        // Breadth-first watershed propagation across mask pixels
         while (!queue.isEmpty()) {
             val curr = queue.poll() ?: break
             val cx = curr % maskWidth
             val cy = curr / maskWidth
             val currLabel = label[curr]
 
-            // 4-connected neighbors
             val neighbors = arrayOf(
                 cx - 1 to cy,
                 cx + 1 to cy,
@@ -228,7 +254,6 @@ object TyperBubbleSegmentationHelper {
             }
         }
 
-        // Calculate bounding box for each labeled component
         val results = mutableListOf<BubbleResult>()
         for (i in filteredPeaks.indices) {
             val targetLabel = i + 1
@@ -251,21 +276,19 @@ object TyperBubbleSegmentationHelper {
             }
 
             if (count > 50 && minX <= maxX && minY <= maxY) {
-                // If user tapped a specific point, check if we should return both or only the tapped bubble
+                val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
                 results.add(
                     BubbleResult(
                         minX + offsetX,
                         minY + offsetY,
                         maxX + offsetX,
                         maxY + offsetY,
-                        isOval = true
+                        isOval = isOval
                     )
                 )
             }
         }
 
-        // If tap coordinates are provided, we can either return all detected components
-        // or sort them so the tapped one is first
         if (tapX != null && tapY != null && results.size > 1) {
             results.sortByDescending {
                 tapX in it.left..it.right && tapY in it.top..it.bottom
@@ -273,15 +296,16 @@ object TyperBubbleSegmentationHelper {
         }
 
         return if (results.isNotEmpty()) results else {
-            // Fallback to whole mask
-            listOf(BubbleResult(offsetX, offsetY, offsetX + maskWidth, offsetY + maskHeight, isOval = true))
+            val isOval = detectIsOval(maskWidth, maskHeight, mask)
+            listOf(BubbleResult(offsetX, offsetY, offsetX + maskWidth, offsetY + maskHeight, isOval = isOval))
         }
     }
 
     /**
-     * Checks if a border or edge has dashed gaps and closes them in a local region.
-     * When flood fill reaches beyond a normal bubble threshold without hitting solid borders,
-     * closing small gaps (e.g. 5-15px) prevents escaping the dashed rectangle.
+     * Checks if a border has dashed gaps and closes them in a local region.
+     * Uses 2D separable morphological dilation with a sliding window for O(W * H) gap closing,
+     * flood-fills inside the sealed boundary, and expands back to the border edges
+     * via constrained distance BFS.
      */
     fun performClosedFloodFill(
         startX: Int,
@@ -290,9 +314,8 @@ object TyperBubbleSegmentationHelper {
         canvasH: Int,
         pixelProvider: PixelProvider,
         maxDiff: Int,
-        gapClosingRadius: Int = 12
+        gapClosingRadius: Int = 24
     ): Pair<IntArray, BooleanArray>? {
-        // First check standard BFS
         val targetColor = pixelProvider.getPixel(startX, startY)
         val r1 = (targetColor shr 16) and 0xFF
         val g1 = (targetColor shr 8) and 0xFF
@@ -305,17 +328,8 @@ object TyperBubbleSegmentationHelper {
             return (abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)) <= maxDiff
         }
 
-        // If the border is dashed (Panel 5), line segments leave gaps.
-        // To prevent leaking, we can bridge gaps by treating pixels that are close to border pixels
-        // across small distances as solid barriers, or performing flood fill with a virtual gap bridge.
-        // An efficient method:
-        // Identify non-target color pixels (the border lines) within a local window around start.
-        // Dilate the border pixels by gapClosingRadius / 2 so dashed gaps are sealed.
-        // Then flood-fill inside the sealed border.
-
-        // Let's first test if standard fill escapes excessively
-        // We do a bounded flood fill with max search bounds
-        val maxExtent = (min(canvasW, canvasH) * 0.85f).toInt()
+        // Bounded search window around tap
+        val maxExtent = min(1200, (min(canvasW, canvasH) * 0.85f).toInt())
         val minXBound = max(0, startX - maxExtent)
         val maxXBound = min(canvasW - 1, startX + maxExtent)
         val minYBound = max(0, startY - maxExtent)
@@ -328,46 +342,59 @@ object TyperBubbleSegmentationHelper {
         val isBorder = BooleanArray(localW * localH)
         for (ly in 0 until localH) {
             val gy = minYBound + ly
+            val rowOffset = ly * localW
             for (lx in 0 until localW) {
                 val gx = minXBound + lx
                 val c = pixelProvider.getPixel(gx, gy)
-                isBorder[ly * localW + lx] = !isSame(c)
+                isBorder[rowOffset + lx] = !isSame(c)
             }
         }
 
-        // Dilate borders horizontally & vertically by gapClosingRadius to bridge dashed lines
-        val closedBorder = BooleanArray(localW * localH)
         val bridgeR = gapClosingRadius
 
+        // Pass 1: Horizontal sliding window dilation of isBorder
+        val hDilated = BooleanArray(localW * localH)
         for (ly in 0 until localH) {
-            var lastBorderX = -1000
+            val rowOffset = ly * localW
+            var activeCount = 0
+            val initEnd = min(localW - 1, bridgeR)
+            for (lx in 0..initEnd) {
+                if (isBorder[rowOffset + lx]) activeCount++
+            }
             for (lx in 0 until localW) {
-                if (isBorder[ly * localW + lx]) {
-                    // Check if there was a recent border pixel within gap radius
-                    val gap = lx - lastBorderX
-                    if (gap in 2..bridgeR) {
-                        for (fillX in lastBorderX until lx) {
-                            closedBorder[ly * localW + fillX] = true
-                        }
-                    }
-                    lastBorderX = lx
-                    closedBorder[ly * localW + lx] = true
+                if (activeCount > 0) {
+                    hDilated[rowOffset + lx] = true
+                }
+                val outX = lx - bridgeR
+                if (outX >= 0 && isBorder[rowOffset + outX]) {
+                    activeCount--
+                }
+                val inX = lx + bridgeR + 1
+                if (inX < localW && isBorder[rowOffset + inX]) {
+                    activeCount++
                 }
             }
         }
 
+        // Pass 2: Vertical sliding window dilation of hDilated to get closedBorder
+        val closedBorder = BooleanArray(localW * localH)
         for (lx in 0 until localW) {
-            var lastBorderY = -1000
+            var activeCount = 0
+            val initEnd = min(localH - 1, bridgeR)
+            for (ly in 0..initEnd) {
+                if (hDilated[ly * localW + lx]) activeCount++
+            }
             for (ly in 0 until localH) {
-                if (isBorder[ly * localW + lx]) {
-                    val gap = ly - lastBorderY
-                    if (gap in 2..bridgeR) {
-                        for (fillY in lastBorderY until ly) {
-                            closedBorder[fillY * localW + lx] = true
-                        }
-                    }
-                    lastBorderY = ly
+                if (activeCount > 0) {
                     closedBorder[ly * localW + lx] = true
+                }
+                val outY = ly - bridgeR
+                if (outY >= 0 && hDilated[outY * localW + lx]) {
+                    activeCount--
+                }
+                val inY = ly + bridgeR + 1
+                if (inY < localH && hDilated[inY * localW + lx]) {
+                    activeCount++
                 }
             }
         }
@@ -376,7 +403,6 @@ object TyperBubbleSegmentationHelper {
         val sLocalX = startX - minXBound
         val sLocalY = startY - minYBound
         if (closedBorder[sLocalY * localW + sLocalX]) {
-            // Start point was bridged over; shouldn't happen unless clicked right on a gap
             return null
         }
 
@@ -386,11 +412,6 @@ object TyperBubbleSegmentationHelper {
         visited[sLocalY * localW + sLocalX] = true
 
         var count = 0
-        var bMinX = sLocalX
-        var bMaxX = sLocalX
-        var bMinY = sLocalY
-        var bMaxY = sLocalY
-
         var reachedBoundary = false
 
         while (!queue.isEmpty() && count < 2000000) {
@@ -398,11 +419,6 @@ object TyperBubbleSegmentationHelper {
             val cx = enc ushr 16
             val cy = enc and 0xFFFF
             count++
-
-            if (cx < bMinX) bMinX = cx
-            if (cx > bMaxX) bMaxX = cx
-            if (cy < bMinY) bMinY = cy
-            if (cy > bMaxY) bMaxY = cy
 
             if (cx == 0 || cx == localW - 1 || cy == 0 || cy == localH - 1) {
                 reachedBoundary = true
@@ -426,9 +442,61 @@ object TyperBubbleSegmentationHelper {
             }
         }
 
-        // If the filled region reached local boundary, it wasn't a closed shape even with dashed closing
+        // If the filled region reached local boundary, it was not an enclosed shape
         if (reachedBoundary) {
             return null
+        }
+
+        // Expand the eroded mask back towards the original border edges using distance-limited BFS
+        // Each entry encodes (distance shl 24) or (x shl 12) or y
+        val expandQueue = ArrayDeque<Int>()
+        val expanded = BooleanArray(localW * localH)
+
+        for (ly in 0 until localH) {
+            val rowOffset = ly * localW
+            for (lx in 0 until localW) {
+                val idx = rowOffset + lx
+                if (visited[idx]) {
+                    expanded[idx] = true
+                    expandQueue.add((0 shl 24) or (lx shl 12) or ly)
+                }
+            }
+        }
+
+        var bMinX = sLocalX
+        var bMaxX = sLocalX
+        var bMinY = sLocalY
+        var bMaxY = sLocalY
+
+        while (!expandQueue.isEmpty()) {
+            val enc = expandQueue.poll() ?: break
+            val d = enc ushr 24
+            val cx = (enc ushr 12) and 0xFFF
+            val cy = enc and 0xFFF
+
+            if (cx < bMinX) bMinX = cx
+            if (cx > bMaxX) bMaxX = cx
+            if (cy < bMinY) bMinY = cy
+            if (cy > bMaxY) bMaxY = cy
+
+            if (d < bridgeR) {
+                val nextDist = d + 1
+                val neighbors = arrayOf(
+                    cx - 1 to cy,
+                    cx + 1 to cy,
+                    cx to cy - 1,
+                    cx to cy + 1
+                )
+                for ((nx, ny) in neighbors) {
+                    if (nx in 0 until localW && ny in 0 until localH) {
+                        val nIdx = ny * localW + nx
+                        if (!expanded[nIdx] && !isBorder[nIdx]) {
+                            expanded[nIdx] = true
+                            expandQueue.add((nextDist shl 24) or (nx shl 12) or ny)
+                        }
+                    }
+                }
+            }
         }
 
         val maskW = bMaxX - bMinX + 1
@@ -437,7 +505,7 @@ object TyperBubbleSegmentationHelper {
 
         for (ly in bMinY..bMaxY) {
             for (lx in bMinX..bMaxX) {
-                if (visited[ly * localW + lx]) {
+                if (expanded[ly * localW + lx]) {
                     tightMask[(ly - bMinY) * maskW + (lx - bMinX)] = true
                 }
             }

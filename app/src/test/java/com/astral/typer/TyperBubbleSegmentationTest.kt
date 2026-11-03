@@ -3,7 +3,6 @@ package com.astral.typer
 import com.astral.typer.utils.TyperBubbleSegmentationHelper
 import org.junit.Assert.*
 import org.junit.Test
-import kotlin.math.hypot
 
 class TyperBubbleSegmentationTest {
 
@@ -54,6 +53,7 @@ class TyperBubbleSegmentationTest {
         assertTrue("Bubble 2 should be roughly in lower-right (c2X: $c2X)", c2X > 220f)
         assertTrue("Bubble 1 width should be reasonable (~100px)", w1 in 80f..140f)
         assertTrue("Bubble 2 width should be reasonable (~120px)", w2 in 90f..150f)
+        assertTrue("Overlapping bubbles should be classified as ovals", b1.isOval && b2.isOval)
     }
 
     @Test
@@ -79,14 +79,12 @@ class TyperBubbleSegmentationTest {
         }
 
         // Draw dashed border lines around the rectangle
-        // Top and bottom horizontal borders
         for (x in 50..250) {
-            if ((x / 10) % 2 == 0) { // dash on/off
+            if ((x / 10) % 2 == 0) {
                 pixels[40 * width + x] = colBorder
                 pixels[160 * width + x] = colBorder
             }
         }
-        // Left and right vertical borders
         for (y in 40..160) {
             if ((y / 10) % 2 == 0) {
                 pixels[y * width + 50] = colBorder
@@ -117,10 +115,109 @@ class TyperBubbleSegmentationTest {
         val right = bounds[2]
         val bottom = bounds[3]
 
-        // Bounds should match rectangle around (50, 40) to (250, 160) closely
         assertTrue("Left bound ($left) should be near 50", left in 48..55)
         assertTrue("Top bound ($top) should be near 40", top in 38..45)
         assertTrue("Right bound ($right) should be near 250", right in 245..252)
         assertTrue("Bottom bound ($bottom) should be near 160", bottom in 155..162)
+    }
+
+    @Test
+    fun testDashedPanelWithIdenticalInsideAndOutsideBackground() {
+        // Simulating Panel 5: inside and outside panel share the exact same gray color (0xFFD7D7D7)
+        // Dashed lines are dark blue/black (0xFF1A1A30) with 15px dash and 18px gap
+        val width = 500
+        val height = 400
+        val pixels = IntArray(width * height) { 0xFFD7D7D7.toInt() }
+
+        val colBorder = 0xFF1A1A30.toInt()
+        val rectLeft = 80
+        val rectTop = 60
+        val rectRight = 420
+        val rectBottom = 220
+
+        // Dash pattern: 15px dash, 18px gap (period 33px)
+        val dashCycle = 33
+        for (x in rectLeft..rectRight) {
+            if ((x - rectLeft) % dashCycle < 15) {
+                pixels[rectTop * width + x] = colBorder
+                pixels[rectBottom * width + x] = colBorder
+            }
+        }
+        for (y in rectTop..rectBottom) {
+            if ((y - rectTop) % dashCycle < 15) {
+                pixels[y * width + rectLeft] = colBorder
+                pixels[y * width + rectRight] = colBorder
+            }
+        }
+
+        val provider = TyperBubbleSegmentationHelper.PixelProvider { px, py ->
+            pixels[py * width + px]
+        }
+
+        val result = TyperBubbleSegmentationHelper.performClosedFloodFill(
+            startX = 200,
+            startY = 140,
+            canvasW = width,
+            canvasH = height,
+            pixelProvider = provider,
+            maxDiff = 30,
+            gapClosingRadius = 24
+        )
+
+        assertNotNull("Should detect dashed box without leaking even when background is identical", result)
+        val (bounds, mask) = result!!
+
+        val left = bounds[0]
+        val top = bounds[1]
+        val right = bounds[2]
+        val bottom = bounds[3]
+
+        assertTrue("Left bound ($left) should be within 2px of $rectLeft", left in (rectLeft - 2)..(rectLeft + 2))
+        assertTrue("Top bound ($top) should be within 2px of $rectTop", top in (rectTop - 2)..(rectTop + 2))
+        assertTrue("Right bound ($right) should be within 2px of $rectRight", right in (rectRight - 2)..(rectRight + 2))
+        assertTrue("Bottom bound ($bottom) should be within 2px of $rectBottom", bottom in (rectBottom - 2)..(rectBottom + 2))
+
+        // Check shape classification
+        val mWidth = right - left + 1
+        val mHeight = bottom - top + 1
+        val isOval = TyperBubbleSegmentationHelper.detectIsOval(mWidth, mHeight, mask)
+        assertFalse("Dashed panel box should be detected as rectangle (isOval = false)", isOval)
+
+        val segmented = TyperBubbleSegmentationHelper.segmentConnectedMask(
+            maskWidth = mWidth,
+            maskHeight = mHeight,
+            mask = mask,
+            offsetX = left.toFloat(),
+            offsetY = top.toFloat()
+        )
+        assertEquals(1, segmented.size)
+        assertFalse("Segmented bubble should have isOval = false for rectangular dashed panel", segmented[0].isOval)
+    }
+
+    @Test
+    fun testShapeClassificationOvalVsRectangle() {
+        val w = 120
+        val h = 80
+
+        // Test 1: Filled rectangle
+        val rectMask = BooleanArray(w * h) { true }
+        val isOvalRect = TyperBubbleSegmentationHelper.detectIsOval(w, h, rectMask)
+        assertFalse("Full rectangle should be detected as rectangle (isOval = false)", isOvalRect)
+
+        // Test 2: Filled ellipse
+        val ovalMask = BooleanArray(w * h)
+        val rx = w / 2f
+        val ry = h / 2f
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val dx = (x - rx) / rx
+                val dy = (y - ry) / ry
+                if (dx * dx + dy * dy <= 1.0f) {
+                    ovalMask[y * w + x] = true
+                }
+            }
+        }
+        val isOvalEllipse = TyperBubbleSegmentationHelper.detectIsOval(w, h, ovalMask)
+        assertTrue("Ellipse should be detected as oval (isOval = true)", isOvalEllipse)
     }
 }

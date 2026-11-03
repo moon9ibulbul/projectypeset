@@ -503,48 +503,58 @@ class AstralCanvasView @JvmOverloads constructor(
         val boxH = maxY - minY
         val isLeakedOrExcessive = boxW > (originalW * 0.90f) || boxH > (originalH * 0.90f) || pixelCount >= maxPixels
 
-        // If standard fill leaked or exceeded typical bubble boundaries (e.g. dashed borders like Panel 5),
-        // attempt closed flood-fill by bridging dashed border gaps.
-        if (isLeakedOrExcessive) {
-            val closedFill = com.astral.typer.utils.TyperBubbleSegmentationHelper.performClosedFloodFill(
-                sX, sY, originalW, originalH,
-                { px, py -> pixelCache.getPixel(px, py) },
-                maxDiff
-            )
-            if (closedFill != null) {
-                val (b, tightMask) = closedFill
-                finalBoundsMinX = b[0]
-                finalBoundsMinY = b[1]
-                finalBoundsMaxX = b[2]
-                finalBoundsMaxY = b[3]
-                val bW = finalBoundsMaxX - finalBoundsMinX + 1
-                val bH = finalBoundsMaxY - finalBoundsMinY + 1
+        // Always test if the tap point is enclosed by a dashed border (e.g. Panel 5)
+        val closedFill = com.astral.typer.utils.TyperBubbleSegmentationHelper.performClosedFloodFill(
+            sX, sY, originalW, originalH,
+            { px, py -> pixelCache.getPixel(px, py) },
+            maxDiff
+        )
+
+        var useClosedFill = false
+        if (closedFill != null) {
+            val (cBounds, cMask) = closedFill
+            val cW = cBounds[2] - cBounds[0] + 1
+            val cH = cBounds[3] - cBounds[1] + 1
+            val cArea = cW.toLong() * cH.toLong()
+            val stdArea = boxW.toLong() * boxH.toLong()
+
+            // If standard fill leaked beyond the closed dashed boundary or was excessive
+            if (isLeakedOrExcessive || stdArea > (cArea * 1.35) || (boxW > cW + 40 && boxH > cH + 40)) {
+                useClosedFill = true
+                finalBoundsMinX = cBounds[0]
+                finalBoundsMinY = cBounds[1]
+                finalBoundsMaxX = cBounds[2]
+                finalBoundsMaxY = cBounds[3]
                 bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
-                    bW, bH, tightMask,
+                    cW, cH, cMask,
                     finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
                     sX.toFloat(), sY.toFloat()
                 )
             }
-        } else if (boxW in 15..((originalW * 0.95f).toInt()) && boxH in 15..((originalH * 0.95f).toInt())) {
-            // Collect binary mask of visited pixels to check for merged/double bubbles (e.g. Panel 7)
-            val bW = boxW + 1
-            val bH = boxH + 1
-            if (bW * bH in 1..2500000) {
-                val localMask = BooleanArray(bW * bH)
-                for (ly in 0 until bH) {
-                    val gy = minY + ly
-                    for (lx in 0 until bW) {
-                        val gx = minX + lx
-                        if (visited.isVisited(gx, gy)) {
-                            localMask[ly * bW + lx] = true
+        }
+
+        if (!useClosedFill) {
+            if (boxW in 15..((originalW * 0.95f).toInt()) && boxH in 15..((originalH * 0.95f).toInt())) {
+                // Collect binary mask of visited pixels to check for merged/double bubbles (e.g. Panel 7)
+                val bW = boxW + 1
+                val bH = boxH + 1
+                if (bW * bH in 1..2500000) {
+                    val localMask = BooleanArray(bW * bH)
+                    for (ly in 0 until bH) {
+                        val gy = minY + ly
+                        for (lx in 0 until bW) {
+                            val gx = minX + lx
+                            if (visited.isVisited(gx, gy)) {
+                                localMask[ly * bW + lx] = true
+                            }
                         }
                     }
+                    bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
+                        bW, bH, localMask,
+                        minX.toFloat(), minY.toFloat(),
+                        sX.toFloat(), sY.toFloat()
+                    )
                 }
-                bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
-                    bW, bH, localMask,
-                    minX.toFloat(), minY.toFloat(),
-                    sX.toFloat(), sY.toFloat()
-                )
             }
         }
 
