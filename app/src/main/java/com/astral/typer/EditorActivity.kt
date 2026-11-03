@@ -634,7 +634,7 @@ class EditorActivity : AppCompatActivity() {
 
                 // Create Text Layer
                 val layer = TextLayer(text)
-                layer.isOval = bubble.isOval
+                layer.isOval = false
 
                 // Position centered on rect
                 // The rect is in Global Coords. layer.x/y is global.
@@ -693,7 +693,7 @@ class EditorActivity : AppCompatActivity() {
 
                     // Formatting
                     layer.textAlign = if (style.textAlign >= 0 && style.textAlign < Layout.Alignment.values().size)
-                        Layout.Alignment.values()[style.textAlign] else Layout.Alignment.ALIGN_NORMAL
+                        Layout.Alignment.values()[style.textAlign] else Layout.Alignment.ALIGN_CENTER
                     layer.isJustified = style.isJustified
 
                     if (style.isBold) layer.text.setSpan(StyleSpan(Typeface.BOLD), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -702,6 +702,8 @@ class EditorActivity : AppCompatActivity() {
                     if (style.isStrike) layer.text.setSpan(StrikethroughSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 } else {
                     layer.color = Color.BLACK
+                    layer.textAlign = Layout.Alignment.ALIGN_CENTER
+                    layer.fontSize = (rect.height() * 0.22f).coerceIn(24f, 48f)
                 }
 
                 // Gunakan TyperLayoutSolver cerdas berbasis siluet intan/oval dan pemenggalan kata Indonesia
@@ -714,9 +716,9 @@ class EditorActivity : AppCompatActivity() {
                 val layoutSolution = com.astral.typer.utils.TyperLayoutSolver.solveLayout(
                     rawText = text,
                     bubbleRect = rect,
-                    isOval = layer.isOval,
+                    isOval = bubble.isOval,
                     basePaint = basePaint,
-                    minScale = 0.70f
+                    minScale = 0.20f
                 )
 
                 // Update teks yang sudah di-format / di-hyphenate rapi
@@ -732,8 +734,10 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 layer.boxWidth = layoutSolution.boxWidth
-                layer.scaleX = layoutSolution.scale
-                layer.scaleY = layoutSolution.scale
+                layer.fontSize = basePaint.textSize * layoutSolution.scale
+                layer.scaleX = 1f
+                layer.scaleY = 1f
+                layer.isOval = false
 
                 // Save state before adding to allow step-by-step undo
                 com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
