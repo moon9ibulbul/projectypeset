@@ -3,7 +3,10 @@ package com.astral.typer
 import android.content.Context
 import android.content.Intent
 import java.io.File
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -58,7 +61,7 @@ import kotlinx.coroutines.isActive
 import androidx.lifecycle.lifecycleScope
 
 enum class InpaintSelectionMode {
-    TOUCH, LASSO, MAGIC_WAND
+    TOUCH, LASSO, MAGIC_WAND, SMART_SELECT_TEXT
 }
 
 class EditorActivity : AppCompatActivity() {
@@ -4433,7 +4436,9 @@ class EditorActivity : AppCompatActivity() {
         sizeLayout.addView(btnPlusSize)
         toolbar.addView(sizeLayout)
 
-        // 1.5. Expand / Reduce Slider (Only visible for Magic Wand)
+        // 1.5. Expand / Reduce Slider (-40 to +40)
+        var isExpandMenuOpen = false
+
         val expandLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -4443,18 +4448,20 @@ class EditorActivity : AppCompatActivity() {
             visibility = View.GONE
         }
         val tvExpand = TextView(this).apply {
-            text = "Expand: 0"
+            val curExpand = canvasView.inpaintMaskExpand
+            text = if (curExpand < 0) "Reduce: $curExpand" else "Expand: $curExpand"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
             setPadding(0,0,8,0)
         }
         val sbExpand = SeekBar(this).apply {
-            max = 60 // -20 to +40, mapped as (progress - 20)
-            progress = 20 // default 0 (20 - 20 = 0)
+            max = 80 // -40 to +40, mapped as (progress - 40)
+            progress = canvasView.inpaintMaskExpand + 40 // default 0 -> 40
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                    val value = p - 20
+                    val value = p - 40
+                    canvasView.inpaintMaskExpand = value
                     canvasView.magicWandExpand = value
                     tvExpand.text = if (value < 0) "Reduce: $value" else "Expand: $value"
                 }
@@ -4569,21 +4576,25 @@ class EditorActivity : AppCompatActivity() {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_hand, "Touch")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
-                     expandLayout.visibility = View.GONE
+                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.LASSO -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_lasso, "Lasso")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
-                     expandLayout.visibility = View.GONE
+                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.MAGIC_WAND -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_magic_wand, "Magic Wand")
                      tvSize.text = "Sensitivity"
                      sbSize.progress = canvasView.magicWandSensitivity
-                     tvExpand.text = if (canvasView.magicWandExpand < 0) "Reduce: ${canvasView.magicWandExpand}" else "Expand: ${canvasView.magicWandExpand}"
-                     sbExpand.progress = canvasView.magicWandExpand + 20
-                     expandLayout.visibility = View.VISIBLE
+                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
+                 }
+                 InpaintSelectionMode.SMART_SELECT_TEXT -> {
+                     updateButtonVisual(btnLassoTouch, R.drawable.ic_smart_select_text, "Smart")
+                     tvSize.text = "Size"
+                     sbSize.progress = canvasView.brushSize.toInt()
+                     expandLayout.visibility = if (isExpandMenuOpen) View.VISIBLE else View.GONE
                  }
              }
 
@@ -4610,7 +4621,14 @@ class EditorActivity : AppCompatActivity() {
                          canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.MAGIC_WAND
                      }
                  }
+                 InpaintSelectionMode.SMART_SELECT_TEXT -> {
+                     canvasView.currentInpaintTool = AstralCanvasView.InpaintTool.SMART_SELECT_TEXT
+                 }
              }
+        }
+
+        canvasView.onSmartSelectTextListener = { lassoPath ->
+            detectSmartSelectedTextForInpaint(lassoPath)
         }
 
         btnBrushEraser.setOnClickListener {
@@ -4619,10 +4637,12 @@ class EditorActivity : AppCompatActivity() {
         }
 
         btnLassoTouch.setOnClickListener {
+             val isModelAvailable = bubbleProcessor.isModelAvailable()
              inpaintSelectionMode = when (inpaintSelectionMode) {
                  InpaintSelectionMode.TOUCH -> InpaintSelectionMode.LASSO
                  InpaintSelectionMode.LASSO -> InpaintSelectionMode.MAGIC_WAND
-                 InpaintSelectionMode.MAGIC_WAND -> InpaintSelectionMode.TOUCH
+                 InpaintSelectionMode.MAGIC_WAND -> if (isModelAvailable) InpaintSelectionMode.SMART_SELECT_TEXT else InpaintSelectionMode.TOUCH
+                 InpaintSelectionMode.SMART_SELECT_TEXT -> InpaintSelectionMode.TOUCH
              }
              updateState()
         }
@@ -4637,12 +4657,52 @@ class EditorActivity : AppCompatActivity() {
         inpaintSelectionMode = when (currentTool) {
             AstralCanvasView.InpaintTool.LASSO, AstralCanvasView.InpaintTool.LASSO_ERASER -> InpaintSelectionMode.LASSO
             AstralCanvasView.InpaintTool.MAGIC_WAND, AstralCanvasView.InpaintTool.MAGIC_WAND_ERASER -> InpaintSelectionMode.MAGIC_WAND
+            AstralCanvasView.InpaintTool.SMART_SELECT_TEXT -> if (bubbleProcessor.isModelAvailable()) InpaintSelectionMode.SMART_SELECT_TEXT else InpaintSelectionMode.TOUCH
             else -> InpaintSelectionMode.TOUCH
         }
         updateState()
 
+        // --- Button 3: Expand Toggle ---
+        val btnExpandToggle = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(16, 8, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(60), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        val ivExpand = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_inpaint_expand)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
+            layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24))
+        }
+        val tvExpandBtn = TextView(this).apply {
+            text = "Expand"
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 10f
+            gravity = Gravity.CENTER
+        }
+        btnExpandToggle.addView(ivExpand)
+        btnExpandToggle.addView(tvExpandBtn)
+
+        fun updateExpandToggleVisual() {
+            if (isExpandMenuOpen) {
+                ivExpand.setColorFilter(Color.CYAN)
+                tvExpandBtn.setTextColor(Color.CYAN)
+                expandLayout.visibility = View.VISIBLE
+            } else {
+                ivExpand.setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
+                tvExpandBtn.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                expandLayout.visibility = View.GONE
+            }
+        }
+
+        btnExpandToggle.setOnClickListener {
+            isExpandMenuOpen = !isExpandMenuOpen
+            updateExpandToggleVisual()
+        }
+
         btnContainer.addView(btnBrushEraser)
         btnContainer.addView(btnLassoTouch)
+        btnContainer.addView(btnExpandToggle)
 
         toolbar.addView(btnContainer)
 
@@ -5734,6 +5794,98 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
 
+                loadingDialog?.dismiss()
+            }
+        }
+    }
+
+    private fun detectSmartSelectedTextForInpaint(lassoPath: Path) {
+        val bg = canvasView.getBackgroundImage()
+        if (bg == null) return
+
+        if (!bubbleProcessor.isModelAvailable()) {
+            Toast.makeText(this, "Text detection model not available", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val lassoBounds = RectF()
+        lassoPath.computeBounds(lassoBounds, true)
+        if (lassoBounds.width() < 10 || lassoBounds.height() < 10) {
+            return
+        }
+
+        val prefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
+        val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", true)
+        val maskPadding = prefs.getInt("inpaint_text_padding", 0)
+
+        val allowedLabels = mutableSetOf<Long>()
+        if (detectInside) allowedLabels.add(1L)
+        if (detectOutside) allowedLabels.add(2L)
+
+        if (allowedLabels.isEmpty()) {
+            allowedLabels.add(1L)
+            allowedLabels.add(2L)
+        }
+
+        loadingDialog?.show()
+        lifecycleScope.launch {
+            // Expand crop around lasso path with a margin for context
+            val margin = 32
+            val cropLeft = (lassoBounds.left.toInt() - margin).coerceIn(0, bg.width)
+            val cropTop = (lassoBounds.top.toInt() - margin).coerceIn(0, bg.height)
+            val cropRight = (lassoBounds.right.toInt() + margin).coerceIn(0, bg.width)
+            val cropBottom = (lassoBounds.bottom.toInt() + margin).coerceIn(0, bg.height)
+            val cropW = cropRight - cropLeft
+            val cropH = cropBottom - cropTop
+
+            if (cropW <= 0 || cropH <= 0) {
+                withContext(Dispatchers.Main) { loadingDialog?.dismiss() }
+                return@launch
+            }
+
+            val croppedBg = Bitmap.createBitmap(bg, cropLeft, cropTop, cropW, cropH)
+            val detectedLocalTextRects = bubbleProcessor.detect(croppedBg, allowedLabels, 1.0f)
+            val detectedLocalBubbleRects = bubbleProcessor.detect(croppedBg, setOf(0L), 1.0f)
+
+            // Map detected boxes back to canvas coordinates
+            val candidateTextRects: List<RectF> = detectedLocalTextRects.map { r ->
+                RectF(r.left + cropLeft.toFloat(), r.top + cropTop.toFloat(), r.right + cropLeft.toFloat(), r.bottom + cropTop.toFloat())
+            }
+            val globalBubbleRects: List<RectF> = detectedLocalBubbleRects.map { r ->
+                RectF(r.left + cropLeft.toFloat(), r.top + cropTop.toFloat(), r.right + cropLeft.toFloat(), r.bottom + cropTop.toFloat())
+            }
+
+            val lassoRegion = android.graphics.Region()
+            val clipRegion = android.graphics.Region(0, 0, bg.width, bg.height)
+            lassoRegion.setPath(lassoPath, clipRegion)
+
+            // Filter boxes that intersect with the drawn lasso selection
+            val filteredTextRects: List<RectF> = candidateTextRects.filter { rect ->
+                val rectRegion = android.graphics.Region()
+                val intRect = android.graphics.Rect()
+                rect.roundOut(intRect)
+                rectRegion.set(intRect)
+                val intersects = lassoRegion.op(rectRegion, android.graphics.Region.Op.INTERSECT)
+                intersects || RectF.intersects(lassoBounds, rect)
+            }
+
+            if (filteredTextRects.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    loadingDialog?.dismiss()
+                    Toast.makeText(this@EditorActivity, "No text detected in selection", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            // Generate tight text masks based on Otsu ink analysis, constrained to bubbles + padding
+            val tightPaths = bubbleProcessor.generateTightTextMasks(bg, filteredTextRects, globalBubbleRects, maskPadding)
+
+            withContext(Dispatchers.Main) {
+                for (path in tightPaths) {
+                    canvasView.addCustomInpaintPath(path)
+                }
+                Toast.makeText(this@EditorActivity, "Detected ${filteredTextRects.size} text areas", Toast.LENGTH_SHORT).show()
                 loadingDialog?.dismiss()
             }
         }
