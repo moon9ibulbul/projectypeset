@@ -606,6 +606,7 @@ class EditorActivity : AppCompatActivity() {
                                  "ERASE" -> showEraseMenu()
                                  "WARP" -> showWarpMenu()
                                  "PUPPET_WARP" -> showPuppetWarpMenu()
+                                 "BRUSH" -> showBrushMenu()
                                  "OPACITY" -> showOpacityMenu()
                                  "STYLE" -> showStyleMenu()
                                  "PERSPECTIVE" -> showPerspectiveMenu()

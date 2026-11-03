@@ -21,8 +21,8 @@ object UndoManager {
                     layer.eraseMask?.recycle()
                     layer.recycleCache()
                 } else if (layer is com.astral.typer.models.BrushLayer) {
-                    layer.bitmap.recycle()
-                    layer.eraseMask?.recycle()
+                    try { layer.bitmap.recycle() } catch (t: Throwable) {}
+                    try { layer.eraseMask?.recycle() } catch (t: Throwable) {}
                 }
             }
         }
@@ -88,8 +88,8 @@ object UndoManager {
                     layer.eraseMask?.recycle()
                     layer.recycleCache()
                 } else if (layer is com.astral.typer.models.BrushLayer) {
-                    layer.bitmap.recycle()
-                    layer.eraseMask?.recycle()
+                    try { layer.bitmap.recycle() } catch (t: Throwable) {}
+                    try { layer.eraseMask?.recycle() } catch (t: Throwable) {}
                 }
             }
         }
@@ -143,8 +143,8 @@ object UndoManager {
                     layer.eraseMask?.recycle()
                     layer.recycleCache()
                 } else if (layer is com.astral.typer.models.BrushLayer) {
-                    layer.bitmap.recycle()
-                    layer.eraseMask?.recycle()
+                    try { layer.bitmap.recycle() } catch (t: Throwable) {}
+                    try { layer.eraseMask?.recycle() } catch (t: Throwable) {}
                 }
             }
         }
@@ -154,8 +154,8 @@ object UndoManager {
                     layer.eraseMask?.recycle()
                     layer.recycleCache()
                 } else if (layer is com.astral.typer.models.BrushLayer) {
-                    layer.bitmap.recycle()
-                    layer.eraseMask?.recycle()
+                    try { layer.bitmap.recycle() } catch (t: Throwable) {}
+                    try { layer.eraseMask?.recycle() } catch (t: Throwable) {}
                 }
             }
         }
