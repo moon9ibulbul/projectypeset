@@ -398,6 +398,14 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
+    fun addCustomInpaintPath(path: Path) {
+        if (!path.isEmpty) {
+            inpaintOps.add(Pair(path, InpaintTool.LASSO))
+            redoOps.clear()
+            invalidate()
+        }
+    }
+
     private val inpaintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         style = Paint.Style.STROKE
