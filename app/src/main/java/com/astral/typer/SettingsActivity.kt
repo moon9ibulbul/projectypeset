@@ -409,9 +409,6 @@ class SettingsActivity : AppCompatActivity() {
         val rgInpaintDetectButtonAction = findViewById<android.widget.RadioGroup>(R.id.rgInpaintDetectButtonAction)
         val rbDetectAndInpaint = findViewById<android.widget.RadioButton>(R.id.rbDetectAndInpaint)
         val rbDetectOnly = findViewById<android.widget.RadioButton>(R.id.rbDetectOnly)
-        val rgInpaintMaskShape = findViewById<android.widget.RadioGroup>(R.id.rgInpaintMaskShape)
-        val rbMaskRectangle = findViewById<android.widget.RadioButton>(R.id.rbMaskRectangle)
-        val rbMaskRounded = findViewById<android.widget.RadioButton>(R.id.rbMaskRounded)
         val sbInpaintMaskPadding = findViewById<android.widget.SeekBar>(R.id.sbInpaintMaskPadding)
         val tvInpaintMaskPadding = findViewById<TextView>(R.id.tvInpaintMaskPadding)
 
@@ -424,13 +421,6 @@ class SettingsActivity : AppCompatActivity() {
             rbDetectOnly.isChecked = true
         } else {
             rbDetectAndInpaint.isChecked = true
-        }
-
-        val savedShape = settingsPrefs.getString("inpaint_mask_shape", "Rectangle")
-        if (savedShape == "Rounded") {
-            rbMaskRounded.isChecked = true
-        } else {
-            rbMaskRectangle.isChecked = true
         }
 
         // Setup Padding SeekBar (Range -20 to 20, represented as 0 to 40)
@@ -450,11 +440,6 @@ class SettingsActivity : AppCompatActivity() {
         rgInpaintDetectButtonAction.setOnCheckedChangeListener { _, checkedId ->
             val action = if (checkedId == R.id.rbDetectOnly) "Detect Only" else "Detect + Inpaint"
             settingsPrefs.edit().putString("inpaint_detect_button_action", action).apply()
-        }
-
-        rgInpaintMaskShape.setOnCheckedChangeListener { _, checkedId ->
-            val shape = if (checkedId == R.id.rbMaskRounded) "Rounded" else "Rectangle"
-            settingsPrefs.edit().putString("inpaint_mask_shape", shape).apply()
         }
 
         findViewById<android.view.View>(R.id.btnMinusInpaintPadding)?.setOnClickListener {

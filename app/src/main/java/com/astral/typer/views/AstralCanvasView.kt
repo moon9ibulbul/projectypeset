@@ -834,7 +834,6 @@ class AstralCanvasView @JvmOverloads constructor(
         if (!isInpaintMode) return
 
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val shape = prefs.getString("inpaint_mask_shape", "Rectangle") ?: "Rectangle"
         val padding = prefs.getInt("inpaint_text_padding", 0).toFloat()
 
         var addedAny = false
@@ -845,11 +844,7 @@ class AstralCanvasView @JvmOverloads constructor(
             }
 
             val path = Path()
-            if (shape == "Rounded") {
-                path.addRoundRect(paddedRect, 16f, 16f, Path.Direction.CW)
-            } else {
-                path.addRect(paddedRect, Path.Direction.CW)
-            }
+            path.addRect(paddedRect, Path.Direction.CW)
             if (!path.isEmpty) {
                 inpaintOps.add(InpaintOp(path, InpaintTool.LASSO, 0f))
                 addedAny = true
