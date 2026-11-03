@@ -3648,7 +3648,7 @@ object ProjectManager {
     }
 
     /**
-     * Executes the Auto Detect Text + Hybrid Inpainting pipeline on a single project file/directory.
+     * Executes the Auto Detect Text + Inpainting pipeline on a single project file/directory.
      * Replaces background.png with the inpainted image and regenerates the thumbnail.
      * Returns true if processing succeeded (or if no text was detected, leaving it intact).
      */
@@ -3658,7 +3658,8 @@ object ProjectManager {
         bubbleProcessor: BubbleDetectorProcessor,
         inpaintManager: InpaintManager,
         allowedLabels: Set<Long>,
-        maskPadding: Int
+        maskPadding: Int,
+        engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID
     ): Boolean {
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             var tempLoadDir: File? = null
@@ -3774,8 +3775,8 @@ object ProjectManager {
                     maskCanvas.drawPath(path, maskPaint)
                 }
 
-                // Inpaint with Hybrid engine
-                inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+                // Inpaint with chosen engine
+                inpaintManager.setEngine(engine)
                 val inpaintedBg = inpaintManager.inpaint(bgBitmap, maskBitmap, bounds)
 
                 maskBitmap.recycle()
@@ -3838,20 +3839,21 @@ object ProjectManager {
     }
 
     /**
-     * Runs Auto Detect Text + Hybrid Inpaint on all project items inside the specified folder.
+     * Runs Auto Detect Text + Inpaint on the specified list of project files/directories.
      */
-    suspend fun autoInpaintFolder(
+    suspend fun autoInpaintProjects(
         context: Context,
-        folder: File,
+        projects: List<File>,
         bubbleProcessor: BubbleDetectorProcessor,
         inpaintManager: InpaintManager,
+        engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID,
         onProgress: (current: Int, total: Int, currentName: String) -> Unit = { _, _, _ -> }
     ): Pair<Int, Int> {
-        val projects = getRecentProjects(context, folder).filter {
+        val validProjects = projects.filter {
             it.name.endsWith(".atd") || isProjectDirectory(context, it)
         }.sortedWith { f1, f2 -> AlphanumComparator.compare(f1.name, f2.name) }
 
-        if (projects.isEmpty()) return Pair(0, 0)
+        if (validProjects.isEmpty()) return Pair(0, 0)
 
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
@@ -3867,13 +3869,31 @@ object ProjectManager {
         }
 
         var successCount = 0
-        for ((index, proj) in projects.withIndex()) {
-            onProgress(index + 1, projects.size, proj.name)
-            val success = autoInpaintProject(context, proj, bubbleProcessor, inpaintManager, allowedLabels, maskPadding)
+        for ((index, proj) in validProjects.withIndex()) {
+            onProgress(index + 1, validProjects.size, proj.name)
+            val success = autoInpaintProject(context, proj, bubbleProcessor, inpaintManager, allowedLabels, maskPadding, engine)
             if (success) successCount++
         }
 
-        return Pair(successCount, projects.size)
+        return Pair(successCount, validProjects.size)
+    }
+
+    /**
+     * Runs Auto Detect Text + Inpaint on all project items inside the specified folder.
+     */
+    suspend fun autoInpaintFolder(
+        context: Context,
+        folder: File,
+        bubbleProcessor: BubbleDetectorProcessor,
+        inpaintManager: InpaintManager,
+        engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID,
+        onProgress: (current: Int, total: Int, currentName: String) -> Unit = { _, _, _ -> }
+    ): Pair<Int, Int> {
+        val projects = getRecentProjects(context, folder).filter {
+            it.name.endsWith(".atd") || isProjectDirectory(context, it)
+        }
+
+        return autoInpaintProjects(context, projects, bubbleProcessor, inpaintManager, engine, onProgress)
     }
 }
 

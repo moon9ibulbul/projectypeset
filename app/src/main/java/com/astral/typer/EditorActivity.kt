@@ -4321,9 +4321,22 @@ class EditorActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         spinner.adapter = adapter
 
-        // Set initial selection to Hybrid (Auto)
-        spinner.setSelection(0)
-        inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+        // Set initial selection based on inpaintManager.getEngine()
+        val currentEngine = inpaintManager.getEngine()
+        val defaultIdx = when (currentEngine) {
+            InpaintManager.Engine.HYBRID -> modes.indexOfFirst { it.contains("Hybrid") }
+            InpaintManager.Engine.OPENCV -> modes.indexOfFirst { it.contains("OpenCV") }
+            InpaintManager.Engine.PATCHMATCH -> modes.indexOfFirst { it.contains("Content-Aware") }
+            InpaintManager.Engine.SMART_SOLID -> modes.indexOfFirst { it.contains("Smart Solid") }
+            InpaintManager.Engine.LAMA -> modes.indexOfFirst { it.contains("LaMa") }
+            InpaintManager.Engine.MIGAN -> modes.indexOfFirst { it.contains("MIGAN") }
+        }
+        if (defaultIdx >= 0) {
+            spinner.setSelection(defaultIdx)
+        } else {
+            spinner.setSelection(0)
+            inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+        }
 
         spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: View?, pos: Int, p3: Long) {
@@ -5700,15 +5713,23 @@ class EditorActivity : AppCompatActivity() {
                 if (detectAction == "Detect Only") {
                     Toast.makeText(this@EditorActivity, "Detected ${textRects.size} text areas", Toast.LENGTH_SHORT).show()
                 } else {
-                    // Execute Hybrid Inpaint automatically using full-canvas coordinates
+                    // Execute Inpaint automatically using currently selected engine
                     val bounds = canvasView.getInpaintMaskBounds()
                     val croppedMask = canvasView.getInpaintMask(bounds)
 
                     // Use performInpaint with bounds to ensure cropped sub-region inpainting is properly mapped back to canvas
                     performInpaint(croppedMask, bounds) {
                         canvasView.clearInpaintMask()
+                        val activeEngine = inpaintManager.getEngine()
                         val lamaInstalled = com.astral.typer.utils.LaMaProcessor(this@EditorActivity).isModelAvailable()
-                        val engineNote = if (lamaInstalled) "Hybrid (Solid / LaMa)" else "Smart Solid Fill"
+                        val engineNote = when (activeEngine) {
+                            InpaintManager.Engine.HYBRID -> if (lamaInstalled) "Hybrid (Solid / LaMa)" else "Smart Solid Fill"
+                            InpaintManager.Engine.LAMA -> "LaMa (AI)"
+                            InpaintManager.Engine.SMART_SOLID -> "Smart Solid Fill"
+                            InpaintManager.Engine.OPENCV -> "OpenCV (Telea)"
+                            InpaintManager.Engine.PATCHMATCH -> "Content-Aware Fill"
+                            InpaintManager.Engine.MIGAN -> "MIGAN (AI)"
+                        }
                         Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
                     }
                 }

@@ -21,7 +21,7 @@
     <item
         android:id="@+id/action_auto_inpaint"
         android:icon="@drawable/ic_magic_wand"
-        android:title="Auto Inpaint (Hybrid)"
+        android:title="Auto Inpaint"
         android:visible="false"
         app:showAsAction="ifRoom" />
 </menu>

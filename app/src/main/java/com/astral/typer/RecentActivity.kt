@@ -154,7 +154,14 @@ class RecentActivity : AppCompatActivity() {
             R.id.action_auto_inpaint -> {
                 val folder = currentFolder
                 if (folder != null) {
-                    confirmAndRunAutoInpaint(listOf(folder))
+                    val selectedProjects = adapter.selectedItems.filter {
+                        it.name.endsWith(".atd") || ProjectManager.isProjectDirectory(this@RecentActivity, it)
+                    }
+                    if (selectedProjects.isNotEmpty()) {
+                        showAutoInpaintEngineDialog(selectedProjects = selectedProjects, folders = emptyList())
+                    } else {
+                        showAutoInpaintEngineDialog(selectedProjects = emptyList(), folders = listOf(folder))
+                    }
                 }
                 return true
             }
@@ -406,8 +413,8 @@ class RecentActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmAndRunAutoInpaint(folders: List<File>) {
-        if (folders.isEmpty()) return
+    private fun showAutoInpaintEngineDialog(selectedProjects: List<File>, folders: List<File>) {
+        if (selectedProjects.isEmpty() && folders.isEmpty()) return
 
         val bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this)
         if (!bubbleProcessor.isModelAvailable()) {
@@ -415,27 +422,69 @@ class RecentActivity : AppCompatActivity() {
             return
         }
 
-        val message = if (folders.size == 1) {
-            "Run Auto Detect Text + Hybrid Inpainting on all images in folder '${folders[0].name}'?"
-        } else {
-            "Run Auto Detect Text + Hybrid Inpainting on all images across ${folders.size} folders?"
-        }
-
+        val options = arrayOf("Auto Inpaint (Hybrid)", "Auto Inpaint (LaMa)", "Auto Inpaint (Solid Fill)")
         android.app.AlertDialog.Builder(this)
-            .setTitle("Auto Inpaint (Hybrid)")
-            .setMessage(message)
-            .setPositiveButton("Start") { _, _ ->
-                runAutoInpaint(folders)
+            .setTitle("Select Auto Inpaint Engine")
+            .setItems(options) { _, which ->
+                val (engine, engineName) = when (which) {
+                    0 -> Pair(com.astral.typer.utils.InpaintManager.Engine.HYBRID, "Hybrid")
+                    1 -> Pair(com.astral.typer.utils.InpaintManager.Engine.LAMA, "LaMa")
+                    else -> Pair(com.astral.typer.utils.InpaintManager.Engine.SMART_SOLID, "Solid Fill")
+                }
+
+                if (engine == com.astral.typer.utils.InpaintManager.Engine.LAMA) {
+                    val lamaProcessor = com.astral.typer.utils.LaMaProcessor(this)
+                    if (!lamaProcessor.isModelAvailable()) {
+                        Toast.makeText(this, "LaMa Model is not downloaded. Please download it in Settings.", Toast.LENGTH_LONG).show()
+                        return@setItems
+                    }
+                }
+
+                confirmAndRunAutoInpaint(selectedProjects, folders, engine, engineName)
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun runAutoInpaint(folders: List<File>) {
+    private fun confirmAndRunAutoInpaint(
+        selectedProjects: List<File>,
+        folders: List<File>,
+        engine: com.astral.typer.utils.InpaintManager.Engine,
+        engineName: String
+    ) {
+        val title = "Auto Inpaint ($engineName)"
+        val message = if (selectedProjects.isNotEmpty()) {
+            if (selectedProjects.size == 1) {
+                "Run Auto Detect Text + Inpainting ($engineName) on selected image '${selectedProjects[0].name}'?"
+            } else {
+                "Run Auto Detect Text + Inpainting ($engineName) on ${selectedProjects.size} selected images?"
+            }
+        } else if (folders.size == 1) {
+            "Run Auto Detect Text + Inpainting ($engineName) on all images in folder '${folders[0].name}'?"
+        } else {
+            "Run Auto Detect Text + Inpainting ($engineName) on all images across ${folders.size} folders?"
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("Start") { _, _ ->
+                runAutoInpaint(selectedProjects, folders, engine, engineName)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun runAutoInpaint(
+        selectedProjects: List<File>,
+        folders: List<File>,
+        engine: com.astral.typer.utils.InpaintManager.Engine,
+        engineName: String
+    ) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_import_loading, null)
         val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.importProgressBar)
         val tvStatus = dialogView.findViewById<TextView>(R.id.tvImportStatus)
-        tvStatus.text = "Initializing Auto Inpaint..."
+        tvStatus.text = "Initializing Auto Inpaint ($engineName)..."
 
         val dialog = android.app.AlertDialog.Builder(this)
             .setView(dialogView)
@@ -446,30 +495,48 @@ class RecentActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val bubbleProcessor = com.astral.typer.utils.BubbleDetectorProcessor(this@RecentActivity)
             val inpaintManager = com.astral.typer.utils.InpaintManager(this@RecentActivity)
-            inpaintManager.setEngine(com.astral.typer.utils.InpaintManager.Engine.HYBRID)
 
             var totalProjectsProcessed = 0
             var totalProjectsCount = 0
 
-            for ((folderIndex, folder) in folders.withIndex()) {
-                val folderNum = folderIndex + 1
-                val totalFolders = folders.size
-
-                val (processed, total) = ProjectManager.autoInpaintFolder(
+            if (selectedProjects.isNotEmpty()) {
+                val (processed, total) = ProjectManager.autoInpaintProjects(
                     this@RecentActivity,
-                    folder,
+                    selectedProjects,
                     bubbleProcessor,
-                    inpaintManager
-                ) { current, folderTotal, currentName ->
+                    inpaintManager,
+                    engine
+                ) { current, totalCount, currentName ->
                     runOnUiThread {
-                        progressBar.max = folderTotal
+                        progressBar.max = totalCount
                         progressBar.progress = current
-                        val prefix = if (totalFolders > 1) "Folder $folderNum/$totalFolders: ${folder.name}\n" else ""
-                        tvStatus.text = "${prefix}Processing $current/$folderTotal: $currentName..."
+                        tvStatus.text = "Processing $current/$totalCount: $currentName..."
                     }
                 }
-                totalProjectsProcessed += processed
-                totalProjectsCount += total
+                totalProjectsProcessed = processed
+                totalProjectsCount = total
+            } else {
+                for ((folderIndex, folder) in folders.withIndex()) {
+                    val folderNum = folderIndex + 1
+                    val totalFolders = folders.size
+
+                    val (processed, total) = ProjectManager.autoInpaintFolder(
+                        this@RecentActivity,
+                        folder,
+                        bubbleProcessor,
+                        inpaintManager,
+                        engine
+                    ) { current, folderTotal, currentName ->
+                        runOnUiThread {
+                            progressBar.max = folderTotal
+                            progressBar.progress = current
+                            val prefix = if (totalFolders > 1) "Folder $folderNum/$totalFolders: ${folder.name}\n" else ""
+                            tvStatus.text = "${prefix}Processing $current/$folderTotal: $currentName..."
+                        }
+                    }
+                    totalProjectsProcessed += processed
+                    totalProjectsCount += total
+                }
             }
 
             withContext(Dispatchers.Main) {
@@ -477,7 +544,7 @@ class RecentActivity : AppCompatActivity() {
                 loadProjects()
                 Toast.makeText(
                     this@RecentActivity,
-                    "Auto Inpaint complete ($totalProjectsProcessed/$totalProjectsCount processed)",
+                    "Auto Inpaint ($engineName) complete ($totalProjectsProcessed/$totalProjectsCount processed)",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -497,9 +564,10 @@ class RecentActivity : AppCompatActivity() {
         override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
             val selectedFiles = adapter.selectedItems
             val allFolders = selectedFiles.isNotEmpty() && selectedFiles.all { it.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, it) }
+            val allProjects = selectedFiles.isNotEmpty() && selectedFiles.all { it.name.endsWith(".atd") || ProjectManager.isProjectDirectory(this@RecentActivity, it) }
             menu.findItem(3)?.isVisible = allFolders
             menu.findItem(4)?.isVisible = selectedFiles.size == 1
-            menu.findItem(5)?.isVisible = allFolders
+            menu.findItem(5)?.isVisible = allFolders || allProjects
             return true
         }
 
@@ -526,9 +594,14 @@ class RecentActivity : AppCompatActivity() {
                     true
                 }
                 5 -> { // Auto Inpaint
+                    val selectedProjects = adapter.selectedItems.filter { it.name.endsWith(".atd") || ProjectManager.isProjectDirectory(this@RecentActivity, it) }
                     val selectedFolders = adapter.selectedItems.filter { it.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, it) }
                     mode.finish()
-                    confirmAndRunAutoInpaint(selectedFolders)
+                    if (selectedProjects.isNotEmpty()) {
+                        showAutoInpaintEngineDialog(selectedProjects = selectedProjects, folders = emptyList())
+                    } else if (selectedFolders.isNotEmpty()) {
+                        showAutoInpaintEngineDialog(selectedProjects = emptyList(), folders = selectedFolders)
+                    }
                     true
                 }
                 else -> false
