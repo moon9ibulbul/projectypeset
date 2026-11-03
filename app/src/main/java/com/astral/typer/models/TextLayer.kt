@@ -1714,19 +1714,20 @@ class TextLayer(
                 val lIndents = IntArray(estLines)
                 val rIndents = IntArray(estLines)
 
+                val minWidthFactor = if (tempText.contains('\n')) 0.70f else 0.50f
                 for (i in 0 until estLines) {
                     // Calculate Y for this line relative to oval center
                     val lineY = (i * avgLineHeight) + (avgLineHeight / 2f)
                     val yRel = lineY - (targetHeight / 2f) // Center is at targetHeight/2
 
-                    // Normalize Y to -1..1 range, clamping slightly inside to avoid 0-width edge cases
-                    val normalizedY = (yRel / halfH).coerceIn(-0.99f, 0.99f)
+                    // Normalize Y to -1..1 range, clamping inside to avoid 0-width edge cases
+                    val normalizedY = (yRel / halfH).coerceIn(-0.85f, 0.85f)
 
                     // Oval width factor at this Y: sqrt(1 - y^2)
-                    val widthFactor = kotlin.math.sqrt(1f - normalizedY * normalizedY)
+                    val widthFactor = kotlin.math.sqrt(1f - normalizedY * normalizedY).coerceAtLeast(minWidthFactor)
 
                     // Available width at this Y
-                    val availW = layoutWidth * widthFactor
+                    val availW = (layoutWidth * widthFactor).coerceAtLeast(40f)
 
                     // Indent required on each side
                     val indent = ((layoutWidth - availW) / 2f).toInt().coerceAtLeast(0)
