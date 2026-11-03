@@ -5696,16 +5696,21 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.addCustomInpaintPath(path)
                 }
 
-                // Execute Hybrid Inpaint automatically using full-canvas coordinates
-                val bounds = canvasView.getInpaintMaskBounds()
-                val croppedMask = canvasView.getInpaintMask(bounds)
+                val detectAction = prefs.getString("inpaint_detect_button_action", "Detect + Inpaint")
+                if (detectAction == "Detect Only") {
+                    Toast.makeText(this@EditorActivity, "Detected ${textRects.size} text areas", Toast.LENGTH_SHORT).show()
+                } else {
+                    // Execute Hybrid Inpaint automatically using full-canvas coordinates
+                    val bounds = canvasView.getInpaintMaskBounds()
+                    val croppedMask = canvasView.getInpaintMask(bounds)
 
-                // Use performInpaint with bounds to ensure cropped sub-region inpainting is properly mapped back to canvas
-                performInpaint(croppedMask, bounds) {
-                    canvasView.clearInpaintMask()
-                    val lamaInstalled = com.astral.typer.utils.LaMaProcessor(this@EditorActivity).isModelAvailable()
-                    val engineNote = if (lamaInstalled) "Hybrid (Solid / LaMa)" else "Smart Solid Fill"
-                    Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
+                    // Use performInpaint with bounds to ensure cropped sub-region inpainting is properly mapped back to canvas
+                    performInpaint(croppedMask, bounds) {
+                        canvasView.clearInpaintMask()
+                        val lamaInstalled = com.astral.typer.utils.LaMaProcessor(this@EditorActivity).isModelAvailable()
+                        val engineNote = if (lamaInstalled) "Hybrid (Solid / LaMa)" else "Smart Solid Fill"
+                        Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
+                    }
                 }
 
                 loadingDialog?.dismiss()
