@@ -117,7 +117,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     // Inpaint Tools
     enum class InpaintTool {
-        BRUSH, ERASER, LASSO, LASSO_ERASER, MAGIC_WAND, MAGIC_WAND_ERASER
+        BRUSH, ERASER, LASSO, LASSO_ERASER, MAGIC_WAND, MAGIC_WAND_ERASER, SMART_SELECT_TEXT
     }
 
     enum class TyperTool {
@@ -126,10 +126,13 @@ class AstralCanvasView @JvmOverloads constructor(
 
     data class TyperBubble(val rect: RectF, val isOval: Boolean)
 
+    data class InpaintOp(val path: Path, val tool: InpaintTool, val strokeWidth: Float = 0f)
+
     var currentInpaintTool = InpaintTool.BRUSH
     var currentTyperTool = TyperTool.HAND
-    private val inpaintOps = mutableListOf<Pair<Path, InpaintTool>>()
-    private val redoOps = mutableListOf<Pair<Path, InpaintTool>>()
+    var onSmartSelectTextListener: ((Path) -> Unit)? = null
+    private val inpaintOps = mutableListOf<InpaintOp>()
+    private val redoOps = mutableListOf<InpaintOp>()
     private var currentInpaintPath = Path()
     private val currentTyperPath = Path()
 
@@ -155,6 +158,11 @@ class AstralCanvasView @JvmOverloads constructor(
 
     var magicWandSensitivity: Int = 30
     var magicWandExpand: Int = 0
+    var inpaintMaskExpand: Int = 0
+        set(value) {
+            field = value.coerceIn(-40, 40)
+            invalidate()
+        }
 
     var brushSize = 50f
         set(value) {
@@ -170,7 +178,9 @@ class AstralCanvasView @JvmOverloads constructor(
         val clipRegion = android.graphics.Region(0, 0, canvasWidth, canvasHeight)
 
         for (i in inpaintOps.indices.reversed()) {
-            val (path, tool) = inpaintOps[i]
+            val op = inpaintOps[i]
+            val path = op.path
+            val tool = op.tool
             // We consider mask ops that draw filled shapes (LASSO, MAGIC_WAND, etc.) or strokes
             region.setPath(path, clipRegion)
             var isHit = false
@@ -180,7 +190,8 @@ class AstralCanvasView @JvmOverloads constructor(
                 // Check if near stroke path
                 val bounds = RectF()
                 path.computeBounds(bounds, true)
-                bounds.inset(-brushSize / 2f, -brushSize / 2f)
+                val sw = if (op.strokeWidth > 0f) op.strokeWidth else brushSize
+                bounds.inset(-sw / 2f, -sw / 2f)
                 if (bounds.contains(x, y)) {
                     isHit = true
                 }
@@ -392,7 +403,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (!path.isEmpty) {
-            inpaintOps.add(Pair(path, currentInpaintTool))
+            inpaintOps.add(InpaintOp(path, currentInpaintTool, 0f))
             redoOps.clear()
             invalidate()
         }
@@ -400,7 +411,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
     fun addCustomInpaintPath(path: Path) {
         if (!path.isEmpty) {
-            inpaintOps.add(Pair(path, InpaintTool.LASSO))
+            inpaintOps.add(InpaintOp(path, InpaintTool.LASSO, 0f))
             redoOps.clear()
             invalidate()
         }
@@ -419,6 +430,15 @@ class AstralCanvasView @JvmOverloads constructor(
         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
         style = Paint.Style.STROKE
         strokeWidth = brushSize
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private val smartSelectStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.CYAN
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(15f, 10f), 0f)
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
@@ -450,17 +470,21 @@ class AstralCanvasView @JvmOverloads constructor(
         if (inpaintOps.isEmpty()) {
             return android.graphics.Rect(0, 0, canvasWidth, canvasHeight)
         }
-        for ((path, tool) in inpaintOps) {
+        for (op in inpaintOps) {
             val temp = android.graphics.RectF()
-            path.computeBounds(temp, true)
-            if (tool == InpaintTool.BRUSH || tool == InpaintTool.ERASER) {
-                // Pad by brushSize to account for stroke thickness
-                temp.inset(-brushSize / 2f - 2f, -brushSize / 2f - 2f)
+            op.path.computeBounds(temp, true)
+            if (op.tool == InpaintTool.BRUSH || op.tool == InpaintTool.ERASER) {
+                val sw = if (op.strokeWidth > 0f) op.strokeWidth else brushSize
+                temp.inset(-sw / 2f - 2f, -sw / 2f - 2f)
             }
             bounds.union(temp)
         }
         val rect = android.graphics.Rect()
         bounds.roundOut(rect)
+        if (inpaintMaskExpand != 0) {
+            val pad = abs(inpaintMaskExpand) + 2
+            rect.inset(-pad, -pad)
+        }
         rect.left = rect.left.coerceIn(0, canvasWidth)
         rect.right = rect.right.coerceIn(0, canvasWidth)
         rect.top = rect.top.coerceIn(0, canvasHeight)
@@ -470,6 +494,123 @@ class AstralCanvasView @JvmOverloads constructor(
             rect.set(0, 0, canvasWidth, canvasHeight)
         }
         return rect
+    }
+
+    /**
+     * Dilates (expand > 0) or erodes (expand < 0) a binary mask bitmap.
+     * Uses OpenCV if available, or a fast fallback algorithm.
+     */
+    fun applyMaskMorphology(maskBitmap: android.graphics.Bitmap, expand: Int): android.graphics.Bitmap {
+        if (expand == 0) return maskBitmap
+
+        try {
+            if (org.opencv.android.OpenCVLoader.initDebug()) {
+                val srcMat = org.opencv.core.Mat()
+                val grayMat = org.opencv.core.Mat()
+                val dstMat = org.opencv.core.Mat()
+
+                org.opencv.android.Utils.bitmapToMat(maskBitmap, srcMat)
+                org.opencv.imgproc.Imgproc.cvtColor(srcMat, grayMat, org.opencv.imgproc.Imgproc.COLOR_RGBA2GRAY)
+
+                val radius = abs(expand)
+                val kernelSize = radius * 2 + 1
+                val kernel = org.opencv.imgproc.Imgproc.getStructuringElement(
+                    org.opencv.imgproc.Imgproc.MORPH_ELLIPSE,
+                    org.opencv.core.Size(kernelSize.toDouble(), kernelSize.toDouble())
+                )
+
+                if (expand > 0) {
+                    org.opencv.imgproc.Imgproc.dilate(grayMat, dstMat, kernel)
+                } else {
+                    org.opencv.imgproc.Imgproc.erode(grayMat, dstMat, kernel)
+                }
+
+                val outMat = org.opencv.core.Mat()
+                org.opencv.imgproc.Imgproc.cvtColor(dstMat, outMat, org.opencv.imgproc.Imgproc.COLOR_GRAY2RGBA)
+
+                val outputBmp = android.graphics.Bitmap.createBitmap(maskBitmap.width, maskBitmap.height, android.graphics.Bitmap.Config.ARGB_8888)
+                org.opencv.android.Utils.matToBitmap(outMat, outputBmp)
+
+                srcMat.release()
+                grayMat.release()
+                dstMat.release()
+                outMat.release()
+                kernel.release()
+
+                maskBitmap.recycle()
+                return outputBmp
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("AstralCanvasView", "OpenCV morphology failed, using fallback", e)
+        }
+
+        // Fallback morphology using BitSet
+        val w = maskBitmap.width
+        val h = maskBitmap.height
+        val pixels = IntArray(w * h)
+        maskBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        var currentBitSet = java.util.BitSet(w * h)
+        for (i in pixels.indices) {
+            if ((pixels[i] ushr 24) > 128) {
+                currentBitSet.set(i)
+            }
+        }
+
+        val iterations = abs(expand)
+        if (expand > 0) {
+            for (iter in 0 until iterations) {
+                val nextBitSet = java.util.BitSet(w * h)
+                for (y in 0 until h) {
+                    val yOff = y * w
+                    for (x in 0 until w) {
+                        val idx = yOff + x
+                        if (currentBitSet.get(idx)) {
+                            nextBitSet.set(idx)
+                            if (x > 0) nextBitSet.set(idx - 1)
+                            if (x < w - 1) nextBitSet.set(idx + 1)
+                            if (y > 0) nextBitSet.set(idx - w)
+                            if (y < h - 1) nextBitSet.set(idx + w)
+                        }
+                    }
+                }
+                currentBitSet = nextBitSet
+            }
+        } else {
+            for (iter in 0 until iterations) {
+                val nextBitSet = java.util.BitSet(w * h)
+                for (y in 0 until h) {
+                    val yOff = y * w
+                    for (x in 0 until w) {
+                        val idx = yOff + x
+                        if (currentBitSet.get(idx)) {
+                            val left = x > 0 && currentBitSet.get(idx - 1)
+                            val right = x < w - 1 && currentBitSet.get(idx + 1)
+                            val top = y > 0 && currentBitSet.get(idx - w)
+                            val bottom = y < h - 1 && currentBitSet.get(idx + w)
+                            if (left && right && top && bottom) {
+                                nextBitSet.set(idx)
+                            }
+                        }
+                    }
+                }
+                currentBitSet = nextBitSet
+            }
+        }
+
+        val outPixels = IntArray(w * h)
+        for (i in 0 until w * h) {
+            if (currentBitSet.get(i)) {
+                outPixels[i] = Color.WHITE
+            } else {
+                outPixels[i] = Color.TRANSPARENT
+            }
+        }
+
+        val outBmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        outBmp.setPixels(outPixels, 0, w, 0, 0, w, h)
+        maskBitmap.recycle()
+        return outBmp
     }
 
     /**
@@ -503,14 +644,12 @@ class AstralCanvasView @JvmOverloads constructor(
         val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             style = Paint.Style.STROKE
-            strokeWidth = brushSize
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
         val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
             style = Paint.Style.STROKE
-            strokeWidth = brushSize
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
@@ -523,16 +662,30 @@ class AstralCanvasView @JvmOverloads constructor(
             style = Paint.Style.FILL
         }
 
-        for ((path, tool) in inpaintOps) {
-            when(tool) {
-                InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
-                InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
+        for (op in inpaintOps) {
+            val path = op.path
+            val sw = if (op.strokeWidth > 0f) op.strokeWidth else brushSize
+            when(op.tool) {
+                InpaintTool.BRUSH -> {
+                    brushP.strokeWidth = sw
+                    canvas.drawPath(path, brushP)
+                }
+                InpaintTool.ERASER -> {
+                    eraseP.strokeWidth = sw
+                    canvas.drawPath(path, eraseP)
+                }
                 InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
                 InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
                 InpaintTool.MAGIC_WAND -> canvas.drawPath(path, lassoP)
                 InpaintTool.MAGIC_WAND_ERASER -> canvas.drawPath(path, lassoEraseP)
+                InpaintTool.SMART_SELECT_TEXT -> canvas.drawPath(path, lassoP)
             }
         }
+
+        if (inpaintMaskExpand != 0) {
+            return applyMaskMorphology(bmp, inpaintMaskExpand)
+        }
+
         return bmp
     }
 
@@ -584,7 +737,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 path.addRect(paddedRect, Path.Direction.CW)
             }
             if (!path.isEmpty) {
-                inpaintOps.add(Pair(path, InpaintTool.LASSO))
+                inpaintOps.add(InpaintOp(path, InpaintTool.LASSO, 0f))
                 addedAny = true
             }
         }
@@ -1901,54 +2054,87 @@ class AstralCanvasView @JvmOverloads constructor(
             val inpaintBounds = RectF()
             for (op in inpaintOps) {
                 val tempBounds = RectF()
-                op.first.computeBounds(tempBounds, true)
+                op.path.computeBounds(tempBounds, true)
+                val sw = if (op.strokeWidth > 0f) op.strokeWidth else brushSize
+                tempBounds.inset(-sw, -sw)
                 inpaintBounds.union(tempBounds)
             }
             if (!currentInpaintPath.isEmpty) {
                 val tempBounds = RectF()
                 currentInpaintPath.computeBounds(tempBounds, true)
+                tempBounds.inset(-brushSize, -brushSize)
                 inpaintBounds.union(tempBounds)
             }
-            inpaintBounds.inset(-brushSize, -brushSize)
+
+            if (inpaintMaskExpand != 0) {
+                val pad = abs(inpaintMaskExpand).toFloat() + 2f
+                inpaintBounds.inset(-pad, -pad)
+            }
 
             val saveCount = canvas.saveLayer(inpaintBounds, null)
 
-            // Draw Paths directly
-            val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.RED
-                style = Paint.Style.STROKE
-                strokeWidth = brushSize
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-                alpha = 128
-            }
+            if (inpaintMaskExpand != 0 && inpaintOps.isNotEmpty()) {
+                val rect = android.graphics.Rect()
+                inpaintBounds.roundOut(rect)
+                rect.left = rect.left.coerceIn(0, canvasWidth)
+                rect.right = rect.right.coerceIn(0, canvasWidth)
+                rect.top = rect.top.coerceIn(0, canvasHeight)
+                rect.bottom = rect.bottom.coerceIn(0, canvasHeight)
 
-            val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                style = Paint.Style.STROKE
-                strokeWidth = brushSize
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.RED
-                style = Paint.Style.FILL
-                alpha = 128
-            }
-            val lassoEraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-                style = Paint.Style.FILL
-            }
+                if (rect.width() > 0 && rect.height() > 0) {
+                    val maskBmp = getInpaintMask(rect)
+                    val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
+                        alpha = 128
+                    }
+                    canvas.drawBitmap(maskBmp, rect.left.toFloat(), rect.top.toFloat(), maskPaint)
+                    maskBmp.recycle()
+                }
+            } else {
+                // Draw Paths directly
+                val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.RED
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                    alpha = 128
+                }
 
-            // Draw History
-            for ((path, tool) in inpaintOps) {
-                when(tool) {
-                    InpaintTool.BRUSH -> canvas.drawPath(path, brushP)
-                    InpaintTool.ERASER -> canvas.drawPath(path, eraseP)
-                    InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
-                    InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
-                    InpaintTool.MAGIC_WAND -> canvas.drawPath(path, lassoP)
-                    InpaintTool.MAGIC_WAND_ERASER -> canvas.drawPath(path, lassoEraseP)
+                val eraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                }
+                val lassoP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.RED
+                    style = Paint.Style.FILL
+                    alpha = 128
+                }
+                val lassoEraseP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+                    style = Paint.Style.FILL
+                }
+
+                // Draw History
+                for (op in inpaintOps) {
+                    val path = op.path
+                    val sw = if (op.strokeWidth > 0f) op.strokeWidth else brushSize
+                    when(op.tool) {
+                        InpaintTool.BRUSH -> {
+                            brushP.strokeWidth = sw
+                            canvas.drawPath(path, brushP)
+                        }
+                        InpaintTool.ERASER -> {
+                            eraseP.strokeWidth = sw
+                            canvas.drawPath(path, eraseP)
+                        }
+                        InpaintTool.LASSO -> canvas.drawPath(path, lassoP)
+                        InpaintTool.LASSO_ERASER -> canvas.drawPath(path, lassoEraseP)
+                        InpaintTool.MAGIC_WAND -> canvas.drawPath(path, lassoP)
+                        InpaintTool.MAGIC_WAND_ERASER -> canvas.drawPath(path, lassoEraseP)
+                        InpaintTool.SMART_SELECT_TEXT -> canvas.drawPath(path, lassoP)
+                    }
                 }
             }
 
@@ -1959,6 +2145,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     InpaintTool.ERASER -> canvas.drawPath(currentInpaintPath, eraserPaint)
                     InpaintTool.LASSO -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
                     InpaintTool.LASSO_ERASER -> canvas.drawPath(currentInpaintPath, lassoStrokePaint)
+                    InpaintTool.SMART_SELECT_TEXT -> canvas.drawPath(currentInpaintPath, smartSelectStrokePaint)
                     InpaintTool.MAGIC_WAND -> {}
                     InpaintTool.MAGIC_WAND_ERASER -> {}
                 }
@@ -2706,12 +2893,20 @@ class AstralCanvasView @JvmOverloads constructor(
                 MotionEvent.ACTION_UP -> {
                     if (currentInpaintTool == InpaintTool.MAGIC_WAND || currentInpaintTool == InpaintTool.MAGIC_WAND_ERASER) {
                         performMagicWand(cx.toInt(), cy.toInt())
+                    } else if (currentInpaintTool == InpaintTool.SMART_SELECT_TEXT) {
+                        if (!currentInpaintPath.isEmpty) {
+                            currentInpaintPath.close()
+                            val selectedPath = Path(currentInpaintPath)
+                            currentInpaintPath.reset()
+                            onSmartSelectTextListener?.invoke(selectedPath)
+                        }
                     } else {
                         if (!currentInpaintPath.isEmpty) {
                              if (currentInpaintTool == InpaintTool.LASSO || currentInpaintTool == InpaintTool.LASSO_ERASER) {
                                  currentInpaintPath.close()
                              }
-                             inpaintOps.add(Pair(Path(currentInpaintPath), currentInpaintTool))
+                             val sw = if (currentInpaintTool == InpaintTool.BRUSH || currentInpaintTool == InpaintTool.ERASER) brushSize else 0f
+                             inpaintOps.add(InpaintOp(Path(currentInpaintPath), currentInpaintTool, sw))
                              redoOps.clear()
                              currentInpaintPath.reset()
                         }
