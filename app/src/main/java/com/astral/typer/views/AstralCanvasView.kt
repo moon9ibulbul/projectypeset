@@ -526,12 +526,13 @@ class AstralCanvasView @JvmOverloads constructor(
                     org.opencv.imgproc.Imgproc.erode(alphaMat, dstMat, kernel)
                 }
 
-                // Construct RGBA output Mat where R=255, G=255, B=255, and A=dstMat (transparent where A=0)
-                val whiteMat = org.opencv.core.Mat(dstMat.size(), org.opencv.core.CvType.CV_8UC1, org.opencv.core.Scalar(255.0))
+                // Construct RGBA output Mat where R=dstMat, G=dstMat, B=dstMat, and A=dstMat
+                // (White 0xFFFFFFFF where mask ink is present, and fully transparent black 0x00000000 where A=0)
+                // This ensures grayscale conversion in inpainting engines (e.g. COLOR_RGBA2GRAY) does not treat transparent pixels as white mask ink.
                 val channels = java.util.ArrayList<org.opencv.core.Mat>(4)
-                channels.add(whiteMat)
-                channels.add(whiteMat)
-                channels.add(whiteMat)
+                channels.add(dstMat)
+                channels.add(dstMat)
+                channels.add(dstMat)
                 channels.add(dstMat)
 
                 val outMat = org.opencv.core.Mat()
@@ -543,7 +544,6 @@ class AstralCanvasView @JvmOverloads constructor(
                 srcMat.release()
                 alphaMat.release()
                 dstMat.release()
-                whiteMat.release()
                 outMat.release()
                 kernel.release()
 

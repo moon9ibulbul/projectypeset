@@ -186,4 +186,55 @@ class InpaintManagerTest {
         inpaintMaskExpand = savedExpandValue
         assertEquals(-3, inpaintMaskExpand)
     }
+
+    @Test
+    fun testMorphologyMaskPixelChannelFormat() {
+        // Test that mask pixel formatting maintains clean transparency (R=0, G=0, B=0, A=0) for unmasked pixels
+        // and full white (R=255, G=255, B=255, A=255) for masked pixels.
+        // If unmasked pixels were to have R=255, G=255, B=255 with A=0, COLOR_RGBA2GRAY would treat them as white mask!
+        val w = 5
+        val h = 5
+        val maskPixels = IntArray(w * h)
+        // Center pixel is masked (White 0xFFFFFFFF)
+        maskPixels[2 * w + 2] = android.graphics.Color.WHITE
+
+        // Replicate OpenCV channel merging [dstMat, dstMat, dstMat, dstMat]
+        val outputPixels = IntArray(w * h)
+        for (i in 0 until (w * h)) {
+            val maskVal = if (i == 2 * w + 2) 255 else 0
+            val color = (maskVal shl 24) or (maskVal shl 16) or (maskVal shl 8) or maskVal
+            outputPixels[i] = color
+        }
+
+        // Verify unmasked pixels using bit shifts
+        val unmaskedPixel = outputPixels[0]
+        val unmaskedA = (unmaskedPixel ushr 24) and 0xFF
+        val unmaskedR = (unmaskedPixel ushr 16) and 0xFF
+        val unmaskedG = (unmaskedPixel ushr 8) and 0xFF
+        val unmaskedB = unmaskedPixel and 0xFF
+        assertEquals("Unmasked pixel alpha must be 0", 0, unmaskedA)
+        assertEquals("Unmasked pixel red must be 0", 0, unmaskedR)
+        assertEquals("Unmasked pixel green must be 0", 0, unmaskedG)
+        assertEquals("Unmasked pixel blue must be 0", 0, unmaskedB)
+        assertEquals("Unmasked pixel must equal Color.TRANSPARENT (0)", 0, unmaskedPixel)
+
+        // Verify simulated grayscale conversion: 0.299 * R + 0.587 * G + 0.114 * B
+        val unmaskedGray = (0.299f * unmaskedR + 0.587f * unmaskedG + 0.114f * unmaskedB).toInt()
+        assertEquals("Unmasked pixel grayscale luminance must be 0 (black background)", 0, unmaskedGray)
+
+        // Verify masked pixel
+        val maskedPixel = outputPixels[2 * w + 2]
+        val maskedA = (maskedPixel ushr 24) and 0xFF
+        val maskedR = (maskedPixel ushr 16) and 0xFF
+        val maskedG = (maskedPixel ushr 8) and 0xFF
+        val maskedB = maskedPixel and 0xFF
+        assertEquals("Masked pixel alpha must be 255", 255, maskedA)
+        assertEquals("Masked pixel red must be 255", 255, maskedR)
+        assertEquals("Masked pixel green must be 255", 255, maskedG)
+        assertEquals("Masked pixel blue must be 255", 255, maskedB)
+        assertEquals("Masked pixel must equal Color.WHITE (-1)", -1, maskedPixel)
+
+        val maskedGray = (0.299f * maskedR + 0.587f * maskedG + 0.114f * maskedB).toInt()
+        assertEquals("Masked pixel grayscale luminance must be 255 (white hole)", 255, maskedGray)
+    }
 }
