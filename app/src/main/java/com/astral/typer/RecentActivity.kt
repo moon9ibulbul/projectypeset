@@ -525,7 +525,8 @@ class RecentActivity : AppCompatActivity() {
                         folder,
                         bubbleProcessor,
                         inpaintManager,
-                        engine
+                        engine,
+                        keepMaskLayer = true
                     ) { current, folderTotal, currentName ->
                         runOnUiThread {
                             progressBar.max = folderTotal

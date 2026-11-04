@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Path
 import android.os.Environment
 import android.text.Layout
 import android.text.Spannable
@@ -3659,7 +3661,8 @@ object ProjectManager {
         inpaintManager: InpaintManager,
         allowedLabels: Set<Long>,
         maskPadding: Int,
-        engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID
+        engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID,
+        keepMaskLayer: Boolean = false
     ): Boolean {
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             var tempLoadDir: File? = null
@@ -3779,23 +3782,104 @@ object ProjectManager {
                 inpaintManager.setEngine(engine)
                 val inpaintedBg = inpaintManager.inpaint(bgBitmap, maskBitmap, bounds)
 
-                maskBitmap.recycle()
-
                 if (inpaintedBg == null) {
+                    maskBitmap.recycle()
                     bgBitmap.recycle()
                     return@withContext false
                 }
 
-                // Overwrite background.png
-                saveBitmap(inpaintedBg, bgFile)
-
-                // Regenerate thumbnail
                 val thumbFile = File(projectDir, "thumbnail.png")
-                val thumbBmp = decodeSampledBitmapFromFile(bgFile, 300, 300)
-                if (thumbBmp != null) {
-                    saveBitmap(thumbBmp, thumbFile)
-                    thumbBmp.recycle()
+
+                if (keepMaskLayer) {
+                    // Create a transparent mask bitmap holding only the inpainted text patches
+                    val inpaintPatchBitmap = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
+                    val patchCanvas = android.graphics.Canvas(inpaintPatchBitmap)
+                    patchCanvas.drawColor(Color.TRANSPARENT)
+
+                    // Draw the inpaint result clipped to the tight paths
+                    val patchSave = patchCanvas.save()
+                    patchCanvas.translate(-bounds.left.toFloat(), -bounds.top.toFloat())
+                    val clipPath = Path()
+                    for (p in tightPaths) {
+                        clipPath.addPath(p)
+                    }
+                    patchCanvas.clipPath(clipPath)
+                    patchCanvas.drawBitmap(inpaintedBg, 0f, 0f, null)
+                    patchCanvas.restoreToCount(patchSave)
+
+                    // Read project.json to determine layer index and existing layers
+                    val jsonFile = File(projectDir, "project.json")
+                    val projectData: ProjectData = if (jsonFile.exists()) {
+                        try {
+                            gson.fromJson(jsonFile.readText(), ProjectData::class.java)
+                        } catch (e: Exception) {
+                            ProjectData(bgBitmap.width, bgBitmap.height, Color.TRANSPARENT, emptyList())
+                        }
+                    } else {
+                        ProjectData(bgBitmap.width, bgBitmap.height, Color.TRANSPARENT, emptyList())
+                    }
+
+                    val layerIndex = projectData.layers.size
+                    val maskImageName = "layer_inpaint_mask_${layerIndex}.png"
+                    val maskImageFile = File(imagesDir, maskImageName)
+                    saveBitmap(inpaintPatchBitmap, maskImageFile)
+
+                    // Add ImageLayer representing the inpaint mask
+                    val maskLayerModel = LayerModel(
+                        type = "IMAGE",
+                        x = bounds.exactCenterX(),
+                        y = bounds.exactCenterY(),
+                        rotation = 0f,
+                        scaleX = 1f,
+                        scaleY = 1f,
+                        isVisible = true,
+                        isLocked = false,
+                        name = "Inpaint Mask",
+                        opacity = 255,
+                        blendMode = "NORMAL",
+                        isOpacityGradient = false,
+                        opacityStart = 255,
+                        opacityEnd = 0,
+                        opacityAngle = 0,
+                        imagePath = "images/$maskImageName"
+                    )
+
+                    val updatedLayers = projectData.layers + maskLayerModel
+                    val updatedProjectData = projectData.copy(layers = updatedLayers)
+                    jsonFile.writeText(gson.toJson(updatedProjectData))
+
+                    // Regenerate thumbnail with composited preview (original bg + mask patch)
+                    val thumbBmp = decodeSampledBitmapFromFile(bgFile, 300, 300)
+                    if (thumbBmp != null) {
+                        val thumbComposite = Bitmap.createBitmap(thumbBmp.width, thumbBmp.height, Bitmap.Config.ARGB_8888)
+                        val thumbCanvas = android.graphics.Canvas(thumbComposite)
+                        thumbCanvas.drawBitmap(thumbBmp, 0f, 0f, null)
+                        val sx = thumbBmp.width.toFloat() / bgBitmap.width.toFloat()
+                        val sy = thumbBmp.height.toFloat() / bgBitmap.height.toFloat()
+                        val thumbMatrix = Matrix().apply {
+                            setScale(sx, sy)
+                            postTranslate(bounds.left.toFloat() * sx, bounds.top.toFloat() * sy)
+                        }
+                        thumbCanvas.drawBitmap(inpaintPatchBitmap, thumbMatrix, null)
+                        saveBitmap(thumbComposite, thumbFile)
+                        thumbComposite.recycle()
+                        thumbBmp.recycle()
+                    }
+
+                    inpaintPatchBitmap.recycle()
+                } else {
+                    // Overwrite background.png
+                    saveBitmap(inpaintedBg, bgFile)
+
+                    // Regenerate thumbnail
+                    val thumbBmp = decodeSampledBitmapFromFile(bgFile, 300, 300)
+                    if (thumbBmp != null) {
+                        saveBitmap(thumbBmp, thumbFile)
+                        thumbBmp.recycle()
+                    }
                 }
+
+                maskBitmap.recycle()
 
                 // Invalidate thumbnail cache
                 try {
@@ -3847,6 +3931,7 @@ object ProjectManager {
         bubbleProcessor: BubbleDetectorProcessor,
         inpaintManager: InpaintManager,
         engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID,
+        keepMaskLayer: Boolean = false,
         onProgress: (current: Int, total: Int, currentName: String) -> Unit = { _, _, _ -> }
     ): Pair<Int, Int> {
         val validProjects = projects.filter {
@@ -3871,7 +3956,7 @@ object ProjectManager {
         var successCount = 0
         for ((index, proj) in validProjects.withIndex()) {
             onProgress(index + 1, validProjects.size, proj.name)
-            val success = autoInpaintProject(context, proj, bubbleProcessor, inpaintManager, allowedLabels, maskPadding, engine)
+            val success = autoInpaintProject(context, proj, bubbleProcessor, inpaintManager, allowedLabels, maskPadding, engine, keepMaskLayer)
             if (success) successCount++
         }
 
@@ -3887,13 +3972,14 @@ object ProjectManager {
         bubbleProcessor: BubbleDetectorProcessor,
         inpaintManager: InpaintManager,
         engine: InpaintManager.Engine = InpaintManager.Engine.HYBRID,
+        keepMaskLayer: Boolean = false,
         onProgress: (current: Int, total: Int, currentName: String) -> Unit = { _, _, _ -> }
     ): Pair<Int, Int> {
         val projects = getRecentProjects(context, folder).filter {
             it.name.endsWith(".atd") || isProjectDirectory(context, it)
         }
 
-        return autoInpaintProjects(context, projects, bubbleProcessor, inpaintManager, engine, onProgress)
+        return autoInpaintProjects(context, projects, bubbleProcessor, inpaintManager, engine, keepMaskLayer, onProgress)
     }
 }
 
