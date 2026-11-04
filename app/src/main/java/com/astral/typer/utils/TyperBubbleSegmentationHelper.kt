@@ -206,16 +206,11 @@ object TyperBubbleSegmentationHelper {
                 }
             }
             if (minX <= maxX && minY <= maxY) {
-                val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
-                return listOf(
-                    BubbleResult(
-                        minX + offsetX,
-                        minY + offsetY,
-                        maxX + offsetX,
-                        maxY + offsetY,
-                        isOval = isOval
-                    )
+                val smartBounds = computeSmartBubbleBounds(
+                    maskWidth, maskHeight, mask, null, 0,
+                    minX, maxX, minY, maxY, offsetX, offsetY
                 )
+                return listOf(smartBounds)
             }
             return emptyList()
         }
@@ -254,19 +249,39 @@ object TyperBubbleSegmentationHelper {
             }
         }
 
+        // Count pixels per label to identify main bodies vs tiny tails
+        val labelCounts = IntArray(filteredPeaks.size + 1)
+        for (y in 0 until maskHeight) {
+            for (x in 0 until maskWidth) {
+                val lbl = label[y * maskWidth + x]
+                if (lbl in 1..filteredPeaks.size) {
+                    labelCounts[lbl]++
+                }
+            }
+        }
+
+        val maxComponentPixels = labelCounts.maxOrNull() ?: 0
+
         val results = mutableListOf<BubbleResult>()
         for (i in filteredPeaks.indices) {
             val targetLabel = i + 1
+            val count = labelCounts[targetLabel]
+
+            // If component is too tiny or a thin tail relative to the dominant bubble peak,
+            // don't treat it as an independent speech bubble
+            if (count <= 50) continue
+            if (filteredPeaks.size > 1 && count < (maxComponentPixels * 0.12f) && filteredPeaks[i].dist < (maxD * 0.45f)) {
+                continue
+            }
+
             var minX = maskWidth
             var maxX = 0
             var minY = maskHeight
             var maxY = 0
-            var count = 0
 
             for (y in 0 until maskHeight) {
                 for (x in 0 until maskWidth) {
                     if (label[y * maskWidth + x] == targetLabel) {
-                        count++
                         if (x < minX) minX = x
                         if (x > maxX) maxX = x
                         if (y < minY) minY = y
@@ -275,17 +290,12 @@ object TyperBubbleSegmentationHelper {
                 }
             }
 
-            if (count > 50 && minX <= maxX && minY <= maxY) {
-                val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
-                results.add(
-                    BubbleResult(
-                        minX + offsetX,
-                        minY + offsetY,
-                        maxX + offsetX,
-                        maxY + offsetY,
-                        isOval = isOval
-                    )
+            if (minX <= maxX && minY <= maxY) {
+                val smartBounds = computeSmartBubbleBounds(
+                    maskWidth, maskHeight, mask, label, targetLabel,
+                    minX, maxX, minY, maxY, offsetX, offsetY
                 )
+                results.add(smartBounds)
             }
         }
 
@@ -296,9 +306,101 @@ object TyperBubbleSegmentationHelper {
         }
 
         return if (results.isNotEmpty()) results else {
-            val isOval = detectIsOval(maskWidth, maskHeight, mask)
-            listOf(BubbleResult(offsetX, offsetY, offsetX + maskWidth, offsetY + maskHeight, isOval = isOval))
+            val fullBounds = computeSmartBubbleBounds(
+                maskWidth, maskHeight, mask, null, 0,
+                0, maskWidth - 1, 0, maskHeight - 1, offsetX, offsetY
+            )
+            listOf(fullBounds)
         }
+    }
+
+    /**
+     * Smartly computes the dialogue bounding box of a bubble component by trimming
+     * thin protruding tails (dialogue pointers pointing towards speakers).
+     * Speech bubble tails typically form narrow extensions along one edge whose width or height
+     * is drastically smaller than the main body (e.g. occupying less than 20-25% of the main dimension).
+     */
+    fun computeSmartBubbleBounds(
+        maskWidth: Int,
+        maskHeight: Int,
+        mask: BooleanArray,
+        labels: IntArray?,
+        targetLabel: Int,
+        minX: Int,
+        maxX: Int,
+        minY: Int,
+        maxY: Int,
+        offsetX: Float,
+        offsetY: Float
+    ): BubbleResult {
+        val rawW = maxX - minX + 1
+        val rawH = maxY - minY + 1
+        if (rawW <= 20 || rawH <= 20) {
+            val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
+            return BubbleResult(minX + offsetX, minY + offsetY, maxX + offsetX, maxY + offsetY, isOval = isOval)
+        }
+
+        // Profile row occupancy and column occupancy
+        val rowOccupancy = IntArray(rawH)
+        val colOccupancy = IntArray(rawW)
+
+        for (y in minY..maxY) {
+            val rowOffset = y * maskWidth
+            val ry = y - minY
+            for (x in minX..maxX) {
+                val rx = x - minX
+                val isTarget = if (labels != null) {
+                    labels[rowOffset + x] == targetLabel
+                } else {
+                    mask[rowOffset + x]
+                }
+                if (isTarget) {
+                    rowOccupancy[ry]++
+                    colOccupancy[rx]++
+                }
+            }
+        }
+
+        val maxRowOcc = rowOccupancy.maxOrNull() ?: 0
+        val maxColOcc = colOccupancy.maxOrNull() ?: 0
+
+        // If the main bubble has a prominent body, tail slices usually have < 18% of max occupancy
+        val minColThreshold = max(3, (maxColOcc * 0.18f).toInt())
+        val minRowThreshold = max(3, (maxRowOcc * 0.18f).toInt())
+
+        var trimLeft = 0
+        while (trimLeft < rawW / 3 && colOccupancy[trimLeft] <= minColThreshold) {
+            trimLeft++
+        }
+
+        var trimRight = rawW - 1
+        while (trimRight > rawW * 2 / 3 && colOccupancy[trimRight] <= minColThreshold) {
+            trimRight--
+        }
+
+        var trimTop = 0
+        while (trimTop < rawH / 3 && rowOccupancy[trimTop] <= minRowThreshold) {
+            trimTop++
+        }
+
+        var trimBottom = rawH - 1
+        while (trimBottom > rawH * 2 / 3 && rowOccupancy[trimBottom] <= minRowThreshold) {
+            trimBottom--
+        }
+
+        val smartMinX = minX + trimLeft
+        val smartMaxX = minX + trimRight
+        val smartMinY = minY + trimTop
+        val smartMaxY = minY + trimBottom
+
+        val isOval = detectIsOval(maskWidth, maskHeight, mask, smartMinX, smartMaxX, smartMinY, smartMaxY)
+        return BubbleResult(
+            smartMinX + offsetX,
+            smartMinY + offsetY,
+            smartMaxX + offsetX,
+            smartMaxY + offsetY,
+            isOval = isOval
+        )
     }
 
     /**
