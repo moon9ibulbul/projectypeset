@@ -1,21 +1,13 @@
 package com.astral.typer
 
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.SharedPreferences
-import com.astral.typer.utils.BubbleDetectorProcessor
-import com.astral.typer.utils.InpaintManager
 import com.astral.typer.utils.ProjectManager
 import com.google.gson.Gson
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
-import java.lang.reflect.Proxy
 
 class AutoInpaintMaskTest {
 
@@ -36,23 +28,26 @@ class AutoInpaintMaskTest {
     }
 
     @Test
-    fun testKeepMaskLayerModelStructure() {
+    fun testKeepMaskLayerModelStructureAndAutoLock() {
+        val width = 800
+        val height = 1200
         val projectData = ProjectManager.ProjectData(
-            canvasWidth = 800,
-            canvasHeight = 1200,
+            canvasWidth = width,
+            canvasHeight = height,
             canvasColor = 0,
             layers = emptyList()
         )
 
+        // The Inpaint Mask layer is full-canvas sized, centered at (width / 2f, height / 2f), and locked by default
         val maskLayerModel = ProjectManager.LayerModel(
             type = "IMAGE",
-            x = 400f,
-            y = 600f,
+            x = width / 2f,
+            y = height / 2f,
             rotation = 0f,
             scaleX = 1f,
             scaleY = 1f,
             isVisible = true,
-            isLocked = false,
+            isLocked = true,
             name = "Inpaint Mask",
             opacity = 255,
             blendMode = "NORMAL",
@@ -67,6 +62,9 @@ class AutoInpaintMaskTest {
         assertEquals(1, updated.layers.size)
         assertEquals("Inpaint Mask", updated.layers[0].name)
         assertEquals("IMAGE", updated.layers[0].type)
+        assertEquals(400f, updated.layers[0].x)
+        assertEquals(600f, updated.layers[0].y)
+        assertTrue("Inpaint mask layer should be auto-locked", updated.layers[0].isLocked)
         assertEquals("images/layer_inpaint_mask_0.png", updated.layers[0].imagePath)
 
         val gson = Gson()
@@ -74,5 +72,8 @@ class AutoInpaintMaskTest {
         val deserialized = gson.fromJson(json, ProjectManager.ProjectData::class.java)
         assertEquals(1, deserialized.layers.size)
         assertEquals("Inpaint Mask", deserialized.layers[0].name)
+        assertTrue("Deserialized layer should remain locked", deserialized.layers[0].isLocked)
+        assertEquals(400f, deserialized.layers[0].x)
+        assertEquals(600f, deserialized.layers[0].y)
     }
 }

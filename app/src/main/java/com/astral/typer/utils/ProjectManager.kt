@@ -3791,21 +3791,22 @@ object ProjectManager {
                 val thumbFile = File(projectDir, "thumbnail.png")
 
                 if (keepMaskLayer) {
-                    // Create a transparent mask bitmap holding only the inpainted text patches
-                    val inpaintPatchBitmap = Bitmap.createBitmap(maskW, maskH, Bitmap.Config.ARGB_8888)
+                    // Create a full canvas-sized transparent bitmap holding the inpainted text patches
+                    val inpaintPatchBitmap = Bitmap.createBitmap(bgBitmap.width, bgBitmap.height, Bitmap.Config.ARGB_8888)
                     val patchCanvas = android.graphics.Canvas(inpaintPatchBitmap)
                     patchCanvas.drawColor(Color.TRANSPARENT)
 
-                    // Draw the inpaint result clipped to the tight paths
-                    val patchSave = patchCanvas.save()
-                    patchCanvas.translate(-bounds.left.toFloat(), -bounds.top.toFloat())
-                    val clipPath = Path()
-                    for (p in tightPaths) {
-                        clipPath.addPath(p)
-                    }
-                    patchCanvas.clipPath(clipPath)
+                    // Draw the inpaint result cropped to bounds and masked by maskBitmap to ensure 100% pixel-perfect coverage and seamless blending
+                    val saveCount = patchCanvas.save()
+                    patchCanvas.clipRect(bounds)
                     patchCanvas.drawBitmap(inpaintedBg, 0f, 0f, null)
-                    patchCanvas.restoreToCount(patchSave)
+
+                    // Apply the alpha mask with DST_IN over bounds
+                    val transferPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+                    }
+                    patchCanvas.drawBitmap(maskBitmap, bounds.left.toFloat(), bounds.top.toFloat(), transferPaint)
+                    patchCanvas.restoreToCount(saveCount)
 
                     // Read project.json to determine layer index and existing layers
                     val jsonFile = File(projectDir, "project.json")
@@ -3824,16 +3825,16 @@ object ProjectManager {
                     val maskImageFile = File(imagesDir, maskImageName)
                     saveBitmap(inpaintPatchBitmap, maskImageFile)
 
-                    // Add ImageLayer representing the inpaint mask
+                    // Add ImageLayer representing the inpaint mask, locked by default and centered on canvas
                     val maskLayerModel = LayerModel(
                         type = "IMAGE",
-                        x = bounds.exactCenterX(),
-                        y = bounds.exactCenterY(),
+                        x = bgBitmap.width / 2f,
+                        y = bgBitmap.height / 2f,
                         rotation = 0f,
                         scaleX = 1f,
                         scaleY = 1f,
                         isVisible = true,
-                        isLocked = false,
+                        isLocked = true,
                         name = "Inpaint Mask",
                         opacity = 255,
                         blendMode = "NORMAL",
@@ -3858,7 +3859,6 @@ object ProjectManager {
                         val sy = thumbBmp.height.toFloat() / bgBitmap.height.toFloat()
                         val thumbMatrix = Matrix().apply {
                             setScale(sx, sy)
-                            postTranslate(bounds.left.toFloat() * sx, bounds.top.toFloat() * sy)
                         }
                         thumbCanvas.drawBitmap(inpaintPatchBitmap, thumbMatrix, null)
                         saveBitmap(thumbComposite, thumbFile)

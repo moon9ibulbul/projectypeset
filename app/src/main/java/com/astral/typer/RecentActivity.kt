@@ -500,12 +500,14 @@ class RecentActivity : AppCompatActivity() {
             var totalProjectsCount = 0
 
             if (selectedProjects.isNotEmpty()) {
+                val isInsideFolder = currentFolder != null
                 val (processed, total) = ProjectManager.autoInpaintProjects(
                     this@RecentActivity,
                     selectedProjects,
                     bubbleProcessor,
                     inpaintManager,
-                    engine
+                    engine,
+                    keepMaskLayer = isInsideFolder
                 ) { current, totalCount, currentName ->
                     runOnUiThread {
                         progressBar.max = totalCount
