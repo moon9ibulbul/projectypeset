@@ -49,6 +49,22 @@
         app:tint="?attr/appIconTint" />
 
     <ImageView
+        android:id="@+id/btnToolMerge"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/ic_typer_merge"
+        android:padding="8dp"
+        app:tint="?attr/appIconTint" />
+
+    <ImageView
+        android:id="@+id/btnToolMove"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/ic_typer_move"
+        android:padding="8dp"
+        app:tint="?attr/appIconTint" />
+
+    <ImageView
         android:id="@+id/btnToolEraser"
         android:layout_width="40dp"
         android:layout_height="40dp"

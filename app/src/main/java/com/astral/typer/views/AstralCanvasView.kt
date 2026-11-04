@@ -121,7 +121,7 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     enum class TyperTool {
-        HAND, RECT, CIRCLE, LASSO, MAGIC_WAND, ERASER
+        HAND, RECT, CIRCLE, LASSO, MAGIC_WAND, ERASER, MERGE, MOVE
     }
 
     data class TyperBubble(val rect: RectF, val isOval: Boolean)
@@ -409,7 +409,51 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    fun performTyperMagicWand(startX: Int, startY: Int) {
+    fun mergeDetectedBubbleAt(cx: Float, cy: Float): Boolean {
+        val current = detectedBubbles ?: return false
+        val initialBubble = current.find { it.rect.contains(cx, cy) } ?: return false
+
+        fun bubblesTouchOrOverlap(a: RectF, b: RectF): Boolean {
+            return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top
+        }
+
+        // Find connected component transitively
+        val toMerge = mutableSetOf(initialBubble)
+        var added = true
+        while (added) {
+            added = false
+            for (bubble in current) {
+                if (bubble !in toMerge) {
+                    val touchesAny = toMerge.any { bubblesTouchOrOverlap(it.rect, bubble.rect) }
+                    if (touchesAny) {
+                        toMerge.add(bubble)
+                        added = true
+                    }
+                }
+            }
+        }
+
+        if (toMerge.size <= 1) {
+            // Nothing to merge with
+            return false
+        }
+
+        val unionRect = RectF(initialBubble.rect)
+        var allOval = true
+        for (b in toMerge) {
+            unionRect.union(b.rect)
+            if (!b.isOval) {
+                allOval = false
+            }
+        }
+
+        val remainingBubbles = current.filter { it !in toMerge }
+        val mergedBubble = TyperBubble(unionRect, isOval = allOval)
+        setDetectedBubbles(remainingBubbles + mergedBubble)
+        return true
+    }
+
+    fun performTyperMagicWand(startX: Int, startY: Int, autoMerge: Boolean = false) {
         if (backgroundTiles.isEmpty()) return
 
         val originalW = canvasWidth
@@ -525,17 +569,27 @@ class AstralCanvasView @JvmOverloads constructor(
                 finalBoundsMinY = cBounds[1]
                 finalBoundsMaxX = cBounds[2]
                 finalBoundsMaxY = cBounds[3]
-                bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
-                    cW, cH, cMask,
-                    finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
-                    sX.toFloat(), sY.toFloat()
-                )
+                if (!autoMerge) {
+                    bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
+                        cW, cH, cMask,
+                        finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
+                        sX.toFloat(), sY.toFloat()
+                    )
+                } else {
+                    val isOval = com.astral.typer.utils.TyperBubbleSegmentationHelper.detectIsOval(cW, cH, cMask)
+                    bubbleResults = listOf(
+                        com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult(
+                            finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
+                            finalBoundsMaxX.toFloat(), finalBoundsMaxY.toFloat(),
+                            isOval = isOval
+                        )
+                    )
+                }
             }
         }
 
         if (!useClosedFill) {
             if (boxW in 15..((originalW * 0.95f).toInt()) && boxH in 15..((originalH * 0.95f).toInt())) {
-                // Collect binary mask of visited pixels to check for merged/double bubbles (e.g. Panel 7)
                 val bW = boxW + 1
                 val bH = boxH + 1
                 if (bW * bH in 1..2500000) {
@@ -549,11 +603,22 @@ class AstralCanvasView @JvmOverloads constructor(
                             }
                         }
                     }
-                    bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
-                        bW, bH, localMask,
-                        minX.toFloat(), minY.toFloat(),
-                        sX.toFloat(), sY.toFloat()
-                    )
+                    if (!autoMerge) {
+                        bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
+                            bW, bH, localMask,
+                            minX.toFloat(), minY.toFloat(),
+                            sX.toFloat(), sY.toFloat()
+                        )
+                    } else {
+                        val isOval = com.astral.typer.utils.TyperBubbleSegmentationHelper.detectIsOval(bW, bH, localMask)
+                        bubbleResults = listOf(
+                            com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult(
+                                minX.toFloat(), minY.toFloat(),
+                                maxX.toFloat(), maxY.toFloat(),
+                                isOval = isOval
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -1553,6 +1618,16 @@ class AstralCanvasView @JvmOverloads constructor(
     private var initialScaleY = 1f
     private var initialBoxWidth = 0f
     private var initialFixedHeight = 0f // New property for fixed height resize
+    private var movingTyperBubble: TyperBubble? = null
+    private var movingTyperBubbleInitialRect: RectF? = null
+    private var magicWandDownTime = 0L
+    private var isMagicWandHoldTriggered = false
+    private val magicWandHoldRunnable = Runnable {
+        if (!hasMoved) {
+            isMagicWandHoldTriggered = true
+            performTyperMagicWand(startTouchX.toInt(), startTouchY.toInt(), autoMerge = true)
+        }
+    }
 
     private var centerX = 0f
     private var centerY = 0f
@@ -3056,16 +3131,32 @@ class AstralCanvasView @JvmOverloads constructor(
                                  startTouchX = cx
                                  startTouchY = cy
                                  hasMoved = false
+                                 magicWandDownTime = System.currentTimeMillis()
+                                 isMagicWandHoldTriggered = false
+                                 removeCallbacks(magicWandHoldRunnable)
+                                 postDelayed(magicWandHoldRunnable, android.view.ViewConfiguration.getLongPressTimeout().toLong())
                              }
                              MotionEvent.ACTION_MOVE -> {
                                  if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 10f) {
                                      hasMoved = true
+                                     removeCallbacks(magicWandHoldRunnable)
                                  }
                              }
                              MotionEvent.ACTION_UP -> {
-                                 if (!hasMoved) {
-                                     performTyperMagicWand(cx.toInt(), cy.toInt())
+                                 removeCallbacks(magicWandHoldRunnable)
+                                 if (!hasMoved && !isMagicWandHoldTriggered) {
+                                     val pressDuration = System.currentTimeMillis() - magicWandDownTime
+                                     if (pressDuration >= android.view.ViewConfiguration.getLongPressTimeout().toLong()) {
+                                         performTyperMagicWand(cx.toInt(), cy.toInt(), autoMerge = true)
+                                     } else {
+                                         performTyperMagicWand(cx.toInt(), cy.toInt(), autoMerge = false)
+                                     }
                                  }
+                                 isMagicWandHoldTriggered = false
+                             }
+                             MotionEvent.ACTION_CANCEL -> {
+                                 removeCallbacks(magicWandHoldRunnable)
+                                 isMagicWandHoldTriggered = false
                              }
                          }
                     }
@@ -3077,6 +3168,44 @@ class AstralCanvasView @JvmOverloads constructor(
                                  if (toDelete != null) {
                                      removeDetectedBubble(toDelete)
                                  }
+                             }
+                         }
+                    }
+                    TyperTool.MERGE -> {
+                         if (event.actionMasked == MotionEvent.ACTION_UP) {
+                             mergeDetectedBubbleAt(cx, cy)
+                         }
+                    }
+                    TyperTool.MOVE -> {
+                         when(event.actionMasked) {
+                             MotionEvent.ACTION_DOWN -> {
+                                 startTouchX = cx
+                                 startTouchY = cy
+                                 movingTyperBubble = detectedBubbles?.findLast { it.rect.contains(cx, cy) }
+                                 movingTyperBubbleInitialRect = movingTyperBubble?.let { RectF(it.rect) }
+                             }
+                             MotionEvent.ACTION_MOVE -> {
+                                 val target = movingTyperBubble
+                                 val initRect = movingTyperBubbleInitialRect
+                                 if (target != null && initRect != null && event.pointerCount == 1) {
+                                     val dx = cx - startTouchX
+                                     val dy = cy - startTouchY
+                                     val newRect = RectF(initRect.left + dx, initRect.top + dy, initRect.right + dx, initRect.bottom + dy)
+                                     val updatedBubble = TyperBubble(newRect, target.isOval)
+                                     val currentList = detectedBubbles ?: emptyList()
+                                     val idx = currentList.indexOf(target)
+                                     if (idx != -1) {
+                                         val mutable = currentList.toMutableList()
+                                         mutable[idx] = updatedBubble
+                                         detectedBubbles = mutable
+                                         movingTyperBubble = updatedBubble
+                                         invalidate()
+                                     }
+                                 }
+                             }
+                             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                 movingTyperBubble = null
+                                 movingTyperBubbleInitialRect = null
                              }
                          }
                     }
