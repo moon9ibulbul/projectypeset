@@ -5584,6 +5584,8 @@ class EditorActivity : AppCompatActivity() {
         val btnCircle = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolCircle)
         val btnLasso = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolLasso)
         val btnMagicWand = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolMagicWand)
+        val btnMerge = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolMerge)
+        val btnMove = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolMove)
         val btnEraser = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolEraser)
 
         fun updateToolUI(tool: AstralCanvasView.TyperTool) {
@@ -5594,6 +5596,8 @@ class EditorActivity : AppCompatActivity() {
             btnCircle.setColorFilter(if (tool == AstralCanvasView.TyperTool.CIRCLE) Color.CYAN else iconTint)
             btnLasso.setColorFilter(if (tool == AstralCanvasView.TyperTool.LASSO) Color.CYAN else iconTint)
             btnMagicWand?.setColorFilter(if (tool == AstralCanvasView.TyperTool.MAGIC_WAND) Color.CYAN else iconTint)
+            btnMerge?.setColorFilter(if (tool == AstralCanvasView.TyperTool.MERGE) Color.CYAN else iconTint)
+            btnMove?.setColorFilter(if (tool == AstralCanvasView.TyperTool.MOVE) Color.CYAN else iconTint)
             btnEraser.setColorFilter(if (tool == AstralCanvasView.TyperTool.ERASER) Color.CYAN else iconTint)
         }
 
@@ -5602,6 +5606,8 @@ class EditorActivity : AppCompatActivity() {
         btnCircle.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.CIRCLE) }
         btnLasso.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.LASSO) }
         btnMagicWand?.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.MAGIC_WAND) }
+        btnMerge?.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.MERGE) }
+        btnMove?.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.MOVE) }
         btnEraser.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.ERASER) }
 
         updateToolUI(AstralCanvasView.TyperTool.HAND)
