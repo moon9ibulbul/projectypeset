@@ -195,6 +195,57 @@ class TyperBubbleSegmentationTest {
     }
 
     @Test
+    fun testBubbleWithTextNotFragmented() {
+        // Create an oval bubble with several lines of interior text glyphs (holes)
+        // Oval centered at (100, 100), Rx=70, Ry=80
+        val w = 200
+        val h = 200
+        val mask = BooleanArray(w * h)
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val dx = (x - 100).toFloat() / 70f
+                val dy = (y - 100).toFloat() / 80f
+                if ((dx * dx + dy * dy) <= 1.0f) {
+                    mask[y * w + x] = true
+                }
+            }
+        }
+
+        // Simulate multiple lines of dark text (holes where mask is false inside the bubble)
+        for (ty in listOf(60, 80, 100, 120, 140)) {
+            for (tx in 60..140 step 15) {
+                for (ly in 0 until 12) {
+                    for (lx in 0 until 8) {
+                        val py = ty + ly
+                        val px = tx + lx
+                        if (px in 0 until w && py in 0 until h) {
+                            mask[py * w + px] = false
+                        }
+                    }
+                }
+            }
+        }
+
+        val bubbles = TyperBubbleSegmentationHelper.segmentConnectedMask(
+            maskWidth = w,
+            maskHeight = h,
+            mask = mask,
+            offsetX = 50f,
+            offsetY = 50f
+        )
+
+        // Without hole-filling, the multiple text glyph holes would cause distance transform to drop to 0
+        // and produce tens of fragmented candidate peaks, splitting the single bubble into many pieces.
+        // With hole-filling, the interior is sealed and segments into exactly 1 unified bubble.
+        assertEquals("Bubble with dialogue text should segment into exactly 1 unified bubble", 1, bubbles.size)
+        val bubble = bubbles[0]
+        assertTrue("Bubble width should span the oval (~140px)", (bubble.right - bubble.left) >= 130f)
+        assertTrue("Bubble height should span the oval (~160px)", (bubble.bottom - bubble.top) >= 150f)
+        assertTrue("Bubble should be classified as oval", bubble.isOval)
+    }
+
+    @Test
     fun testShapeClassificationOvalVsRectangle() {
         val w = 120
         val h = 80

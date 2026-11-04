@@ -36,6 +36,68 @@ class TightTextMaskTest {
             Int::class.javaPrimitiveType
         )
         assertNotNull(method)
+
+        // Verify detectCleanBubbles method exists via reflection
+        val cleanBubbleMethod = BubbleDetectorProcessor::class.java.getDeclaredMethod(
+            "detectCleanBubbles",
+            android.graphics.Bitmap::class.java
+        )
+        assertNotNull(cleanBubbleMethod)
+    }
+
+    @Test
+    fun testDetectCleanBubblesOnSyntheticMangaPanel() {
+        val filesDir = tempFolder.newFolder("files_clean")
+        val fakeContext = object : ContextWrapper(null) {
+            override fun getFilesDir(): File = filesDir
+            override fun getApplicationContext(): Context = this
+        }
+
+        val processor = BubbleDetectorProcessor(fakeContext)
+
+        // Create a 400x300 synthetic pixel array representing a manga panel
+        // Background: panel tone / art (gray 0xFFBBBBBB)
+        // Clean speech bubble: white interior (0xFFFFFFFF) from (100, 50) to (260, 220) with a 2px black border (0xFF000000)
+        val bmpW = 400
+        val bmpH = 300
+        val pixels = IntArray(bmpW * bmpH) { 0xFFBBBBBB.toInt() }
+
+        val colWhite = 0xFFFFFFFF.toInt()
+        val colBorder = 0xFF000000.toInt()
+
+        val cx = 180f
+        val cy = 135f
+        val rx = 80f
+        val ry = 85f
+
+        for (y in 0 until bmpH) {
+            for (x in 0 until bmpW) {
+                val dx = (x - cx) / rx
+                val dy = (y - cy) / ry
+                val distSq = dx * dx + dy * dy
+                if (distSq <= 1.0f) {
+                    pixels[y * bmpW + x] = colWhite
+                } else if (distSq <= 1.15f) {
+                    pixels[y * bmpW + x] = colBorder
+                }
+            }
+        }
+
+        val detections = processor.detectCleanBubblesFromPixels(pixels, bmpW, bmpH)
+        assertTrue("Should detect the clean speech bubble without text", detections.isNotEmpty())
+
+        val detected = detections.find { d ->
+            val cx = (d.rect.left + d.rect.right) / 2f
+            val cy = (d.rect.top + d.rect.bottom) / 2f
+            cx in 170f..190f && cy in 125f..145f
+        }
+        assertNotNull("Should find detection covering the synthetic clean bubble", detected)
+        assertEquals("Label should be 0L (speech bubble)", 0L, detected!!.label)
+        assertTrue("Confidence score should be high (>= 0.80f)", detected.score >= 0.80f)
+        val w = detected.rect.right - detected.rect.left
+        val h = detected.rect.bottom - detected.rect.top
+        assertTrue("Width should span ~160px", w in 140f..180f)
+        assertTrue("Height should span ~170px", h in 150f..190f)
     }
 
     @Test

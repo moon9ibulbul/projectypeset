@@ -95,6 +95,85 @@ object TyperBubbleSegmentationHelper {
     }
 
     /**
+     * Fills all enclosed interior holes (such as dark text glyphs or character strokes inside a speech bubble)
+     * by flood-filling the inverted mask starting from all image borders.
+     * Any pixel that cannot reach the exterior boundary is filled.
+     */
+    fun fillHoles(mask: BooleanArray, w: Int, h: Int): BooleanArray {
+        val total = w * h
+        if (total == 0) return mask
+        val reachableFromBorder = BooleanArray(total)
+        val queue = ArrayDeque<Int>()
+
+        // Seed with all border pixels where mask is false
+        for (x in 0 until w) {
+            val topIdx = x
+            if (!mask[topIdx] && !reachableFromBorder[topIdx]) {
+                reachableFromBorder[topIdx] = true
+                queue.add(topIdx)
+            }
+            val botIdx = (h - 1) * w + x
+            if (!mask[botIdx] && !reachableFromBorder[botIdx]) {
+                reachableFromBorder[botIdx] = true
+                queue.add(botIdx)
+            }
+        }
+        for (y in 0 until h) {
+            val leftIdx = y * w
+            if (!mask[leftIdx] && !reachableFromBorder[leftIdx]) {
+                reachableFromBorder[leftIdx] = true
+                queue.add(leftIdx)
+            }
+            val rightIdx = y * w + (w - 1)
+            if (!mask[rightIdx] && !reachableFromBorder[rightIdx]) {
+                reachableFromBorder[rightIdx] = true
+                queue.add(rightIdx)
+            }
+        }
+
+        while (!queue.isEmpty()) {
+            val curr = queue.poll() ?: break
+            val qx = curr % w
+            val qy = curr / w
+
+            if (qx > 0) {
+                val nIdx = curr - 1
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) {
+                    reachableFromBorder[nIdx] = true
+                    queue.add(nIdx)
+                }
+            }
+            if (qx < w - 1) {
+                val nIdx = curr + 1
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) {
+                    reachableFromBorder[nIdx] = true
+                    queue.add(nIdx)
+                }
+            }
+            if (qy > 0) {
+                val nIdx = curr - w
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) {
+                    reachableFromBorder[nIdx] = true
+                    queue.add(nIdx)
+                }
+            }
+            if (qy < h - 1) {
+                val nIdx = curr + w
+                if (!mask[nIdx] && !reachableFromBorder[nIdx]) {
+                    reachableFromBorder[nIdx] = true
+                    queue.add(nIdx)
+                }
+            }
+        }
+
+        val filled = BooleanArray(total)
+        for (i in 0 until total) {
+            filled[i] = !reachableFromBorder[i]
+        }
+        return filled
+    }
+
+    /**
      * Segments a connected binary mask into one or more sub-bubbles.
      * If there are multiple distinct peaks in the distance transform with a neck / constriction,
      * it splits them into separate bubble rects.
@@ -110,14 +189,17 @@ object TyperBubbleSegmentationHelper {
     ): List<BubbleResult> {
         if (maskWidth <= 0 || maskHeight <= 0) return emptyList()
 
-        // 1. Compute Distance Transform on binary mask
+        // Fill interior holes (e.g. text letters/dialogue inside the bubble) so they don't break distance transform into fragmented peaks
+        val solidMask = fillHoles(mask, maskWidth, maskHeight)
+
+        // 1. Compute Distance Transform on solid binary mask
         val dist = FloatArray(maskWidth * maskHeight)
         val INF = 1e7f
 
         for (y in 0 until maskHeight) {
             for (x in 0 until maskWidth) {
                 val idx = y * maskWidth + x
-                if (!mask[idx]) {
+                if (!solidMask[idx]) {
                     dist[idx] = 0f
                 } else {
                     var d = INF
@@ -133,7 +215,7 @@ object TyperBubbleSegmentationHelper {
         for (y in maskHeight - 1 downTo 0) {
             for (x in maskWidth - 1 downTo 0) {
                 val idx = y * maskWidth + x
-                if (mask[idx]) {
+                if (solidMask[idx]) {
                     var d = dist[idx]
                     if (x < maskWidth - 1) d = min(d, dist[y * maskWidth + (x + 1)] + 1f)
                     if (y < maskHeight - 1) d = min(d, dist[(y + 1) * maskWidth + x] + 1f)
@@ -197,7 +279,7 @@ object TyperBubbleSegmentationHelper {
             var maxY = 0
             for (y in 0 until maskHeight) {
                 for (x in 0 until maskWidth) {
-                    if (mask[y * maskWidth + x]) {
+                    if (solidMask[y * maskWidth + x]) {
                         if (x < minX) minX = x
                         if (x > maxX) maxX = x
                         if (y < minY) minY = y
@@ -206,7 +288,7 @@ object TyperBubbleSegmentationHelper {
                 }
             }
             if (minX <= maxX && minY <= maxY) {
-                val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
+                val isOval = detectIsOval(maskWidth, maskHeight, solidMask, minX, maxX, minY, maxY)
                 return listOf(
                     BubbleResult(
                         minX + offsetX,
@@ -246,7 +328,7 @@ object TyperBubbleSegmentationHelper {
             for ((nx, ny) in neighbors) {
                 if (nx in 0 until maskWidth && ny in 0 until maskHeight) {
                     val nIdx = ny * maskWidth + nx
-                    if (mask[nIdx] && label[nIdx] == 0) {
+                    if (solidMask[nIdx] && label[nIdx] == 0) {
                         label[nIdx] = currLabel
                         queue.add(nIdx)
                     }
@@ -276,7 +358,7 @@ object TyperBubbleSegmentationHelper {
             }
 
             if (count > 50 && minX <= maxX && minY <= maxY) {
-                val isOval = detectIsOval(maskWidth, maskHeight, mask, minX, maxX, minY, maxY)
+                val isOval = detectIsOval(maskWidth, maskHeight, solidMask, minX, maxX, minY, maxY)
                 results.add(
                     BubbleResult(
                         minX + offsetX,
@@ -296,7 +378,7 @@ object TyperBubbleSegmentationHelper {
         }
 
         return if (results.isNotEmpty()) results else {
-            val isOval = detectIsOval(maskWidth, maskHeight, mask)
+            val isOval = detectIsOval(maskWidth, maskHeight, solidMask)
             listOf(BubbleResult(offsetX, offsetY, offsetX + maskWidth, offsetY + maskHeight, isOval = isOval))
         }
     }

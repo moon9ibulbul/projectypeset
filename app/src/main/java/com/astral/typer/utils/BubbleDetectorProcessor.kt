@@ -294,7 +294,14 @@ class BubbleDetectorProcessor(private val context: Context) {
             }
 
             // 3. Flatten results and apply NMS
-            val allDetections = allResults.flatten()
+            val allDetections = allResults.flatten().toMutableList()
+
+            // Supplement with visual detection of clean/empty speech bubbles (label 0L)
+            // Clean speech bubbles without text often have low confidence from RT-DETR
+            if (allowedLabels == null || allowedLabels.contains(0L)) {
+                val cleanBubbles = detectCleanBubbles(procBitmap)
+                allDetections.addAll(cleanBubbles)
+            }
 
             val filteredDetections = if (allowedLabels != null) {
                 allDetections.filter { allowedLabels.contains(it.label) }
@@ -671,6 +678,169 @@ class BubbleDetectorProcessor(private val context: Context) {
         val areaB = b.width() * b.height()
 
         return intersection / (areaA + areaB - intersection)
+    }
+
+    /**
+     * Visually detects clean/empty speech bubbles in manga panels from a Bitmap.
+     */
+    fun detectCleanBubbles(image: Bitmap): List<Detection> {
+        val w = image.width
+        val h = image.height
+        if (w < 40 || h < 40) return emptyList()
+
+        val pixels = IntArray(w * h)
+        image.getPixels(pixels, 0, w, 0, 0, w, h)
+        return detectCleanBubblesFromPixels(pixels, w, h)
+    }
+
+    /**
+     * Visually detects clean/empty speech bubbles from raw ARGB pixel array.
+     * Clean bubbles consist of uniform light/white interior regions enclosed by dark contour lines.
+     */
+    fun detectCleanBubblesFromPixels(pixels: IntArray, w: Int, h: Int): List<Detection> {
+        if (w < 40 || h < 40 || pixels.size < w * h) return emptyList()
+
+        // Identify white / very light pixels (grayscale >= 235)
+        val isWhite = BooleanArray(w * h)
+        for (i in 0 until (w * h)) {
+            val c = pixels[i]
+            val r = (c shr 16) and 0xFF
+            val g = (c shr 8) and 0xFF
+            val b = c and 0xFF
+            val lum = (0.299f * r + 0.587f * g + 0.114f * b).toInt()
+            if (lum >= 235) {
+                isWhite[i] = true
+            }
+        }
+
+        // Connected component labeling on white pixels
+        val visited = BooleanArray(w * h)
+        val queue = java.util.ArrayDeque<Int>()
+        val cleanBubbles = mutableListOf<Detection>()
+
+        val minDimension = 30
+        val maxDimW = (w * 0.90f).toInt()
+        val maxDimH = (h * 0.90f).toInt()
+        val minArea = 1200
+
+        for (y in 0 until h) {
+            val rowOffset = y * w
+            for (x in 0 until w) {
+                val idx = rowOffset + x
+                if (isWhite[idx] && !visited[idx]) {
+                    visited[idx] = true
+                    queue.add(idx)
+
+                    var minX = x
+                    var maxX = x
+                    var minY = y
+                    var maxY = y
+                    var count = 0
+                    var touchesImageBorder = false
+
+                    while (!queue.isEmpty()) {
+                        val curr = queue.poll() ?: break
+                        val cx = curr % w
+                        val cy = curr / w
+                        count++
+
+                        if (cx < minX) minX = cx
+                        if (cx > maxX) maxX = cx
+                        if (cy < minY) minY = cy
+                        if (cy > maxY) maxY = cy
+
+                        if (cx == 0 || cx == w - 1 || cy == 0 || cy == h - 1) {
+                            touchesImageBorder = true
+                        }
+
+                        // 4-connected neighbors
+                        val neighbors = arrayOf(
+                            cx - 1 to cy,
+                            cx + 1 to cy,
+                            cx to cy - 1,
+                            cx to cy + 1
+                        )
+                        for ((nx, ny) in neighbors) {
+                            if (nx in 0 until w && ny in 0 until h) {
+                                val nIdx = ny * w + nx
+                                if (isWhite[nIdx] && !visited[nIdx]) {
+                                    visited[nIdx] = true
+                                    queue.add(nIdx)
+                                }
+                            }
+                        }
+                    }
+
+                    // Exclude regions touching image exterior bounds (margins/gutters)
+                    if (touchesImageBorder) continue
+
+                    val boxW = maxX - minX + 1
+                    val boxH = maxY - minY + 1
+                    val boxArea = boxW * boxH
+
+                    if (boxW in minDimension..maxDimW && boxH in minDimension..maxDimH && count >= minArea) {
+                        val fillRatio = count.toFloat() / boxArea.toFloat()
+                        // Speech bubbles typically have fill ratio between 0.50 (oval / capsule) and 0.95 (rounded rect)
+                        if (fillRatio in 0.50f..0.96f) {
+                            // Check surrounding perimeter for presence of dark border/ink
+                            var darkBorderCount = 0
+                            var borderSampleCount = 0
+                            val pad = 3
+
+                            // Sample top and bottom borders
+                            for (sx in minX..maxX) {
+                                val ty = minY - pad
+                                if (ty in 0 until h) {
+                                    borderSampleCount++
+                                    val c = pixels[ty * w + sx]
+                                    val lum = (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)).toInt()
+                                    if (lum < 180) darkBorderCount++
+                                }
+                                val by = maxY + pad
+                                if (by in 0 until h) {
+                                    borderSampleCount++
+                                    val c = pixels[by * w + sx]
+                                    val lum = (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)).toInt()
+                                    if (lum < 180) darkBorderCount++
+                                }
+                            }
+
+                            // Sample left and right borders
+                            for (sy in minY..maxY) {
+                                val lx = minX - pad
+                                if (lx in 0 until w) {
+                                    borderSampleCount++
+                                    val c = pixels[sy * w + lx]
+                                    val lum = (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)).toInt()
+                                    if (lum < 180) darkBorderCount++
+                                }
+                                val rx = maxX + pad
+                                if (rx in 0 until w) {
+                                    borderSampleCount++
+                                    val c = pixels[sy * w + rx]
+                                    val lum = (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)).toInt()
+                                    if (lum < 180) darkBorderCount++
+                                }
+                            }
+
+                            // An enclosed clean speech bubble will have dark boundary lines along its perimeter
+                            val darkRatio = if (borderSampleCount > 0) darkBorderCount.toFloat() / borderSampleCount.toFloat() else 0f
+                            if (darkRatio >= 0.12f) {
+                                val rect = RectF().apply {
+                                    left = minX.toFloat()
+                                    top = minY.toFloat()
+                                    right = maxX.toFloat()
+                                    bottom = maxY.toFloat()
+                                }
+                                cleanBubbles.add(Detection(rect, 0.90f, 0L))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return cleanBubbles
     }
 
     /**
