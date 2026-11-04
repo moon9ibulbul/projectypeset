@@ -30,9 +30,8 @@ class LaMaProcessor(private val context: Context) {
         private const val MODEL_URL = "https://huggingface.co/ogkalu/lama-manga-onnx-dynamic/resolve/main/lama-manga-dynamic.onnx"
         private const val MODEL_FILENAME = "lama-manga-dynamic.onnx"
         private const val LEGACY_MODEL_FILENAME = "LaMa_512.onnx"
-        private const val MODEL_INT8_URL = "https://huggingface.co/othytenk/lama-int4-int8/resolve/main/lama_int4_int8_r4.onnx"
-        private const val MODEL_INT8_FILENAME = "lama_int4_int8_r4.onnx"
         private const val LEGACY_MODEL_INT8_FILENAME = "lama_512_int8.onnx"
+        private const val LEGACY_INT8_FILENAME = "lama_int4_int8_r4.onnx"
         private const val CONNECT_TIMEOUT = 30000 // 30 seconds
         private const val READ_TIMEOUT = 30000 // 30 seconds
         private const val USER_AGENT = "AstralTyper/1.0"
@@ -50,42 +49,16 @@ class LaMaProcessor(private val context: Context) {
             return if (legacyFile.exists() && legacyFile.length() > 0) legacyFile else newFile
         }
 
-    private val modelInt8File: File
-        get() {
-            val newFile = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
-            if (newFile.exists() && newFile.length() > 0) return newFile
-            val legacyFile = File(context.filesDir, "onnx/$LEGACY_MODEL_INT8_FILENAME")
-            return if (legacyFile.exists() && legacyFile.length() > 0) legacyFile else newFile
-        }
-
     fun isModelAvailable(): Boolean {
-        val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val defaultVersion = if (isOriginalModelAvailable()) "FP32" else "Int8"
-        val selectedVersion = prefs.getString("lama_model_version", defaultVersion)
-        val useInt8 = selectedVersion == "Int8"
-        val activeFile = if (useInt8) modelInt8File else modelFile
-
-        if (!activeFile.exists() || activeFile.length() <= 0) {
-            val fallbackFile = if (useInt8) modelFile else modelInt8File
-            return fallbackFile.exists() && fallbackFile.length() > 0
-        }
-        return true
+        return isOriginalModelAvailable()
     }
 
     fun isOriginalModelAvailable(): Boolean {
         return modelFile.exists() && modelFile.length() > 0
     }
 
-    fun isInt8ModelAvailable(): Boolean {
-        return modelInt8File.exists() && modelInt8File.length() > 0
-    }
-
     suspend fun downloadModel(onProgress: (Float) -> Unit): Boolean {
         return downloadInternal(MODEL_URL, modelFile, "$MODEL_FILENAME.tmp", onProgress)
-    }
-
-    suspend fun downloadInt8Model(onProgress: (Float) -> Unit): Boolean {
-        return downloadInternal(MODEL_INT8_URL, modelInt8File, "$MODEL_INT8_FILENAME.tmp", onProgress)
     }
 
     private suspend fun downloadInternal(urlStrInput: String, file: File, tmpFileName: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
@@ -186,17 +159,9 @@ class LaMaProcessor(private val context: Context) {
 
         if (ortSession == null) {
             val sessionOptions = OrtSession.SessionOptions()
-            val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-            val defaultVersion = if (isOriginalModelAvailable()) "FP32" else "Int8"
-            val selectedVersion = prefs.getString("lama_model_version", defaultVersion)
-            val useInt8 = selectedVersion == "Int8"
-            var activeFile = if (useInt8) modelInt8File else modelFile
+            val activeFile = modelFile
 
-            if (!activeFile.exists() || activeFile.length() <= 0) {
-                activeFile = if (useInt8) modelFile else modelInt8File
-            }
-
-            // Optimization options
+            // Optimization options (CPU execution)
             try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
 
@@ -205,17 +170,8 @@ class LaMaProcessor(private val context: Context) {
                  val optimalThreads = (numCores / 2).coerceIn(1, 4)
                  sessionOptions.setInterOpNumThreads(optimalThreads)
                  sessionOptions.setIntraOpNumThreads(optimalThreads)
-
-                 // Retrieve NNAPI toggle preference from Settings
-                 val enableNnapi = prefs.getBoolean("enable_lama_nnapi", false)
-                 if (enableNnapi) {
-                     sessionOptions.addNnapi()
-                     Log.d("LaMaProcessor", "NNAPI enabled for LaMa session.")
-                 } else {
-                     Log.d("LaMaProcessor", "NNAPI disabled for LaMa session (CPU only).")
-                 }
             } catch (e: Exception) {
-                Log.w("LaMaProcessor", "Failed to set optimization options or enable NNAPI", e)
+                Log.w("LaMaProcessor", "Failed to set optimization options", e)
             }
             ortSession = ortEnvironment!!.createSession(activeFile.absolutePath, sessionOptions)
         }
@@ -243,24 +199,20 @@ class LaMaProcessor(private val context: Context) {
     }
 
     fun deleteModel(): Boolean {
-        return deleteOriginalModel() || deleteInt8Model()
+        return deleteOriginalModel()
     }
 
     fun deleteOriginalModel(): Boolean {
         closeSession()
+        // Clean up legacy files if present
         val legacy = File(context.filesDir, "onnx/$LEGACY_MODEL_FILENAME")
         if (legacy.exists()) legacy.delete()
-        val curr = File(context.filesDir, "onnx/$MODEL_FILENAME")
-        return if (curr.exists()) {
-            curr.delete()
-        } else false
-    }
+        val legacyInt8_1 = File(context.filesDir, "onnx/$LEGACY_MODEL_INT8_FILENAME")
+        if (legacyInt8_1.exists()) legacyInt8_1.delete()
+        val legacyInt8_2 = File(context.filesDir, "onnx/$LEGACY_INT8_FILENAME")
+        if (legacyInt8_2.exists()) legacyInt8_2.delete()
 
-    fun deleteInt8Model(): Boolean {
-        closeSession()
-        val legacy = File(context.filesDir, "onnx/$LEGACY_MODEL_INT8_FILENAME")
-        if (legacy.exists()) legacy.delete()
-        val curr = File(context.filesDir, "onnx/$MODEL_INT8_FILENAME")
+        val curr = File(context.filesDir, "onnx/$MODEL_FILENAME")
         return if (curr.exists()) {
             curr.delete()
         } else false

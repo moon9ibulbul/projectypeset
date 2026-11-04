@@ -3942,8 +3942,8 @@ object ProjectManager {
 
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
-        val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", true)
-        val maskPadding = prefs.getInt("inpaint_text_padding", 0)
+        val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", false)
+        val maskPadding = prefs.getInt("inpaint_text_padding", 2)
 
         val allowedLabels = mutableSetOf<Long>()
         if (detectInside) allowedLabels.add(1L)
