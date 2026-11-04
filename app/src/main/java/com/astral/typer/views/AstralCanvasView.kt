@@ -438,15 +438,55 @@ class AstralCanvasView @JvmOverloads constructor(
             return false
         }
 
-        val unionRect = RectF(initialBubble.rect)
-        var allOval = true
+        // Smart merge: detect if one or more bubbles are tail-like fragments
+        // A tail has significantly smaller area compared to the main dialogue body,
+        // or extends far out horizontally/vertically with a narrow cross-section.
+        val mainBubble = toMerge.maxByOrNull { it.rect.width() * it.rect.height() } ?: initialBubble
+        val mainArea = mainBubble.rect.width() * mainBubble.rect.height()
+
+        var left = mainBubble.rect.left
+        var top = mainBubble.rect.top
+        var right = mainBubble.rect.right
+        var bottom = mainBubble.rect.bottom
+        var allOval = mainBubble.isOval
+
         for (b in toMerge) {
-            unionRect.union(b.rect)
-            if (!b.isOval) {
-                allOval = false
+            if (b == mainBubble) continue
+            if (!b.isOval) allOval = false
+
+            val bArea = b.rect.width() * b.rect.height()
+            val isSmallFragment = bArea < (mainArea * 0.28f)
+            val isNarrowTail = (b.rect.width() < mainBubble.rect.width() * 0.35f) || (b.rect.height() < mainBubble.rect.height() * 0.35f)
+
+            if (isSmallFragment && isNarrowTail) {
+                // If it protrudes horizontally (left or right) beyond the main body as a tail pointer,
+                // do not allow it to drastically inflate the dialogue text width (limit width inflation to 10% of main width).
+                val maxAllowableHInflation = mainBubble.rect.width() * 0.10f
+                if (b.rect.left < left) {
+                    left = max(b.rect.left, left - maxAllowableHInflation)
+                }
+                if (b.rect.right > right) {
+                    right = min(b.rect.right, right + maxAllowableHInflation)
+                }
+
+                // If it protrudes vertically (e.g. downward tail pointing to mouth), limit vertical inflation to 12%
+                val maxAllowableVInflation = mainBubble.rect.height() * 0.12f
+                if (b.rect.top < top) {
+                    top = max(b.rect.top, top - maxAllowableVInflation)
+                }
+                if (b.rect.bottom > bottom) {
+                    bottom = min(b.rect.bottom, bottom + maxAllowableVInflation)
+                }
+            } else {
+                // Regular bubble merge (e.g. multi-bubble dialogue or connected lobes)
+                left = min(left, b.rect.left)
+                top = min(top, b.rect.top)
+                right = max(right, b.rect.right)
+                bottom = max(bottom, b.rect.bottom)
             }
         }
 
+        val unionRect = RectF(left, top, right, bottom)
         val remainingBubbles = current.filter { it !in toMerge }
         val mergedBubble = TyperBubble(unionRect, isOval = allOval)
         setDetectedBubbles(remainingBubbles + mergedBubble)

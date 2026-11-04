@@ -5564,15 +5564,15 @@ class EditorActivity : AppCompatActivity() {
         val recycler = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerTyperText)
         val tvWarning = popupView.findViewById<TextView>(R.id.tvWarning)
 
-        // Add Floating Tools Sidebar
+        // Add Floating Tools Sidebar (Compact 2-column layout to prevent overlapping with bottom typer popup)
         val toolsView = layoutInflater.inflate(R.layout.layout_typer_tools, binding.canvasContainer, false)
         val params = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            marginStart = dpToPx(16)
-            topMargin = dpToPx(16)
+            marginStart = dpToPx(12)
+            topMargin = dpToPx(12)
         }
         binding.canvasContainer.addView(toolsView, params)
         // Store reference to remove later

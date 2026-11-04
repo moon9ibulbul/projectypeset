@@ -36,6 +36,82 @@ class TyperModeInteractionTest {
     }
 
     @Test
+    fun testSmartTyperBubbleMergeWithNarrowTail() {
+        data class SimpleBubble(val left: Float, val top: Float, val right: Float, val bottom: Float, val isOval: Boolean) {
+            fun contains(x: Float, y: Float): Boolean = x in left..right && y in top..bottom
+            fun touchesOrOverlaps(b: SimpleBubble): Boolean = left <= b.right && right >= b.left && top <= b.bottom && bottom >= b.top
+        }
+
+        fun mergeBubblesSmart(bubbles: List<SimpleBubble>, cx: Float, cy: Float): List<SimpleBubble> {
+            val initial = bubbles.find { it.contains(cx, cy) } ?: return bubbles
+            val toMerge = mutableSetOf(initial)
+            var added = true
+            while (added) {
+                added = false
+                for (b in bubbles) {
+                    if (b !in toMerge && toMerge.any { it.touchesOrOverlaps(b) }) {
+                        toMerge.add(b)
+                        added = true
+                    }
+                }
+            }
+            if (toMerge.size <= 1) return bubbles
+
+            val mainBubble = toMerge.maxByOrNull { (it.right - it.left) * (it.bottom - it.top) } ?: initial
+            val mainArea = (mainBubble.right - mainBubble.left) * (mainBubble.bottom - mainBubble.top)
+
+            var left = mainBubble.left
+            var top = mainBubble.top
+            var right = mainBubble.right
+            var bottom = mainBubble.bottom
+            var allOval = mainBubble.isOval
+
+            for (b in toMerge) {
+                if (b == mainBubble) continue
+                if (!b.isOval) allOval = false
+
+                val bArea = (b.right - b.left) * (b.bottom - b.top)
+                val isSmallFragment = bArea < (mainArea * 0.28f)
+                val isNarrowTail = (b.right - b.left < (mainBubble.right - mainBubble.left) * 0.35f) ||
+                                   (b.bottom - b.top < (mainBubble.bottom - mainBubble.top) * 0.35f)
+
+                if (isSmallFragment && isNarrowTail) {
+                    val maxAllowableHInflation = (mainBubble.right - mainBubble.left) * 0.10f
+                    if (b.left < left) left = maxOf(b.left, left - maxAllowableHInflation)
+                    if (b.right > right) right = minOf(b.right, right + maxAllowableHInflation)
+
+                    val maxAllowableVInflation = (mainBubble.bottom - mainBubble.top) * 0.12f
+                    if (b.top < top) top = maxOf(b.top, top - maxAllowableVInflation)
+                    if (b.bottom > bottom) bottom = minOf(b.bottom, bottom + maxAllowableVInflation)
+                } else {
+                    left = minOf(left, b.left)
+                    top = minOf(top, b.top)
+                    right = maxOf(right, b.right)
+                    bottom = maxOf(bottom, b.bottom)
+                }
+            }
+
+            val merged = SimpleBubble(left, top, right, bottom, isOval = allOval)
+            val remaining = bubbles.filter { it !in toMerge }
+            return remaining + merged
+        }
+
+        // Main speech bubble: (100, 100) to (300, 300) -> width = 200, height = 200, area = 40,000
+        val mainBubble = SimpleBubble(100f, 100f, 300f, 300f, isOval = true)
+        // Protruding dialog tail pointing to the right speaker: (290, 180) to (420, 210) -> width = 130, height = 30, area = 3,900 (< 10% of main)
+        val tailBubble = SimpleBubble(290f, 180f, 420f, 210f, isOval = true)
+
+        val mergedList = mergeBubblesSmart(listOf(mainBubble, tailBubble), 200f, 200f)
+        assertEquals(1, mergedList.size)
+        val merged = mergedList[0]
+
+        // Without smart tail handling, right would be 420f and width = 320f (+60% inflated).
+        // With smart tail handling, right inflation is capped to at most 10% of main width (max 20px -> 320px).
+        assertTrue("Merged bubble right bound (${merged.right}) should be clamped near main body right (<= 320f)", merged.right <= 320f)
+        assertEquals("Main bubble left should remain 100f", 100f, merged.left, 0.001f)
+    }
+
+    @Test
     fun testTyperBubbleCoordinatesPure() {
         // Verify bounding box inclusion algorithm without android.graphics.RectF stub
         data class SimpleBubble(val left: Float, val top: Float, val right: Float, val bottom: Float, val isOval: Boolean) {

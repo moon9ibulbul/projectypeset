@@ -3,73 +3,91 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:background="@drawable/bg_panel_dynamic"
-    android:padding="8dp"
-    android:gravity="center_horizontal">
+    android:padding="6dp"
+    android:gravity="center">
 
-    <ImageView
-        android:id="@+id/btnToolHand"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_hand"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+    <!-- Column 1: Selection & Drawing Tools -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:layout_marginEnd="4dp">
 
-    <ImageView
-        android:id="@+id/btnToolRect"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_rect"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+        <ImageView
+            android:id="@+id/btnToolHand"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_hand"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
 
-    <ImageView
-        android:id="@+id/btnToolCircle"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_circle"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+        <ImageView
+            android:id="@+id/btnToolRect"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_rect"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
 
-    <ImageView
-        android:id="@+id/btnToolLasso"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_lasso"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+        <ImageView
+            android:id="@+id/btnToolCircle"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_circle"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
 
-    <ImageView
-        android:id="@+id/btnToolMagicWand"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_magic_wand"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+        <ImageView
+            android:id="@+id/btnToolLasso"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_lasso"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
+    </LinearLayout>
 
-    <ImageView
-        android:id="@+id/btnToolMerge"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_merge"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+    <!-- Column 2: Magic Wand, Merge, Move, Eraser Tools -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:layout_marginStart="4dp">
 
-    <ImageView
-        android:id="@+id/btnToolMove"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_move"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+        <ImageView
+            android:id="@+id/btnToolMagicWand"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_magic_wand"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
 
-    <ImageView
-        android:id="@+id/btnToolEraser"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:src="@drawable/ic_typer_eraser"
-        android:padding="8dp"
-        app:tint="?attr/appIconTint" />
+        <ImageView
+            android:id="@+id/btnToolMerge"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_merge"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
+
+        <ImageView
+            android:id="@+id/btnToolMove"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_move"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
+
+        <ImageView
+            android:id="@+id/btnToolEraser"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_typer_eraser"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
+    </LinearLayout>
 
 </LinearLayout>

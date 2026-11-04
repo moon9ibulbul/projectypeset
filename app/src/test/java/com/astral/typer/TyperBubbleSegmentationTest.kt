@@ -220,4 +220,43 @@ class TyperBubbleSegmentationTest {
         val isOvalEllipse = TyperBubbleSegmentationHelper.detectIsOval(w, h, ovalMask)
         assertTrue("Ellipse should be detected as oval (isOval = true)", isOvalEllipse)
     }
+
+    @Test
+    fun testBubbleWithProtrudingTailTrimming() {
+        // Create an oval bubble body (diameter 100x100) centered at (80, 80)
+        // plus a thin narrow tail pointing far to the right from (130, 80) to (220, 80) with thickness 8px
+        val w = 240
+        val h = 160
+        val mask = BooleanArray(w * h)
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val dx = (x - 80).toFloat() / 50f
+                val dy = (y - 80).toFloat() / 50f
+                val inBody = (dx * dx + dy * dy) <= 1.0f
+
+                // Narrow protruding tail pointing to speaker
+                val inTail = (x in 120..210) && (y in 76..84)
+
+                mask[y * w + x] = inBody || inTail
+            }
+        }
+
+        val bubbles = TyperBubbleSegmentationHelper.segmentConnectedMask(
+            maskWidth = w,
+            maskHeight = h,
+            mask = mask,
+            offsetX = 0f,
+            offsetY = 0f
+        )
+
+        assertEquals("Tail should not be split into an isolated bubble", 1, bubbles.size)
+        val bubble = bubbles[0]
+        val bubbleWidth = bubble.right - bubble.left
+
+        // Main body is x in [30..130] (width ~ 100).
+        // With tail trimming, width should not stretch to 180+ px (30 to 210 = 180px).
+        assertTrue("Bubble width ($bubbleWidth) should focus on main body and trim thin tail", bubbleWidth < 140f)
+        assertTrue("Bubble left (${bubble.left}) should align near main body left (~30)", bubble.left in 25f..35f)
+    }
 }
