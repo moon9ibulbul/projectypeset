@@ -4,6 +4,7 @@ import com.astral.typer.utils.ProjectManager
 import com.astral.typer.utils.StrokeSpan
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,7 +53,7 @@ class PerspectiveSkewAndSpanStrokeTest {
     }
 
     @Test
-    fun testPerspectiveSkewParallelogramMath() {
+    fun testPerspectiveSkewSingleNeighborMovementHorizontal() {
         // Initial 1x1 mesh rectangle: w = 200, h = 100
         // Point 0 (TL): (-100, -50)
         // Point 1 (TR): (100, -50)
@@ -65,54 +66,105 @@ class PerspectiveSkewAndSpanStrokeTest {
              100f,  50f
         )
 
-        // Drag Top-Right (index 1) by (+30, +10)
+        // Drag Top-Right (index 1) by (+30, +10) -> abs(dx) >= abs(dy): Horizontal movement zone
         val warpPointIndex = 1
         val dx = 30f
         val dy = 10f
-        when (warpPointIndex) {
-            0 -> {
-                mesh[0] += dx; mesh[1] += dy
-                mesh[2] += dx
-                mesh[5] += dy
-            }
-            1 -> {
-                mesh[2] += dx; mesh[3] += dy
-                mesh[0] += dx // TL moves horizontally
-                mesh[7] += dy // BR moves vertically
-            }
-            2 -> {
-                mesh[4] += dx; mesh[5] += dy
-                mesh[6] += dx
-                mesh[1] += dy
-            }
-            3 -> {
-                mesh[6] += dx; mesh[7] += dy
-                mesh[4] += dx
-                mesh[3] += dy
+        val isHorizontalZone = kotlin.math.abs(dx) >= kotlin.math.abs(dy)
+        assertTrue(isHorizontalZone)
+
+        if (isHorizontalZone) {
+            when (warpPointIndex) {
+                0 -> { mesh[0] += dx; mesh[2] += dx }
+                1 -> { mesh[2] += dx; mesh[0] += dx }
+                2 -> { mesh[4] += dx; mesh[6] += dx }
+                3 -> { mesh[6] += dx; mesh[4] += dx }
             }
         }
 
-        // Verify parallelogram constraints:
-        // Top edge vector (TR - TL):
-        val topEdgeX = mesh[2] - mesh[0]
-        val topEdgeY = mesh[3] - mesh[1]
+        // Point 1 (TR) moved in X by +30: 100 + 30 = 130
+        assertEquals(130f, mesh[2], 0.001f)
+        assertEquals(-50f, mesh[3], 0.001f) // Y unchanged
 
-        // Bottom edge vector (BR - BL):
-        val bottomEdgeX = mesh[6] - mesh[4]
-        val bottomEdgeY = mesh[7] - mesh[5]
+        // Point 0 (TL, horizontal neighbor) moved in X by +30: -100 + 30 = -70
+        assertEquals(-70f, mesh[0], 0.001f)
+        assertEquals(-50f, mesh[1], 0.001f) // Y unchanged
 
-        // Left edge vector (BL - TL):
-        val leftEdgeX = mesh[4] - mesh[0]
-        val leftEdgeY = mesh[5] - mesh[1]
+        // Point 2 (BL) and Point 3 (BR) (vertical neighbors) must NOT move at all
+        assertEquals(-100f, mesh[4], 0.001f)
+        assertEquals(50f, mesh[5], 0.001f)
+        assertEquals(100f, mesh[6], 0.001f)
+        assertEquals(50f, mesh[7], 0.001f)
+    }
 
-        // Right edge vector (BR - TR):
-        val rightEdgeX = mesh[6] - mesh[2]
-        val rightEdgeY = mesh[7] - mesh[3]
+    @Test
+    fun testPerspectiveSkewSingleNeighborMovementVertical() {
+        // Initial 1x1 mesh rectangle: w = 200, h = 100
+        val mesh = floatArrayOf(
+            -100f, -50f,
+             100f, -50f,
+            -100f,  50f,
+             100f,  50f
+        )
 
-        assertEquals("Top and bottom edges must be parallel in X", bottomEdgeX, topEdgeX, 0.001f)
-        assertEquals("Top and bottom edges must be parallel in Y", bottomEdgeY, topEdgeY, 0.001f)
-        assertEquals("Left and right edges must be parallel in X", rightEdgeX, leftEdgeX, 0.001f)
-        assertEquals("Left and right edges must be parallel in Y", rightEdgeY, leftEdgeY, 0.001f)
+        // Drag Top-Left (index 0) by (+5, +25) -> abs(dy) > abs(dx): Vertical movement zone
+        val warpPointIndex = 0
+        val dx = 5f
+        val dy = 25f
+        val isHorizontalZone = kotlin.math.abs(dx) >= kotlin.math.abs(dy)
+        assertFalse(isHorizontalZone)
+
+        if (!isHorizontalZone) {
+            when (warpPointIndex) {
+                0 -> { mesh[1] += dy; mesh[5] += dy }
+                1 -> { mesh[3] += dy; mesh[7] += dy }
+                2 -> { mesh[5] += dy; mesh[1] += dy }
+                3 -> { mesh[7] += dy; mesh[3] += dy }
+            }
+        }
+
+        // Point 0 (TL) moved in Y by +25: -50 + 25 = -25
+        assertEquals(-100f, mesh[0], 0.001f) // X unchanged
+        assertEquals(-25f, mesh[1], 0.001f)
+
+        // Point 2 (BL, vertical neighbor) moved in Y by +25: 50 + 25 = 75
+        assertEquals(-100f, mesh[4], 0.001f) // X unchanged
+        assertEquals(75f, mesh[5], 0.001f)
+
+        // Point 1 (TR) and Point 3 (BR) (horizontal neighbors) must NOT move at all
+        assertEquals(100f, mesh[2], 0.001f)
+        assertEquals(-50f, mesh[3], 0.001f)
+        assertEquals(100f, mesh[6], 0.001f)
+        assertEquals(50f, mesh[7], 0.001f)
+    }
+
+    @Test
+    fun testReshapePreservesFontSizeAndBoxScale() {
+        val layer = com.astral.typer.models.TextLayer("Halo dunia apa kabar semuanya")
+        layer.fontSize = 100f
+        layer.scaleX = 1.35f
+        layer.scaleY = 1.35f
+        layer.boxWidth = 300f
+
+        val variant = com.astral.typer.utils.TyperLayoutSolver.LayoutResult(
+            formattedText = "Halo dunia\napa kabar\nsemuanya",
+            boxWidth = 240f,
+            scale = 0.75f, // TyperLayoutSolver internal scaling
+            estimatedHeight = 180f,
+            lineCount = 3,
+            variantName = "Diamond Seimbang"
+        )
+
+        // Applying reshape variant logic as defined in EditorActivity:
+        // Do NOT change fontSize or box scale (scaleX, scaleY).
+        // Only update text formatting and boxWidth.
+        layer.boxWidth = variant.boxWidth
+
+        assertEquals(100f, layer.fontSize, 0.001f)
+        assertEquals(1.35f, layer.scaleX, 0.001f)
+        assertEquals(1.35f, layer.scaleY, 0.001f)
+        assertEquals(1.35f, layer.scale, 0.001f)
+        assertEquals(240f, layer.boxWidth ?: 0f, 0.001f)
     }
 
     @Test

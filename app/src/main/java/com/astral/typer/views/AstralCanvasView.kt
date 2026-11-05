@@ -3725,26 +3725,47 @@ class AstralCanvasView @JvmOverloads constructor(
                                  val oldY = mesh[warpPointIndex * 2 + 1]
                                  val dx = localPoint[0] - oldX
                                  val dy = localPoint[1] - oldY
-                                 when (warpPointIndex) {
-                                     0 -> { // TL
-                                         mesh[0] += dx; mesh[1] += dy
-                                         mesh[2] += dx // TR moves horizontally
-                                         mesh[5] += dy // BL moves vertically
+
+                                 val isHorizontalZone = kotlin.math.abs(dx) >= kotlin.math.abs(dy)
+                                 if (isHorizontalZone) {
+                                     // Hanya bergerak di sumbu horizontal bersama neighbor point horizontal
+                                     when (warpPointIndex) {
+                                         0 -> { // TL -> TR
+                                             mesh[0] += dx
+                                             mesh[2] += dx
+                                         }
+                                         1 -> { // TR -> TL
+                                             mesh[2] += dx
+                                             mesh[0] += dx
+                                         }
+                                         2 -> { // BL -> BR
+                                             mesh[4] += dx
+                                             mesh[6] += dx
+                                         }
+                                         3 -> { // BR -> BL
+                                             mesh[6] += dx
+                                             mesh[4] += dx
+                                         }
                                      }
-                                     1 -> { // TR
-                                         mesh[2] += dx; mesh[3] += dy
-                                         mesh[0] += dx // TL moves horizontally
-                                         mesh[7] += dy // BR moves vertically
-                                     }
-                                     2 -> { // BL
-                                         mesh[4] += dx; mesh[5] += dy
-                                         mesh[6] += dx // BR moves horizontally
-                                         mesh[1] += dy // TL moves vertically
-                                     }
-                                     3 -> { // BR
-                                         mesh[6] += dx; mesh[7] += dy
-                                         mesh[4] += dx // BL moves horizontally
-                                         mesh[3] += dy // TR moves vertically
+                                 } else {
+                                     // Hanya bergerak di sumbu vertikal bersama neighbor point vertikal
+                                     when (warpPointIndex) {
+                                         0 -> { // TL -> BL
+                                             mesh[1] += dy
+                                             mesh[5] += dy
+                                         }
+                                         1 -> { // TR -> BR
+                                             mesh[3] += dy
+                                             mesh[7] += dy
+                                         }
+                                         2 -> { // BL -> TL
+                                             mesh[5] += dy
+                                             mesh[1] += dy
+                                         }
+                                         3 -> { // BR -> TR
+                                             mesh[7] += dy
+                                             mesh[3] += dy
+                                         }
                                      }
                                  }
                              } else {

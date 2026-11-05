@@ -8310,9 +8310,6 @@ class EditorActivity : AppCompatActivity() {
 
                 layer.text = SpannableStringBuilder(variant.formattedText)
                 layer.boxWidth = variant.boxWidth
-                layer.fontSize = (basePaint.textSize * variant.scale).coerceAtLeast(10f)
-                layer.scaleX = 1f
-                layer.scaleY = 1f
                 layer.textAlign = Layout.Alignment.ALIGN_CENTER
 
                 activeEditText?.let { et ->
