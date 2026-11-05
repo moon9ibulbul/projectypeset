@@ -1011,7 +1011,7 @@ class AstralCanvasView @JvmOverloads constructor(
         if (!isInpaintMode) return
 
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val padding = prefs.getInt("inpaint_text_padding", 0).toFloat()
+        val padding = prefs.getInt("inpaint_text_padding", 2).toFloat()
 
         var addedAny = false
         for (rect in rects) {
