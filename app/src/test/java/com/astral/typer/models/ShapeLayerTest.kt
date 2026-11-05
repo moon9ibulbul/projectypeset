@@ -87,4 +87,36 @@ class ShapeLayerTest {
         val blurMethod = ShapeLayer.Companion::class.java.getDeclaredMethod("blurBitmapSoftware", Bitmap::class.java, Float::class.java)
         assertNotNull(blurMethod)
     }
+
+    @Test
+    fun testSmartShapeLongShadowPropertiesAndRendering() {
+        val svgStr = "<svg width='100' height='100'><rect width='100' height='100' fill='#FFFFFF' stroke='#FF0000' stroke-width='10'/></svg>"
+        val layer = ShapeLayer(svgStr).apply {
+            isSmartShape = true
+            color = Color.WHITE
+            strokeColor = Color.RED
+            strokeWidth = 10f
+            currentEffect = TextEffectType.LONG_SHADOW
+            longShadowLength = 25f
+            longShadowColor = Color.BLUE
+            longShadowAngle = 45f
+        }
+
+        assertTrue(layer.isSmartShape)
+        assertEquals(TextEffectType.LONG_SHADOW, layer.currentEffect)
+        assertEquals(25f, layer.longShadowLength, 0.001f)
+        assertEquals(Color.BLUE, layer.longShadowColor)
+        assertEquals(45f, layer.longShadowAngle, 0.001f)
+        assertEquals(Color.WHITE, layer.color)
+        assertEquals(Color.RED, layer.strokeColor)
+
+        val cloned = layer.clone() as ShapeLayer
+        assertTrue(cloned.isSmartShape)
+        assertEquals(TextEffectType.LONG_SHADOW, cloned.currentEffect)
+        assertEquals(25f, cloned.longShadowLength, 0.001f)
+        assertEquals(Color.BLUE, cloned.longShadowColor)
+        assertEquals(45f, cloned.longShadowAngle, 0.001f)
+        assertEquals(Color.WHITE, cloned.color)
+        assertEquals(Color.RED, cloned.strokeColor)
+    }
 }
