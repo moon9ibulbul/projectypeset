@@ -2730,7 +2730,11 @@ class ShapeLayer(
 
                         if (hasNonNoneStroke) {
                             if (includeEmbeddedStrokes) {
-                                val effectiveStrokeColor = stroke ?: strokeColor
+                                val effectiveStrokeColor = if (silhouetteColor != null) {
+                                    silhouetteColor!!
+                                } else {
+                                    stroke ?: strokeColor
+                                }
                                 val strokeHexToUse = String.format("#%06X", 0xFFFFFF and effectiveStrokeColor)
                                 attrs = attrs.replace(Regex("stroke='[^']*'"), "stroke='$strokeHexToUse'")
                                 attrs = attrs.replace(Regex("stroke=\"[^\"]*\""), "stroke=\"$strokeHexToUse\"")

@@ -8481,11 +8481,10 @@ class EditorActivity : AppCompatActivity() {
         updateStyleButtons()
         layout.addView(stylesRow)
 
-        // Alignment Row
+        // Alignment & Transform Row (Inline Alignment, Mirror H/V, and Shape Toggle)
         val alignRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            weightSum = 4f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -8563,34 +8562,22 @@ class EditorActivity : AppCompatActivity() {
         }
         updateAlignButtons()
 
-        // Transform Row (Mirror)
-        val transformRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            weightSum = 2f
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setPadding(0, 16, 0, 0)
-        }
-
-        fun addMirrorBtn(iconRes: Int, onClick: () -> Unit) {
-             val btn = android.widget.ImageView(this).apply {
+        fun addActionBtn(iconRes: Int, onClick: () -> Unit) {
+            val btn = android.widget.ImageView(this).apply {
                 setImageResource(iconRes)
                 setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint))
                 setPadding(0, 16, 0, 16)
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener { onClick() }
             }
-            transformRow.addView(btn)
+            alignRow.addView(btn)
         }
 
-        addMirrorBtn(R.drawable.ic_mirror_horizontal) {
+        addActionBtn(R.drawable.ic_mirror_horizontal) {
             layer.scaleX *= -1
             canvasView.invalidate()
         }
-        addMirrorBtn(R.drawable.ic_mirror_vertical) {
+        addActionBtn(R.drawable.ic_mirror_vertical) {
             layer.scaleY *= -1
             canvasView.invalidate()
         }
@@ -8607,10 +8594,9 @@ class EditorActivity : AppCompatActivity() {
                 canvasView.invalidate()
             }
         }
-        transformRow.addView(btnShape)
+        alignRow.addView(btnShape)
 
-        layout.addView(alignRow) // Ensure Align row is added first
-        layout.addView(transformRow)
+        layout.addView(alignRow)
 
         return layout
     }
@@ -8908,19 +8894,25 @@ class EditorActivity : AppCompatActivity() {
         return layout
     }
 
-    private fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit): View {
+    private fun createControl(label: String, valueStr: String, tag: String, onMinus: () -> Unit, onPlus: () -> Unit, compact: Boolean = false): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 8, 0, 8)
+            setPadding(0, if (compact) 4 else 8, 0, if (compact) 4 else 8)
         }
 
         val tvLabel = TextView(this).apply {
             text = label
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
-            textSize = 14f
+            textSize = if (compact) 12f else 14f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
+
+        val btnWidth = if (compact) dpToPx(30) else dpToPx(40)
+        val btnHeight = if (compact) dpToPx(28) else dpToPx(30)
+        val valueWidth = if (compact) dpToPx(55) else dpToPx(80)
 
         val btnMinus = TextView(this).apply {
             this.tag = "MINUS_BTN"
@@ -8933,7 +8925,7 @@ class EditorActivity : AppCompatActivity() {
                 setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(4).toFloat()
             }
-            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+            layoutParams = LinearLayout.LayoutParams(btnWidth, btnHeight)
             setOnClickListener { onMinus() }
         }
 
@@ -8941,8 +8933,10 @@ class EditorActivity : AppCompatActivity() {
             text = valueStr
             this.tag = tag // Set Tag for Sync
             setTextColor(Color.CYAN)
+            textSize = if (compact) 12f else 14f
+            maxLines = 1
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(80), ViewGroup.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(valueWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val btnPlus = TextView(this).apply {
@@ -8956,7 +8950,7 @@ class EditorActivity : AppCompatActivity() {
                 setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
                 cornerRadius = dpToPx(4).toFloat()
             }
-            layoutParams = LinearLayout.LayoutParams(dpToPx(40), dpToPx(30))
+            layoutParams = LinearLayout.LayoutParams(btnWidth, btnHeight)
             setOnClickListener { onPlus() }
         }
 
@@ -8970,11 +8964,11 @@ class EditorActivity : AppCompatActivity() {
     private fun createSizeTab(layer: TextLayer): View {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 8, 16, 8)
+            setPadding(12, 6, 12, 6)
         }
 
         // Text Size
-        val textSizeRow = createControl("Text Size", "${layer.fontSize.toInt()} pt", "VAL_TEXT_SIZE",
+        val textSizeControl = createControl("Text Size", "${layer.fontSize.toInt()} pt", "VAL_TEXT_SIZE",
             onMinus = {
                 val et = activeEditText
                 if (et != null && et.selectionStart != et.selectionEnd) {
@@ -8996,10 +8990,14 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.invalidate()
                     ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_TEXT_SIZE"))?.text = "${layer.fontSize.toInt()} pt"
                 }
-            }
-        )
-        val tvSizeVal = textSizeRow.findViewWithTag<TextView>("VAL_TEXT_SIZE")
-        textSizeRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            },
+            compact = true
+        ).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(0, 4, dpToPx(6), 4)
+        }
+        val tvSizeVal = textSizeControl.findViewWithTag<TextView>("VAL_TEXT_SIZE")
+        textSizeControl.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
             val et = activeEditText
             if (et != null && et.selectionStart != et.selectionEnd) {
                 val currentSize = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, android.text.style.AbsoluteSizeSpan::class.java).firstOrNull()?.size ?: layer.fontSize.toInt()) - 1
@@ -9010,7 +9008,7 @@ class EditorActivity : AppCompatActivity() {
                 tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
             }
         }
-        textSizeRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+        textSizeControl.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
             val et = activeEditText
             if (et != null && et.selectionStart != et.selectionEnd) {
                 val currentSize = (et.editableText.getSpans(et.selectionStart, et.selectionEnd, android.text.style.AbsoluteSizeSpan::class.java).firstOrNull()?.size ?: layer.fontSize.toInt()) + 1
@@ -9021,10 +9019,9 @@ class EditorActivity : AppCompatActivity() {
                 tvSizeVal?.text = "${layer.fontSize.toInt()} pt"
             }
         }
-        layout.addView(textSizeRow)
 
         // Box Scale
-        val scaleRow = createControl("Box Scale", "${(layer.scale * 100).toInt()}%", "VAL_BOX_SCALE",
+        val scaleControl = createControl("Box Scale", "${(layer.scale * 100).toInt()}%", "VAL_BOX_SCALE",
             onMinus = {
                 val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
                 layer.scaleX = s
@@ -9038,24 +9035,40 @@ class EditorActivity : AppCompatActivity() {
                 layer.scaleY = s
                 canvasView.invalidate()
                 ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_SCALE"))?.text = "${(layer.scale * 100).toInt()}%"
-            }
-        )
-        val tvScaleVal = scaleRow.findViewWithTag<TextView>("VAL_BOX_SCALE")
-        scaleRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            },
+            compact = true
+        ).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(dpToPx(6), 4, 0, 4)
+        }
+        val tvScaleVal = scaleControl.findViewWithTag<TextView>("VAL_BOX_SCALE")
+        scaleControl.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
             val s = (layer.scale - 0.01f).coerceAtLeast(0.01f)
             layer.scaleX = s
             layer.scaleY = s
             canvasView.invalidate()
             tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
         }
-        scaleRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+        scaleControl.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
             val s = layer.scale + 0.01f
             layer.scaleX = s
             layer.scaleY = s
             canvasView.invalidate()
             tvScaleVal?.text = "${(layer.scale * 100).toInt()}%"
         }
-        layout.addView(scaleRow)
+
+        // Row 1: Text Size & Box Scale (2 Columns)
+        val row1 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            addView(textSizeControl)
+            addView(scaleControl)
+        }
+        layout.addView(row1)
 
         // Box Width
         val widthVal = layer.boxWidth ?: 0f
@@ -9068,7 +9081,7 @@ class EditorActivity : AppCompatActivity() {
                 populateReshapeCards(reshapeLayout, layer)
             }
         }
-        val widthRow = createControl("Box Width", widthStr, "VAL_BOX_WIDTH",
+        val widthControl = createControl("Box Width", widthStr, "VAL_BOX_WIDTH",
             onMinus = {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
@@ -9082,27 +9095,30 @@ class EditorActivity : AppCompatActivity() {
                 canvasView.invalidate()
                 ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
                 notifyReshapeIfVisible()
-            }
-        )
-        val tvWidthVal = widthRow.findViewWithTag<TextView>("VAL_BOX_WIDTH")
-        widthRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            },
+            compact = true
+        ).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(0, 4, dpToPx(6), 4)
+        }
+        val tvWidthVal = widthControl.findViewWithTag<TextView>("VAL_BOX_WIDTH")
+        widthControl.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
             val w = (layer.boxWidth ?: layer.getWidth()) - 1f
             layer.boxWidth = w.coerceAtLeast(50f)
             canvasView.invalidate()
             tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
             notifyReshapeIfVisible()
         }
-        widthRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+        widthControl.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
             val w = (layer.boxWidth ?: layer.getWidth()) + 1f
             layer.boxWidth = w
             canvasView.invalidate()
             tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
             notifyReshapeIfVisible()
         }
-        layout.addView(widthRow)
 
         // Rotate
-        val rotateRow = createControl("Rotate", "${layer.rotation.toInt()}°", "VAL_ROTATE",
+        val rotateControl = createControl("Rotate", "${layer.rotation.toInt()}°", "VAL_ROTATE",
             onMinus = {
                 layer.rotation -= 1f
                 canvasView.invalidate()
@@ -9112,20 +9128,36 @@ class EditorActivity : AppCompatActivity() {
                 layer.rotation += 1f
                 canvasView.invalidate()
                 ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_ROTATE"))?.text = "${layer.rotation.toInt()}°"
-            }
-        )
-        val tvRotateVal = rotateRow.findViewWithTag<TextView>("VAL_ROTATE")
-        rotateRow.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
+            },
+            compact = true
+        ).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(dpToPx(6), 4, 0, 4)
+        }
+        val tvRotateVal = rotateControl.findViewWithTag<TextView>("VAL_ROTATE")
+        rotateControl.findViewWithTag<View>("MINUS_BTN")?.setOnClickListener {
             layer.rotation -= 1f
             canvasView.invalidate()
             tvRotateVal?.text = "${layer.rotation.toInt()}°"
         }
-        rotateRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
+        rotateControl.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
             layer.rotation += 1f
             canvasView.invalidate()
             tvRotateVal?.text = "${layer.rotation.toInt()}°"
         }
-        layout.addView(rotateRow)
+
+        // Row 2: Box Width & Rotate (2 Columns)
+        val row2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            addView(widthControl)
+            addView(rotateControl)
+        }
+        layout.addView(row2)
 
         return layout
     }
