@@ -240,21 +240,23 @@ object TyperLayoutSolver {
         val trimmed = rawText.trim()
         if (trimmed.isEmpty()) return emptyList()
 
-        val origWords = trimmed.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-        if (origWords.isEmpty()) return emptyList()
+        val rawOrigWords = trimmed.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        if (rawOrigWords.isEmpty()) return emptyList()
 
         val effWidth = targetW.coerceAtLeast(80f)
         val effHeight = targetH.coerceAtLeast(80f)
 
-        if (origWords.size == 1) {
-            val single = solveSingleWord(origWords[0], effWidth, effHeight, baseFontSize, { w, s -> (measureBaseWord(w) / baseFontSize) * s }, minScale)
+        val hasReduplication = rawOrigWords.any { isReduplicationWord(it) }
+
+        if (rawOrigWords.size == 1 && !hasReduplication) {
+            val single = solveSingleWord(rawOrigWords[0], effWidth, effHeight, baseFontSize, { w, s -> (measureBaseWord(w) / baseFontSize) * s }, minScale)
             return listOf(single.copy(variantName = "Standar"))
         }
 
         val variants = mutableListOf<LayoutResult>()
         val seenFormatted = mutableSetOf<String>()
 
-        // Pre-kalkulasi base width kata-kata
+        val origWords = rawOrigWords
         val baseWordWidths = origWords.map { measureBaseWord(it) }
         val nWords = origWords.size
 
@@ -285,6 +287,49 @@ object TyperLayoutSolver {
             if (result != null) {
                 seenFormatted.add(result.formattedText)
                 variants.add(result)
+            }
+        }
+
+        if (hasReduplication) {
+            val splitWords = mutableListOf<String>()
+            val splitWordIndices = mutableSetOf<Int>()
+            for (w in rawOrigWords) {
+                if (isReduplicationWord(w)) {
+                    val parts = splitReduplication(w)
+                    if (parts != null) {
+                        splitWordIndices.add(splitWords.size)
+                        splitWords.add(parts.first)
+                        splitWords.add(parts.second)
+                    } else {
+                        splitWords.add(w)
+                    }
+                } else {
+                    splitWords.add(w)
+                }
+            }
+
+            if (splitWords.size > rawOrigWords.size) {
+                val splitBaseWordWidths = splitWords.map { measureBaseWord(it) }
+                for (cfg in profileConfigs) {
+                    if (variants.size >= 3) break
+                    val result = solveForVariantFast(
+                        words = splitWords,
+                        baseWordWidths = splitBaseWordWidths,
+                        baseSpaceW = baseSpaceW,
+                        targetW = effWidth,
+                        targetH = effHeight,
+                        isOval = isOval,
+                        baseFontSize = baseFontSize,
+                        scaleSteps = fastScaleSteps,
+                        cfg = cfg,
+                        seenFormatted = seenFormatted,
+                        reduplicationSplitIndices = splitWordIndices
+                    )
+                    if (result != null) {
+                        seenFormatted.add(result.formattedText)
+                        variants.add(result)
+                    }
+                }
             }
         }
 
@@ -325,6 +370,32 @@ object TyperLayoutSolver {
         val curveBonus: Float
     )
 
+    fun isReduplicationWord(token: String): Boolean {
+        val clean = token.trim().trim('"', '\'', '“', '”', '(', ')', '[', ']', '.', ',', '!', '?', ':', ';')
+        val dashIdx = clean.indexOf('-')
+        if (dashIdx <= 0 || dashIdx >= clean.length - 1) return false
+        val left = clean.substring(0, dashIdx).lowercase()
+        val right = clean.substring(dashIdx + 1).lowercase()
+        if (left.length < 2 || right.length < 2) return false
+        if (left == right) return true
+        if (left.endsWith(right) || right.endsWith(left)) return true
+        if (left.startsWith(right) || right.startsWith(left)) return true
+        val prefixes = listOf("ter", "ber", "me", "di", "ke", "se", "pe", "per")
+        for (pref in prefixes) {
+            if (left.startsWith(pref) && left.removePrefix(pref) == right) return true
+            if (right.startsWith(pref) && right.removePrefix(pref) == left) return true
+        }
+        return false
+    }
+
+    fun splitReduplication(token: String): Pair<String, String>? {
+        val dashIdx = token.indexOf('-')
+        if (dashIdx <= 0 || dashIdx >= token.length - 1) return null
+        val left = token.substring(0, dashIdx + 1)
+        val right = token.substring(dashIdx + 1)
+        return Pair(left, right)
+    }
+
     private fun solveForVariantFast(
         words: List<String>,
         baseWordWidths: List<Float>,
@@ -335,7 +406,8 @@ object TyperLayoutSolver {
         baseFontSize: Float,
         scaleSteps: List<Float>,
         cfg: ProfileConfig,
-        seenFormatted: Set<String>
+        seenFormatted: Set<String>,
+        reduplicationSplitIndices: Set<Int> = emptySet()
     ): LayoutResult? {
         val adjustedW = targetW * cfg.aspectMult
         val adjustedH = targetH / cfg.aspectMult
@@ -363,7 +435,16 @@ object TyperLayoutSolver {
 
                 for (partIndices in partitions) {
                     val lineTexts = partIndices.map { (start, end) ->
-                        words.subList(start, end).joinToString(" ")
+                        val sb = StringBuilder()
+                        for (idx in start until end) {
+                            if (idx > start) {
+                                if (!words[idx - 1].endsWith("-")) {
+                                    sb.append(" ")
+                                }
+                            }
+                            sb.append(words[idx])
+                        }
+                        sb.toString()
                     }
                     val formatted = lineTexts.joinToString("\n")
                     if (seenFormatted.contains(formatted)) continue
@@ -383,6 +464,15 @@ object TyperLayoutSolver {
                     var cost = calculateSilhouetteCost(lineWidths, maxLineWidth, profile, isOval, L, adjustedW, estH, adjustedH)
                     cost -= cfg.curveBonus
                     cost += (1.0f - scale) * 35f
+
+                    if (reduplicationSplitIndices.isNotEmpty()) {
+                        for (splitIdx in reduplicationSplitIndices) {
+                            val splitPart = partIndices.find { it.first <= splitIdx && splitIdx < it.second }
+                            if (splitPart != null && splitPart.second == splitIdx + 1) {
+                                cost += 15f
+                            }
+                        }
+                    }
 
                     // Penalti orphan word
                     val lastLineWordsCount = partIndices.last().second - partIndices.last().first

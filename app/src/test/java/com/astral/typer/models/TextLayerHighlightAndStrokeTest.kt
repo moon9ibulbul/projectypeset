@@ -6,7 +6,9 @@ import com.astral.typer.utils.ProjectManager.LayerModel
 import com.astral.typer.utils.StyleManager.StyleModel
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TextLayerHighlightAndStrokeTest {
@@ -94,5 +96,28 @@ class TextLayerHighlightAndStrokeTest {
         assertEquals(2f, shapeLayer.highlightPaddingRight, 0.001f)
         assertEquals(3f, shapeLayer.highlightPaddingBottom, 0.001f)
         assertEquals(4f, shapeLayer.highlightPaddingLeft, 0.001f)
+    }
+
+    @Test
+    fun testMotionShadowTwoWayAndBleedingStrokeProperties() {
+        val textLayer = TextLayer("Sample").apply {
+            isMotionShadow = true
+            isMotionShadowTwoWay = false
+            motionShadowDistance = 30f
+            isBleedingStroke = true
+            bleedingStrokeIntensity = 15f
+            transformDiagonalAngle = 60f
+        }
+
+        assertFalse(textLayer.isMotionShadowTwoWay)
+        assertTrue(textLayer.isBleedingStroke)
+        assertEquals(15f, textLayer.bleedingStrokeIntensity, 0.001f)
+        assertEquals(60f, textLayer.transformDiagonalAngle, 0.001f)
+
+        val clone = textLayer.clone() as TextLayer
+        assertEquals(textLayer.isMotionShadowTwoWay, clone.isMotionShadowTwoWay)
+        assertEquals(textLayer.isBleedingStroke, clone.isBleedingStroke)
+        assertEquals(textLayer.bleedingStrokeIntensity, clone.bleedingStrokeIntensity, 0.001f)
+        assertEquals(textLayer.transformDiagonalAngle, clone.transformDiagonalAngle, 0.001f)
     }
 }

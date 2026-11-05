@@ -186,4 +186,30 @@ class TyperLayoutSolverTest {
             assertTrue("Teks harus mengandung 'Selamat' dan 'pagi'", v.formattedText.contains("Selamat") && v.formattedText.contains("pagi"))
         }
     }
+
+    @Test
+    fun testGenerateReshapeVariantsReduplicationWordHandling() {
+        assertTrue("Harus mengenali 'Tergopoh-gopoh' sebagai kata ulang", TyperLayoutSolver.isReduplicationWord("Tergopoh-gopoh"))
+        assertTrue("Harus mengenali 'berlari-lari' sebagai kata ulang", TyperLayoutSolver.isReduplicationWord("berlari-lari"))
+        assertTrue("Harus mengenali 'sama-sama' sebagai kata ulang", TyperLayoutSolver.isReduplicationWord("sama-sama"))
+        assertFalse("Tidak boleh menganggap kata biasa dengan strip seperti 'semi-final' sebagai kata ulang reduplikasi", TyperLayoutSolver.isReduplicationWord("semi-final"))
+
+        val split = TyperLayoutSolver.splitReduplication("Tergopoh-gopoh")
+        assertNotNull(split)
+        assertEquals("Tergopoh-", split?.first)
+        assertEquals("gopoh", split?.second)
+
+        val text = "Dia datang Tergopoh-gopoh"
+        val variants = TyperLayoutSolver.generateReshapeVariantsPure(
+            rawText = text,
+            currentWidth = 180f,
+            currentHeight = 250f,
+            isOval = true,
+            baseFontSize = 20f
+        )
+        assertNotNull(variants)
+        assertTrue(variants.isNotEmpty())
+        val hasIntact = variants.any { it.formattedText.contains("Tergopoh-gopoh") }
+        assertTrue("Harus mengutamakan opsi utuh 'Tergopoh-gopoh'", hasIntact)
+    }
 }

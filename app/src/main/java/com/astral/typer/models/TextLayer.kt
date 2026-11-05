@@ -46,14 +46,15 @@ class TextLayer(
     var transformSizeMultiplier: Float = 1f
     var transformAngleMultiplier: Float = 1f
     var transformDotsMultiplier: Float = 0.4f
+    var transformDiagonalAngle: Float = 45f
 
     var text: SpannableStringBuilder
         get() = _text
         set(value) {
-            val oldStr = _text.toString()
-            val newStr = value.toString()
+            val oldStr = try { _text.toString() } catch (e: Exception) { "" } ?: ""
+            val newStr = try { value.toString() } catch (e: Exception) { "" } ?: ""
             _text = value
-            if (oldStr != _text.toString()) {
+            if (oldStr != newStr) {
                 letterWarpMeshes.clear()
                 letterWarpRows.clear()
                 letterWarpCols.clear()
@@ -128,6 +129,7 @@ class TextLayer(
     // Motion Shadow
     override var isMotionShadow: Boolean = false
     override var isMotionShadowIncludeStroke: Boolean = false
+    override var isMotionShadowTwoWay: Boolean = true
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowDx: Float = 0f
@@ -174,6 +176,8 @@ class TextLayer(
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
+    override var isBleedingStroke: Boolean = false
+    override var bleedingStrokeIntensity: Float = 10f
 
     // Perspective (backed by 1x1 Warp mesh)
     override var isPerspective: Boolean
@@ -617,6 +621,7 @@ class TextLayer(
         result = 31 * result + transformSizeMultiplier.hashCode()
         result = 31 * result + transformAngleMultiplier.hashCode()
         result = 31 * result + transformDotsMultiplier.hashCode()
+        result = 31 * result + transformDiagonalAngle.hashCode()
         result = 31 * result + w.hashCode()
         result = 31 * result + ch.hashCode()
         result = 31 * result + pad.hashCode()
@@ -637,6 +642,7 @@ class TextLayer(
         result = 31 * result + isDropShadowIncludeStroke.hashCode()
         result = 31 * result + isMotionShadow.hashCode()
         result = 31 * result + isMotionShadowIncludeStroke.hashCode()
+        result = 31 * result + isMotionShadowTwoWay.hashCode()
         result = 31 * result + motionShadowAngle
         result = 31 * result + motionShadowDistance.hashCode()
         result = 31 * result + motionShadowDx.hashCode()
@@ -678,6 +684,8 @@ class TextLayer(
         result = 31 * result + tripleStrokeWidth.hashCode()
         result = 31 * result + isRoughStroke.hashCode()
         result = 31 * result + roughStrokeRoughness.hashCode()
+        result = 31 * result + isBleedingStroke.hashCode()
+        result = 31 * result + bleedingStrokeIntensity.hashCode()
         result = 31 * result + (textureBitmap?.hashCode() ?: 0)
         result = 31 * result + textureOffsetX.hashCode()
         result = 31 * result + textureOffsetY.hashCode()
@@ -1166,7 +1174,8 @@ class TextLayer(
     }
 
     override fun clone(): Layer {
-        val newLayer = TextLayer(this.text.toString(), this.color)
+        val str = try { this._text.toString() } catch (e: Exception) { "Double tap to edit" } ?: "Double tap to edit"
+        val newLayer = TextLayer(str, this.color)
         newLayer.isBold = this.isBold
         newLayer.isItalic = this.isItalic
         newLayer.isUnderline = this.isUnderline
@@ -1176,6 +1185,7 @@ class TextLayer(
         newLayer.transformSizeMultiplier = this.transformSizeMultiplier
         newLayer.transformAngleMultiplier = this.transformAngleMultiplier
         newLayer.transformDotsMultiplier = this.transformDotsMultiplier
+        newLayer.transformDiagonalAngle = this.transformDiagonalAngle
         newLayer.text = SpannableStringBuilder(this.text)
         newLayer.fontSize = this.fontSize
         newLayer.typeface = this.typeface
@@ -1200,6 +1210,7 @@ class TextLayer(
         newLayer.isDropShadowIncludeStroke = this.isDropShadowIncludeStroke
         newLayer.isMotionShadow = this.isMotionShadow
         newLayer.isMotionShadowIncludeStroke = this.isMotionShadowIncludeStroke
+        newLayer.isMotionShadowTwoWay = this.isMotionShadowTwoWay
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
         newLayer.motionShadowDx = this.motionShadowDx
@@ -1241,6 +1252,8 @@ class TextLayer(
         newLayer.tripleStrokeWidth = this.tripleStrokeWidth
         newLayer.isRoughStroke = this.isRoughStroke
         newLayer.roughStrokeRoughness = this.roughStrokeRoughness
+        newLayer.isBleedingStroke = this.isBleedingStroke
+        newLayer.bleedingStrokeIntensity = this.bleedingStrokeIntensity
         newLayer.boxWidth = this.boxWidth
         newLayer.fixedHeight = this.fixedHeight
         newLayer.isOval = this.isOval
@@ -1522,6 +1535,7 @@ class TextLayer(
             it.getSpans(0, it.length, StrokeSpan::class.java).maxOfOrNull { s -> s.strokeWidth } ?: 0f
         } ?: 0f
         var p = Math.max(strokeWidthToUse, maxSpanStroke) + doubleStrokeWidthToUse + tripleStrokeWidthToUse
+        if (isBleedingStroke) p += bleedingStrokeIntensity * 1.5f
         val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
         p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
@@ -1611,48 +1625,70 @@ class TextLayer(
             val hasConcave = transformTypes.contains("Concave Downward")
             val hasFlag = transformTypes.contains("Flag")
             val hasDots = transformTypes.contains("Centered Double/Triple Dots")
+            val hasTurnVertical = transformTypes.contains("Turn Vertical")
+            val hasTurnDiagonal = transformTypes.contains("Turn Diagonal")
+
+            var cumulativeAdvance = 0f
+            val charAdvances = FloatArray(len)
+            for (i in 0 until len) {
+                charAdvances[i] = textPaint.measureText(tempText, i, i + 1)
+            }
 
             for (i in 0 until len) {
                 val c = tempText[i]
-                if (c.isWhitespace()) continue
+                if (c.isWhitespace()) {
+                    cumulativeAdvance += charAdvances[i]
+                    continue
+                }
 
                 val progress = if (len > 1) i.toFloat() / (len - 1) else 0.5f
 
-                    // Size transforms
-                    if (hasB2S) {
-                        val newSize = (fontSize * (1f + (0.5f - progress) * transformSizeMultiplier)).toInt().coerceAtLeast(10)
-                        tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    } else if (hasS2B) {
-                        val newSize = (fontSize * (1f + (progress - 0.5f) * transformSizeMultiplier)).toInt().coerceAtLeast(10)
-                        tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    }
+                if (hasB2S) {
+                    val newSize = (fontSize * (1f + (0.5f - progress) * transformSizeMultiplier)).toInt().coerceAtLeast(10)
+                    tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                } else if (hasS2B) {
+                    val newSize = (fontSize * (1f + (progress - 0.5f) * transformSizeMultiplier)).toInt().coerceAtLeast(10)
+                    tempText.setSpan(android.text.style.AbsoluteSizeSpan(newSize), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
 
-                    // Position transforms
-                    var shiftY = 0f
+                var shiftX = 0f
+                var shiftY = 0f
+
+                if (hasTurnVertical) {
+                    shiftX = -cumulativeAdvance
+                    shiftY = i * (fontSize * 1.05f)
+                } else if (hasTurnDiagonal) {
+                    val rad = Math.toRadians(transformDiagonalAngle.toDouble())
+                    val stepDist = i * (fontSize * 0.95f)
+                    val diagX = (stepDist * Math.cos(rad)).toFloat()
+                    val diagY = (stepDist * Math.sin(rad)).toFloat()
+                    shiftX = -cumulativeAdvance + diagX
+                    shiftY = diagY
+                } else {
                     if (hasZigZag) {
                         shiftY = if (i % 2 == 0) -fontSize * 0.3f else fontSize * 0.3f
                     } else if (hasFlag) {
                         shiftY = Math.sin(progress * Math.PI * 2.0).toFloat() * (fontSize * 0.2f)
                     } else if (hasConvex) {
-                        // Parabola pointing down (middle is higher)
-                        val x = progress * 2f - 1f // -1 to 1
+                        val x = progress * 2f - 1f
                         shiftY = (x * x - 1f) * (fontSize * 0.5f * transformAngleMultiplier)
                     } else if (hasConcave) {
-                        // Parabola pointing up (middle is lower)
                         val x = progress * 2f - 1f
                         shiftY = (1f - x * x) * (fontSize * 0.5f * transformAngleMultiplier)
                     }
+                }
 
-                    // Check if there's already a PositionShiftSpan from manual D-pad
-                    val existingPosSpans = tempText.getSpans(i, i + 1, com.astral.typer.utils.PositionShiftSpan::class.java)
-                    if (existingPosSpans.isNotEmpty()) {
-                        val posSpan = existingPosSpans[0]
-                        // Combine shifts into a single PositionShiftSpan to avoid Android rendering only one ReplacementSpan
-                        val combinedShiftY = shiftY + posSpan.shiftY
-                        tempText.removeSpan(posSpan)
-                        tempText.setSpan(com.astral.typer.utils.PositionShiftSpan(posSpan.shiftX, combinedShiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    } else if (shiftY != 0f) {
-                    tempText.setSpan(com.astral.typer.utils.BaselineShiftSpan(shiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                cumulativeAdvance += charAdvances[i]
+
+                val existingPosSpans = tempText.getSpans(i, i + 1, com.astral.typer.utils.PositionShiftSpan::class.java)
+                if (existingPosSpans.isNotEmpty()) {
+                    val posSpan = existingPosSpans[0]
+                    val combinedShiftX = shiftX + posSpan.shiftX
+                    val combinedShiftY = shiftY + posSpan.shiftY
+                    tempText.removeSpan(posSpan)
+                    tempText.setSpan(com.astral.typer.utils.PositionShiftSpan(combinedShiftX, combinedShiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                } else if (shiftX != 0f || shiftY != 0f) {
+                    tempText.setSpan(com.astral.typer.utils.PositionShiftSpan(shiftX, shiftY), i, i + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
 
@@ -3540,11 +3576,24 @@ class TextLayer(
             }
 
             val extraShadowThickness = if (isDrawingShadowPass && shadowThickness > 0f) shadowThickness else 0f
+            val bleedExtra = if (isBleedingStroke) bleedingStrokeIntensity * 0.75f else 0f
+
+            fun buildStrokePathEffect(): android.graphics.PathEffect? {
+                val cornerRadius = if (isBleedingStroke) bleedingStrokeIntensity * 1.5f else if (isRough) roughStrokeRoughness * 1.5f else 0f
+                if (isRough) {
+                    val corner = android.graphics.CornerPathEffect(if (cornerRadius > 0f) cornerRadius else roughStrokeRoughness * 1.5f)
+                    val discrete = android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
+                    return android.graphics.ComposePathEffect(corner, discrete)
+                } else if (isBleedingStroke && bleedingStrokeIntensity > 0f) {
+                    return android.graphics.CornerPathEffect(bleedingStrokeIntensity * 1.5f)
+                }
+                return null
+            }
 
             // 0. Triple Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && tripleStrokeWidthToUse > 0f && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2 + extraShadowThickness
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + tripleStrokeWidthToUse * 2 + extraShadowThickness + bleedExtra
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3556,12 +3605,7 @@ class TextLayer(
                     paint.color = modulateColor(tripleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRough) {
-                    android.graphics.ComposePathEffect(
-                        android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
-                        android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
-                    )
-                } else null
+                paint.pathEffect = buildStrokePathEffect()
                 drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             }
@@ -3569,7 +3613,7 @@ class TextLayer(
             // 1. Double Stroke
             if (!isDrawingClippingMask && !isDrawingStrokePass && doubleStrokeWidthToUse > 0f && strokeWidthToUse > 0f) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + extraShadowThickness
+                paint.strokeWidth = strokeWidthToUse + doubleStrokeWidthToUse * 2 + extraShadowThickness + bleedExtra
                 if (silhouetteColor != null) {
                     paint.shader = null
                     paint.color = modulateColor(silhouetteColor!!, ignoreOriginalAlpha = isDrawingShadowPass)
@@ -3581,12 +3625,7 @@ class TextLayer(
                     paint.color = modulateColor(doubleStrokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRough) {
-                    android.graphics.ComposePathEffect(
-                        android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
-                        android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
-                    )
-                } else null
+                paint.pathEffect = buildStrokePathEffect()
                 drawLayoutSafe(targetCanvas, true, suppressFg = true)
                 drawTailPath(targetCanvas, paint)
             }
@@ -3598,7 +3637,7 @@ class TextLayer(
 
             if (!isDrawingClippingMask && !isDrawingStrokePass && (strokeWidthToUse > 0f || hasStrokeSpans)) {
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = strokeWidthToUse + extraShadowThickness
+                paint.strokeWidth = strokeWidthToUse + extraShadowThickness + bleedExtra
                 if (strokeWidthToUse == 0f && hasStrokeSpans) {
                     paint.shader = null
                     paint.color = Color.TRANSPARENT
@@ -3613,14 +3652,7 @@ class TextLayer(
                     paint.color = modulateColor(strokeColor, ignoreOriginalAlpha = isDrawingShadowPass)
                 }
                 paint.clearShadowLayer()
-                paint.pathEffect = if (isRough) {
-                    android.graphics.ComposePathEffect(
-                        // Membulatkan sudut tajam dari patahan agar terlihat seperti rembesan organik
-                        android.graphics.CornerPathEffect(roughStrokeRoughness * 1.5f),
-                        // Mengecilkan segmen dari 6f ke 2f agar teksturnya jauh lebih rapat (gritty)
-                        android.graphics.DiscretePathEffect(2f, roughStrokeRoughness)
-                    )
-                } else null
+                paint.pathEffect = buildStrokePathEffect()
 
                 val prevOverride = StrokeSpan.overrideColor
                 val prevExtra = StrokeSpan.extraWidth
@@ -4183,10 +4215,12 @@ class TextLayer(
                     drawIteration(targetCanvas)
                     targetCanvas.restore()
 
-                    targetCanvas.save()
-                    targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
-                    drawIteration(targetCanvas)
-                    targetCanvas.restore()
+                    if (isMotionShadowTwoWay) {
+                        targetCanvas.save()
+                        targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
+                        drawIteration(targetCanvas)
+                        targetCanvas.restore()
+                    }
                 }
                 paint.maskFilter = null
                 paint.alpha = originalAlpha
