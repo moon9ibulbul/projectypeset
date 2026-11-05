@@ -855,7 +855,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         val hasShadow = (isMotionShadow && motionShadowDistance > 0f) || (!isMotionShadow && shadowRadius > 0f)
         val hasStrokes = strokeWidth > 0f || doubleStrokeWidth > 0f || tripleStrokeWidth > 0f
 
-        if ((hasShadow || hasStrokes) && !isDrawingStroke && !skipEffects) {
+        if ((hasStrokes || (hasShadow && !isDrawingStroke)) && !skipEffects) {
             val activeTiles = tiles.filter { !it.value.bitmap.isRecycled }
             if (activeTiles.isEmpty()) {
                 canvas.restore()
@@ -957,7 +957,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             val baseAlpha = contentBmp.extractAlpha()
 
             // 1. Motion Shadow
-            if (isMotionShadow && motionShadowDistance > 0f) {
+            if (isMotionShadow && motionShadowDistance > 0f && !isDrawingStroke) {
                 val iterations = kotlin.math.max(1, motionShadowKernelSize)
                 val angleRad = Math.toRadians(motionShadowAngle.toDouble())
                 val cos = Math.cos(angleRad).toFloat()
@@ -1008,7 +1008,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             }
 
             // 2. Drop Shadow
-            if (!isMotionShadow && shadowRadius > 0f) {
+            if (!isMotionShadow && shadowRadius > 0f && !isDrawingStroke) {
                 val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     maskFilter = BlurMaskFilter(shadowRadius * scale, BlurMaskFilter.Blur.NORMAL)
                 }
