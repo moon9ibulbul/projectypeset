@@ -8172,14 +8172,22 @@ class EditorActivity : AppCompatActivity() {
             letterSpacing = layer.letterSpacing
         }
 
-        val variants = com.astral.typer.utils.TyperLayoutSolver.generateReshapeVariants(
-            rawText = rawText,
-            currentWidth = currentW,
-            currentHeight = currentH,
-            isOval = layer.isOval,
-            basePaint = basePaint,
-            minScale = 0.20f
-        )
+        val cached = layer.cachedReshapeVariants
+        val variants = if (cached != null && cached.isNotEmpty()) {
+            cached
+        } else {
+            val generated = com.astral.typer.utils.TyperLayoutSolver.generateReshapeVariants(
+                rawText = rawText,
+                currentWidth = currentW,
+                currentHeight = currentH,
+                isOval = layer.isOval,
+                basePaint = basePaint,
+                minScale = 0.20f
+            )
+            layer.cachedReshapeVariants = generated
+            layer.reshapeCachedForWidth = layer.boxWidth
+            generated
+        }
 
         if (variants.isEmpty()) {
             val noVariantsTv = TextView(this).apply {
@@ -8243,10 +8251,47 @@ class EditorActivity : AppCompatActivity() {
                 else -> 11f
             }
 
+            val availableWidthPx = dpToPx(100).toFloat()
+            val availableHeightPx = dpToPx(75).toFloat()
+            val measurePaint = android.text.TextPaint().apply {
+                typeface = layer.typeface
+                letterSpacing = layer.letterSpacing
+            }
+
+            var calculatedFontSize = previewFontSize
+            var foundFit = false
+            var testFs = previewFontSize
+            while (testFs >= 4f) {
+                measurePaint.textSize = (dpToPx(testFs.toInt())).toFloat().coerceAtLeast(testFs)
+                val maxW = lines.maxOfOrNull { line -> measurePaint.measureText(line) } ?: 0f
+                val fontMetrics = measurePaint.fontMetrics
+                val lineH = (fontMetrics.descent - fontMetrics.ascent) * 1.15f
+                val totalH = lines.size * lineH
+                if (maxW <= availableWidthPx && totalH <= availableHeightPx) {
+                    calculatedFontSize = testFs
+                    foundFit = true
+                    break
+                }
+                testFs -= 0.5f
+            }
+            if (!foundFit) {
+                // Skala proporsional dari batas minimum
+                measurePaint.textSize = dpToPx(8).toFloat()
+                val maxW = lines.maxOfOrNull { line -> measurePaint.measureText(line) } ?: 1f
+                val lineH = (measurePaint.fontMetrics.descent - measurePaint.fontMetrics.ascent) * 1.15f
+                val totalH = lines.size * lineH
+                val scaleW = if (maxW > availableWidthPx) availableWidthPx / maxW else 1f
+                val scaleH = if (totalH > availableHeightPx) availableHeightPx / totalH else 1f
+                val minScaleFactor = minOf(scaleW, scaleH)
+                calculatedFontSize = (8f * minScaleFactor).coerceIn(3.5f, previewFontSize)
+            }
+
             lines.forEach { lineText ->
                 val lineTv = TextView(this).apply {
                     text = lineText
-                    textSize = previewFontSize
+                    textSize = calculatedFontSize
+                    typeface = layer.typeface
+                    letterSpacing = layer.letterSpacing
                     gravity = Gravity.CENTER
                     maxLines = 1
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
@@ -9019,6 +9064,8 @@ class EditorActivity : AppCompatActivity() {
         val widthVal = layer.boxWidth ?: 0f
         val widthStr = if (widthVal <= 0) "Auto" else "${widthVal.toInt()} pt"
         fun notifyReshapeIfVisible() {
+            // User mengubah box width secara manual -> hapus cache variasi reshape
+            layer.cachedReshapeVariants = null
             val reshapeLayout = binding.propertyDetailContainer.findViewWithTag<LinearLayout>("RESHAPE_CARDS_LAYOUT")
             if (reshapeLayout != null && reshapeLayout.isShown) {
                 populateReshapeCards(reshapeLayout, layer)

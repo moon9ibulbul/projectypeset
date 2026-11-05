@@ -3948,6 +3948,7 @@ class AstralCanvasView @JvmOverloads constructor(
                                 val calculatedWidth = ((proj / layer.scaleX) * 2f).toFloat()
                                 if (calculatedWidth > 20) {
                                     layer.boxWidth = calculatedWidth
+                                    layer.cachedReshapeVariants = null
                                     invalidate()
                                     onLayerUpdateListener?.onLayerUpdate(layer)
                                 }

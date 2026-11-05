@@ -132,7 +132,7 @@ class TyperLayoutSolverTest {
     }
 
     @Test
-    fun testGenerateReshapeVariantsFiveOptions() {
+    fun testGenerateReshapeVariantsThreeOptions() {
         // Teks bahasa indonesia dengan beberapa kata
         val text = "Aku ingin kita selalu bersama melakukan hal hebat di dunia ini"
         val variants = TyperLayoutSolver.generateReshapeVariantsPure(
@@ -144,8 +144,8 @@ class TyperLayoutSolverTest {
         )
 
         assertNotNull(variants)
-        // Harus menyediakan hingga 5 variasi layout
-        assertEquals("Harus menghasilkan tepat 5 opsi variasi layout", 5, variants.size)
+        // Harus menyediakan 3 variasi layout
+        assertEquals("Harus menghasilkan tepat 3 opsi variasi layout", 3, variants.size)
 
         // Verifikasi bahwa seluruh kata asli masuk ke setiap variasi (tidak ada teks terpotong / hilang)
         val originalWords = text.split("\\s+".toRegex()).filter { it.isNotEmpty() }

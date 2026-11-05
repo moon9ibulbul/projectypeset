@@ -123,8 +123,10 @@ class RecentActivity : AppCompatActivity() {
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         val isFolder = currentFolder != null
-        menu.findItem(R.id.action_rename).isVisible = isFolder
-        menu.findItem(R.id.action_export_pdf).isVisible = isFolder
+        val renameItem = menu.findItem(R.id.action_rename)
+        renameItem?.isVisible = isFolder
+        getThemedDrawable(R.drawable.ic_square_pen)?.let { renameItem?.icon = it }
+        menu.findItem(R.id.action_export_pdf)?.isVisible = isFolder
         menu.findItem(R.id.action_auto_inpaint)?.isVisible = isFolder
         return true
     }
@@ -554,13 +556,28 @@ class RecentActivity : AppCompatActivity() {
         }
     }
 
+    private fun getThemedDrawable(resId: Int): android.graphics.drawable.Drawable? {
+        val drawable = androidx.core.content.ContextCompat.getDrawable(this, resId)?.mutate()
+        val tintColor = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this, R.attr.appIconTint)
+        if (drawable != null) {
+            androidx.core.graphics.drawable.DrawableCompat.setTint(drawable, tintColor)
+        }
+        return drawable
+    }
+
     private val actionModeCallback = object : ActionMode.Callback {
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-            menu.add(0, 4, 0, "Rename").setIcon(android.R.drawable.ic_menu_edit).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            val renameItem = menu.add(0, 4, 0, "Rename")
+            renameItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            getThemedDrawable(R.drawable.ic_square_pen)?.let { renameItem.setIcon(it) }
+
             menu.add(0, 5, 0, "Auto Inpaint").setIcon(R.drawable.ic_magic_wand).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 1, 0, "Share").setIcon(android.R.drawable.ic_menu_share).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             menu.add(0, 3, 0, "Export to PDF").setIcon(android.R.drawable.ic_menu_save).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-            menu.add(0, 2, 0, "Remove").setIcon(android.R.drawable.ic_menu_delete).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+            val removeItem = menu.add(0, 2, 0, "Remove")
+            removeItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            getThemedDrawable(R.drawable.ic_trash)?.let { removeItem.setIcon(it) }
             return true
         }
 

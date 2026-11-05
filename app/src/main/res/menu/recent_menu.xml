@@ -8,7 +8,7 @@
         app:showAsAction="always" />
     <item
         android:id="@+id/action_rename"
-        android:icon="@drawable/ic_pencil"
+        android:icon="@drawable/ic_square_pen"
         android:title="Rename"
         android:visible="false"
         app:showAsAction="always" />
