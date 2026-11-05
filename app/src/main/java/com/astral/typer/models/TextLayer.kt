@@ -106,6 +106,12 @@ class TextLayer(
     var typeface: Typeface = Typeface.DEFAULT ?: (Typeface.create(Typeface.DEFAULT, Typeface.NORMAL) ?: createDefaultTypeface())
     var fontPath: String? = null // Identifier for the font (e.g., "Standard:Serif" or "/path/to/font.ttf")
     var textAlign: Layout.Alignment = Layout.Alignment.ALIGN_CENTER
+
+    // Cached Reshape variants so switching variants does not regenerate
+    @Transient
+    var cachedReshapeVariants: List<com.astral.typer.utils.TyperLayoutSolver.LayoutResult>? = null
+    @Transient
+    var reshapeCachedForWidth: Float? = null
     var isJustified: Boolean = false
 
     // Spacing

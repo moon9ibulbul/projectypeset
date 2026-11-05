@@ -258,13 +258,11 @@ object TyperLayoutSolver {
         val baseWordWidths = origWords.map { measureBaseWord(it) }
         val nWords = origWords.size
 
-        // 5 Konfigurasi profil variasi dengan parameter siluet yang berbeda
+        // 3 Konfigurasi profil variasi dengan parameter siluet yang berbeda
         val profileConfigs = listOf(
             ProfileConfig(ReshapeProfile.BALANCED_DIAMOND, "Diamond Seimbang", targetLinesOffset = 0, aspectMult = 1.0f, curveBonus = 50f),
             ProfileConfig(ReshapeProfile.COMPACT_DIAMOND, "Diamond Kompak", targetLinesOffset = 1, aspectMult = 0.85f, curveBonus = 40f),
-            ProfileConfig(ReshapeProfile.WIDE_DIAMOND, "Diamond Melebar", targetLinesOffset = -1, aspectMult = 1.25f, curveBonus = 35f),
-            ProfileConfig(ReshapeProfile.NATURAL_STEPPED, "Stepped Natural", targetLinesOffset = 0, aspectMult = 1.12f, curveBonus = 20f),
-            ProfileConfig(ReshapeProfile.GENTLE_DIAMOND, "Diamond Alternatif", targetLinesOffset = 2, aspectMult = 0.92f, curveBonus = 30f)
+            ProfileConfig(ReshapeProfile.WIDE_DIAMOND, "Diamond Melebar", targetLinesOffset = -1, aspectMult = 1.25f, curveBonus = 35f)
         )
 
         // Skala langkah cepat (lompatan 10% untuk performa instan)
@@ -290,12 +288,12 @@ object TyperLayoutSolver {
             }
         }
 
-        // Jika opsi masih kurang dari 5 (misal teks pendek atau profil beririsan),
-        // sediakan partisi eksplisit target baris L=2, 3, 4, 1, 5
-        if (variants.size < 5) {
-            val fallbackLineTargets = listOf(2, 3, 4, 1, 5)
+        // Jika opsi masih kurang dari 3 (misal teks pendek atau profil beririsan),
+        // sediakan partisi eksplisit target baris L=2, 3, 1, 4
+        if (variants.size < 3) {
+            val fallbackLineTargets = listOf(2, 3, 1, 4)
             for (targetL in fallbackLineTargets) {
-                if (variants.size >= 5) break
+                if (variants.size >= 3) break
                 if (targetL > nWords) continue
 
                 val fbResult = solveForExplicitLineCountFast(
@@ -316,7 +314,7 @@ object TyperLayoutSolver {
             }
         }
 
-        return variants.take(5)
+        return variants.take(3)
     }
 
     private data class ProfileConfig(
