@@ -1,6 +1,7 @@
 package com.astral.typer.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -127,6 +128,62 @@ class TyperLayoutSolverTest {
         assertTrue("Line count should be 1 or 2", lines.size in 1..2)
         for (line in lines) {
             assertTrue("Line should not be a single letter", line.trim().length > 1)
+        }
+    }
+
+    @Test
+    fun testGenerateReshapeVariantsFiveOptions() {
+        // Teks bahasa indonesia dengan beberapa kata
+        val text = "Aku ingin kita selalu bersama melakukan hal hebat di dunia ini"
+        val variants = TyperLayoutSolver.generateReshapeVariantsPure(
+            rawText = text,
+            currentWidth = 280f,
+            currentHeight = 320f,
+            isOval = true,
+            baseFontSize = 24f
+        )
+
+        assertNotNull(variants)
+        // Harus menyediakan hingga 5 variasi layout
+        assertEquals("Harus menghasilkan tepat 5 opsi variasi layout", 5, variants.size)
+
+        // Verifikasi bahwa seluruh kata asli masuk ke setiap variasi (tidak ada teks terpotong / hilang)
+        val originalWords = text.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        for (v in variants) {
+            val variantWords = v.formattedText.replace("-", "").split("\\s+".toRegex()).filter { it.isNotEmpty() }
+            // Seluruh kata dalam teks asli harus terdapat dalam variasi
+            for (w in originalWords) {
+                val cleanOriginal = w.replace("[.,!?:;\"'()]+".toRegex(), "")
+                val found = variantWords.any { it.contains(cleanOriginal) }
+                assertTrue("Kata '$cleanOriginal' harus masuk ke dalam variasi '${v.variantName}'", found)
+            }
+        }
+
+        // Pastikan tidak ada duplikat formattedText
+        val distinctFormatted = variants.map { it.formattedText }.distinct()
+        assertEquals("Semua variasi harus memiliki formatting yang unik", variants.size, distinctFormatted.size)
+
+        // Verifikasi sebisa mungkin tidak ada pemenggalan kata bersuku kata awalan seperti "me-lakukan"
+        for (v in variants) {
+            assertFalse("Harus sebisa mungkin tidak memenggal awalan 'me-lakukan'", v.formattedText.contains("me-\nlakukan") || v.formattedText.contains("me- lakukan"))
+        }
+    }
+
+    @Test
+    fun testGenerateReshapeVariantsShortText() {
+        val text = "Selamat pagi"
+        val variants = TyperLayoutSolver.generateReshapeVariantsPure(
+            rawText = text,
+            currentWidth = 200f,
+            currentHeight = 200f,
+            isOval = false,
+            baseFontSize = 24f
+        )
+
+        assertNotNull(variants)
+        assertTrue("Harus menghasilkan setidaknya 1 variasi untuk teks pendek", variants.isNotEmpty())
+        for (v in variants) {
+            assertTrue("Teks harus mengandung 'Selamat' dan 'pagi'", v.formattedText.contains("Selamat") && v.formattedText.contains("pagi"))
         }
     }
 }

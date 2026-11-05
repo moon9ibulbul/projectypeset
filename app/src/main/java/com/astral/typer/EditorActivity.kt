@@ -8005,7 +8005,7 @@ class EditorActivity : AppCompatActivity() {
         // Tabs
         val tabsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            weightSum = 3f
+            weightSum = 4f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -8036,12 +8036,35 @@ class EditorActivity : AppCompatActivity() {
             addView(createTransformTab(layer))
         }
 
+        val reshapeView = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            addView(createReshapeTab(layer))
+        }
+
+        val tabButtons = mutableListOf<TextView>()
+
         fun selectTab(index: Int) {
             contentContainer.removeAllViews()
             when (index) {
                 0 -> contentContainer.addView(formattingView)
                 1 -> contentContainer.addView(sizeView)
                 2 -> contentContainer.addView(transformView)
+                3 -> {
+                    // Refresh view Reshape agar selalu sinkron dengan state terbaru layer
+                    reshapeView.removeAllViews()
+                    reshapeView.addView(createReshapeTab(layer))
+                    contentContainer.addView(reshapeView)
+                }
+            }
+
+            tabButtons.forEachIndexed { i, btn ->
+                if (i == index) {
+                    btn.setTextColor(Color.CYAN)
+                    btn.alpha = 1.0f
+                } else {
+                    btn.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    btn.alpha = 0.7f
+                }
             }
         }
 
@@ -8049,8 +8072,8 @@ class EditorActivity : AppCompatActivity() {
             text = "Formatting"
             gravity = Gravity.CENTER
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            textSize = 14f
-            setPadding(16, 16, 16, 16)
+            textSize = 13f
+            setPadding(8, 16, 8, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { selectTab(0) }
         }
@@ -8059,8 +8082,8 @@ class EditorActivity : AppCompatActivity() {
             text = "Size"
             gravity = Gravity.CENTER
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            textSize = 14f
-            setPadding(16, 16, 16, 16)
+            textSize = 13f
+            setPadding(8, 16, 8, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { selectTab(1) }
         }
@@ -8069,19 +8092,224 @@ class EditorActivity : AppCompatActivity() {
             text = "Transform"
             gravity = Gravity.CENTER
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            textSize = 14f
-            setPadding(16, 16, 16, 16)
+            textSize = 13f
+            setPadding(8, 16, 8, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { selectTab(2) }
         }
 
+        val btnReshape = TextView(this).apply {
+            text = "Reshape"
+            tag = "RESHAPE_TAB_BTN"
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 13f
+            setPadding(8, 16, 8, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener { selectTab(3) }
+        }
+
+        tabButtons.add(btnFormat)
+        tabButtons.add(btnSize)
+        tabButtons.add(btnTransform)
+        tabButtons.add(btnReshape)
+
         tabsLayout.addView(btnFormat)
         tabsLayout.addView(btnSize)
         tabsLayout.addView(btnTransform)
+        tabsLayout.addView(btnReshape)
         container.addView(tabsLayout)
         container.addView(contentContainer)
 
         selectTab(0) // Default
+    }
+
+    private fun createReshapeTab(layer: TextLayer): View {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(16))
+        }
+
+        val rawText = layer.text.toString().trim()
+        if (rawText.isEmpty()) {
+            val emptyTv = TextView(this).apply {
+                text = "Teks pada layer kosong."
+                textSize = 13f
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                gravity = Gravity.CENTER
+                setPadding(0, dpToPx(24), 0, dpToPx(24))
+            }
+            layout.addView(emptyTv)
+            return layout
+        }
+
+        val headerTv = TextView(this).apply {
+            text = "Pilih variasi bentuk diamond stepped silhouette:"
+            textSize = 12f
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+            setPadding(0, 0, 0, dpToPx(10))
+        }
+        layout.addView(headerTv)
+
+        val currentW = (layer.boxWidth ?: layer.getWidth()).coerceAtLeast(80f)
+        val currentH = layer.getHeight().coerceAtLeast(80f)
+
+        val basePaint = android.text.TextPaint().apply {
+            textSize = layer.fontSize
+            typeface = layer.typeface
+            letterSpacing = layer.letterSpacing
+        }
+
+        val variants = com.astral.typer.utils.TyperLayoutSolver.generateReshapeVariants(
+            rawText = rawText,
+            currentWidth = currentW,
+            currentHeight = currentH,
+            isOval = layer.isOval,
+            basePaint = basePaint,
+            minScale = 0.20f
+        )
+
+        if (variants.isEmpty()) {
+            val noVariantsTv = TextView(this).apply {
+                text = "Tidak dapat menghasilkan variasi untuk teks ini."
+                textSize = 13f
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                gravity = Gravity.CENTER
+                setPadding(0, dpToPx(24), 0, dpToPx(24))
+            }
+            layout.addView(noVariantsTv)
+            return layout
+        }
+
+        val currentFormatted = layer.text.toString()
+
+        variants.forEachIndexed { index, variant ->
+            val isCurrent = currentFormatted == variant.formattedText
+
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dpToPx(10)
+                }
+                setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+
+                background = GradientDrawable().apply {
+                    setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
+                    cornerRadius = dpToPx(8).toFloat()
+                    if (isCurrent) {
+                        setStroke(dpToPx(2), Color.CYAN)
+                    } else {
+                        setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor))
+                    }
+                }
+                isClickable = true
+                isFocusable = true
+            }
+
+            // Top Row di Card: Badge / Nomor Opsi & Judul Profil
+            val topRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dpToPx(6) }
+            }
+
+            val badgeTv = TextView(this).apply {
+                text = "Opsi ${index + 1}"
+                textSize = 11f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(if (isCurrent) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val subtitleTv = TextView(this).apply {
+                val variantLabel = if (variant.variantName.isNotEmpty()) variant.variantName else "${variant.lineCount} Baris"
+                text = "$variantLabel • ${(variant.scale * 100).toInt()}%"
+                textSize = 10f
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+            }
+
+            topRow.addView(badgeTv)
+            topRow.addView(subtitleTv)
+            card.addView(topRow)
+
+            // Preview Teks: Tampilkan seluruh teks hasil format di dalam card secara terpusat
+            val previewContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dpToPx(6), dpToPx(8), dpToPx(6), dpToPx(8))
+                background = GradientDrawable().apply {
+                    setColor(0x18000000)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val lines = variant.formattedText.split("\n")
+            // Hitung ukuran font preview dinamis agar semua teks pasti muat rapi di dalam card
+            val maxLineLen = lines.maxOfOrNull { it.length } ?: 1
+            val previewFontSize = when {
+                maxLineLen > 45 -> 10f
+                maxLineLen > 30 -> 11f
+                maxLineLen > 18 -> 12f
+                else -> 13f
+            }
+
+            lines.forEach { lineText ->
+                val lineTv = TextView(this).apply {
+                    text = lineText
+                    textSize = previewFontSize
+                    gravity = Gravity.CENTER
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                }
+                previewContainer.addView(lineTv)
+            }
+
+            card.addView(previewContainer)
+
+            card.setOnClickListener {
+                // Terapkan layout variasi ke layer aktif
+                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+
+                layer.text = SpannableStringBuilder(variant.formattedText)
+                layer.boxWidth = variant.boxWidth
+                layer.fontSize = (basePaint.textSize * variant.scale).coerceAtLeast(10f)
+                layer.scaleX = 1f
+                layer.scaleY = 1f
+                layer.textAlign = Layout.Alignment.ALIGN_CENTER
+
+                // Sinkronkan activeEditText jika sedang terbuka
+                activeEditText?.let { et ->
+                    et.setText(variant.formattedText)
+                }
+
+                canvasView.invalidate()
+
+                // Refresh tab Reshape agar border aktif berpindah ke opsi yang baru dipilih
+                showFormatMenu()
+                // Otomatis buka tab Reshape (tab index 3)
+                binding.propertyDetailContainer.post {
+                    val tabs = binding.propertyDetailContainer.findViewWithTag<View>("RESHAPE_TAB_BTN")
+                    tabs?.performClick()
+                }
+            }
+
+            layout.addView(card)
+        }
+
+        return layout
     }
 
     // --- SPACING MENU ---

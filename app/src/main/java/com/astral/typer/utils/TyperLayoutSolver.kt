@@ -19,8 +19,17 @@ object TyperLayoutSolver {
         val boxWidth: Float,
         val scale: Float,
         val estimatedHeight: Float,
-        val lineCount: Int
+        val lineCount: Int,
+        val variantName: String = ""
     )
+
+    enum class ReshapeProfile {
+        BALANCED_DIAMOND,
+        COMPACT_DIAMOND,
+        WIDE_DIAMOND,
+        NATURAL_STEPPED,
+        GENTLE_DIAMOND
+    }
 
     /**
      * Memecahkan tata letak teks terbaik di dalam bounding box balon menggunakan TextPaint Android.
@@ -148,7 +157,7 @@ object TyperLayoutSolver {
 
         // Fallback jika tidak ada kandidat yang muat sempurna
         val fallbackFontSize = baseFontSize * minScale
-        val fallbackWords = preprocessWordsForWidth(originalWords, targetWidth) { w -> measureWord(w, fallbackFontSize) }
+        val fallbackWords = preprocessWordsForWidth(originalWords, targetWidth, allowHyphenation = true) { w -> measureWord(w, fallbackFontSize) }
         val lines = greedyWrapLines(fallbackWords, targetWidth) { w -> measureWord(w, fallbackFontSize) }
         val maxW = lines.maxOfOrNull { measureWord(it, fallbackFontSize) } ?: targetWidth
         return LayoutResult(
@@ -158,6 +167,372 @@ object TyperLayoutSolver {
             estimatedHeight = lines.size * fallbackFontSize * 1.25f,
             lineCount = lines.size
         )
+    }
+
+    /**
+     * Menghasilkan hingga 5 variasi layout cerdas berbentuk diamond stepped silhouette untuk layer teks aktif.
+     * Mengutamakan keutuhan kata tanpa pemenggalan suku kata (Indonesian hyphenation) sebisa mungkin.
+     */
+    fun generateReshapeVariants(
+        rawText: String,
+        currentWidth: Float,
+        currentHeight: Float,
+        isOval: Boolean,
+        basePaint: TextPaint,
+        minScale: Float = 0.20f
+    ): List<LayoutResult> {
+        return generateReshapeVariantsInternal(
+            rawText = rawText,
+            targetW = currentWidth,
+            targetH = currentHeight,
+            isOval = isOval,
+            baseFontSize = basePaint.textSize,
+            measureWord = { word, size ->
+                val p = TextPaint(basePaint).apply { textSize = size }
+                p.measureText(word)
+            },
+            minScale = minScale
+        )
+    }
+
+    /**
+     * Versi pure/decoupled untuk JVM unit testing.
+     */
+    fun generateReshapeVariantsPure(
+        rawText: String,
+        currentWidth: Float,
+        currentHeight: Float,
+        isOval: Boolean,
+        baseFontSize: Float,
+        minScale: Float = 0.20f
+    ): List<LayoutResult> {
+        return generateReshapeVariantsInternal(
+            rawText = rawText,
+            targetW = currentWidth,
+            targetH = currentHeight,
+            isOval = isOval,
+            baseFontSize = baseFontSize,
+            measureWord = { word, size -> word.length * size * 0.55f },
+            minScale = minScale
+        )
+    }
+
+    private fun generateReshapeVariantsInternal(
+        rawText: String,
+        targetW: Float,
+        targetH: Float,
+        isOval: Boolean,
+        baseFontSize: Float,
+        measureWord: (String, Float) -> Float,
+        minScale: Float = 0.20f
+    ): List<LayoutResult> {
+        val trimmed = rawText.trim()
+        if (trimmed.isEmpty()) return emptyList()
+
+        val origWords = trimmed.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        if (origWords.isEmpty()) return emptyList()
+
+        // Hitung batas ukuran aman yang nyaman untuk variasi layout
+        val effWidth = targetW.coerceAtLeast(80f)
+        val effHeight = targetH.coerceAtLeast(80f)
+
+        if (origWords.size == 1) {
+            val single = solveSingleWord(origWords[0], effWidth, effHeight, baseFontSize, measureWord, minScale)
+            return listOf(single.copy(variantName = "Standar"))
+        }
+
+        val variants = mutableListOf<LayoutResult>()
+        val seenFormatted = mutableSetOf<String>()
+
+        // 5 Konfigurasi profil variasi dengan parameter siluet yang berbeda
+        val profileConfigs = listOf(
+            ProfileConfig(ReshapeProfile.BALANCED_DIAMOND, "Diamond Seimbang", targetLinesOffset = 0, aspectMult = 1.0f, curveBonus = 50f, allowHyphen = false),
+            ProfileConfig(ReshapeProfile.COMPACT_DIAMOND, "Diamond Kompak", targetLinesOffset = 1, aspectMult = 0.8f, curveBonus = 40f, allowHyphen = false),
+            ProfileConfig(ReshapeProfile.WIDE_DIAMOND, "Diamond Melebar", targetLinesOffset = -1, aspectMult = 1.3f, curveBonus = 35f, allowHyphen = false),
+            ProfileConfig(ReshapeProfile.NATURAL_STEPPED, "Stepped Natural", targetLinesOffset = 0, aspectMult = 1.15f, curveBonus = 20f, allowHyphen = false),
+            ProfileConfig(ReshapeProfile.GENTLE_DIAMOND, "Diamond Alternatif", targetLinesOffset = 2, aspectMult = 0.9f, curveBonus = 30f, allowHyphen = false)
+        )
+
+        val scaleSteps = mutableListOf<Float>()
+        var s = 1.0f
+        while (s >= minScale - 0.001f) {
+            scaleSteps.add((s * 100).toInt() / 100f)
+            s -= 0.05f
+        }
+        if (scaleSteps.isEmpty() || scaleSteps.last() > minScale) scaleSteps.add(minScale)
+
+        for (cfg in profileConfigs) {
+            val result = solveForVariant(
+                words = origWords,
+                targetW = effWidth,
+                targetH = effHeight,
+                isOval = isOval,
+                baseFontSize = baseFontSize,
+                measureWord = measureWord,
+                scaleSteps = scaleSteps,
+                cfg = cfg,
+                seenFormatted = seenFormatted
+            )
+            if (result != null) {
+                seenFormatted.add(result.formattedText)
+                variants.add(result)
+            }
+        }
+
+        // Jika opsi masih kurang dari 5 (misal teks terlalu pendek atau variasi bertabrakan),
+        // sediakan variasi partisi baris alternatif secara eksplisit (L=1..5) tanpa pemenggalan kata
+        if (variants.size < 5) {
+            val maxWords = origWords.size
+            val fallbackLineTargets = listOf(2, 3, 4, 1, 5)
+            for (targetL in fallbackLineTargets) {
+                if (variants.size >= 5) break
+                if (targetL > maxWords) continue
+
+                val fbResult = solveForExplicitLineCount(
+                    words = origWords,
+                    targetL = targetL,
+                    targetW = effWidth,
+                    targetH = effHeight,
+                    isOval = isOval,
+                    baseFontSize = baseFontSize,
+                    measureWord = measureWord,
+                    scaleSteps = scaleSteps,
+                    allowHyphen = false
+                )
+                if (fbResult != null && !seenFormatted.contains(fbResult.formattedText)) {
+                    val variantTitle = when (variants.size) {
+                        0 -> "Diamond Seimbang"
+                        1 -> "Diamond Kompak"
+                        2 -> "Diamond Melebar"
+                        3 -> "Stepped Natural"
+                        else -> "Diamond Alternatif"
+                    }
+                    seenFormatted.add(fbResult.formattedText)
+                    variants.add(fbResult.copy(variantName = variantTitle))
+                }
+            }
+        }
+
+        // Jika masih kurang dari 5 dan teks memiliki kata panjang yang mungkin butuh hyphenation jika benar-benar sempit
+        if (variants.size < 5) {
+            val fbHyphen = solveForExplicitLineCount(
+                words = origWords,
+                targetL = 3,
+                targetW = effWidth,
+                targetH = effHeight,
+                isOval = isOval,
+                baseFontSize = baseFontSize,
+                measureWord = measureWord,
+                scaleSteps = scaleSteps,
+                allowHyphen = true
+            )
+            if (fbHyphen != null && !seenFormatted.contains(fbHyphen.formattedText)) {
+                seenFormatted.add(fbHyphen.formattedText)
+                variants.add(fbHyphen.copy(variantName = "Variasi Alternatif"))
+            }
+        }
+
+        return variants.take(5)
+    }
+
+    private data class ProfileConfig(
+        val profile: ReshapeProfile,
+        val title: String,
+        val targetLinesOffset: Int,
+        val aspectMult: Float,
+        val curveBonus: Float,
+        val allowHyphen: Boolean
+    )
+
+    private fun solveForVariant(
+        words: List<String>,
+        targetW: Float,
+        targetH: Float,
+        isOval: Boolean,
+        baseFontSize: Float,
+        measureWord: (String, Float) -> Float,
+        scaleSteps: List<Float>,
+        cfg: ProfileConfig,
+        seenFormatted: Set<String>
+    ): LayoutResult? {
+        var bestCandidate: CandidateResult? = null
+        var bestCost = Float.MAX_VALUE
+
+        val adjustedW = targetW * cfg.aspectMult
+        val adjustedH = targetH / cfg.aspectMult
+
+        for (scale in scaleSteps) {
+            val curFontSize = baseFontSize * scale
+            val processedWords = preprocessWordsForWidth(words, adjustedW, cfg.allowHyphen) { w -> measureWord(w, curFontSize) }
+            val n = processedWords.size
+            val lineSpacing = curFontSize * 1.25f
+
+            var minL = max(1, 1 + cfg.targetLinesOffset)
+            var maxL = min(n, 7 + cfg.targetLinesOffset)
+            if (minL > maxL) minL = 1
+
+            for (L in minL..maxL) {
+                val estH = L * lineSpacing
+                if (estH > adjustedH * 1.25f) continue
+
+                val profile = getVariantSilhouetteProfile(L, isOval, cfg.profile)
+                val partitions = partitionWordsIntoLines(processedWords, L, adjustedW) { w -> measureWord(w, curFontSize) }
+
+                for (parts in partitions) {
+                    val formatted = parts.joinToString("\n") { it.joinToString(" ") }
+                    if (seenFormatted.contains(formatted)) continue
+
+                    val lineWidths = parts.map { lineWordList ->
+                        val totalWordW = lineWordList.sumOf { measureWord(it, curFontSize).toDouble() }.toFloat()
+                        val spaceW = (lineWordList.size - 1) * measureWord(" ", curFontSize)
+                        totalWordW + spaceW
+                    }
+
+                    val maxLineWidth = lineWidths.maxOrNull() ?: 0f
+                    if (maxLineWidth > adjustedW * 1.15f) continue
+
+                    // Hitung cost variasi
+                    var cost = calculateSilhouetteCost(lineWidths, maxLineWidth, profile, isOval, L, adjustedW, estH, adjustedH)
+                    cost -= cfg.curveBonus
+
+                    // Penalti font scaling
+                    cost += (1.0f - scale) * 35f
+
+                    // Penalti orphan word
+                    val lastLineWords = parts.lastOrNull()
+                    if (lastLineWords != null && lastLineWords.size == 1 && lastLineWords[0].length <= 3) {
+                        cost += 20f
+                    }
+
+                    if (cost < bestCost) {
+                        bestCost = cost
+                        bestCandidate = CandidateResult(
+                            lines = parts.map { it.joinToString(" ") },
+                            lineWords = parts,
+                            lineWidths = lineWidths,
+                            maxLineWidth = maxLineWidth,
+                            estimatedHeight = estH,
+                            scale = scale,
+                            lineCount = L
+                        )
+                    }
+                }
+            }
+        }
+
+        if (bestCandidate != null) {
+            val boxW = (bestCandidate.maxLineWidth + 10f).coerceAtLeast(40f)
+            return LayoutResult(
+                formattedText = bestCandidate.lines.joinToString("\n"),
+                boxWidth = boxW,
+                scale = bestCandidate.scale,
+                estimatedHeight = bestCandidate.estimatedHeight,
+                lineCount = bestCandidate.lines.size,
+                variantName = cfg.title
+            )
+        }
+        return null
+    }
+
+    private fun solveForExplicitLineCount(
+        words: List<String>,
+        targetL: Int,
+        targetW: Float,
+        targetH: Float,
+        isOval: Boolean,
+        baseFontSize: Float,
+        measureWord: (String, Float) -> Float,
+        scaleSteps: List<Float>,
+        allowHyphen: Boolean
+    ): LayoutResult? {
+        for (scale in scaleSteps) {
+            val curFontSize = baseFontSize * scale
+            val processedWords = preprocessWordsForWidth(words, targetW * 1.2f, allowHyphen) { w -> measureWord(w, curFontSize) }
+            if (targetL > processedWords.size) continue
+
+            val partitions = partitionWordsIntoLines(processedWords, targetL, targetW * 1.3f) { w -> measureWord(w, curFontSize) }
+            if (partitions.isNotEmpty()) {
+                val bestPart = partitions.minByOrNull { parts ->
+                    val lineWidths = parts.map { lineWordList ->
+                        val totalWordW = lineWordList.sumOf { measureWord(it, curFontSize).toDouble() }.toFloat()
+                        val spaceW = (lineWordList.size - 1) * measureWord(" ", curFontSize)
+                        totalWordW + spaceW
+                    }
+                    val maxW = lineWidths.maxOrNull() ?: 1f
+                    val profile = getIdealSilhouetteProfile(targetL, isOval)
+                    calculateSilhouetteCost(lineWidths, maxW, profile, isOval, targetL, targetW, targetL * curFontSize * 1.25f, targetH)
+                } ?: partitions.first()
+
+                val lineStrings = bestPart.map { it.joinToString(" ") }
+                val lineWidths = bestPart.map { lineWordList ->
+                    val totalWordW = lineWordList.sumOf { measureWord(it, curFontSize).toDouble() }.toFloat()
+                    val spaceW = (lineWordList.size - 1) * measureWord(" ", curFontSize)
+                    totalWordW + spaceW
+                }
+                val maxW = lineWidths.maxOrNull() ?: targetW
+                return LayoutResult(
+                    formattedText = lineStrings.joinToString("\n"),
+                    boxWidth = (maxW + 10f).coerceAtLeast(40f),
+                    scale = scale,
+                    estimatedHeight = targetL * curFontSize * 1.25f,
+                    lineCount = targetL,
+                    variantName = "Opsi $targetL Baris"
+                )
+            }
+        }
+        return null
+    }
+
+    private fun getVariantSilhouetteProfile(L: Int, isOval: Boolean, variant: ReshapeProfile): FloatArray {
+        if (L <= 1) return FloatArray(L) { 1.0f }
+
+        return when (variant) {
+            ReshapeProfile.BALANCED_DIAMOND -> {
+                when (L) {
+                    2 -> floatArrayOf(0.92f, 0.92f)
+                    3 -> floatArrayOf(0.70f, 1.00f, 0.72f)
+                    4 -> floatArrayOf(0.66f, 1.00f, 0.96f, 0.68f)
+                    5 -> floatArrayOf(0.55f, 0.88f, 1.00f, 0.88f, 0.58f)
+                    else -> getIdealSilhouetteProfile(L, isOval)
+                }
+            }
+            ReshapeProfile.COMPACT_DIAMOND -> {
+                when (L) {
+                    2 -> floatArrayOf(0.85f, 0.85f)
+                    3 -> floatArrayOf(0.60f, 1.00f, 0.62f)
+                    4 -> floatArrayOf(0.58f, 0.95f, 1.00f, 0.60f)
+                    5 -> floatArrayOf(0.48f, 0.82f, 1.00f, 0.84f, 0.50f)
+                    else -> getIdealSilhouetteProfile(L, isOval)
+                }
+            }
+            ReshapeProfile.WIDE_DIAMOND -> {
+                when (L) {
+                    2 -> floatArrayOf(1.00f, 0.95f)
+                    3 -> floatArrayOf(0.80f, 1.00f, 0.82f)
+                    4 -> floatArrayOf(0.78f, 1.00f, 0.98f, 0.80f)
+                    5 -> floatArrayOf(0.70f, 0.95f, 1.00f, 0.95f, 0.72f)
+                    else -> getIdealSilhouetteProfile(L, isOval)
+                }
+            }
+            ReshapeProfile.NATURAL_STEPPED -> {
+                when (L) {
+                    2 -> floatArrayOf(0.95f, 0.90f)
+                    3 -> floatArrayOf(0.75f, 1.00f, 0.80f)
+                    4 -> floatArrayOf(0.72f, 0.98f, 1.00f, 0.75f)
+                    5 -> floatArrayOf(0.65f, 0.90f, 1.00f, 0.92f, 0.68f)
+                    else -> getIdealSilhouetteProfile(L, isOval)
+                }
+            }
+            ReshapeProfile.GENTLE_DIAMOND -> {
+                when (L) {
+                    2 -> floatArrayOf(0.88f, 0.92f)
+                    3 -> floatArrayOf(0.65f, 1.00f, 0.78f)
+                    4 -> floatArrayOf(0.62f, 1.00f, 0.90f, 0.65f)
+                    5 -> floatArrayOf(0.52f, 0.85f, 1.00f, 0.80f, 0.55f)
+                    else -> getIdealSilhouetteProfile(L, isOval)
+                }
+            }
+        }
     }
 
     private fun solveSingleWord(
@@ -210,7 +585,7 @@ object TyperLayoutSolver {
         measureWord: (String) -> Float,
         scale: Float
     ): CandidateResult? {
-        val processedWords = preprocessWordsForWidth(words, targetWidth, measureWord)
+        val processedWords = preprocessWordsForWidth(words, targetWidth, allowHyphenation = true, measureWord = measureWord)
         val n = processedWords.size
         val lineSpacing = fontSize * 1.25f
 
@@ -271,23 +646,22 @@ object TyperLayoutSolver {
     private fun preprocessWordsForWidth(
         words: List<String>,
         maxWidth: Float,
+        allowHyphenation: Boolean = true,
         measureWord: (String) -> Float
     ): List<String> {
         val result = mutableListOf<String>()
         for (w in words) {
             val wordW = measureWord(w)
-            if (wordW > maxWidth && w.length > 5) {
+            if (allowHyphenation && wordW > maxWidth && w.length > 5) {
                 val opportunities = IndonesianHyphenator.getHyphenationOpportunities(w)
                 if (opportunities.isNotEmpty()) {
                     val mid = opportunities[opportunities.size / 2]
                     result.add(mid.first)
                     result.add(mid.second)
-                } else {
-                    result.add(w)
+                    continue
                 }
-            } else {
-                result.add(w)
             }
+            result.add(w)
         }
         return result
     }
