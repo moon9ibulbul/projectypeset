@@ -181,16 +181,21 @@ object TyperLayoutSolver {
         basePaint: TextPaint,
         minScale: Float = 0.20f
     ): List<LayoutResult> {
-        return generateReshapeVariantsInternal(
+        // Optimasi: Ukur kata satu kali di basePaint.textSize tanpa alokasi TextPaint baru berulang-ulang
+        val wordCache = mutableMapOf<String, Float>()
+        val baseMeasure = { word: String ->
+            wordCache.getOrPut(word) { basePaint.measureText(word) }
+        }
+        val spaceW = basePaint.measureText(" ")
+
+        return generateReshapeVariantsFast(
             rawText = rawText,
             targetW = currentWidth,
             targetH = currentHeight,
             isOval = isOval,
             baseFontSize = basePaint.textSize,
-            measureWord = { word, size ->
-                val p = TextPaint(basePaint).apply { textSize = size }
-                p.measureText(word)
-            },
+            measureBaseWord = baseMeasure,
+            baseSpaceW = spaceW,
             minScale = minScale
         )
     }
@@ -206,24 +211,30 @@ object TyperLayoutSolver {
         baseFontSize: Float,
         minScale: Float = 0.20f
     ): List<LayoutResult> {
-        return generateReshapeVariantsInternal(
+        return generateReshapeVariantsFast(
             rawText = rawText,
             targetW = currentWidth,
             targetH = currentHeight,
             isOval = isOval,
             baseFontSize = baseFontSize,
-            measureWord = { word, size -> word.length * size * 0.55f },
+            measureBaseWord = { word -> word.length * baseFontSize * 0.55f },
+            baseSpaceW = baseFontSize * 0.35f,
             minScale = minScale
         )
     }
 
-    private fun generateReshapeVariantsInternal(
+    /**
+     * Engine komputasi cepat (O(1) allocation) untuk menghasilkan 5 variasi layout diamond.
+     * Menggunakan penskalaan proporsional dari base width yang sudah diukur sebelumnya.
+     */
+    private fun generateReshapeVariantsFast(
         rawText: String,
         targetW: Float,
         targetH: Float,
         isOval: Boolean,
         baseFontSize: Float,
-        measureWord: (String, Float) -> Float,
+        measureBaseWord: (String) -> Float,
+        baseSpaceW: Float,
         minScale: Float = 0.20f
     ): List<LayoutResult> {
         val trimmed = rawText.trim()
@@ -232,44 +243,44 @@ object TyperLayoutSolver {
         val origWords = trimmed.split("\\s+".toRegex()).filter { it.isNotEmpty() }
         if (origWords.isEmpty()) return emptyList()
 
-        // Hitung batas ukuran aman yang nyaman untuk variasi layout
         val effWidth = targetW.coerceAtLeast(80f)
         val effHeight = targetH.coerceAtLeast(80f)
 
         if (origWords.size == 1) {
-            val single = solveSingleWord(origWords[0], effWidth, effHeight, baseFontSize, measureWord, minScale)
+            val single = solveSingleWord(origWords[0], effWidth, effHeight, baseFontSize, { w, s -> (measureBaseWord(w) / baseFontSize) * s }, minScale)
             return listOf(single.copy(variantName = "Standar"))
         }
 
         val variants = mutableListOf<LayoutResult>()
         val seenFormatted = mutableSetOf<String>()
 
+        // Pre-kalkulasi base width kata-kata
+        val baseWordWidths = origWords.map { measureBaseWord(it) }
+        val nWords = origWords.size
+
         // 5 Konfigurasi profil variasi dengan parameter siluet yang berbeda
         val profileConfigs = listOf(
-            ProfileConfig(ReshapeProfile.BALANCED_DIAMOND, "Diamond Seimbang", targetLinesOffset = 0, aspectMult = 1.0f, curveBonus = 50f, allowHyphen = false),
-            ProfileConfig(ReshapeProfile.COMPACT_DIAMOND, "Diamond Kompak", targetLinesOffset = 1, aspectMult = 0.8f, curveBonus = 40f, allowHyphen = false),
-            ProfileConfig(ReshapeProfile.WIDE_DIAMOND, "Diamond Melebar", targetLinesOffset = -1, aspectMult = 1.3f, curveBonus = 35f, allowHyphen = false),
-            ProfileConfig(ReshapeProfile.NATURAL_STEPPED, "Stepped Natural", targetLinesOffset = 0, aspectMult = 1.15f, curveBonus = 20f, allowHyphen = false),
-            ProfileConfig(ReshapeProfile.GENTLE_DIAMOND, "Diamond Alternatif", targetLinesOffset = 2, aspectMult = 0.9f, curveBonus = 30f, allowHyphen = false)
+            ProfileConfig(ReshapeProfile.BALANCED_DIAMOND, "Diamond Seimbang", targetLinesOffset = 0, aspectMult = 1.0f, curveBonus = 50f),
+            ProfileConfig(ReshapeProfile.COMPACT_DIAMOND, "Diamond Kompak", targetLinesOffset = 1, aspectMult = 0.85f, curveBonus = 40f),
+            ProfileConfig(ReshapeProfile.WIDE_DIAMOND, "Diamond Melebar", targetLinesOffset = -1, aspectMult = 1.25f, curveBonus = 35f),
+            ProfileConfig(ReshapeProfile.NATURAL_STEPPED, "Stepped Natural", targetLinesOffset = 0, aspectMult = 1.12f, curveBonus = 20f),
+            ProfileConfig(ReshapeProfile.GENTLE_DIAMOND, "Diamond Alternatif", targetLinesOffset = 2, aspectMult = 0.92f, curveBonus = 30f)
         )
 
-        val scaleSteps = mutableListOf<Float>()
-        var s = 1.0f
-        while (s >= minScale - 0.001f) {
-            scaleSteps.add((s * 100).toInt() / 100f)
-            s -= 0.05f
-        }
-        if (scaleSteps.isEmpty() || scaleSteps.last() > minScale) scaleSteps.add(minScale)
+        // Skala langkah cepat (lompatan 10% untuk performa instan)
+        val fastScaleSteps = listOf(1.0f, 0.90f, 0.80f, 0.70f, 0.60f, 0.50f, 0.40f, 0.30f, 0.20f)
+            .filter { it >= minScale - 0.01f }
 
         for (cfg in profileConfigs) {
-            val result = solveForVariant(
+            val result = solveForVariantFast(
                 words = origWords,
+                baseWordWidths = baseWordWidths,
+                baseSpaceW = baseSpaceW,
                 targetW = effWidth,
                 targetH = effHeight,
                 isOval = isOval,
                 baseFontSize = baseFontSize,
-                measureWord = measureWord,
-                scaleSteps = scaleSteps,
+                scaleSteps = fastScaleSteps,
                 cfg = cfg,
                 seenFormatted = seenFormatted
             )
@@ -279,56 +290,29 @@ object TyperLayoutSolver {
             }
         }
 
-        // Jika opsi masih kurang dari 5 (misal teks terlalu pendek atau variasi bertabrakan),
-        // sediakan variasi partisi baris alternatif secara eksplisit (L=1..5) tanpa pemenggalan kata
+        // Jika opsi masih kurang dari 5 (misal teks pendek atau profil beririsan),
+        // sediakan partisi eksplisit target baris L=2, 3, 4, 1, 5
         if (variants.size < 5) {
-            val maxWords = origWords.size
             val fallbackLineTargets = listOf(2, 3, 4, 1, 5)
             for (targetL in fallbackLineTargets) {
                 if (variants.size >= 5) break
-                if (targetL > maxWords) continue
+                if (targetL > nWords) continue
 
-                val fbResult = solveForExplicitLineCount(
+                val fbResult = solveForExplicitLineCountFast(
                     words = origWords,
+                    baseWordWidths = baseWordWidths,
+                    baseSpaceW = baseSpaceW,
                     targetL = targetL,
                     targetW = effWidth,
                     targetH = effHeight,
                     isOval = isOval,
                     baseFontSize = baseFontSize,
-                    measureWord = measureWord,
-                    scaleSteps = scaleSteps,
-                    allowHyphen = false
+                    scaleSteps = fastScaleSteps
                 )
                 if (fbResult != null && !seenFormatted.contains(fbResult.formattedText)) {
-                    val variantTitle = when (variants.size) {
-                        0 -> "Diamond Seimbang"
-                        1 -> "Diamond Kompak"
-                        2 -> "Diamond Melebar"
-                        3 -> "Stepped Natural"
-                        else -> "Diamond Alternatif"
-                    }
                     seenFormatted.add(fbResult.formattedText)
-                    variants.add(fbResult.copy(variantName = variantTitle))
+                    variants.add(fbResult)
                 }
-            }
-        }
-
-        // Jika masih kurang dari 5 dan teks memiliki kata panjang yang mungkin butuh hyphenation jika benar-benar sempit
-        if (variants.size < 5) {
-            val fbHyphen = solveForExplicitLineCount(
-                words = origWords,
-                targetL = 3,
-                targetW = effWidth,
-                targetH = effHeight,
-                isOval = isOval,
-                baseFontSize = baseFontSize,
-                measureWord = measureWord,
-                scaleSteps = scaleSteps,
-                allowHyphen = true
-            )
-            if (fbHyphen != null && !seenFormatted.contains(fbHyphen.formattedText)) {
-                seenFormatted.add(fbHyphen.formattedText)
-                variants.add(fbHyphen.copy(variantName = "Variasi Alternatif"))
             }
         }
 
@@ -340,75 +324,79 @@ object TyperLayoutSolver {
         val title: String,
         val targetLinesOffset: Int,
         val aspectMult: Float,
-        val curveBonus: Float,
-        val allowHyphen: Boolean
+        val curveBonus: Float
     )
 
-    private fun solveForVariant(
+    private fun solveForVariantFast(
         words: List<String>,
+        baseWordWidths: List<Float>,
+        baseSpaceW: Float,
         targetW: Float,
         targetH: Float,
         isOval: Boolean,
         baseFontSize: Float,
-        measureWord: (String, Float) -> Float,
         scaleSteps: List<Float>,
         cfg: ProfileConfig,
         seenFormatted: Set<String>
     ): LayoutResult? {
+        val adjustedW = targetW * cfg.aspectMult
+        val adjustedH = targetH / cfg.aspectMult
+        val n = words.size
+
         var bestCandidate: CandidateResult? = null
         var bestCost = Float.MAX_VALUE
 
-        val adjustedW = targetW * cfg.aspectMult
-        val adjustedH = targetH / cfg.aspectMult
+        var minL = max(1, 1 + cfg.targetLinesOffset)
+        var maxL = min(n, 5 + cfg.targetLinesOffset)
+        if (minL > maxL) minL = 1
 
         for (scale in scaleSteps) {
             val curFontSize = baseFontSize * scale
-            val processedWords = preprocessWordsForWidth(words, adjustedW, cfg.allowHyphen) { w -> measureWord(w, curFontSize) }
-            val n = processedWords.size
             val lineSpacing = curFontSize * 1.25f
-
-            var minL = max(1, 1 + cfg.targetLinesOffset)
-            var maxL = min(n, 7 + cfg.targetLinesOffset)
-            if (minL > maxL) minL = 1
+            val curSpaceW = baseSpaceW * scale
+            val maxAllowedW = adjustedW * 1.10f
 
             for (L in minL..maxL) {
                 val estH = L * lineSpacing
                 if (estH > adjustedH * 1.25f) continue
 
                 val profile = getVariantSilhouetteProfile(L, isOval, cfg.profile)
-                val partitions = partitionWordsIntoLines(processedWords, L, adjustedW) { w -> measureWord(w, curFontSize) }
+                val partitions = partitionIndicesFast(n, L, baseWordWidths, curSpaceW, scale, maxAllowedW)
 
-                for (parts in partitions) {
-                    val formatted = parts.joinToString("\n") { it.joinToString(" ") }
+                for (partIndices in partitions) {
+                    val lineTexts = partIndices.map { (start, end) ->
+                        words.subList(start, end).joinToString(" ")
+                    }
+                    val formatted = lineTexts.joinToString("\n")
                     if (seenFormatted.contains(formatted)) continue
 
-                    val lineWidths = parts.map { lineWordList ->
-                        val totalWordW = lineWordList.sumOf { measureWord(it, curFontSize).toDouble() }.toFloat()
-                        val spaceW = (lineWordList.size - 1) * measureWord(" ", curFontSize)
-                        totalWordW + spaceW
+                    val lineWidths = partIndices.map { (start, end) ->
+                        var w = 0f
+                        for (i in start until end) {
+                            w += baseWordWidths[i] * scale
+                        }
+                        w += (end - start - 1) * curSpaceW
+                        w
                     }
 
                     val maxLineWidth = lineWidths.maxOrNull() ?: 0f
-                    if (maxLineWidth > adjustedW * 1.15f) continue
+                    if (maxLineWidth > maxAllowedW) continue
 
-                    // Hitung cost variasi
                     var cost = calculateSilhouetteCost(lineWidths, maxLineWidth, profile, isOval, L, adjustedW, estH, adjustedH)
                     cost -= cfg.curveBonus
-
-                    // Penalti font scaling
                     cost += (1.0f - scale) * 35f
 
                     // Penalti orphan word
-                    val lastLineWords = parts.lastOrNull()
-                    if (lastLineWords != null && lastLineWords.size == 1 && lastLineWords[0].length <= 3) {
+                    val lastLineWordsCount = partIndices.last().second - partIndices.last().first
+                    if (lastLineWordsCount == 1 && words[partIndices.last().first].length <= 3) {
                         cost += 20f
                     }
 
                     if (cost < bestCost) {
                         bestCost = cost
                         bestCandidate = CandidateResult(
-                            lines = parts.map { it.joinToString(" ") },
-                            lineWords = parts,
+                            lines = lineTexts,
+                            lineWords = emptyList(),
                             lineWidths = lineWidths,
                             maxLineWidth = maxLineWidth,
                             estimatedHeight = estH,
@@ -418,6 +406,7 @@ object TyperLayoutSolver {
                     }
                 }
             }
+            if (bestCandidate != null) break
         }
 
         if (bestCandidate != null) {
@@ -434,44 +423,55 @@ object TyperLayoutSolver {
         return null
     }
 
-    private fun solveForExplicitLineCount(
+    private fun solveForExplicitLineCountFast(
         words: List<String>,
+        baseWordWidths: List<Float>,
+        baseSpaceW: Float,
         targetL: Int,
         targetW: Float,
         targetH: Float,
         isOval: Boolean,
         baseFontSize: Float,
-        measureWord: (String, Float) -> Float,
-        scaleSteps: List<Float>,
-        allowHyphen: Boolean
+        scaleSteps: List<Float>
     ): LayoutResult? {
+        val n = words.size
+        if (targetL > n) return null
+
         for (scale in scaleSteps) {
             val curFontSize = baseFontSize * scale
-            val processedWords = preprocessWordsForWidth(words, targetW * 1.2f, allowHyphen) { w -> measureWord(w, curFontSize) }
-            if (targetL > processedWords.size) continue
+            val curSpaceW = baseSpaceW * scale
+            val maxAllowedW = targetW * 1.25f
 
-            val partitions = partitionWordsIntoLines(processedWords, targetL, targetW * 1.3f) { w -> measureWord(w, curFontSize) }
+            val partitions = partitionIndicesFast(n, targetL, baseWordWidths, curSpaceW, scale, maxAllowedW)
             if (partitions.isNotEmpty()) {
-                val bestPart = partitions.minByOrNull { parts ->
-                    val lineWidths = parts.map { lineWordList ->
-                        val totalWordW = lineWordList.sumOf { measureWord(it, curFontSize).toDouble() }.toFloat()
-                        val spaceW = (lineWordList.size - 1) * measureWord(" ", curFontSize)
-                        totalWordW + spaceW
+                val profile = getIdealSilhouetteProfile(targetL, isOval)
+                val bestPart = partitions.minByOrNull { partIndices ->
+                    val lineWidths = partIndices.map { (start, end) ->
+                        var w = 0f
+                        for (i in start until end) {
+                            w += baseWordWidths[i] * scale
+                        }
+                        w += (end - start - 1) * curSpaceW
+                        w
                     }
                     val maxW = lineWidths.maxOrNull() ?: 1f
-                    val profile = getIdealSilhouetteProfile(targetL, isOval)
                     calculateSilhouetteCost(lineWidths, maxW, profile, isOval, targetL, targetW, targetL * curFontSize * 1.25f, targetH)
                 } ?: partitions.first()
 
-                val lineStrings = bestPart.map { it.joinToString(" ") }
-                val lineWidths = bestPart.map { lineWordList ->
-                    val totalWordW = lineWordList.sumOf { measureWord(it, curFontSize).toDouble() }.toFloat()
-                    val spaceW = (lineWordList.size - 1) * measureWord(" ", curFontSize)
-                    totalWordW + spaceW
+                val lineTexts = bestPart.map { (start, end) ->
+                    words.subList(start, end).joinToString(" ")
+                }
+                val lineWidths = bestPart.map { (start, end) ->
+                    var w = 0f
+                    for (i in start until end) {
+                        w += baseWordWidths[i] * scale
+                    }
+                    w += (end - start - 1) * curSpaceW
+                    w
                 }
                 val maxW = lineWidths.maxOrNull() ?: targetW
                 return LayoutResult(
-                    formattedText = lineStrings.joinToString("\n"),
+                    formattedText = lineTexts.joinToString("\n"),
                     boxWidth = (maxW + 10f).coerceAtLeast(40f),
                     scale = scale,
                     estimatedHeight = targetL * curFontSize * 1.25f,
@@ -481,6 +481,52 @@ object TyperLayoutSolver {
             }
         }
         return null
+    }
+
+    /**
+     * Generator partisi cepat berbasis indeks [start, end) kata tanpa alokasi memori string.
+     */
+    private fun partitionIndicesFast(
+        n: Int,
+        L: Int,
+        baseWordWidths: List<Float>,
+        spaceW: Float,
+        scale: Float,
+        maxW: Float
+    ): List<List<Pair<Int, Int>>> {
+        val results = mutableListOf<List<Pair<Int, Int>>>()
+
+        fun backtrack(start: Int, lineIdx: Int, currentLines: MutableList<Pair<Int, Int>>) {
+            val linesLeft = L - lineIdx
+            if (linesLeft == 1) {
+                var currentLineW = 0f
+                for (i in start until n) {
+                    val w = baseWordWidths[i] * scale
+                    currentLineW += if (i == start) w else spaceW + w
+                }
+                if (currentLineW <= maxW) {
+                    currentLines.add(Pair(start, n))
+                    results.add(ArrayList(currentLines))
+                    currentLines.removeAt(currentLines.size - 1)
+                }
+                return
+            }
+
+            var currentLineW = 0f
+            val maxEnd = n - (linesLeft - 1)
+            for (end in (start + 1)..maxEnd) {
+                val w = baseWordWidths[end - 1] * scale
+                currentLineW += if (end - 1 == start) w else spaceW + w
+                if (currentLineW > maxW) break
+
+                currentLines.add(Pair(start, end))
+                backtrack(end, lineIdx + 1, currentLines)
+                currentLines.removeAt(currentLines.size - 1)
+            }
+        }
+
+        backtrack(0, 0, mutableListOf())
+        return results
     }
 
     private fun getVariantSilhouetteProfile(L: Int, isOval: Boolean, variant: ReshapeProfile): FloatArray {

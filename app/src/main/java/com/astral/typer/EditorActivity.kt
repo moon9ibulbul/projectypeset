@@ -803,6 +803,12 @@ class EditorActivity : AppCompatActivity() {
                         val widthVal = layer.boxWidth ?: 0f
                         val widthStr = if (widthVal <= 0) "Auto" else "${widthVal.toInt()} pt"
                         container.findViewWithTag<TextView>("VAL_BOX_WIDTH")?.text = widthStr
+
+                        // Real-time update cards jika tab Reshape sedang aktif dan terlihat
+                        val reshapeLayout = container.findViewWithTag<LinearLayout>("RESHAPE_CARDS_LAYOUT")
+                        if (reshapeLayout != null && reshapeLayout.isShown) {
+                            populateReshapeCards(reshapeLayout, layer)
+                        }
                     }
                 }
             }
@@ -8036,9 +8042,10 @@ class EditorActivity : AppCompatActivity() {
             addView(createTransformTab(layer))
         }
 
-        val reshapeView = ScrollView(this).apply {
-            isVerticalScrollBarEnabled = false
-            addView(createReshapeTab(layer))
+        val reshapeView = HorizontalScrollView(this).apply {
+            tag = "RESHAPE_SCROLL_CONTAINER"
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
         }
 
         val tabButtons = mutableListOf<TextView>()
@@ -8050,7 +8057,7 @@ class EditorActivity : AppCompatActivity() {
                 1 -> contentContainer.addView(sizeView)
                 2 -> contentContainer.addView(transformView)
                 3 -> {
-                    // Refresh view Reshape agar selalu sinkron dengan state terbaru layer
+                    // Lazy-load view Reshape agar ringan dan selalu sinkron dengan state terbaru layer
                     reshapeView.removeAllViews()
                     reshapeView.addView(createReshapeTab(layer))
                     contentContainer.addView(reshapeView)
@@ -8126,30 +8133,35 @@ class EditorActivity : AppCompatActivity() {
 
     private fun createReshapeTab(layer: TextLayer): View {
         val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(16))
+            tag = "RESHAPE_CARDS_LAYOUT"
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(12), dpToPx(4), dpToPx(12), dpToPx(4))
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
         }
+
+        populateReshapeCards(layout, layer)
+        return layout
+    }
+
+    private fun populateReshapeCards(layout: LinearLayout, layer: TextLayer) {
+        layout.removeAllViews()
 
         val rawText = layer.text.toString().trim()
         if (rawText.isEmpty()) {
             val emptyTv = TextView(this).apply {
-                text = "Teks pada layer kosong."
-                textSize = 13f
+                text = "Teks kosong."
+                textSize = 12f
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 gravity = Gravity.CENTER
-                setPadding(0, dpToPx(24), 0, dpToPx(24))
+                setPadding(dpToPx(16), 0, dpToPx(16), 0)
             }
             layout.addView(emptyTv)
-            return layout
+            return
         }
-
-        val headerTv = TextView(this).apply {
-            text = "Pilih variasi bentuk diamond stepped silhouette:"
-            textSize = 12f
-            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
-            setPadding(0, 0, 0, dpToPx(10))
-        }
-        layout.addView(headerTv)
 
         val currentW = (layer.boxWidth ?: layer.getWidth()).coerceAtLeast(80f)
         val currentH = layer.getHeight().coerceAtLeast(80f)
@@ -8171,34 +8183,35 @@ class EditorActivity : AppCompatActivity() {
 
         if (variants.isEmpty()) {
             val noVariantsTv = TextView(this).apply {
-                text = "Tidak dapat menghasilkan variasi untuk teks ini."
-                textSize = 13f
+                text = "Tidak ada variasi."
+                textSize = 12f
                 setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
                 gravity = Gravity.CENTER
-                setPadding(0, dpToPx(24), 0, dpToPx(24))
+                setPadding(dpToPx(16), 0, dpToPx(16), 0)
             }
             layout.addView(noVariantsTv)
-            return layout
+            return
         }
 
         val currentFormatted = layer.text.toString()
 
-        variants.forEachIndexed { index, variant ->
+        variants.forEach { variant ->
             val isCurrent = currentFormatted == variant.formattedText
 
+            // Card murni thumbnail preview horizontal yang kompak untuk tinggi 180dp
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    bottomMargin = dpToPx(10)
+                gravity = Gravity.CENTER
+                val cardWidth = dpToPx(120)
+                val cardHeight = dpToPx(95)
+                layoutParams = LinearLayout.LayoutParams(cardWidth, cardHeight).apply {
+                    setMargins(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2))
                 }
-                setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+                setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
 
                 background = GradientDrawable().apply {
                     setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor))
-                    cornerRadius = dpToPx(8).toFloat()
+                    cornerRadius = dpToPx(6).toFloat()
                     if (isCurrent) {
                         setStroke(dpToPx(2), Color.CYAN)
                     } else {
@@ -8209,58 +8222,25 @@ class EditorActivity : AppCompatActivity() {
                 isFocusable = true
             }
 
-            // Top Row di Card: Badge / Nomor Opsi & Judul Profil
-            val topRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { bottomMargin = dpToPx(6) }
-            }
-
-            val badgeTv = TextView(this).apply {
-                text = "Opsi ${index + 1}"
-                textSize = 11f
-                setTypeface(null, Typeface.BOLD)
-                setTextColor(if (isCurrent) Color.CYAN else com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            }
-
-            val subtitleTv = TextView(this).apply {
-                val variantLabel = if (variant.variantName.isNotEmpty()) variant.variantName else "${variant.lineCount} Baris"
-                text = "$variantLabel • ${(variant.scale * 100).toInt()}%"
-                textSize = 10f
-                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
-            }
-
-            topRow.addView(badgeTv)
-            topRow.addView(subtitleTv)
-            card.addView(topRow)
-
-            // Preview Teks: Tampilkan seluruh teks hasil format di dalam card secara terpusat
+            // Preview Teks: Tampilkan seluruh baris teks di dalam thumbnail card secara rapi
             val previewContainer = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dpToPx(6), dpToPx(8), dpToPx(6), dpToPx(8))
-                background = GradientDrawable().apply {
-                    setColor(0x18000000)
-                    cornerRadius = dpToPx(4).toFloat()
-                }
+                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                    ViewGroup.LayoutParams.MATCH_PARENT
                 )
             }
 
             val lines = variant.formattedText.split("\n")
-            // Hitung ukuran font preview dinamis agar semua teks pasti muat rapi di dalam card
             val maxLineLen = lines.maxOfOrNull { it.length } ?: 1
+            // Font size thumbnail dinamis agar seluruh teks muat
             val previewFontSize = when {
-                maxLineLen > 45 -> 10f
-                maxLineLen > 30 -> 11f
-                maxLineLen > 18 -> 12f
-                else -> 13f
+                maxLineLen > 35 -> 8f
+                maxLineLen > 24 -> 9f
+                maxLineLen > 15 -> 10f
+                else -> 11f
             }
 
             lines.forEach { lineText ->
@@ -8268,6 +8248,7 @@ class EditorActivity : AppCompatActivity() {
                     text = lineText
                     textSize = previewFontSize
                     gravity = Gravity.CENTER
+                    maxLines = 1
                     setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -8280,7 +8261,6 @@ class EditorActivity : AppCompatActivity() {
             card.addView(previewContainer)
 
             card.setOnClickListener {
-                // Terapkan layout variasi ke layer aktif
                 com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
 
                 layer.text = SpannableStringBuilder(variant.formattedText)
@@ -8290,26 +8270,18 @@ class EditorActivity : AppCompatActivity() {
                 layer.scaleY = 1f
                 layer.textAlign = Layout.Alignment.ALIGN_CENTER
 
-                // Sinkronkan activeEditText jika sedang terbuka
                 activeEditText?.let { et ->
                     et.setText(variant.formattedText)
                 }
 
                 canvasView.invalidate()
 
-                // Refresh tab Reshape agar border aktif berpindah ke opsi yang baru dipilih
-                showFormatMenu()
-                // Otomatis buka tab Reshape (tab index 3)
-                binding.propertyDetailContainer.post {
-                    val tabs = binding.propertyDetailContainer.findViewWithTag<View>("RESHAPE_TAB_BTN")
-                    tabs?.performClick()
-                }
+                // Perbarui seleksi border card di tab Reshape tanpa reload seluruh menu
+                populateReshapeCards(layout, layer)
             }
 
             layout.addView(card)
         }
-
-        return layout
     }
 
     // --- SPACING MENU ---
@@ -9046,18 +9018,26 @@ class EditorActivity : AppCompatActivity() {
         // Box Width
         val widthVal = layer.boxWidth ?: 0f
         val widthStr = if (widthVal <= 0) "Auto" else "${widthVal.toInt()} pt"
+        fun notifyReshapeIfVisible() {
+            val reshapeLayout = binding.propertyDetailContainer.findViewWithTag<LinearLayout>("RESHAPE_CARDS_LAYOUT")
+            if (reshapeLayout != null && reshapeLayout.isShown) {
+                populateReshapeCards(reshapeLayout, layer)
+            }
+        }
         val widthRow = createControl("Box Width", widthStr, "VAL_BOX_WIDTH",
             onMinus = {
                 val w = (layer.boxWidth ?: layer.getWidth()) - 1f
                 layer.boxWidth = w.coerceAtLeast(50f)
                 canvasView.invalidate()
                 ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
+                notifyReshapeIfVisible()
             },
             onPlus = {
                  val w = (layer.boxWidth ?: layer.getWidth()) + 1f
                 layer.boxWidth = w
                 canvasView.invalidate()
                 ((canvasView.parent as? View)?.findViewWithTag<TextView>("VAL_BOX_WIDTH"))?.text = "${layer.boxWidth!!.toInt()} pt"
+                notifyReshapeIfVisible()
             }
         )
         val tvWidthVal = widthRow.findViewWithTag<TextView>("VAL_BOX_WIDTH")
@@ -9066,12 +9046,14 @@ class EditorActivity : AppCompatActivity() {
             layer.boxWidth = w.coerceAtLeast(50f)
             canvasView.invalidate()
             tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+            notifyReshapeIfVisible()
         }
         widthRow.findViewWithTag<View>("PLUS_BTN")?.setOnClickListener {
             val w = (layer.boxWidth ?: layer.getWidth()) + 1f
             layer.boxWidth = w
             canvasView.invalidate()
             tvWidthVal?.text = "${layer.boxWidth!!.toInt()} pt"
+            notifyReshapeIfVisible()
         }
         layout.addView(widthRow)
 
