@@ -9313,8 +9313,23 @@ class EditorActivity : AppCompatActivity() {
             addView(layout)
         }
 
-        lateinit var btnDrop: TextView
-        lateinit var btnMotion: TextView
+        val btnDrop = TextView(this).apply {
+            text = "Drop Shadow"
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 14f
+            setPadding(16, 16, 16, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val btnMotion = TextView(this).apply {
+            text = "Motion Shadow"
+            gravity = Gravity.CENTER
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 14f
+            setPadding(16, 16, 16, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
 
         fun selectTab(isDrop: Boolean) {
             contentContainer.removeAllViews()
@@ -9323,40 +9338,21 @@ class EditorActivity : AppCompatActivity() {
             stylableLayer.isMotionShadow = !isDrop
             canvasView.invalidate()
 
-            if (::btnDrop.isInitialized && ::btnMotion.isInitialized) {
-                if (isDrop) {
-                    btnDrop.setTextColor(Color.CYAN)
-                    btnDrop.alpha = 1.0f
-                    btnMotion.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
-                    btnMotion.alpha = 0.6f
-                } else {
-                    btnMotion.setTextColor(Color.CYAN)
-                    btnMotion.alpha = 1.0f
-                    btnDrop.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
-                    btnDrop.alpha = 0.6f
-                }
+            if (isDrop) {
+                btnDrop.setTextColor(Color.CYAN)
+                btnDrop.alpha = 1.0f
+                btnMotion.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                btnMotion.alpha = 0.6f
+            } else {
+                btnMotion.setTextColor(Color.CYAN)
+                btnMotion.alpha = 1.0f
+                btnDrop.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                btnDrop.alpha = 0.6f
             }
         }
 
-        btnDrop = TextView(this).apply {
-            text = "Drop Shadow"
-            gravity = Gravity.CENTER
-            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            textSize = 14f
-            setPadding(16, 16, 16, 16)
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { selectTab(true) }
-        }
-
-        btnMotion = TextView(this).apply {
-            text = "Motion Shadow"
-            gravity = Gravity.CENTER
-            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            textSize = 14f
-            setPadding(16, 16, 16, 16)
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { selectTab(false) }
-        }
+        btnDrop.setOnClickListener { selectTab(true) }
+        btnMotion.setOnClickListener { selectTab(false) }
 
         tabsLayout.addView(btnDrop)
         tabsLayout.addView(btnMotion)
