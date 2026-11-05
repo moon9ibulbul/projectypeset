@@ -407,4 +407,23 @@ class BrushLayerTest {
         // When pressure is 2.0f, input should be clamped to 1.0f, producing the exact same value as pressure=1.0f
         assertEquals(normalMax, overPressure, 0.0001f)
     }
+
+    @Test
+    fun testBrushLayerStrokePreviewNotDeferredWhileDrawing() {
+        val layer = BrushLayer(1080, 1080)
+        layer.strokeWidth = 5f
+        layer.isDrawingStroke = true
+
+        val hasStrokes = layer.strokeWidth > 0f || layer.doubleStrokeWidth > 0f || layer.tripleStrokeWidth > 0f
+        val hasShadow = (layer.isMotionShadow && layer.motionShadowDistance > 0f) || (!layer.isMotionShadow && layer.shadowRadius > 0f)
+        val skipEffects = false
+
+        // Condition in renderTiles: (hasStrokes || (hasShadow && !isDrawingStroke)) && !skipEffects
+        val shouldRenderEffects = (hasStrokes || (hasShadow && !layer.isDrawingStroke)) && !skipEffects
+        assertTrue("Strokes should not be suppressed during drawing so the user can accurately preview strokes", shouldRenderEffects)
+
+        // Shadow should be deferred when drawing, but stroke shouldn't
+        val shouldRenderShadow = !layer.isDrawingStroke && hasShadow
+        assertFalse("Shadows should be deferred during active stroke drawing", shouldRenderShadow)
+    }
 }

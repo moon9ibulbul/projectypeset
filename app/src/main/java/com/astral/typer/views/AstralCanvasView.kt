@@ -133,6 +133,7 @@ class AstralCanvasView @JvmOverloads constructor(
     var onSmartSelectTextListener: ((Path) -> Unit)? = null
     private val inpaintOps = mutableListOf<InpaintOp>()
     private val redoOps = mutableListOf<InpaintOp>()
+    private val inpaintMaskHistory = java.util.Stack<List<InpaintOp>>()
     private var currentInpaintPath = Path()
     private val currentTyperPath = Path()
 
@@ -978,6 +979,33 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         return bmp
+    }
+
+    fun saveInpaintMaskState() {
+        if (inpaintOps.isNotEmpty()) {
+            val snapshot = inpaintOps.map { InpaintOp(Path(it.path), it.tool, it.strokeWidth) }
+            inpaintMaskHistory.push(snapshot)
+            if (inpaintMaskHistory.size > 10) {
+                inpaintMaskHistory.removeAt(0)
+            }
+        }
+    }
+
+    fun restorePreviousInpaintMask(): Boolean {
+        if (inpaintMaskHistory.isNotEmpty()) {
+            val restored = inpaintMaskHistory.pop()
+            inpaintOps.clear()
+            inpaintOps.addAll(restored.map { InpaintOp(Path(it.path), it.tool, it.strokeWidth) })
+            redoOps.clear()
+            currentInpaintPath.reset()
+            invalidate()
+            return true
+        }
+        return false
+    }
+
+    fun clearInpaintMaskHistory() {
+        inpaintMaskHistory.clear()
     }
 
     fun clearInpaintMask() {

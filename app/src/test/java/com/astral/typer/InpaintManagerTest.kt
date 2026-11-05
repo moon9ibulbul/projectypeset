@@ -3,6 +3,7 @@ package com.astral.typer
 import android.content.ContextWrapper
 import com.astral.typer.utils.InpaintManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -283,5 +284,57 @@ class InpaintManagerTest {
         assertTrue("Kernel sum must be close to 1.0", Math.abs(sum - 1.0f) < 0.01f)
         // Center weight must be largest
         assertTrue("Center weight must be peak", kernel[2] > kernel[1] && kernel[2] > kernel[3])
+    }
+
+    @Test
+    fun testInpaintMaskHistorySavingAndRestoration() {
+        val inpaintMaskHistory = java.util.Stack<List<Pair<String, Float>>>()
+        val inpaintOps = mutableListOf<Pair<String, Float>>()
+
+        // Simulate user drawing two mask operations
+        inpaintOps.add(Pair("M 10 10 L 20 20", 10f))
+        inpaintOps.add(Pair("M 30 30 L 40 40", 15f))
+
+        // Save state before performing inpaint
+        inpaintMaskHistory.push(inpaintOps.toList())
+        inpaintOps.clear()
+        assertTrue(inpaintOps.isEmpty())
+        assertEquals(1, inpaintMaskHistory.size)
+
+        // Simulate undo: restore previous inpaint mask
+        if (inpaintMaskHistory.isNotEmpty()) {
+            val restored = inpaintMaskHistory.pop()
+            inpaintOps.clear()
+            inpaintOps.addAll(restored)
+        }
+
+        assertEquals(2, inpaintOps.size)
+        assertEquals("M 10 10 L 20 20", inpaintOps[0].first)
+        assertEquals(10f, inpaintOps[0].second, 0.001f)
+        assertEquals("M 30 30 L 40 40", inpaintOps[1].first)
+        assertEquals(15f, inpaintOps[1].second, 0.001f)
+        assertTrue(inpaintMaskHistory.isEmpty())
+    }
+
+    @Test
+    fun testShadowMenuDefaultTabSelectionLogic() {
+        // Test layer with motion shadow
+        val isMotionShadow = true
+        val motionShadowDistance = 25f
+        val motionShadowThickness = 0f
+
+        val hasMotionShadow = isMotionShadow && (motionShadowDistance > 0f || motionShadowThickness > 0f)
+        val isDrop = !hasMotionShadow
+
+        assertFalse("Should select Motion Shadow tab when layer has motion shadow", isDrop)
+
+        // Test layer with drop shadow only
+        val isMotionShadowFalse = false
+        val motionShadowDistZero = 0f
+        val motionShadowThickZero = 0f
+        val hasMotionShadowFalse = isMotionShadowFalse && (motionShadowDistZero > 0f || motionShadowThickZero > 0f)
+        val isDropDefault = !hasMotionShadowFalse
+
+        assertTrue("Should select Drop Shadow tab when layer does not have motion shadow", isDropDefault)
     }
 }

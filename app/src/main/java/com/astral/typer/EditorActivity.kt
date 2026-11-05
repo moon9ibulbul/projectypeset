@@ -818,6 +818,7 @@ class EditorActivity : AppCompatActivity() {
 
         // Save current state for Undo (Bitmap History)
         com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
+        canvasView.saveInpaintMaskState()
 
         // Show Loading Overlay
         binding.loadingOverlay.visibility = View.VISIBLE
@@ -954,6 +955,7 @@ class EditorActivity : AppCompatActivity() {
                      val restoredBg = com.astral.typer.utils.UndoManager.undoBitmap(currentBg)
                      if (restoredBg != null) {
                          canvasView.setBackgroundImage(restoredBg)
+                         canvasView.restorePreviousInpaintMask()
                          Toast.makeText(this, "Undid Inpaint", Toast.LENGTH_SHORT).show()
                      } else {
                          Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
@@ -4201,6 +4203,7 @@ class EditorActivity : AppCompatActivity() {
             // Remove Toolbar
             removeInpaintToolbar()
             canvasView.clearInpaintMask()
+            canvasView.clearInpaintMaskHistory()
             canvasView.inpaintMaskExpand = 0
             canvasView.magicWandExpand = 0
         }
@@ -9310,14 +9313,6 @@ class EditorActivity : AppCompatActivity() {
             addView(layout)
         }
 
-        fun selectTab(isDrop: Boolean) {
-            contentContainer.removeAllViews()
-            contentContainer.addView(if (isDrop) dropShadowView else motionShadowView)
-
-            stylableLayer.isMotionShadow = !isDrop
-            canvasView.invalidate()
-        }
-
         val btnDrop = TextView(this).apply {
             text = "Drop Shadow"
             gravity = Gravity.CENTER
@@ -9325,7 +9320,6 @@ class EditorActivity : AppCompatActivity() {
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { selectTab(true) }
         }
 
         val btnMotion = TextView(this).apply {
@@ -9335,14 +9329,38 @@ class EditorActivity : AppCompatActivity() {
             textSize = 14f
             setPadding(16, 16, 16, 16)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener { selectTab(false) }
         }
+
+        fun selectTab(isDrop: Boolean) {
+            contentContainer.removeAllViews()
+            contentContainer.addView(if (isDrop) dropShadowView else motionShadowView)
+
+            stylableLayer.isMotionShadow = !isDrop
+            canvasView.invalidate()
+
+            if (isDrop) {
+                btnDrop.setTextColor(Color.CYAN)
+                btnDrop.alpha = 1.0f
+                btnMotion.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                btnMotion.alpha = 0.6f
+            } else {
+                btnMotion.setTextColor(Color.CYAN)
+                btnMotion.alpha = 1.0f
+                btnDrop.setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+                btnDrop.alpha = 0.6f
+            }
+        }
+
+        btnDrop.setOnClickListener { selectTab(true) }
+        btnMotion.setOnClickListener { selectTab(false) }
 
         tabsLayout.addView(btnDrop)
         tabsLayout.addView(btnMotion)
         container.addView(tabsLayout)
         container.addView(contentContainer)
-        selectTab(true)
+
+        val hasMotionShadow = stylableLayer.isMotionShadow && (stylableLayer.motionShadowDistance > 0f || stylableLayer.motionShadowThickness > 0f)
+        selectTab(!hasMotionShadow)
     }
 
     private fun showGradationControls() {
