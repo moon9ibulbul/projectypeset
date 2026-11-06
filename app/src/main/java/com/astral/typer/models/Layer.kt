@@ -69,8 +69,6 @@ interface StylableLayer {
     var tripleStrokeWidth: Float
     var isRoughStroke: Boolean
     var roughStrokeRoughness: Float
-    var isBleedingStroke: Boolean
-    var bleedingStrokeIntensity: Float
 
     // Perspective & Warp
     var isPerspective: Boolean

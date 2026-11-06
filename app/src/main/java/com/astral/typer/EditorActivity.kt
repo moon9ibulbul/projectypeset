@@ -8652,9 +8652,7 @@ class EditorActivity : AppCompatActivity() {
             "Convex Upward",
             "Concave Downward",
             "Flag",
-            "Centered Double/Triple Dots",
-            "Turn Vertical",
-            "Turn Diagonal"
+            "Centered Double/Triple Dots"
         )
 
         val checkBoxes = mutableMapOf<String, android.widget.CheckBox>()
@@ -8672,16 +8670,6 @@ class EditorActivity : AppCompatActivity() {
             val hasConcave = layer.transformTypes.contains("Concave Downward")
             val hasFlag = layer.transformTypes.contains("Flag")
             val hasDots = layer.transformTypes.contains("Centered Double/Triple Dots")
-            val hasTurnVertical = layer.transformTypes.contains("Turn Vertical")
-            val hasTurnDiagonal = layer.transformTypes.contains("Turn Diagonal")
-
-            val turnVertDisabled = hasTurnDiagonal
-            checkBoxes["Turn Vertical"]?.isEnabled = !turnVertDisabled
-            checkBoxes["Turn Vertical"]?.alpha = if (turnVertDisabled) 0.5f else 1.0f
-
-            val turnDiagDisabled = hasTurnVertical
-            checkBoxes["Turn Diagonal"]?.isEnabled = !turnDiagDisabled
-            checkBoxes["Turn Diagonal"]?.alpha = if (turnDiagDisabled) 0.5f else 1.0f
 
             // Bigger to Smaller
             val b2sDisabled = hasS2B
@@ -8770,23 +8758,7 @@ class EditorActivity : AppCompatActivity() {
                 slidersLayout.addView(s4)
             }
 
-            if (hasTurnDiagonal) {
-                val sDiag = createSlider("Diagonal Angle: ${layer.transformDiagonalAngle.toInt()}°", layer.transformDiagonalAngle.toInt().coerceIn(0, 360), 360) { v ->
-                    layer.transformDiagonalAngle = v.toFloat()
-                    canvasView.invalidate()
-                }
-                val tvDiag = sDiag.findViewWithTag<TextView>("SLIDER_LABEL")
-                sDiag.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
-                        layer.transformDiagonalAngle = p.toFloat()
-                        tvDiag?.text = "Diagonal Angle: $p°"
-                        canvasView.invalidate()
-                    }
-                    override fun onStartTrackingTouch(s: SeekBar?) {}
-                    override fun onStopTrackingTouch(s: SeekBar?) {}
-                })
-                slidersLayout.addView(sDiag)
-            }
+
         }
 
         for (type in transformTypes) {
@@ -8846,14 +8818,7 @@ class EditorActivity : AppCompatActivity() {
                                 layer.transformTypes.remove("Concave Downward")
                                 checkBoxes["Concave Downward"]?.isChecked = false
                             }
-                            "Turn Vertical" -> {
-                                layer.transformTypes.remove("Turn Diagonal")
-                                checkBoxes["Turn Diagonal"]?.isChecked = false
-                            }
-                            "Turn Diagonal" -> {
-                                layer.transformTypes.remove("Turn Vertical")
-                                checkBoxes["Turn Vertical"]?.isChecked = false
-                            }
+
                         }
                     }
 
@@ -10692,38 +10657,7 @@ class EditorActivity : AppCompatActivity() {
         roughnessSliderLayout.visibility = if (stylableLayer.isRoughStroke) android.view.View.VISIBLE else android.view.View.GONE
         mainLayout.addView(roughnessSliderLayout)
 
-        val bleedingSliderLayout = createSlider("Intensity: ${stylableLayer.bleedingStrokeIntensity.toInt()}", stylableLayer.bleedingStrokeIntensity.toInt().coerceIn(1, 50), 50) { progress ->
-            val actualProgress = if (progress < 1) 1 else progress
-            stylableLayer.bleedingStrokeIntensity = actualProgress.toFloat()
-            canvasView.invalidate()
-        }
-        val bleedingTv = bleedingSliderLayout.findViewWithTag<android.widget.TextView>("SLIDER_LABEL")
-        bleedingSliderLayout.findViewWithTag<android.widget.SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: android.widget.SeekBar?, p: Int, b: Boolean) {
-                val actualProgress = if (p < 1) 1 else p
-                stylableLayer.bleedingStrokeIntensity = actualProgress.toFloat()
-                bleedingTv?.text = "Intensity: $actualProgress"
-                canvasView.invalidate()
-            }
-            override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
-        })
 
-        val cbBleedingStroke = android.widget.CheckBox(this).apply {
-            text = "Bleeding Stroke"
-            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
-            isChecked = stylableLayer.isBleedingStroke
-            setPadding(16, 8, 16, 8)
-            setOnCheckedChangeListener { _, isChecked ->
-                stylableLayer.isBleedingStroke = isChecked
-                bleedingSliderLayout.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
-                canvasView.invalidate()
-            }
-        }
-        mainLayout.addView(cbBleedingStroke)
-
-        bleedingSliderLayout.visibility = if (stylableLayer.isBleedingStroke) android.view.View.VISIBLE else android.view.View.GONE
-        mainLayout.addView(bleedingSliderLayout)
 
         scroll.addView(mainLayout)
         container.addView(scroll)

@@ -238,8 +238,6 @@ object StyleManager {
         val tripleStrokeWidth: Float? = null,
         val isRoughStroke: Boolean? = false,
         val roughStrokeRoughness: Float? = 3f,
-        val isBleedingStroke: Boolean? = false,
-        val bleedingStrokeIntensity: Float? = 10f,
         val isGradient: Boolean,
         val gradientStart: Int,
         val gradientEnd: Int,
@@ -388,7 +386,6 @@ object StyleManager {
         val transformSizeMultiplier: Float? = null,
         val transformAngleMultiplier: Float? = null,
         val transformDotsMultiplier: Float? = null,
-        val transformDiagonalAngle: Float? = null,
         val chromaticAngle: Float? = 0f,
         val multiGradientColors: List<Int>? = null,
         val multiGradientAngle: Float? = null,
@@ -444,8 +441,6 @@ object StyleManager {
             tripleStrokeWidth = l.tripleStrokeWidth,
             isRoughStroke = l.isRoughStroke,
             roughStrokeRoughness = l.roughStrokeRoughness,
-            isBleedingStroke = l.isBleedingStroke,
-            bleedingStrokeIntensity = l.bleedingStrokeIntensity,
             isGradient = l.isGradient,
             gradientStart = l.gradientStartColor,
             gradientEnd = l.gradientEndColor,
@@ -568,7 +563,6 @@ object StyleManager {
             transformSizeMultiplier = l.transformSizeMultiplier,
             transformAngleMultiplier = l.transformAngleMultiplier,
             transformDotsMultiplier = l.transformDotsMultiplier,
-            transformDiagonalAngle = l.transformDiagonalAngle,
             chromaticAngle = l.chromaticAngle,
             multiGradientColors = l.multiGradientColors.toList(),
             multiGradientAngle = l.multiGradientAngle,
@@ -595,7 +589,6 @@ object StyleManager {
         m.transformSizeMultiplier?.let { l.transformSizeMultiplier = it }
         m.transformAngleMultiplier?.let { l.transformAngleMultiplier = it }
         m.transformDotsMultiplier?.let { l.transformDotsMultiplier = it }
-        m.transformDiagonalAngle?.let { l.transformDiagonalAngle = it }
         l.name = m.name ?: "Style"
 
         // Resolve Typeface from fontPath to ensure custom fonts are loaded
@@ -626,8 +619,6 @@ object StyleManager {
         l.tripleStrokeWidth = m.tripleStrokeWidth ?: 0f
         l.isRoughStroke = m.isRoughStroke ?: false
         l.roughStrokeRoughness = m.roughStrokeRoughness ?: 3f
-        l.isBleedingStroke = m.isBleedingStroke ?: false
-        l.bleedingStrokeIntensity = m.bleedingStrokeIntensity ?: 10f
 
         l.isGradient = m.isGradient
         l.gradientStartColor = m.gradientStart

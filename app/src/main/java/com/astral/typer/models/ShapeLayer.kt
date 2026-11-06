@@ -85,8 +85,6 @@ class ShapeLayer(
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
-    override var isBleedingStroke: Boolean = false
-    override var bleedingStrokeIntensity: Float = 10f
 
     // Perspective (backed by 1x1 Warp mesh)
     override var isPerspective: Boolean
@@ -630,7 +628,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isBleedingStroke, bleedingStrokeIntensity, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke1, isGradientStroke2, isGradientStroke3, isGradientShadow, isDropShadowIncludeStroke, isMotionShadow, isMotionShadowIncludeStroke, isMotionShadowTwoWay, motionShadowAngle, motionShadowDistance, motionShadowDx, motionShadowDy, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isGradient, gradientStartColor, gradientEndColor, gradientAngle, hasMiddleColor, gradientMiddleColor, gradientStartPos, gradientMiddlePos, gradientEndPos, gradientStrength, isGradientText, isGradientStroke1, isGradientStroke2, isGradientStroke3, isGradientShadow, isDropShadowIncludeStroke, isMotionShadow, isMotionShadowIncludeStroke, isMotionShadowTwoWay, motionShadowAngle, motionShadowDistance, motionShadowDx, motionShadowDy, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -855,7 +853,7 @@ class ShapeLayer(
             val targetBmpW = ceil(bounds.width() * qualityScale).toInt()
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
-            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isBleedingStroke, bleedingStrokeIntensity, isDropShadowIncludeStroke, isMotionShadow, isMotionShadowIncludeStroke, isMotionShadowTwoWay, motionShadowAngle, motionShadowDistance, motionShadowDx, motionShadowDy, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
+            val shapeHash = listOf(shapeName, w, h, color, warpRows, warpCols, warpMesh?.contentHashCode() ?: 0, perspectivePoints?.contentHashCode() ?: 0, qualityScale, (viewScale >= 0.2f), isRoughStroke, roughStrokeRoughness, isDropShadowIncludeStroke, isMotionShadow, isMotionShadowIncludeStroke, isMotionShadowTwoWay, motionShadowAngle, motionShadowDistance, motionShadowDx, motionShadowDy, motionShadowThickness, motionShadowSmoothness, motionShadowKernelSize, shadowColor, shadowRadius, shadowDx, shadowDy, shadowThickness).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
@@ -2892,7 +2890,6 @@ class ShapeLayer(
 
     override fun calculatePadding(): Float {
         var p = strokeWidthToUse + doubleStrokeWidthToUse + tripleStrokeWidthToUse
-        if (isBleedingStroke) p += bleedingStrokeIntensity * 1.5f
         val shadowPadding = shadowRadius + shadowThickness / 2f + Math.max(Math.abs(shadowDx), Math.abs(shadowDy))
         p = Math.max(p, shadowPadding)
         if (isMotionShadow) p = Math.max(p, motionShadowDistance + 20f)
@@ -3167,8 +3164,6 @@ class ShapeLayer(
         newLayer.strokeColor = strokeColor; newLayer.strokeWidth = strokeWidth; newLayer.doubleStrokeColor = doubleStrokeColor; newLayer.doubleStrokeWidth = doubleStrokeWidth; newLayer.tripleStrokeColor = tripleStrokeColor; newLayer.tripleStrokeWidth = tripleStrokeWidth
         newLayer.isRoughStroke = isRoughStroke
         newLayer.roughStrokeRoughness = roughStrokeRoughness
-        newLayer.isBleedingStroke = isBleedingStroke
-        newLayer.bleedingStrokeIntensity = bleedingStrokeIntensity
         newLayer.isPerspective = isPerspective; newLayer.perspectivePoints = perspectivePoints?.clone()
         newLayer.isWarp = isWarp; newLayer.warpRows = warpRows; newLayer.warpCols = warpCols; newLayer.warpMesh = warpMesh?.clone()
         newLayer.textureBitmap = textureBitmap; newLayer.textureOffsetX = textureOffsetX; newLayer.textureOffsetY = textureOffsetY

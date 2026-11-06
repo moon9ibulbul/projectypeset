@@ -126,8 +126,6 @@ object ProjectManager {
         val tripleStrokeColor: Int? = null, val tripleStrokeWidth: Float? = null,
         val isRoughStroke: Boolean? = null,
         val roughStrokeRoughness: Float? = null,
-        val isBleedingStroke: Boolean? = null,
-        val bleedingStrokeIntensity: Float? = null,
 
         // Perspective
         val isPerspective: Boolean? = null, val perspectivePoints: List<Float>? = null,
@@ -255,8 +253,7 @@ object ProjectManager {
         val transformTypes: Set<String>? = null,
         val transformSizeMultiplier: Float? = null,
         val transformAngleMultiplier: Float? = null,
-        val transformDotsMultiplier: Float? = null,
-        val transformDiagonalAngle: Float? = null
+        val transformDotsMultiplier: Float? = null
     )
 
     data class SessionInfo(
@@ -516,8 +513,6 @@ object ProjectManager {
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
                         roughStrokeRoughness = layer.roughStrokeRoughness,
-                        isBleedingStroke = layer.isBleedingStroke,
-                        bleedingStrokeIntensity = layer.bleedingStrokeIntensity,
 
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.mainWarpRows, warpCols = layer.mainWarpCols, warpMesh = layer.mainWarpMesh?.toList(),
@@ -631,8 +626,7 @@ object ProjectManager {
                         transformTypes = layer.transformTypes,
                         transformSizeMultiplier = layer.transformSizeMultiplier,
                         transformAngleMultiplier = layer.transformAngleMultiplier,
-                        transformDotsMultiplier = layer.transformDotsMultiplier,
-                        transformDiagonalAngle = layer.transformDiagonalAngle
+                        transformDotsMultiplier = layer.transformDotsMultiplier
                     ))
 
                 } else if (layer is com.astral.typer.models.ShapeLayer) {
@@ -678,8 +672,6 @@ object ProjectManager {
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
                         roughStrokeRoughness = layer.roughStrokeRoughness,
-                        isBleedingStroke = layer.isBleedingStroke,
-                        bleedingStrokeIntensity = layer.bleedingStrokeIntensity,
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
@@ -873,8 +865,6 @@ object ProjectManager {
                         tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
                         roughStrokeRoughness = layer.roughStrokeRoughness,
-                        isBleedingStroke = layer.isBleedingStroke,
-                        bleedingStrokeIntensity = layer.bleedingStrokeIntensity,
                         shadowColor = layer.shadowColor,
                         shadowRadius = layer.shadowRadius,
                         shadowDx = layer.shadowDx,
@@ -1317,8 +1307,6 @@ object ProjectManager {
             model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isRoughStroke?.let { layer.isRoughStroke = it }
             model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
-            model.isBleedingStroke?.let { layer.isBleedingStroke = it }
-            model.bleedingStrokeIntensity?.let { layer.bleedingStrokeIntensity = it }
 
             applyCommonProperties(layer, model)
             return layer
@@ -1413,7 +1401,6 @@ object ProjectManager {
             model.transformSizeMultiplier?.let { layer.transformSizeMultiplier = it }
             model.transformAngleMultiplier?.let { layer.transformAngleMultiplier = it }
             model.transformDotsMultiplier?.let { layer.transformDotsMultiplier = it }
-            model.transformDiagonalAngle?.let { layer.transformDiagonalAngle = it }
             model.fontSize?.let { layer.fontSize = it }
             layer.fontPath = model.fontPath
             val appInstance = TyperApplication.instance
@@ -1484,8 +1471,6 @@ object ProjectManager {
             model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isRoughStroke?.let { layer.isRoughStroke = it }
             model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
-            model.isBleedingStroke?.let { layer.isBleedingStroke = it }
-            model.bleedingStrokeIntensity?.let { layer.bleedingStrokeIntensity = it }
 
             model.isPerspective?.let { layer.isPerspective = it }
             model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
@@ -1713,8 +1698,6 @@ object ProjectManager {
             model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isRoughStroke?.let { layer.isRoughStroke = it }
             model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
-            model.isBleedingStroke?.let { layer.isBleedingStroke = it }
-            model.bleedingStrokeIntensity?.let { layer.bleedingStrokeIntensity = it }
             model.isPerspective?.let { layer.isPerspective = it }
             model.perspectivePoints?.let { layer.perspectivePoints = it.toFloatArray() }
             model.isWarp?.let { layer.isWarp = it }
@@ -1935,8 +1918,6 @@ object ProjectManager {
             model.tripleStrokeWidth?.let { layer.tripleStrokeWidth = it }
             model.isRoughStroke?.let { layer.isRoughStroke = it }
             model.roughStrokeRoughness?.let { layer.roughStrokeRoughness = it }
-            model.isBleedingStroke?.let { layer.isBleedingStroke = it }
-            model.bleedingStrokeIntensity?.let { layer.bleedingStrokeIntensity = it }
 
             applyCommonProperties(layer, model)
             return layer
@@ -3265,8 +3246,6 @@ object ProjectManager {
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
                         roughStrokeRoughness = layer.roughStrokeRoughness,
-                        isBleedingStroke = layer.isBleedingStroke,
-                        bleedingStrokeIntensity = layer.bleedingStrokeIntensity,
 
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.mainWarpRows, warpCols = layer.mainWarpCols, warpMesh = layer.mainWarpMesh?.toList(),
@@ -3374,8 +3353,7 @@ object ProjectManager {
                         transformTypes = layer.transformTypes,
                         transformSizeMultiplier = layer.transformSizeMultiplier,
                         transformAngleMultiplier = layer.transformAngleMultiplier,
-                        transformDotsMultiplier = layer.transformDotsMultiplier,
-                        transformDiagonalAngle = layer.transformDiagonalAngle
+                        transformDotsMultiplier = layer.transformDotsMultiplier
                     ))
                 } else if (layer is com.astral.typer.models.ShapeLayer) {
                     var texPath: String? = null
@@ -3419,8 +3397,6 @@ object ProjectManager {
                         tripleStrokeColor = layer.tripleStrokeColor, tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
                         roughStrokeRoughness = layer.roughStrokeRoughness,
-                        isBleedingStroke = layer.isBleedingStroke,
-                        bleedingStrokeIntensity = layer.bleedingStrokeIntensity,
                         isPerspective = layer.isPerspective, perspectivePoints = layer.perspectivePoints?.toList(),
                         isWarp = layer.isWarp, warpRows = layer.warpRows, warpCols = layer.warpCols, warpMesh = layer.warpMesh?.toList(),
                         texturePath = texPath, textureOffsetX = layer.textureOffsetX, textureOffsetY = layer.textureOffsetY,
@@ -3608,8 +3584,6 @@ object ProjectManager {
                         tripleStrokeWidth = layer.tripleStrokeWidth,
                         isRoughStroke = layer.isRoughStroke,
                         roughStrokeRoughness = layer.roughStrokeRoughness,
-                        isBleedingStroke = layer.isBleedingStroke,
-                        bleedingStrokeIntensity = layer.bleedingStrokeIntensity,
                         shadowColor = layer.shadowColor,
                         shadowRadius = layer.shadowRadius,
                         shadowDx = layer.shadowDx,

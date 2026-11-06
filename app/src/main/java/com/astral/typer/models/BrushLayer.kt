@@ -433,8 +433,6 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
-    override var isBleedingStroke: Boolean = false
-    override var bleedingStrokeIntensity: Float = 10f
 
     override var isPerspective: Boolean
         get() = isWarp && warpRows == 1 && warpCols == 1
@@ -764,8 +762,6 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             tripleStrokeWidth = this@BrushLayer.tripleStrokeWidth
             isRoughStroke = this@BrushLayer.isRoughStroke
             roughStrokeRoughness = this@BrushLayer.roughStrokeRoughness
-            isBleedingStroke = this@BrushLayer.isBleedingStroke
-            bleedingStrokeIntensity = this@BrushLayer.bleedingStrokeIntensity
 
             // Shadow properties
             shadowColor = this@BrushLayer.shadowColor

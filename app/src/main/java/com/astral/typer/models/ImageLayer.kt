@@ -76,8 +76,6 @@ class ImageLayer(
     override var tripleStrokeWidth: Float = 0f
     override var isRoughStroke: Boolean = false
     override var roughStrokeRoughness: Float = 3f
-    override var isBleedingStroke: Boolean = false
-    override var bleedingStrokeIntensity: Float = 10f
 
     // Perspective & Warp
     override var isPerspective: Boolean
@@ -717,8 +715,6 @@ class ImageLayer(
         newLayer.warpMesh = warpMesh?.clone()
         newLayer.isRoughStroke = this.isRoughStroke
         newLayer.roughStrokeRoughness = this.roughStrokeRoughness
-        newLayer.isBleedingStroke = this.isBleedingStroke
-        newLayer.bleedingStrokeIntensity = this.bleedingStrokeIntensity
 
         newLayer.isMotionShadowTwoWay = this.isMotionShadowTwoWay
         newLayer.motionShadowThickness = this.motionShadowThickness

@@ -99,25 +99,18 @@ class TextLayerHighlightAndStrokeTest {
     }
 
     @Test
-    fun testMotionShadowTwoWayAndBleedingStrokeProperties() {
+    fun testMotionShadowTwoWayProperties() {
         val textLayer = TextLayer("Sample").apply {
             isMotionShadow = true
             isMotionShadowTwoWay = false
             motionShadowDistance = 30f
-            isBleedingStroke = true
-            bleedingStrokeIntensity = 15f
-            transformDiagonalAngle = 60f
         }
 
         assertFalse(textLayer.isMotionShadowTwoWay)
-        assertTrue(textLayer.isBleedingStroke)
-        assertEquals(15f, textLayer.bleedingStrokeIntensity, 0.001f)
-        assertEquals(60f, textLayer.transformDiagonalAngle, 0.001f)
+        assertEquals(30f, textLayer.motionShadowDistance, 0.001f)
 
         val clone = textLayer.clone() as TextLayer
         assertEquals(textLayer.isMotionShadowTwoWay, clone.isMotionShadowTwoWay)
-        assertEquals(textLayer.isBleedingStroke, clone.isBleedingStroke)
-        assertEquals(textLayer.bleedingStrokeIntensity, clone.bleedingStrokeIntensity, 0.001f)
-        assertEquals(textLayer.transformDiagonalAngle, clone.transformDiagonalAngle, 0.001f)
+        assertEquals(textLayer.motionShadowDistance, clone.motionShadowDistance, 0.001f)
     }
 }
