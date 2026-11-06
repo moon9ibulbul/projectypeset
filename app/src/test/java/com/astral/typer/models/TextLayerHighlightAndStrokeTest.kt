@@ -6,7 +6,9 @@ import com.astral.typer.utils.ProjectManager.LayerModel
 import com.astral.typer.utils.StyleManager.StyleModel
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TextLayerHighlightAndStrokeTest {
@@ -94,5 +96,21 @@ class TextLayerHighlightAndStrokeTest {
         assertEquals(2f, shapeLayer.highlightPaddingRight, 0.001f)
         assertEquals(3f, shapeLayer.highlightPaddingBottom, 0.001f)
         assertEquals(4f, shapeLayer.highlightPaddingLeft, 0.001f)
+    }
+
+    @Test
+    fun testMotionShadowTwoWayProperties() {
+        val textLayer = TextLayer("Sample").apply {
+            isMotionShadow = true
+            isMotionShadowTwoWay = false
+            motionShadowDistance = 30f
+        }
+
+        assertFalse(textLayer.isMotionShadowTwoWay)
+        assertEquals(30f, textLayer.motionShadowDistance, 0.001f)
+
+        val clone = textLayer.clone() as TextLayer
+        assertEquals(textLayer.isMotionShadowTwoWay, clone.isMotionShadowTwoWay)
+        assertEquals(textLayer.motionShadowDistance, clone.motionShadowDistance, 0.001f)
     }
 }

@@ -103,7 +103,7 @@ object ProjectManager {
         // Shadow
         val shadowColor: Int? = null, val shadowRadius: Float? = null, val shadowDx: Float? = null, val shadowDy: Float? = null,
         val isDropShadowIncludeStroke: Boolean? = null,
-        val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
+        val isMotionShadow: Boolean? = null, val isMotionShadowIncludeStroke: Boolean? = null, val isMotionShadowTwoWay: Boolean? = null, val motionShadowAngle: Int? = null, val motionShadowDistance: Float? = null,
         val motionShadowDx: Float? = null, val motionShadowDy: Float? = null,
         val motionShadowThickness: Float? = null, val motionShadowSmoothness: Int? = null, val motionShadowKernelSize: Int? = null,
         val shadowThickness: Float? = null, val isTextBlending: Boolean? = null, val blendingStrength: Float? = null,
@@ -492,7 +492,7 @@ object ProjectManager {
 
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isDropShadowIncludeStroke = layer.isDropShadowIncludeStroke,
-                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, isMotionShadowTwoWay = layer.isMotionShadowTwoWay, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowDx = layer.motionShadowDx, motionShadowDy = layer.motionShadowDy,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
@@ -659,7 +659,7 @@ object ProjectManager {
                         shapeName = layer.shapeName, color = layer.color,
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
                         isDropShadowIncludeStroke = layer.isDropShadowIncludeStroke,
-                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, isMotionShadowTwoWay = layer.isMotionShadowTwoWay, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness,
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
@@ -872,6 +872,7 @@ object ProjectManager {
                         isDropShadowIncludeStroke = layer.isDropShadowIncludeStroke,
                         isMotionShadow = layer.isMotionShadow,
                         isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke,
+                        isMotionShadowTwoWay = layer.isMotionShadowTwoWay,
                         motionShadowAngle = layer.motionShadowAngle,
                         motionShadowDistance = layer.motionShadowDistance,
                         motionShadowDx = layer.motionShadowDx,
@@ -1268,6 +1269,7 @@ object ProjectManager {
 
             model.isMotionShadow?.let { layer.isMotionShadow = it }
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.isMotionShadowTwoWay?.let { layer.isMotionShadowTwoWay = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowDx?.let { layer.motionShadowDx = it }
@@ -1428,6 +1430,7 @@ object ProjectManager {
 
             model.isMotionShadow?.let { layer.isMotionShadow = it }
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.isMotionShadowTwoWay?.let { layer.isMotionShadowTwoWay = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowDx?.let { layer.motionShadowDx = it }
@@ -1661,6 +1664,7 @@ object ProjectManager {
             model.isDropShadowIncludeStroke?.let { layer.isDropShadowIncludeStroke = it }
             model.isMotionShadow?.let { layer.isMotionShadow = it }
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.isMotionShadowTwoWay?.let { layer.isMotionShadowTwoWay = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowDx?.let { layer.motionShadowDx = it }
@@ -1876,6 +1880,7 @@ object ProjectManager {
 
             model.isMotionShadow?.let { layer.isMotionShadow = it }
             model.isMotionShadowIncludeStroke?.let { layer.isMotionShadowIncludeStroke = it }
+            model.isMotionShadowTwoWay?.let { layer.isMotionShadowTwoWay = it }
             model.motionShadowAngle?.let { layer.motionShadowAngle = it }
             model.motionShadowDistance?.let { layer.motionShadowDistance = it }
             model.motionShadowDx?.let { layer.motionShadowDx = it }
@@ -3220,7 +3225,7 @@ object ProjectManager {
                         boxWidth = layer.boxWidth,
 
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
-                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, isMotionShadowTwoWay = layer.isMotionShadowTwoWay, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowDx = layer.motionShadowDx, motionShadowDy = layer.motionShadowDy,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness, isTextBlending = layer.isTextBlending, blendingStrength = layer.blendingStrength,
@@ -3379,7 +3384,7 @@ object ProjectManager {
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         shapeName = layer.shapeName, color = layer.color,
                         shadowColor = layer.shadowColor, shadowRadius = layer.shadowRadius, shadowDx = layer.shadowDx, shadowDy = layer.shadowDy,
-                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
+                        isMotionShadow = layer.isMotionShadow, isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke, isMotionShadowTwoWay = layer.isMotionShadowTwoWay, motionShadowAngle = layer.motionShadowAngle, motionShadowDistance = layer.motionShadowDistance,
                         motionShadowThickness = layer.motionShadowThickness, motionShadowSmoothness = layer.motionShadowSmoothness, motionShadowKernelSize = layer.motionShadowKernelSize,
                         shadowThickness = layer.shadowThickness,
                         isGradient = layer.isGradient, gradientStartColor = layer.gradientStartColor, gradientEndColor = layer.gradientEndColor, gradientAngle = layer.gradientAngle,
@@ -3586,6 +3591,7 @@ object ProjectManager {
                         isDropShadowIncludeStroke = layer.isDropShadowIncludeStroke,
                         isMotionShadow = layer.isMotionShadow,
                         isMotionShadowIncludeStroke = layer.isMotionShadowIncludeStroke,
+                        isMotionShadowTwoWay = layer.isMotionShadowTwoWay,
                         motionShadowAngle = layer.motionShadowAngle,
                         motionShadowDistance = layer.motionShadowDistance,
                         motionShadowDx = layer.motionShadowDx,

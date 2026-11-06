@@ -257,6 +257,7 @@ object StyleManager {
         val lineSpacing: Float,
         // Motion Shadow
         val isMotionShadow: Boolean,
+        val isMotionShadowTwoWay: Boolean = true,
         val motionAngle: Int,
         val motionDist: Float,
         val motionDx: Float = 0f,
@@ -458,6 +459,7 @@ object StyleManager {
             letterSpacing = l.letterSpacing,
             lineSpacing = l.lineSpacing,
             isMotionShadow = l.isMotionShadow,
+            isMotionShadowTwoWay = l.isMotionShadowTwoWay,
             motionAngle = l.motionShadowAngle,
             motionDist = l.motionShadowDistance,
             motionDx = l.motionShadowDx,
@@ -638,6 +640,7 @@ object StyleManager {
         l.lineSpacing = m.lineSpacing
 
         l.isMotionShadow = m.isMotionShadow
+        l.isMotionShadowTwoWay = m.isMotionShadowTwoWay
         l.motionShadowAngle = m.motionAngle
         l.motionShadowDistance = m.motionDist
         l.motionShadowDx = m.motionDx ?: 0f

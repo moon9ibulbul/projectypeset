@@ -389,6 +389,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var isDropShadowIncludeStroke: Boolean = false
     override var isMotionShadow: Boolean = false
     override var isMotionShadowIncludeStroke: Boolean = false
+    override var isMotionShadowTwoWay: Boolean = true
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowDx: Float = 0f
@@ -770,6 +771,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             isDropShadowIncludeStroke = this@BrushLayer.isDropShadowIncludeStroke
             isMotionShadow = this@BrushLayer.isMotionShadow
             isMotionShadowIncludeStroke = this@BrushLayer.isMotionShadowIncludeStroke
+            isMotionShadowTwoWay = this@BrushLayer.isMotionShadowTwoWay
             motionShadowAngle = this@BrushLayer.motionShadowAngle
             motionShadowDistance = this@BrushLayer.motionShadowDistance
             motionShadowDx = this@BrushLayer.motionShadowDx
@@ -997,11 +999,13 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
                         canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
                         canvas.restore()
 
-                        canvas.save()
-                        canvas.translate(dx + cropLeft - mDx + 2f * motionShadowDx + offset[0] / scale, dy + cropTop - mDy + 2f * motionShadowDy + offset[1] / scale)
-                        canvas.scale(1f / scale, 1f / scale)
-                        canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
-                        canvas.restore()
+                        if (isMotionShadowTwoWay) {
+                            canvas.save()
+                            canvas.translate(dx + cropLeft - mDx + 2f * motionShadowDx + offset[0] / scale, dy + cropTop - mDy + 2f * motionShadowDy + offset[1] / scale)
+                            canvas.scale(1f / scale, 1f / scale)
+                            canvas.drawBitmap(alphaBmp, 0f, 0f, sPaint)
+                            canvas.restore()
+                        }
                         alphaBmp.recycle()
                     }
                 }

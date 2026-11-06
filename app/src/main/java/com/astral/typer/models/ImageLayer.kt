@@ -30,6 +30,7 @@ class ImageLayer(
     override var isDropShadowIncludeStroke: Boolean = false
     override var isMotionShadow: Boolean = false
     override var isMotionShadowIncludeStroke: Boolean = false
+    override var isMotionShadowTwoWay: Boolean = true
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowDx: Float = 0f
@@ -715,6 +716,7 @@ class ImageLayer(
         newLayer.isRoughStroke = this.isRoughStroke
         newLayer.roughStrokeRoughness = this.roughStrokeRoughness
 
+        newLayer.isMotionShadowTwoWay = this.isMotionShadowTwoWay
         newLayer.motionShadowThickness = this.motionShadowThickness
         newLayer.motionShadowSmoothness = this.motionShadowSmoothness
         newLayer.motionShadowKernelSize = this.motionShadowKernelSize

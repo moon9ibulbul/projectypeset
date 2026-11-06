@@ -50,10 +50,10 @@ class TextLayer(
     var text: SpannableStringBuilder
         get() = _text
         set(value) {
-            val oldStr = _text.toString()
-            val newStr = value.toString()
+            val oldStr = try { _text.toString() } catch (e: Exception) { "" } ?: ""
+            val newStr = try { value.toString() } catch (e: Exception) { "" } ?: ""
             _text = value
-            if (oldStr != _text.toString()) {
+            if (oldStr != newStr) {
                 letterWarpMeshes.clear()
                 letterWarpRows.clear()
                 letterWarpCols.clear()
@@ -128,6 +128,7 @@ class TextLayer(
     // Motion Shadow
     override var isMotionShadow: Boolean = false
     override var isMotionShadowIncludeStroke: Boolean = false
+    override var isMotionShadowTwoWay: Boolean = true
     override var motionShadowAngle: Int = 0
     override var motionShadowDistance: Float = 0f
     override var motionShadowDx: Float = 0f
@@ -637,6 +638,7 @@ class TextLayer(
         result = 31 * result + isDropShadowIncludeStroke.hashCode()
         result = 31 * result + isMotionShadow.hashCode()
         result = 31 * result + isMotionShadowIncludeStroke.hashCode()
+        result = 31 * result + isMotionShadowTwoWay.hashCode()
         result = 31 * result + motionShadowAngle
         result = 31 * result + motionShadowDistance.hashCode()
         result = 31 * result + motionShadowDx.hashCode()
@@ -1166,7 +1168,8 @@ class TextLayer(
     }
 
     override fun clone(): Layer {
-        val newLayer = TextLayer(this.text.toString(), this.color)
+        val str = try { this._text.toString() } catch (e: Exception) { "Double tap to edit" } ?: "Double tap to edit"
+        val newLayer = TextLayer(str, this.color)
         newLayer.isBold = this.isBold
         newLayer.isItalic = this.isItalic
         newLayer.isUnderline = this.isUnderline
@@ -1200,6 +1203,7 @@ class TextLayer(
         newLayer.isDropShadowIncludeStroke = this.isDropShadowIncludeStroke
         newLayer.isMotionShadow = this.isMotionShadow
         newLayer.isMotionShadowIncludeStroke = this.isMotionShadowIncludeStroke
+        newLayer.isMotionShadowTwoWay = this.isMotionShadowTwoWay
         newLayer.motionShadowAngle = this.motionShadowAngle
         newLayer.motionShadowDistance = this.motionShadowDistance
         newLayer.motionShadowDx = this.motionShadowDx
@@ -4183,10 +4187,12 @@ class TextLayer(
                     drawIteration(targetCanvas)
                     targetCanvas.restore()
 
-                    targetCanvas.save()
-                    targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
-                    drawIteration(targetCanvas)
-                    targetCanvas.restore()
+                    if (isMotionShadowTwoWay) {
+                        targetCanvas.save()
+                        targetCanvas.translate(-dx + 2f * motionShadowDx, -dy + 2f * motionShadowDy)
+                        drawIteration(targetCanvas)
+                        targetCanvas.restore()
+                    }
                 }
                 paint.maskFilter = null
                 paint.alpha = originalAlpha

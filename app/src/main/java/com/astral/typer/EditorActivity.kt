@@ -8757,6 +8757,8 @@ class EditorActivity : AppCompatActivity() {
                 })
                 slidersLayout.addView(s4)
             }
+
+
         }
 
         for (type in transformTypes) {
@@ -8816,6 +8818,7 @@ class EditorActivity : AppCompatActivity() {
                                 layer.transformTypes.remove("Concave Downward")
                                 checkBoxes["Concave Downward"]?.isChecked = false
                             }
+
                         }
                     }
 
@@ -9595,6 +9598,18 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
             layout.addView(cbIncludeStroke)
+
+            val cbTwoWay = android.widget.CheckBox(this@EditorActivity).apply {
+                text = "Two Way"
+                setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                isChecked = stylableLayer.isMotionShadowTwoWay
+                buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                setOnCheckedChangeListener { _, isChecked ->
+                    stylableLayer.isMotionShadowTwoWay = isChecked
+                    canvasView.invalidate()
+                }
+            }
+            layout.addView(cbTwoWay)
 
             addView(layout)
         }
@@ -10641,6 +10656,8 @@ class EditorActivity : AppCompatActivity() {
 
         roughnessSliderLayout.visibility = if (stylableLayer.isRoughStroke) android.view.View.VISIBLE else android.view.View.GONE
         mainLayout.addView(roughnessSliderLayout)
+
+
 
         scroll.addView(mainLayout)
         container.addView(scroll)
