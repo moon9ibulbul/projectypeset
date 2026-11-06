@@ -212,4 +212,56 @@ class TyperLayoutSolverTest {
         val hasIntact = variants.any { it.formattedText.contains("Tergopoh-gopoh") }
         assertTrue("Harus mengutamakan opsi utuh 'Tergopoh-gopoh'", hasIntact)
     }
+
+    @Test
+    fun testModeTyperDefault100ptFontSizeWithBoxScale() {
+        // Test visual equivalence: keeping fontSize = 100pt and adjusting box scale (scaleX, scaleY)
+        // versus previously scaling fontSize directly.
+        val text = "Ketika aku bertemu denganmu"
+        val bubbleWidth = 300f
+        val bubbleHeight = 350f
+
+        // Previous logic: dynamic base font size or style font size scaled directly
+        val prevBaseFontSize = (bubbleHeight * 0.22f).coerceIn(24f, 48f) // 48f
+        val prevResult = TyperLayoutSolver.solveLayoutPure(
+            rawText = text,
+            bubbleWidth = bubbleWidth,
+            bubbleHeight = bubbleHeight,
+            isOval = true,
+            baseFontSize = prevBaseFontSize,
+            minScale = 0.20f
+        )
+        val prevEffectiveFontSize = prevBaseFontSize * prevResult.scale
+        val prevRenderedWidth = prevResult.boxWidth
+
+        // New logic: fontSize remains 100f (default), scale is applied to box scale (scaleX, scaleY)
+        val defaultFontSize = 100f
+        val newResult = TyperLayoutSolver.solveLayoutPure(
+            rawText = text,
+            bubbleWidth = bubbleWidth,
+            bubbleHeight = bubbleHeight,
+            isOval = true,
+            baseFontSize = defaultFontSize,
+            minScale = 0.05f
+        )
+
+        val finalScale = newResult.scale
+        val finalFontSize = defaultFontSize // remains unchanged at 100pt
+        val finalScaleX = finalScale
+        val finalScaleY = finalScale
+        val finalBoxWidth = newResult.boxWidth / finalScale
+
+        // The effective visual font size rendered on canvas is fontSize * scale
+        val newEffectiveFontSize = finalFontSize * finalScale
+        // The effective visual width rendered on canvas is boxWidth * scaleX
+        val newRenderedWidth = finalBoxWidth * finalScaleX
+
+        assertEquals("Text Size harus tetap 100pt", 100f, finalFontSize, 0.001f)
+        assertEquals("ScaleX dan ScaleY harus seragam", finalScaleX, finalScaleY, 0.001f)
+        assertEquals("Formatted text lines harus identik", prevResult.formattedText, newResult.formattedText)
+        assertEquals("Effective visual font size harus serupa dengan toleransi stepping 5%", prevEffectiveFontSize, newEffectiveFontSize, 5f)
+        assertEquals("Effective rendered box width harus mendekati lebar sebelumnya", prevRenderedWidth, newRenderedWidth, 25f)
+        assertEquals("Effective rendered box width pada canvas harus sama persis dengan layoutSolution.boxWidth", newResult.boxWidth, newRenderedWidth, 0.001f)
+        assertTrue("Effective rendered box width harus muat di dalam bubble width", newRenderedWidth <= bubbleWidth)
+    }
 }

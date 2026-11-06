@@ -703,10 +703,11 @@ class EditorActivity : AppCompatActivity() {
                 } else {
                     layer.color = Color.BLACK
                     layer.textAlign = Layout.Alignment.ALIGN_CENTER
-                    layer.fontSize = (rect.height() * 0.22f).coerceIn(24f, 48f)
+                    layer.fontSize = 100f
                 }
 
                 // Gunakan TyperLayoutSolver cerdas berbasis siluet intan/oval dan pemenggalan kata Indonesia
+                // Text Size tetap tidak berubah (default 100pt), penyesuaian ukuran dilakukan melalui box scale
                 val basePaint = android.text.TextPaint().apply {
                     textSize = layer.fontSize
                     typeface = layer.typeface
@@ -718,7 +719,7 @@ class EditorActivity : AppCompatActivity() {
                     bubbleRect = rect,
                     isOval = bubble.isOval,
                     basePaint = basePaint,
-                    minScale = 0.20f
+                    minScale = 0.05f
                 )
 
                 // Update teks yang sudah di-format / di-hyphenate rapi
@@ -733,10 +734,11 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
 
-                layer.boxWidth = layoutSolution.boxWidth
-                layer.fontSize = basePaint.textSize * layoutSolution.scale
-                layer.scaleX = 1f
-                layer.scaleY = 1f
+                val finalScale = layoutSolution.scale
+                layer.boxWidth = layoutSolution.boxWidth / finalScale
+                layer.fontSize = basePaint.textSize
+                layer.scaleX = finalScale
+                layer.scaleY = finalScale
                 layer.isOval = false
 
                 // Save state before adding to allow step-by-step undo
