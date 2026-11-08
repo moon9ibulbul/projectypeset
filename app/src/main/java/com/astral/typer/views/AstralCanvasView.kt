@@ -497,188 +497,196 @@ class AstralCanvasView @JvmOverloads constructor(
     fun performTyperMagicWand(startX: Int, startY: Int, autoMerge: Boolean = false) {
         if (backgroundTiles.isEmpty()) return
 
+        val tilesSnapshot = backgroundTiles.toList()
         val originalW = canvasWidth
         val originalH = canvasHeight
-        val sX = startX.coerceIn(0, originalW - 1)
-        val sY = startY.coerceIn(0, originalH - 1)
+        val sensitivity = magicWandSensitivity
 
-        val pixelCache = TiledPixelCache(backgroundTiles, TILE_SIZE)
-        val targetColor = pixelCache.getPixel(sX, sY)
+        // Jalankan flood fill dan segmentasi di background thread untuk menghindari ANR di UI thread
+        Thread {
+            val sX = startX.coerceIn(0, originalW - 1)
+            val sY = startY.coerceIn(0, originalH - 1)
 
-        val maxDiff = (magicWandSensitivity / 100f * 300f).toInt().coerceAtLeast(30)
+            val pixelCache = TiledPixelCache(tilesSnapshot, TILE_SIZE)
+            val targetColor = pixelCache.getPixel(sX, sY)
 
-        val r1 = (targetColor shr 16) and 0xFF
-        val g1 = (targetColor shr 8) and 0xFF
-        val b1 = targetColor and 0xFF
+            val maxDiff = (sensitivity / 100f * 300f).toInt().coerceAtLeast(30)
 
-        val visited = TiledVisitedTracker(TILE_SIZE)
-        val queue = IntQueue()
+            val r1 = (targetColor shr 16) and 0xFF
+            val g1 = (targetColor shr 8) and 0xFF
+            val b1 = targetColor and 0xFF
 
-        queue.enqueue((sX shl 16) or (sY and 0xFFFF))
-        visited.visit(sX, sY)
+            val visited = TiledVisitedTracker(TILE_SIZE)
+            val queue = IntQueue()
 
-        var minX = sX
-        var maxX = sX
-        var minY = sY
-        var maxY = sY
+            queue.enqueue((sX shl 16) or (sY and 0xFFFF))
+            visited.visit(sX, sY)
 
-        var pixelCount = 0
-        val maxPixels = 2000000
+            var minX = sX
+            var maxX = sX
+            var minY = sY
+            var maxY = sY
 
-        while (!queue.isEmpty() && pixelCount < maxPixels) {
-            val encoded = queue.dequeue()
-            val cx = encoded ushr 16
-            val cy = encoded and 0xFFFF
-            pixelCount++
+            var pixelCount = 0
+            val maxPixels = 2000000
 
-            if (cx < minX) minX = cx
-            if (cx > maxX) maxX = cx
-            if (cy < minY) minY = cy
-            if (cy > maxY) maxY = cy
+            while (!queue.isEmpty() && pixelCount < maxPixels) {
+                val encoded = queue.dequeue()
+                val cx = encoded ushr 16
+                val cy = encoded and 0xFFFF
+                pixelCount++
 
-            // Left
-            if (cx > 0) {
-                val nx = cx - 1
-                val ny = cy
-                val c2 = pixelCache.getPixel(nx, ny)
-                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
-                if (diff <= maxDiff && visited.visit(nx, ny)) {
-                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
-                }
-            }
-            // Right
-            if (cx < originalW - 1) {
-                val nx = cx + 1
-                val ny = cy
-                val c2 = pixelCache.getPixel(nx, ny)
-                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
-                if (diff <= maxDiff && visited.visit(nx, ny)) {
-                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
-                }
-            }
-            // Top
-            if (cy > 0) {
-                val nx = cx
-                val ny = cy - 1
-                val c2 = pixelCache.getPixel(nx, ny)
-                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
-                if (diff <= maxDiff && visited.visit(nx, ny)) {
-                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
-                }
-            }
-            // Bottom
-            if (cy < originalH - 1) {
-                val nx = cx
-                val ny = cy + 1
-                val c2 = pixelCache.getPixel(nx, ny)
-                val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
-                if (diff <= maxDiff && visited.visit(nx, ny)) {
-                    queue.enqueue((nx shl 16) or (ny and 0xFFFF))
-                }
-            }
-        }
+                if (cx < minX) minX = cx
+                if (cx > maxX) maxX = cx
+                if (cy < minY) minY = cy
+                if (cy > maxY) maxY = cy
 
-        var finalBoundsMinX = minX
-        var finalBoundsMaxX = maxX
-        var finalBoundsMinY = minY
-        var finalBoundsMaxY = maxY
-        var bubbleResults: List<com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult>? = null
-
-        val boxW = maxX - minX
-        val boxH = maxY - minY
-        val isLeakedOrExcessive = boxW > (originalW * 0.90f) || boxH > (originalH * 0.90f) || pixelCount >= maxPixels
-
-        // Always test if the tap point is enclosed by a dashed border (e.g. Panel 5)
-        val closedFill = com.astral.typer.utils.TyperBubbleSegmentationHelper.performClosedFloodFill(
-            sX, sY, originalW, originalH,
-            { px, py -> pixelCache.getPixel(px, py) },
-            maxDiff
-        )
-
-        var useClosedFill = false
-        if (closedFill != null) {
-            val (cBounds, cMask) = closedFill
-            val cW = cBounds[2] - cBounds[0] + 1
-            val cH = cBounds[3] - cBounds[1] + 1
-            val cArea = cW.toLong() * cH.toLong()
-            val stdArea = boxW.toLong() * boxH.toLong()
-
-            // If standard fill leaked beyond the closed dashed boundary or was excessive
-            if (isLeakedOrExcessive || stdArea > (cArea * 1.35) || (boxW > cW + 40 && boxH > cH + 40)) {
-                useClosedFill = true
-                finalBoundsMinX = cBounds[0]
-                finalBoundsMinY = cBounds[1]
-                finalBoundsMaxX = cBounds[2]
-                finalBoundsMaxY = cBounds[3]
-                if (!autoMerge) {
-                    bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
-                        cW, cH, cMask,
-                        finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
-                        sX.toFloat(), sY.toFloat()
-                    )
-                } else {
-                    val isOval = com.astral.typer.utils.TyperBubbleSegmentationHelper.detectIsOval(cW, cH, cMask)
-                    bubbleResults = listOf(
-                        com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult(
-                            finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
-                            finalBoundsMaxX.toFloat(), finalBoundsMaxY.toFloat(),
-                            isOval = isOval
-                        )
-                    )
-                }
-            }
-        }
-
-        if (!useClosedFill) {
-            if (boxW in 15..((originalW * 0.95f).toInt()) && boxH in 15..((originalH * 0.95f).toInt())) {
-                val bW = boxW + 1
-                val bH = boxH + 1
-                if (bW * bH in 1..2500000) {
-                    val localMask = BooleanArray(bW * bH)
-                    for (ly in 0 until bH) {
-                        val gy = minY + ly
-                        for (lx in 0 until bW) {
-                            val gx = minX + lx
-                            if (visited.isVisited(gx, gy)) {
-                                localMask[ly * bW + lx] = true
-                            }
-                        }
+                // Left
+                if (cx > 0) {
+                    val nx = cx - 1
+                    val ny = cy
+                    val c2 = pixelCache.getPixel(nx, ny)
+                    val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                    if (diff <= maxDiff && visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
                     }
+                }
+                // Right
+                if (cx < originalW - 1) {
+                    val nx = cx + 1
+                    val ny = cy
+                    val c2 = pixelCache.getPixel(nx, ny)
+                    val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                    if (diff <= maxDiff && visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                    }
+                }
+                // Top
+                if (cy > 0) {
+                    val nx = cx
+                    val ny = cy - 1
+                    val c2 = pixelCache.getPixel(nx, ny)
+                    val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                    if (diff <= maxDiff && visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                    }
+                }
+                // Bottom
+                if (cy < originalH - 1) {
+                    val nx = cx
+                    val ny = cy + 1
+                    val c2 = pixelCache.getPixel(nx, ny)
+                    val diff = abs(r1 - ((c2 shr 16) and 0xFF)) + abs(g1 - ((c2 shr 8) and 0xFF)) + abs(b1 - (c2 and 0xFF))
+                    if (diff <= maxDiff && visited.visit(nx, ny)) {
+                        queue.enqueue((nx shl 16) or (ny and 0xFFFF))
+                    }
+                }
+            }
+
+            var finalBoundsMinX = minX
+            var finalBoundsMaxX = maxX
+            var finalBoundsMinY = minY
+            var finalBoundsMaxY = maxY
+            var bubbleResults: List<com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult>? = null
+
+            val boxW = maxX - minX
+            val boxH = maxY - minY
+            val isLeakedOrExcessive = boxW > (originalW * 0.90f) || boxH > (originalH * 0.90f) || pixelCount >= maxPixels
+
+            // Always test if the tap point is enclosed by a dashed border (e.g. Panel 5)
+            val closedFill = com.astral.typer.utils.TyperBubbleSegmentationHelper.performClosedFloodFill(
+                sX, sY, originalW, originalH,
+                { px, py -> pixelCache.getPixel(px, py) },
+                maxDiff
+            )
+
+            var useClosedFill = false
+            if (closedFill != null) {
+                val (cBounds, cMask) = closedFill
+                val cW = cBounds[2] - cBounds[0] + 1
+                val cH = cBounds[3] - cBounds[1] + 1
+                val cArea = cW.toLong() * cH.toLong()
+                val stdArea = boxW.toLong() * boxH.toLong()
+
+                // If standard fill leaked beyond the closed dashed boundary or was excessive
+                if (isLeakedOrExcessive || stdArea > (cArea * 1.35) || (boxW > cW + 40 && boxH > cH + 40)) {
+                    useClosedFill = true
+                    finalBoundsMinX = cBounds[0]
+                    finalBoundsMinY = cBounds[1]
+                    finalBoundsMaxX = cBounds[2]
+                    finalBoundsMaxY = cBounds[3]
                     if (!autoMerge) {
                         bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
-                            bW, bH, localMask,
-                            minX.toFloat(), minY.toFloat(),
+                            cW, cH, cMask,
+                            finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
                             sX.toFloat(), sY.toFloat()
                         )
                     } else {
-                        val isOval = com.astral.typer.utils.TyperBubbleSegmentationHelper.detectIsOval(bW, bH, localMask)
+                        val isOval = com.astral.typer.utils.TyperBubbleSegmentationHelper.detectIsOval(cW, cH, cMask)
                         bubbleResults = listOf(
                             com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult(
-                                minX.toFloat(), minY.toFloat(),
-                                maxX.toFloat(), maxY.toFloat(),
+                                finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(),
+                                finalBoundsMaxX.toFloat(), finalBoundsMaxY.toFloat(),
                                 isOval = isOval
                             )
                         )
                     }
                 }
             }
-        }
 
-        if (!bubbleResults.isNullOrEmpty()) {
-            val newBubbles = bubbleResults.map { TyperBubble(it.rect, isOval = it.isOval) }
-            val currentList = detectedBubbles ?: emptyList()
-            setDetectedBubbles(currentList + newBubbles)
-            invalidate()
-        } else {
-            val finalW = finalBoundsMaxX - finalBoundsMinX
-            val finalH = finalBoundsMaxY - finalBoundsMinY
-            if (finalW in 15..((originalW * 0.95f).toInt()) && finalH in 15..((originalH * 0.95f).toInt())) {
-                val rect = RectF(finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(), finalBoundsMaxX.toFloat(), finalBoundsMaxY.toFloat())
-                val newList = (detectedBubbles ?: emptyList()) + TyperBubble(rect, isOval = true)
-                setDetectedBubbles(newList)
-                invalidate()
+            if (!useClosedFill) {
+                if (boxW in 15..((originalW * 0.95f).toInt()) && boxH in 15..((originalH * 0.95f).toInt())) {
+                    val bW = boxW + 1
+                    val bH = boxH + 1
+                    if (bW * bH in 1..2500000) {
+                        val localMask = BooleanArray(bW * bH)
+                        for (ly in 0 until bH) {
+                            val gy = minY + ly
+                            for (lx in 0 until bW) {
+                                val gx = minX + lx
+                                if (visited.isVisited(gx, gy)) {
+                                    localMask[ly * bW + lx] = true
+                                }
+                            }
+                        }
+                        if (!autoMerge) {
+                            bubbleResults = com.astral.typer.utils.TyperBubbleSegmentationHelper.segmentConnectedMask(
+                                bW, bH, localMask,
+                                minX.toFloat(), minY.toFloat(),
+                                sX.toFloat(), sY.toFloat()
+                            )
+                        } else {
+                            val isOval = com.astral.typer.utils.TyperBubbleSegmentationHelper.detectIsOval(bW, bH, localMask)
+                            bubbleResults = listOf(
+                                com.astral.typer.utils.TyperBubbleSegmentationHelper.BubbleResult(
+                                    minX.toFloat(), minY.toFloat(),
+                                    maxX.toFloat(), maxY.toFloat(),
+                                    isOval = isOval
+                                )
+                            )
+                        }
+                    }
+                }
             }
-        }
+
+            post {
+                if (!bubbleResults.isNullOrEmpty()) {
+                    val newBubbles = bubbleResults.map { TyperBubble(it.rect, isOval = it.isOval) }
+                    val currentList = detectedBubbles ?: emptyList()
+                    setDetectedBubbles(currentList + newBubbles)
+                    invalidate()
+                } else {
+                    val finalW = finalBoundsMaxX - finalBoundsMinX
+                    val finalH = finalBoundsMaxY - finalBoundsMinY
+                    if (finalW in 15..((originalW * 0.95f).toInt()) && finalH in 15..((originalH * 0.95f).toInt())) {
+                        val rect = RectF(finalBoundsMinX.toFloat(), finalBoundsMinY.toFloat(), finalBoundsMaxX.toFloat(), finalBoundsMaxY.toFloat())
+                        val newList = (detectedBubbles ?: emptyList()) + TyperBubble(rect, isOval = true)
+                        setDetectedBubbles(newList)
+                        invalidate()
+                    }
+                }
+            }
+        }.start()
     }
 
     fun addCustomInpaintPath(path: Path) {

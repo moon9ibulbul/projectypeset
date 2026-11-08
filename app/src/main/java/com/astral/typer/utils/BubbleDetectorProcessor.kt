@@ -14,6 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.File
@@ -284,11 +286,15 @@ class BubbleDetectorProcessor(private val context: Context) {
                 y += STRIDE
             }
 
-            // 2. Parallel Inference
+            // 2. Parallel Inference with bounded concurrency to prevent CPU starvation and memory spikes on low-end devices
+            val concurrencyLimit = Runtime.getRuntime().availableProcessors().coerceIn(1, 2)
+            val semaphore = Semaphore(concurrencyLimit)
             val allResults = coroutineScope {
                 tiles.map { point ->
                     async {
-                        processTile(procBitmap, point.x, point.y, width, height, env, session, imageInputName, sizeInputName)
+                        semaphore.withPermit {
+                            processTile(procBitmap, point.x, point.y, width, height, env, session, imageInputName, sizeInputName)
+                        }
                     }
                 }.awaitAll()
             }
