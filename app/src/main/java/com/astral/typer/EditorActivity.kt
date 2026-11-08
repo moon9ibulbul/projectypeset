@@ -707,51 +707,55 @@ class EditorActivity : AppCompatActivity() {
                 }
 
                 // Gunakan TyperLayoutSolver cerdas berbasis siluet intan/oval dan pemenggalan kata Indonesia
-                // Text Size tetap tidak berubah (default 100pt), penyesuaian ukuran dilakukan melalui box scale
+                // Jalankan di Dispatchers.Default untuk mencegah ANR di Main Thread pada device low-end
                 val basePaint = android.text.TextPaint().apply {
                     textSize = layer.fontSize
                     typeface = layer.typeface
                     letterSpacing = layer.letterSpacing
                 }
 
-                val layoutSolution = com.astral.typer.utils.TyperLayoutSolver.solveLayout(
-                    rawText = text,
-                    bubbleRect = rect,
-                    isOval = bubble.isOval,
-                    basePaint = basePaint,
-                    minScale = 0.05f
-                )
+                lifecycleScope.launch(Dispatchers.Default) {
+                    val layoutSolution = com.astral.typer.utils.TyperLayoutSolver.solveLayout(
+                        rawText = text,
+                        bubbleRect = rect,
+                        isOval = bubble.isOval,
+                        basePaint = basePaint,
+                        minScale = 0.05f
+                    )
 
-                // Update teks yang sudah di-format / di-hyphenate rapi
-                if (layoutSolution.formattedText != text) {
-                    layer.text = SpannableStringBuilder(layoutSolution.formattedText)
-                    // Re-apply format spans jika style aktif
-                    if (style != null) {
-                        if (style.isBold) layer.text.setSpan(StyleSpan(Typeface.BOLD), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        if (style.isItalic) layer.text.setSpan(StyleSpan(Typeface.ITALIC), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        if (style.isUnderline) layer.text.setSpan(UnderlineSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        if (style.isStrike) layer.text.setSpan(StrikethroughSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    withContext(Dispatchers.Main) {
+                        // Update teks yang sudah di-format / di-hyphenate rapi
+                        if (layoutSolution.formattedText != text) {
+                            layer.text = SpannableStringBuilder(layoutSolution.formattedText)
+                            // Re-apply format spans jika style aktif
+                            if (style != null) {
+                                if (style.isBold) layer.text.setSpan(StyleSpan(Typeface.BOLD), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                if (style.isItalic) layer.text.setSpan(StyleSpan(Typeface.ITALIC), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                if (style.isUnderline) layer.text.setSpan(UnderlineSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                if (style.isStrike) layer.text.setSpan(StrikethroughSpan(), 0, layer.text.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                        }
+
+                        val finalScale = layoutSolution.scale
+                        layer.boxWidth = layoutSolution.boxWidth / finalScale
+                        layer.fontSize = basePaint.textSize
+                        layer.scaleX = finalScale
+                        layer.scaleY = finalScale
+                        layer.isOval = false
+
+                        // Save state before adding to allow step-by-step undo
+                        com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
+
+                        canvasView.getLayers().add(layer)
+                        canvasView.selectLayer(layer)
+
+                        // Remove the bubble overlay
+                        canvasView.removeDetectedBubble(bubble)
+
+                        // Advance
+                        typerAdapter?.advanceSelection()
                     }
                 }
-
-                val finalScale = layoutSolution.scale
-                layer.boxWidth = layoutSolution.boxWidth / finalScale
-                layer.fontSize = basePaint.textSize
-                layer.scaleX = finalScale
-                layer.scaleY = finalScale
-                layer.isOval = false
-
-                // Save state before adding to allow step-by-step undo
-                com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
-
-                canvasView.getLayers().add(layer)
-                canvasView.selectLayer(layer)
-
-                // Remove the bubble overlay
-                canvasView.removeDetectedBubble(bubble)
-
-                // Advance
-                typerAdapter?.advanceSelection()
             }
         }
 

@@ -41,15 +41,17 @@ object TyperLayoutSolver {
         basePaint: TextPaint,
         minScale: Float = 0.20f
     ): LayoutResult {
+        val wordCache = mutableMapOf<String, Float>()
+        val baseFontSize = basePaint.textSize
         return solveLayoutInternal(
             rawText = rawText,
             bubbleWidth = bubbleRect.width(),
             bubbleHeight = bubbleRect.height(),
             isOval = isOval,
-            baseFontSize = basePaint.textSize,
+            baseFontSize = baseFontSize,
             measureWord = { word, size ->
-                val p = TextPaint(basePaint).apply { textSize = size }
-                p.measureText(word)
+                val baseW = wordCache.getOrPut(word) { basePaint.measureText(word) }
+                (baseW / baseFontSize) * size
             },
             minScale = minScale
         )

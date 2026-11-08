@@ -23,6 +23,7 @@ class TyperTextAdapter(
 
     // Default: try to find "TyperDialog" or use first
     private val defaultStyleIndex: Int
+    private val sharedStyleNames: List<String>
 
     init {
         var idx = availableStyles.indexOfFirst { it.name == "TyperDialog" }
@@ -30,12 +31,19 @@ class TyperTextAdapter(
             idx = 0
         }
         defaultStyleIndex = idx
+        sharedStyleNames = availableStyles.map { it.name ?: "Style" }
     }
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvText: TextView = view.findViewById(R.id.tvTextContent)
         val spinnerStyle: android.widget.Spinner = view.findViewById(R.id.spinnerStyle)
         val container: View = view.findViewById(R.id.itemContainer)
+
+        init {
+            val adapter = ArrayAdapter(context, R.layout.item_spinner, sharedStyleNames)
+            adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
+            spinnerStyle.adapter = adapter
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -50,12 +58,6 @@ class TyperTextAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val text = textLines[position]
         holder.tvText.text = text
-
-        // Setup Spinner
-        val styleNames = availableStyles.map { it.name }
-        val adapter = ArrayAdapter(context, R.layout.item_spinner, styleNames)
-        adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
-        holder.spinnerStyle.adapter = adapter
 
         // Set selection
         val currentStyleIdx = selectedStyles.getOrDefault(position, defaultStyleIndex)
