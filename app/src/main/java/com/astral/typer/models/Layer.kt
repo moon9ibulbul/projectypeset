@@ -107,6 +107,7 @@ interface StylableLayer {
     var motionBlurOffset: Float
     var motionBlurVelocityX: Float
     var motionBlurVelocityY: Float
+    var motionBlurWeightMode: Int
     var halftoneDotSize: Float
     var halftoneDotColor: Int
     var halftoneThreshold: Float

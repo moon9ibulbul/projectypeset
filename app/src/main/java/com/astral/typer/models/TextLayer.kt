@@ -347,6 +347,7 @@ class TextLayer(
     override var motionBlurKernelSize: Int = 5
     override var motionBlurOffset: Float = 0f
     override var motionBlurVelocityX: Float = 0f
+    override var motionBlurWeightMode: Int = 0
     override var motionBlurVelocityY: Float = 0f
 
     // Halftone
@@ -496,6 +497,12 @@ class TextLayer(
     private var cachedWavyBitmap: Bitmap? = null
     @Transient
     private var cachedWavyHash: Int = 0
+
+    // Caching for Motion Blur fallback
+    @Transient
+    private var cachedMotionBlurBitmap: Bitmap? = null
+    @Transient
+    private var cachedMotionBlurHash: Int = 0
 
     // Caching for Pattern Shader
     @Transient
@@ -711,6 +718,7 @@ class TextLayer(
         result = 31 * result + motionBlurOffset.hashCode()
         result = 31 * result + motionBlurVelocityX.hashCode()
         result = 31 * result + motionBlurVelocityY.hashCode()
+        result = 31 * result + motionBlurWeightMode
         result = 31 * result + halftoneDotSize.hashCode()
         result = 31 * result + halftoneDotColor
         result = 31 * result + halftoneThreshold.hashCode()
@@ -896,6 +904,9 @@ class TextLayer(
         cachedPixelBitmap = null
         cachedWavyBitmap?.recycle()
         cachedWavyBitmap = null
+        cachedMotionBlurBitmap?.recycle()
+        cachedMotionBlurBitmap = null
+        cachedMotionBlurHash = 0
         recycleMorphedCaches()
     }
 
@@ -1300,6 +1311,7 @@ class TextLayer(
         newLayer.motionBlurOffset = this.motionBlurOffset
         newLayer.motionBlurVelocityX = this.motionBlurVelocityX
         newLayer.motionBlurVelocityY = this.motionBlurVelocityY
+        newLayer.motionBlurWeightMode = this.motionBlurWeightMode
         newLayer.halftoneDotSize = this.halftoneDotSize
         newLayer.halftoneDotColor = this.halftoneDotColor
         newLayer.halftoneThreshold = this.halftoneThreshold
@@ -1546,7 +1558,7 @@ class TextLayer(
                 TextEffectType.GAUSSIAN_BLUR -> effectExpansion = Math.max(effectExpansion, blurRadius * 2.5f)
                 TextEffectType.MOTION_BLUR -> {
                     val velLen = Math.hypot(motionBlurVelocityX.toDouble(), motionBlurVelocityY.toDouble()).toFloat()
-                    val expansion = velLen + Math.abs(motionBlurOffset)
+                    val expansion = velLen * 0.5f + Math.abs(motionBlurOffset) + 4f
                     effectExpansion = Math.max(effectExpansion, expansion)
                 }
                 TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
@@ -4827,6 +4839,12 @@ class TextLayer(
                     }
                 }
                 TextEffectType.MOTION_BLUR -> {
+                    // Coordinate space note:
+                    // applyEffect executes in unscaled layer-local coordinates (w, h, calculatePadding())
+                    // before outer canvas view scale / export quality scale transformations are applied.
+                    // uVelocity (motionBlurVelocityX/Y) and uOffset are expressed directly in layer-local points/pixels,
+                    // preserving uniform blur extent relative to the text across interactive preview, zoom levels,
+                    // and high-resolution bitmap export.
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
                         try {
@@ -4842,6 +4860,7 @@ class TextLayer(
                             shader.setFloatUniform("uVelocity", motionBlurVelocityX, motionBlurVelocityY)
                             shader.setIntUniform("uKernelSize", motionBlurKernelSize)
                             shader.setFloatUniform("uOffset", motionBlurOffset)
+                            shader.setIntUniform("uWeightMode", motionBlurWeightMode)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -4849,18 +4868,90 @@ class TextLayer(
                             targetCanvas.drawRenderNode(node)
                             targetCanvas.restore()
                             useRenderEffect = true
-                        } catch (e: Exception) {}
+                        } catch (e: Exception) {
+                            android.util.Log.w("TextLayer", "Motion blur shader failed, falling back to software blur", e)
+                        }
                     }
 
                     if (!useRenderEffect) {
-                        val originalMask = paint.maskFilter
                         val velLen = Math.hypot(motionBlurVelocityX.toDouble(), motionBlurVelocityY.toDouble()).toFloat()
-                        val fallbackBlur = velLen / 2f
-                        if (fallbackBlur > 0) {
-                            paint.maskFilter = BlurMaskFilter(fallbackBlur.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                        if (velLen < 0.01f || motionBlurKernelSize <= 0) {
+                            drawInner(targetCanvas)
+                        } else {
+                            val bmpW = nodeW
+                            val bmpH = nodeH
+                            if (bmpW > 0 && bmpH > 0) {
+                                val currentHash = listOf(
+                                    text.toString(), w, h, color, fontSize,
+                                    strokeWidth, strokeColor, doubleStrokeWidth, doubleStrokeColor,
+                                    letterSpacing, lineSpacing, typeface, pad, bounds
+                                ).hashCode()
+
+                                if (cachedMotionBlurBitmap == null || cachedMotionBlurBitmap!!.isRecycled ||
+                                    cachedMotionBlurBitmap!!.width != bmpW || cachedMotionBlurBitmap!!.height != bmpH ||
+                                    cachedMotionBlurHash != currentHash) {
+                                    cachedMotionBlurBitmap?.recycle()
+                                    val bitmap = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                    val c = Canvas(bitmap)
+                                    c.translate(recordTranslateX, recordTranslateY)
+                                    drawInner(c)
+                                    cachedMotionBlurBitmap = bitmap
+                                    cachedMotionBlurHash = currentHash
+                                }
+
+                                val srcBmp = cachedMotionBlurBitmap
+                                if (srcBmp != null && !srcBmp.isRecycled) {
+                                    // Directional blur matching shader math: symmetric sampling in [-0.5, 0.5]
+                                    val n = Math.max(motionBlurKernelSize, Math.ceil(velLen.toDouble()).toInt()).coerceIn(2, 64)
+                                    val denom = (n - 1).toFloat()
+                                    val offsetT = motionBlurOffset / velLen
+
+                                    val weights = FloatArray(n)
+                                    var totalWeight = 0f
+                                    for (i in 0 until n) {
+                                        val t = i.toFloat() / denom - 0.5f
+                                        val weight = if (motionBlurWeightMode == 1) {
+                                            Math.max(0.001f, 1f - 2f * Math.abs(t))
+                                        } else {
+                                            1f
+                                        }
+                                        weights[i] = weight
+                                        totalWeight += weight
+                                    }
+
+                                    // Render directional blur into an offscreen buffer and composite to targetCanvas
+                                    val accumBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                    val accumCanvas = Canvas(accumBmp)
+                                    val samplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        isFilterBitmap = true
+                                    }
+
+                                    // Iterative blending: each sample i is blended with alpha = w_i / runningTotal
+                                    var runningWeight = 0f
+                                    for (i in 0 until n) {
+                                        val t = i.toFloat() / denom - 0.5f
+                                        val dx = motionBlurVelocityX * (t + offsetT)
+                                        val dy = motionBlurVelocityY * (t + offsetT)
+                                        val w = weights[i]
+                                        runningWeight += w
+                                        val alpha = (w / runningWeight).coerceIn(0f, 1f)
+
+                                        samplePaint.alpha = Math.round(alpha * 255f).coerceIn(1, 255)
+                                        accumCanvas.drawBitmap(srcBmp, dx, dy, samplePaint)
+                                    }
+
+                                    targetCanvas.save()
+                                    targetCanvas.translate(drawTranslateX, drawTranslateY)
+                                    targetCanvas.drawBitmap(accumBmp, 0f, 0f, null)
+                                    targetCanvas.restore()
+                                    accumBmp.recycle()
+                                } else {
+                                    drawInner(targetCanvas)
+                                }
+                            } else {
+                                drawInner(targetCanvas)
+                            }
                         }
-                        drawInner(targetCanvas)
-                        paint.maskFilter = originalMask
                     }
                 }
                 TextEffectType.RADIAL_BLUR -> {
@@ -5646,36 +5737,64 @@ class TextLayer(
             }
         """
 
+        /*
+         * MOTION_BLUR_SHADER
+         * Directional linear motion blur matching Photoshop / Clip Studio Paint standards.
+         * - Symmetric sampling along the motion vector: t in [-0.5, +0.5] inclusive.
+         * - Preserves user offset semantics: sampleCoord = coord + uVelocity * (t + uOffset / len).
+         * - Dynamic sample count: n = clamp(max(uKernelSize, ceil(len / stepPx)), 2, 128) with stepPx = 1.0.
+         * - Interleaved gradient noise jitter for large blurs (len > 128) to eliminate banding without noise artifacts.
+         * - Premultiplied color accumulation with selectable weighting mode:
+         *     uWeightMode == 0: Uniform box weighting (Photoshop standard)
+         *     uWeightMode == 1: Soft triangular/tent falloff toward edges (CSP standard)
+         */
         const val MOTION_BLUR_SHADER = """
             uniform shader content;
             uniform float2 uVelocity;
             uniform int uKernelSize;
             uniform float uOffset;
+            uniform int uWeightMode;
 
             half4 main(float2 coord) {
-                half4 color = content.eval(coord);
-
-                if (uKernelSize <= 0) {
-                    return color;
-                }
-
                 float len = length(uVelocity);
-                if (len < 0.01) {
-                    return color;
+                if (len < 0.01 || uKernelSize <= 0) {
+                    return content.eval(coord);
                 }
 
-                float offsetVal = -uOffset / len - 0.5;
-                int k = uKernelSize - 1;
+                // Dynamic sample count: scale samples with blur length to avoid banding on long blurs
+                int n = clamp(max(uKernelSize, int(ceil(len))), 2, 128);
 
-                for (int i = 0; i < 256; i++) {
-                    if (i >= k) {
+                // Interleaved gradient noise per-pixel jitter when blur length exceeds MAX_SAMPLES (128)
+                float jitter = 0.0;
+                if (len > 128.0) {
+                    jitter = fract(52.9829189 * fract(dot(coord, float2(0.06711056, 0.00583715)))) - 0.5;
+                }
+
+                float offsetT = uOffset / len;
+                float denom = float(n - 1);
+                half4 sum = half4(0.0);
+                float totalWeight = 0.0;
+
+                for (int i = 0; i < 128; i++) {
+                    if (i >= n) {
                         break;
                     }
-                    float2 bias = uVelocity * (float(i) / float(k) + offsetVal);
-                    color += content.eval(coord + bias);
+                    // t evenly spans [-0.5, +0.5] inclusive
+                    float t = (float(i) + jitter) / denom - 0.5;
+                    float2 sampleCoord = coord + uVelocity * (t + offsetT);
+                    half4 sampleColor = content.eval(sampleCoord);
+
+                    float weight = 1.0;
+                    if (uWeightMode == 1) {
+                        // Soft triangular/tent falloff (1.0 at center, decreasing to 0.0 at ends)
+                        weight = max(0.001, 1.0 - 2.0 * abs(t));
+                    }
+
+                    sum += sampleColor * weight;
+                    totalWeight += weight;
                 }
 
-                return color / float(uKernelSize);
+                return (totalWeight > 0.0) ? (sum / totalWeight) : content.eval(coord);
             }
         """
 

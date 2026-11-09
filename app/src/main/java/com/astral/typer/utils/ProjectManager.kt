@@ -163,6 +163,7 @@ object ProjectManager {
         val motionBlurOffset: Float? = null,
         val motionBlurVelocityX: Float? = null,
         val motionBlurVelocityY: Float? = null,
+        val motionBlurWeightMode: Int? = null,
         val halftoneDotSize: Float? = null, val halftoneDotColor: Int? = null, val halftoneThreshold: Float? = null,
         val halftoneType: String? = null,
         val halftoneAlpha: Float? = null,
@@ -540,6 +541,7 @@ object ProjectManager {
                         motionBlurOffset = layer.motionBlurOffset,
                         motionBlurVelocityX = layer.motionBlurVelocityX,
                         motionBlurVelocityY = layer.motionBlurVelocityY,
+                        motionBlurWeightMode = layer.motionBlurWeightMode,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
                         halftoneType = layer.halftoneType, halftoneAlpha = layer.halftoneAlpha, halftoneRange = layer.halftoneRange,
                         halftoneDensity = layer.halftoneDensity, halftoneFadingIntensity = layer.halftoneFadingIntensity, halftoneShape = layer.halftoneShape,
@@ -764,6 +766,7 @@ object ProjectManager {
                         motionBlurOffset = layer.motionBlurOffset,
                         motionBlurVelocityX = layer.motionBlurVelocityX,
                         motionBlurVelocityY = layer.motionBlurVelocityY,
+                        motionBlurWeightMode = layer.motionBlurWeightMode,
                         isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
                 } else if (layer is ImageLayer) {
@@ -1546,6 +1549,7 @@ object ProjectManager {
             model.motionBlurOffset?.let { layer.motionBlurOffset = it }
             model.motionBlurVelocityX?.let { layer.motionBlurVelocityX = it }
             model.motionBlurVelocityY?.let { layer.motionBlurVelocityY = it }
+            model.motionBlurWeightMode?.let { layer.motionBlurWeightMode = it }
             model.halftoneDotSize?.let { layer.halftoneDotSize = it }
             model.halftoneDotColor?.let { layer.halftoneDotColor = it }
             model.halftoneThreshold?.let { layer.halftoneThreshold = it }
@@ -1657,6 +1661,7 @@ object ProjectManager {
             model.motionBlurOffset?.let { layer.motionBlurOffset = it }
             model.motionBlurVelocityX?.let { layer.motionBlurVelocityX = it }
             model.motionBlurVelocityY?.let { layer.motionBlurVelocityY = it }
+            model.motionBlurWeightMode?.let { layer.motionBlurWeightMode = it }
             model.shadowColor?.let { layer.shadowColor = it }
             model.shadowRadius?.let { layer.shadowRadius = it }
             model.shadowDx?.let { layer.shadowDx = it }
@@ -3273,6 +3278,7 @@ object ProjectManager {
                         motionBlurOffset = layer.motionBlurOffset,
                         motionBlurVelocityX = layer.motionBlurVelocityX,
                         motionBlurVelocityY = layer.motionBlurVelocityY,
+                        motionBlurWeightMode = layer.motionBlurWeightMode,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
                         halftoneType = layer.halftoneType, halftoneAlpha = layer.halftoneAlpha, halftoneRange = layer.halftoneRange,
                         halftoneDensity = layer.halftoneDensity, halftoneFadingIntensity = layer.halftoneFadingIntensity, halftoneShape = layer.halftoneShape,
@@ -3483,6 +3489,7 @@ object ProjectManager {
                         motionBlurOffset = layer.motionBlurOffset,
                         motionBlurVelocityX = layer.motionBlurVelocityX,
                         motionBlurVelocityY = layer.motionBlurVelocityY,
+                        motionBlurWeightMode = layer.motionBlurWeightMode,
                         isGlobalGradient = layer.isGlobalGradient, globalP1X = layer.globalP1.x, globalP1Y = layer.globalP1.y, globalP2X = layer.globalP2.x, globalP2Y = layer.globalP2.y
                     ))
                 } else if (layer is ImageLayer) {
