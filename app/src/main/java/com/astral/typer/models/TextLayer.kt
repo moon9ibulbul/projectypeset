@@ -348,6 +348,7 @@ class TextLayer(
     override var motionBlurOffset: Float = 0f
     override var motionBlurVelocityX: Float = 0f
     override var motionBlurWeightMode: Int = 0
+    override var motionBlurShaderVersion: Int = 2
     override var motionBlurVelocityY: Float = 0f
 
     // Halftone
@@ -719,6 +720,7 @@ class TextLayer(
         result = 31 * result + motionBlurVelocityX.hashCode()
         result = 31 * result + motionBlurVelocityY.hashCode()
         result = 31 * result + motionBlurWeightMode
+        result = 31 * result + motionBlurShaderVersion
         result = 31 * result + halftoneDotSize.hashCode()
         result = 31 * result + halftoneDotColor
         result = 31 * result + halftoneThreshold.hashCode()
@@ -1312,6 +1314,7 @@ class TextLayer(
         newLayer.motionBlurVelocityX = this.motionBlurVelocityX
         newLayer.motionBlurVelocityY = this.motionBlurVelocityY
         newLayer.motionBlurWeightMode = this.motionBlurWeightMode
+        newLayer.motionBlurShaderVersion = this.motionBlurShaderVersion
         newLayer.halftoneDotSize = this.halftoneDotSize
         newLayer.halftoneDotColor = this.halftoneDotColor
         newLayer.halftoneThreshold = this.halftoneThreshold
@@ -4856,11 +4859,14 @@ class TextLayer(
                             drawInner(recordingCanvas)
                             node.endRecording()
 
-                            val shader = android.graphics.RuntimeShader(MOTION_BLUR_SHADER)
+                            val shaderStr = if (motionBlurShaderVersion == 1) MOTION_BLUR_SHADER_V1 else MOTION_BLUR_SHADER
+                            val shader = android.graphics.RuntimeShader(shaderStr)
                             shader.setFloatUniform("uVelocity", motionBlurVelocityX, motionBlurVelocityY)
                             shader.setIntUniform("uKernelSize", motionBlurKernelSize)
                             shader.setFloatUniform("uOffset", motionBlurOffset)
-                            shader.setIntUniform("uWeightMode", motionBlurWeightMode)
+                            if (motionBlurShaderVersion != 1) {
+                                shader.setIntUniform("uWeightMode", motionBlurWeightMode)
+                            }
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -5738,8 +5744,45 @@ class TextLayer(
         """
 
         /*
-         * MOTION_BLUR_SHADER
-         * Directional linear motion blur matching Photoshop / Clip Studio Paint standards.
+         * MOTION_BLUR_SHADER_V1 (Shader 1)
+         * Legacy motion blur shader implementation.
+         */
+        const val MOTION_BLUR_SHADER_V1 = """
+            uniform shader content;
+            uniform float2 uVelocity;
+            uniform int uKernelSize;
+            uniform float uOffset;
+
+            half4 main(float2 coord) {
+                half4 color = content.eval(coord);
+
+                if (uKernelSize <= 0) {
+                    return color;
+                }
+
+                float len = length(uVelocity);
+                if (len < 0.01) {
+                    return color;
+                }
+
+                float offsetVal = -uOffset / len - 0.5;
+                int k = uKernelSize - 1;
+
+                for (int i = 0; i < 256; i++) {
+                    if (i >= k) {
+                        break;
+                    }
+                    float2 bias = uVelocity * (float(i) / float(k) + offsetVal);
+                    color += content.eval(coord + bias);
+                }
+
+                return color / float(uKernelSize);
+            }
+        """
+
+        /*
+         * MOTION_BLUR_SHADER_V2 / MOTION_BLUR_SHADER (Shader 2)
+         * Upgraded directional linear motion blur matching Photoshop / Clip Studio Paint standards.
          * - Symmetric sampling along the motion vector: t in [-0.5, +0.5] inclusive.
          * - Preserves user offset semantics: sampleCoord = coord + uVelocity * (t + uOffset / len).
          * - Dynamic sample count: n = clamp(max(uKernelSize, ceil(len / stepPx)), 2, 128) with stepPx = 1.0.

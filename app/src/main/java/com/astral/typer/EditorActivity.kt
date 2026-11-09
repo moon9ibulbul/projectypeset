@@ -1510,6 +1510,80 @@ class EditorActivity : AppCompatActivity() {
                 settingsLayout.addView(s4)
         }
         if (isEffectActive(TextEffectType.MOTION_BLUR)) {
+                // Shader Selection (Shader 1 vs Shader 2)
+                val shaderRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, 8, 0, 8)
+                }
+
+                val shaderLabel = TextView(this).apply {
+                    text = "Shader:"
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    textSize = 12f
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 16, 0) }
+                }
+                shaderRow.addView(shaderLabel)
+
+                var btnShader1Ref: android.widget.Button? = null
+                var btnShader2Ref: android.widget.Button? = null
+
+                fun updateShaderButtons() {
+                    val isV1 = stylableLayer.motionBlurShaderVersion == 1
+                    btnShader1Ref?.apply {
+                        setTextColor(if (isV1) Color.CYAN else Color.WHITE)
+                        background = GradientDrawable().apply {
+                            setColor(if (isV1) Color.parseColor("#3300FFFF") else Color.parseColor("#333333"))
+                            cornerRadius = dpToPx(8).toFloat()
+                            if (isV1) setStroke(dpToPx(1), Color.CYAN)
+                        }
+                    }
+                    btnShader2Ref?.apply {
+                        setTextColor(if (!isV1) Color.CYAN else Color.WHITE)
+                        background = GradientDrawable().apply {
+                            setColor(if (!isV1) Color.parseColor("#3300FFFF") else Color.parseColor("#333333"))
+                            cornerRadius = dpToPx(8).toFloat()
+                            if (!isV1) setStroke(dpToPx(1), Color.CYAN)
+                        }
+                    }
+                }
+
+                val btnShader1 = android.widget.Button(this).apply {
+                    text = "Shader 1"
+                    textSize = 11f
+                    isAllCaps = false
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(90), dpToPx(36)).apply {
+                        setMargins(0, 0, 8, 0)
+                    }
+                    setOnClickListener {
+                        stylableLayer.motionBlurShaderVersion = 1
+                        updateShaderButtons()
+                        canvasView.invalidate()
+                    }
+                }
+                btnShader1Ref = btnShader1
+                shaderRow.addView(btnShader1)
+
+                val btnShader2 = android.widget.Button(this).apply {
+                    text = "Shader 2"
+                    textSize = 11f
+                    isAllCaps = false
+                    layoutParams = LinearLayout.LayoutParams(dpToPx(90), dpToPx(36))
+                    setOnClickListener {
+                        stylableLayer.motionBlurShaderVersion = 2
+                        updateShaderButtons()
+                        canvasView.invalidate()
+                    }
+                }
+                btnShader2Ref = btnShader2
+                shaderRow.addView(btnShader2)
+
+                updateShaderButtons()
+                settingsLayout.addView(shaderRow)
+
                 val currentKernel = stylableLayer.motionBlurKernelSize.coerceIn(5, 101)
                 val initialKernel = if (currentKernel % 2 == 0) currentKernel + 1 else currentKernel
                 val initialProgress = (initialKernel - 5) / 2

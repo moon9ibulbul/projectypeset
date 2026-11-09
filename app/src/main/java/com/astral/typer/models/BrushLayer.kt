@@ -522,6 +522,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var motionBlurVelocityX: Float = 0f
     override var motionBlurVelocityY: Float = 0f
     override var motionBlurWeightMode: Int = 0
+    override var motionBlurShaderVersion: Int = 2
     override var halftoneDotSize: Float = 0f
     override var halftoneDotColor: Int = Color.TRANSPARENT
     override var halftoneThreshold: Float = 0f
