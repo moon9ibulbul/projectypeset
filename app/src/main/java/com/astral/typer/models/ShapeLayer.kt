@@ -216,6 +216,8 @@ class ShapeLayer(
     override var motionBlurKernelSize: Int = 5
     override var motionBlurOffset: Float = 0f
     override var motionBlurVelocityX: Float = 0f
+    override var motionBlurWeightMode: Int = 0
+    override var motionBlurShaderVersion: Int = 2
     override var motionBlurVelocityY: Float = 0f
 
     // Halftone
@@ -2118,14 +2120,20 @@ class ShapeLayer(
                             val node = android.graphics.RenderNode("MotionBlurNode")
                             node.setPosition(0, 0, nodeW, nodeH)
                             val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
-                            val shader = android.graphics.RuntimeShader(TextLayer.MOTION_BLUR_SHADER)
+                            val shaderStr = if (motionBlurShaderVersion == 1) TextLayer.MOTION_BLUR_SHADER_V1 else TextLayer.MOTION_BLUR_SHADER
+                            val shader = android.graphics.RuntimeShader(shaderStr)
                             shader.setFloatUniform("uVelocity", motionBlurVelocityX, motionBlurVelocityY)
                             shader.setIntUniform("uKernelSize", motionBlurKernelSize)
                             shader.setFloatUniform("uOffset", motionBlurOffset)
+                            if (motionBlurShaderVersion != 1) {
+                                shader.setIntUniform("uWeightMode", motionBlurWeightMode)
+                            }
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                             useRenderEffect = true
-                        } catch (e: Exception) {}
+                        } catch (e: Exception) {
+                            android.util.Log.w("ShapeLayer", "Motion blur shader failed, falling back to software blur", e)
+                        }
                     }
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
@@ -2801,7 +2809,7 @@ class ShapeLayer(
                 TextEffectType.GAUSSIAN_BLUR -> effectExpansion = Math.max(effectExpansion, blurRadius * 2.5f)
                 TextEffectType.MOTION_BLUR -> {
                     val velLen = Math.hypot(motionBlurVelocityX.toDouble(), motionBlurVelocityY.toDouble()).toFloat()
-                    val expansion = velLen + Math.abs(motionBlurOffset)
+                    val expansion = velLen * 0.5f + Math.abs(motionBlurOffset) + 4f
                     effectExpansion = Math.max(effectExpansion, expansion)
                 }
                 TextEffectType.NEON -> effectExpansion = Math.max(effectExpansion, neonRadius * 1.5f)
@@ -3070,6 +3078,8 @@ class ShapeLayer(
         for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
+        newLayer.motionBlurWeightMode = motionBlurWeightMode
+        newLayer.motionBlurShaderVersion = motionBlurShaderVersion
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
         newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitchAmount = glitchAmount; newLayer.glitchDistance = glitchDistance; newLayer.glitchDirection = glitchDirection; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.multiGradientPositions = multiGradientPositions?.clone(); newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY

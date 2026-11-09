@@ -171,6 +171,8 @@ class ImageLayer(
     override var motionBlurOffset: Float = 0f
     override var motionBlurVelocityX: Float = 0f
     override var motionBlurVelocityY: Float = 0f
+    override var motionBlurWeightMode: Int = 0
+    override var motionBlurShaderVersion: Int = 2
     override var halftoneDotSize: Float = 10f
     override var halftoneDotColor: Int = Color.BLACK
     override var halftoneThreshold: Float = 0.5f
