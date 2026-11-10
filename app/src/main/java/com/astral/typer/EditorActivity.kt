@@ -942,7 +942,7 @@ class EditorActivity : AppCompatActivity() {
         }
 
         // Top Bar
-        binding.btnBack.setOnClickListener { finish() }
+        binding.btnBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         binding.btnSave.setOnClickListener { showSaveSidebar() }
 
         binding.btnCut.setOnClickListener {
