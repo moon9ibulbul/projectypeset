@@ -188,6 +188,7 @@ interface StylableLayer {
     var reflectionTime: Float
     var reflectionWavelengthStart: Float
     var reflectionWavelengthEnd: Float
+    var reflectionBlur: Float
 
     // Zoom Blur
     var zoomBlurCenterX: Float

@@ -238,6 +238,7 @@ class ImageLayer(
     override var reflectionTime: Float = 0.0f
     override var reflectionWavelengthStart: Float = 30.0f
     override var reflectionWavelengthEnd: Float = 100.0f
+    override var reflectionBlur: Float = 0.0f
 
     // Zoom Blur
     override var zoomBlurCenterX: Float = 0.5f

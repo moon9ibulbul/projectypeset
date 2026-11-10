@@ -437,6 +437,7 @@ class TextLayer(
     override var reflectionTime: Float = 0.0f
     override var reflectionWavelengthStart: Float = 30.0f
     override var reflectionWavelengthEnd: Float = 100.0f
+    override var reflectionBlur: Float = 0.0f
 
     // Zoom Blur
     override var zoomBlurCenterX: Float = 0.5f
@@ -795,6 +796,7 @@ class TextLayer(
         result = 31 * result + reflectionTime.hashCode()
         result = 31 * result + reflectionWavelengthStart.hashCode()
         result = 31 * result + reflectionWavelengthEnd.hashCode()
+        result = 31 * result + reflectionBlur.hashCode()
 
         // Zoom Blur
         result = 31 * result + zoomBlurCenterX.hashCode()
@@ -1387,6 +1389,7 @@ class TextLayer(
         newLayer.reflectionTime = this.reflectionTime
         newLayer.reflectionWavelengthStart = this.reflectionWavelengthStart
         newLayer.reflectionWavelengthEnd = this.reflectionWavelengthEnd
+        newLayer.reflectionBlur = this.reflectionBlur
 
         // Zoom Blur
         newLayer.zoomBlurCenterX = this.zoomBlurCenterX
@@ -5429,6 +5432,7 @@ class TextLayer(
                             shader.setFloatUniform("waveLength", reflectionWavelengthStart, reflectionWavelengthEnd)
                             shader.setFloatUniform("alpha", reflectionAlphaStart, reflectionAlphaEnd)
                             shader.setFloatUniform("time", reflectionTime)
+                            shader.setFloatUniform("blur", reflectionBlur)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -6180,6 +6184,7 @@ class TextLayer(
             uniform float2 waveLength;
             uniform float2 alpha;
             uniform float time;
+            uniform float blur;
 
             half4 main(float2 coord) {
                 float2 normCoord = coord / size;
@@ -6199,7 +6204,25 @@ class TextLayer(
                 float x = coord.x + cos(v * size.y * 6.28 / _waveLength - time) * _amplitude;
                 x = clamp(x, 0.0, size.x);
 
-                return content.eval(float2(x, targetY)) * _alpha;
+                if (blur <= 0.01) {
+                    return content.eval(float2(x, targetY)) * _alpha;
+                }
+
+                half4 sum = half4(0.0);
+                float totalWeight = 0.0;
+                float b = blur;
+
+                for (float dy = -2.0; dy <= 2.0; dy += 1.0) {
+                    for (float dx = -2.0; dx <= 2.0; dx += 1.0) {
+                        float weight = exp(-(dx * dx + dy * dy) / 2.0);
+                        float sx = clamp(x + dx * b * 0.5, 0.0, size.x);
+                        float sy = clamp(targetY + dy * b * 0.5, 0.0, size.y);
+                        sum += content.eval(float2(sx, sy)) * weight;
+                        totalWeight += weight;
+                    }
+                }
+
+                return (sum / totalWeight) * _alpha;
             }
         """
 

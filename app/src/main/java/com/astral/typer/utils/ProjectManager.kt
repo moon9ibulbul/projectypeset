@@ -217,6 +217,7 @@ object ProjectManager {
         val reflectionTime: Float? = null,
         val reflectionWavelengthStart: Float? = null,
         val reflectionWavelengthEnd: Float? = null,
+        val reflectionBlur: Float? = null,
 
         // Zoom Blur
         val zoomBlurCenterX: Float? = null,
@@ -592,6 +593,7 @@ object ProjectManager {
                         reflectionTime = layer.reflectionTime,
                         reflectionWavelengthStart = layer.reflectionWavelengthStart,
                         reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+                        reflectionBlur = layer.reflectionBlur,
 
                         // Zoom Blur
                         zoomBlurCenterX = layer.zoomBlurCenterX,
@@ -735,6 +737,7 @@ object ProjectManager {
                         reflectionTime = layer.reflectionTime,
                         reflectionWavelengthStart = layer.reflectionWavelengthStart,
                         reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+                        reflectionBlur = layer.reflectionBlur,
 
                         // Zoom Blur
                         zoomBlurCenterX = layer.zoomBlurCenterX,
@@ -1618,6 +1621,7 @@ object ProjectManager {
             model.reflectionTime?.let { layer.reflectionTime = it }
             model.reflectionWavelengthStart?.let { layer.reflectionWavelengthStart = it }
             model.reflectionWavelengthEnd?.let { layer.reflectionWavelengthEnd = it }
+            model.reflectionBlur?.let { layer.reflectionBlur = it }
 
             // Zoom Blur
             model.zoomBlurCenterX?.let { layer.zoomBlurCenterX = it }
@@ -1817,6 +1821,7 @@ object ProjectManager {
             model.reflectionTime?.let { layer.reflectionTime = it }
             model.reflectionWavelengthStart?.let { layer.reflectionWavelengthStart = it }
             model.reflectionWavelengthEnd?.let { layer.reflectionWavelengthEnd = it }
+            model.reflectionBlur?.let { layer.reflectionBlur = it }
 
             // Zoom Blur
             model.zoomBlurCenterX?.let { layer.zoomBlurCenterX = it }
@@ -3330,6 +3335,7 @@ object ProjectManager {
                         reflectionTime = layer.reflectionTime,
                         reflectionWavelengthStart = layer.reflectionWavelengthStart,
                         reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+                        reflectionBlur = layer.reflectionBlur,
 
                         zoomBlurCenterX = layer.zoomBlurCenterX,
                         zoomBlurCenterY = layer.zoomBlurCenterY,
@@ -3465,6 +3471,7 @@ object ProjectManager {
                         reflectionTime = layer.reflectionTime,
                         reflectionWavelengthStart = layer.reflectionWavelengthStart,
                         reflectionWavelengthEnd = layer.reflectionWavelengthEnd,
+                        reflectionBlur = layer.reflectionBlur,
 
                         zoomBlurCenterX = layer.zoomBlurCenterX,
                         zoomBlurCenterY = layer.zoomBlurCenterY,

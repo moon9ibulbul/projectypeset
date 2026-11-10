@@ -225,4 +225,43 @@ class TyperModeInteractionTest {
         assertEquals(270f, moved.bottom, 0.001f)
         assertTrue(moved.isOval)
     }
+
+    @Test
+    fun testTyperSmartReshapeToggleAndMagicWandGuards() {
+        val sampleText = "Halo nama saya Budi\nSaya tinggal di Jakarta"
+        val smartResult = com.astral.typer.utils.TyperLayoutSolver.solveLayoutPure(
+            rawText = sampleText,
+            bubbleWidth = 300f,
+            bubbleHeight = 200f,
+            isOval = false,
+            baseFontSize = 30f,
+            minScale = 0.1f,
+            smartReshape = true
+        )
+        assertNotNull(smartResult)
+
+        val nonSmartResult = com.astral.typer.utils.TyperLayoutSolver.solveLayoutPure(
+            rawText = sampleText,
+            bubbleWidth = 300f,
+            bubbleHeight = 200f,
+            isOval = false,
+            baseFontSize = 30f,
+            minScale = 0.1f,
+            smartReshape = false
+        )
+        assertNotNull(nonSmartResult)
+        assertEquals("When smart reshape is disabled, formattedText should preserve raw text", sampleText, nonSmartResult.formattedText)
+    }
+
+    @Test
+    fun testReflectionBlurPropertyPersistence() {
+        val gson = com.google.gson.Gson()
+        val json = """{"name":"ReflectionTest","reflectionBlur":25.0}"""
+        val styleModel = gson.fromJson(json, com.astral.typer.utils.StyleManager.StyleModel::class.java)
+        assertEquals(25f, styleModel.reflectionBlur, 0.001f)
+
+        val layerJson = """{"type":"TEXT","reflectionBlur":18.0}"""
+        val layerModel = gson.fromJson(layerJson, com.astral.typer.utils.ProjectManager.LayerModel::class.java)
+        assertEquals(18f, layerModel.reflectionBlur ?: 0f, 0.001f)
+    }
 }

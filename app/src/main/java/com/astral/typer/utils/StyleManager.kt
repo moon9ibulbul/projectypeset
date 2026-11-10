@@ -320,6 +320,7 @@ object StyleManager {
         val reflectionTime: Float = 0.0f,
         val reflectionWavelengthStart: Float = 30.0f,
         val reflectionWavelengthEnd: Float = 100.0f,
+        val reflectionBlur: Float = 0.0f,
 
         // Zoom Blur
         val zoomBlurCenterX: Float = 0.5f,
@@ -510,6 +511,7 @@ object StyleManager {
             reflectionTime = l.reflectionTime,
             reflectionWavelengthStart = l.reflectionWavelengthStart,
             reflectionWavelengthEnd = l.reflectionWavelengthEnd,
+            reflectionBlur = l.reflectionBlur,
             zoomBlurCenterX = l.zoomBlurCenterX,
             zoomBlurCenterY = l.zoomBlurCenterY,
             zoomBlurInnerRadius = l.zoomBlurInnerRadius,
@@ -694,6 +696,7 @@ object StyleManager {
         l.reflectionTime = m.reflectionTime
         l.reflectionWavelengthStart = m.reflectionWavelengthStart
         l.reflectionWavelengthEnd = m.reflectionWavelengthEnd
+        l.reflectionBlur = m.reflectionBlur
 
         // Zoom Blur
         l.zoomBlurCenterX = m.zoomBlurCenterX

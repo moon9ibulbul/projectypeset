@@ -88,6 +88,14 @@
             android:src="@drawable/ic_typer_eraser"
             android:padding="7dp"
             app:tint="?attr/appIconTint" />
+
+        <ImageView
+            android:id="@+id/btnToolSmartReshape"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_menu_warp"
+            android:padding="7dp"
+            app:tint="?attr/appIconTint" />
     </LinearLayout>
 
 </LinearLayout>

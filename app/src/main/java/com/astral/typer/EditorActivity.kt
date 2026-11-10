@@ -92,6 +92,7 @@ class EditorActivity : AppCompatActivity() {
     // Typer
     private var typerAdapter: TyperTextAdapter? = null
     private var typerTextLines: List<String> = emptyList()
+    private var isTyperSmartReshapeEnabled: Boolean = true
     private var typerPopup: android.widget.PopupWindow? = null
     private var loadingDialog: android.app.Dialog? = null
     private var isProjectLoadedSuccessfully = true
@@ -720,7 +721,8 @@ class EditorActivity : AppCompatActivity() {
                         bubbleRect = rect,
                         isOval = bubble.isOval,
                         basePaint = basePaint,
-                        minScale = 0.05f
+                        minScale = 0.05f,
+                        smartReshape = isTyperSmartReshapeEnabled
                     )
 
                     withContext(Dispatchers.Main) {
@@ -2914,6 +2916,21 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s8)
+
+                // Reflection Blur Strength: 0 to 50 px
+                val currentBlur = stylableLayer.reflectionBlur
+                val s9 = createSlider("Reflection Blur Strength: ${currentBlur.toInt()} px", currentBlur.toInt().coerceIn(0, 50), 50) { }
+                val tv9 = s9.findViewWithTag<TextView>("SLIDER_LABEL")
+                s9.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.reflectionBlur = p.toFloat()
+                        tv9?.text = "Reflection Blur Strength: $p px"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(s9)
         }
 
         if (isEffectActive(TextEffectType.ZOOM_BLUR)) {
@@ -5676,6 +5693,12 @@ class EditorActivity : AppCompatActivity() {
         val btnMerge = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolMerge)
         val btnMove = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolMove)
         val btnEraser = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolEraser)
+        val btnSmartReshape = toolsView.findViewById<android.widget.ImageView>(R.id.btnToolSmartReshape)
+
+        fun updateSmartReshapeUI() {
+            val iconTint = com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appIconTint)
+            btnSmartReshape?.setColorFilter(if (isTyperSmartReshapeEnabled) Color.CYAN else iconTint)
+        }
 
         fun updateToolUI(tool: AstralCanvasView.TyperTool) {
             canvasView.currentTyperTool = tool
@@ -5698,8 +5721,15 @@ class EditorActivity : AppCompatActivity() {
         btnMerge?.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.MERGE) }
         btnMove?.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.MOVE) }
         btnEraser.setOnClickListener { updateToolUI(AstralCanvasView.TyperTool.ERASER) }
+        btnSmartReshape?.setOnClickListener {
+            isTyperSmartReshapeEnabled = !isTyperSmartReshapeEnabled
+            updateSmartReshapeUI()
+            val stateText = if (isTyperSmartReshapeEnabled) "ON" else "OFF"
+            Toast.makeText(this@EditorActivity, "Smart Reshape: $stateText", Toast.LENGTH_SHORT).show()
+        }
 
         updateToolUI(AstralCanvasView.TyperTool.HAND)
+        updateSmartReshapeUI()
 
         recycler.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
 
