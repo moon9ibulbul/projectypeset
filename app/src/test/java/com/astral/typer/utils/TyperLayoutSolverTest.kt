@@ -264,4 +264,57 @@ class TyperLayoutSolverTest {
         assertEquals("Effective rendered box width pada canvas harus sama persis dengan layoutSolution.boxWidth", newResult.boxWidth, newRenderedWidth, 0.001f)
         assertTrue("Effective rendered box width harus muat di dalam bubble width", newRenderedWidth <= bubbleWidth)
     }
+
+    @Test
+    fun testOvalVsRectScaleComparison() {
+        // Kasus uji: ukuran/radius sama antara mask kotak dan mask oval
+        val bubbleWidth = 250f
+        val bubbleHeight = 250f
+        val baseFontSize = 100f
+
+        // 1. Uji untuk kata tunggal
+        val singleWord = "Halo!"
+        val rectSingle = TyperLayoutSolver.solveLayoutPure(
+            rawText = singleWord,
+            bubbleWidth = bubbleWidth,
+            bubbleHeight = bubbleHeight,
+            isOval = false,
+            baseFontSize = baseFontSize,
+            minScale = 0.05f
+        )
+        val ovalSingle = TyperLayoutSolver.solveLayoutPure(
+            rawText = singleWord,
+            bubbleWidth = bubbleWidth,
+            bubbleHeight = bubbleHeight,
+            isOval = true,
+            baseFontSize = baseFontSize,
+            minScale = 0.05f
+        )
+        // Dengan padding yang sama, kata tunggal harus menghasilkan scale yang sama persis
+        assertEquals("Skala kata tunggal pada mask oval harus sama dengan mask kotak", rectSingle.scale, ovalSingle.scale, 0.01f)
+
+        // 2. Uji untuk teks kalimat
+        val text = "Aku mengerti situasinya"
+        val rectResult = TyperLayoutSolver.solveLayoutPure(
+            rawText = text,
+            bubbleWidth = bubbleWidth,
+            bubbleHeight = bubbleHeight,
+            isOval = false,
+            baseFontSize = baseFontSize,
+            minScale = 0.05f
+        )
+        val ovalResult = TyperLayoutSolver.solveLayoutPure(
+            rawText = text,
+            bubbleWidth = bubbleWidth,
+            bubbleHeight = bubbleHeight,
+            isOval = true,
+            baseFontSize = baseFontSize,
+            minScale = 0.05f
+        )
+
+        // Skala oval tidak boleh jatuh secara timpang/terlalu kecil dibandingkan kotak
+        assertTrue("Skala oval (${ovalResult.scale}) tidak boleh terlalu kecil dibanding kotak (${rectResult.scale})",
+            ovalResult.scale >= rectResult.scale * 0.70f)
+        assertTrue("Box width oval harus muat di dalam bubbleWidth", ovalResult.boxWidth <= bubbleWidth)
+    }
 }
