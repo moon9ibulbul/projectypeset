@@ -94,9 +94,10 @@ object TyperLayoutSolver {
             return LayoutResult("", bubbleWidth.coerceAtLeast(50f), 1f, 0f, 0)
         }
 
-        // Padding aman di dalam balon agar teks tidak menempel di batas dinding
-        val hPadding = if (isOval) bubbleWidth * 0.16f else bubbleWidth * 0.10f
-        val vPadding = if (isOval) bubbleHeight * 0.16f else bubbleHeight * 0.10f
+        // Padding aman di dalam balon agar teks tidak menempel di batas dinding.
+        // Disamakan antara mask oval dan mask kotak (0.10f) agar output box scale oval tidak mengecil secara timpang.
+        val hPadding = bubbleWidth * 0.10f
+        val vPadding = bubbleHeight * 0.10f
 
         val targetWidth = (bubbleWidth - hPadding * 2).coerceAtLeast(40f)
         val targetHeight = (bubbleHeight - vPadding * 2).coerceAtLeast(40f)
