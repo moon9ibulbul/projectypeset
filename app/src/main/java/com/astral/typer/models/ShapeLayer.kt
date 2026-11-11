@@ -306,6 +306,7 @@ class ShapeLayer(
     override var reflectionTime: Float = 0.0f
     override var reflectionWavelengthStart: Float = 30.0f
     override var reflectionWavelengthEnd: Float = 100.0f
+    override var reflectionBlur: Float = 0.0f
 
     // Zoom Blur
     override var zoomBlurCenterX: Float = 0.5f
@@ -2477,6 +2478,7 @@ class ShapeLayer(
                             shader.setFloatUniform("waveLength", reflectionWavelengthStart, reflectionWavelengthEnd)
                             shader.setFloatUniform("alpha", reflectionAlphaStart, reflectionAlphaEnd)
                             shader.setFloatUniform("time", reflectionTime)
+                            shader.setFloatUniform("blur", reflectionBlur)
 
                             node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
                             targetCanvas.save()
@@ -3108,6 +3110,7 @@ class ShapeLayer(
         newLayer.reflectionTime = reflectionTime
         newLayer.reflectionWavelengthStart = reflectionWavelengthStart
         newLayer.reflectionWavelengthEnd = reflectionWavelengthEnd
+        newLayer.reflectionBlur = reflectionBlur
 
         // Zoom Blur
         newLayer.zoomBlurCenterX = zoomBlurCenterX

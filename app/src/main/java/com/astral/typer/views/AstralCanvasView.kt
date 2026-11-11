@@ -3109,6 +3109,9 @@ class AstralCanvasView @JvmOverloads constructor(
         if (isTyperActive && !isInpaintMode) {
             // Multi-touch or active PAN_ZOOM gesture in Typer mode for box drawing tools -> Pan and Zoom only, don't create bounding boxes
             if (pointerCount >= 2 || (currentTyperTool != TyperTool.HAND && currentMode == Mode.PAN_ZOOM)) {
+                removeCallbacks(magicWandHoldRunnable)
+                hasMoved = true
+                isMagicWandHoldTriggered = false
                 if (!currentTyperPath.isEmpty) {
                     currentTyperPath.reset()
                     invalidate()
@@ -3202,6 +3205,11 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                     }
                     TyperTool.MAGIC_WAND -> {
+                         val touchSlop = try {
+                             android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+                         } catch (e: Exception) {
+                             10f
+                         }
                          when(event.actionMasked) {
                              MotionEvent.ACTION_DOWN -> {
                                  startTouchX = cx
@@ -3213,14 +3221,14 @@ class AstralCanvasView @JvmOverloads constructor(
                                  postDelayed(magicWandHoldRunnable, android.view.ViewConfiguration.getLongPressTimeout().toLong())
                              }
                              MotionEvent.ACTION_MOVE -> {
-                                 if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 10f) {
+                                 if (!hasMoved && (getDistance(cx, cy, startTouchX, startTouchY) > touchSlop || event.pointerCount > 1)) {
                                      hasMoved = true
                                      removeCallbacks(magicWandHoldRunnable)
                                  }
                              }
                              MotionEvent.ACTION_UP -> {
                                  removeCallbacks(magicWandHoldRunnable)
-                                 if (!hasMoved && !isMagicWandHoldTriggered) {
+                                 if (!hasMoved && !isMagicWandHoldTriggered && currentMode != Mode.PAN_ZOOM && event.pointerCount == 1) {
                                      val pressDuration = System.currentTimeMillis() - magicWandDownTime
                                      if (pressDuration >= android.view.ViewConfiguration.getLongPressTimeout().toLong()) {
                                          performTyperMagicWand(cx.toInt(), cy.toInt(), autoMerge = true)
@@ -3233,6 +3241,7 @@ class AstralCanvasView @JvmOverloads constructor(
                              MotionEvent.ACTION_CANCEL -> {
                                  removeCallbacks(magicWandHoldRunnable)
                                  isMagicWandHoldTriggered = false
+                                 hasMoved = true
                              }
                          }
                     }

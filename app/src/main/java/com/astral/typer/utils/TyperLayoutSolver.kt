@@ -39,7 +39,8 @@ object TyperLayoutSolver {
         bubbleRect: RectF,
         isOval: Boolean,
         basePaint: TextPaint,
-        minScale: Float = 0.20f
+        minScale: Float = 0.20f,
+        smartReshape: Boolean = true
     ): LayoutResult {
         val wordCache = mutableMapOf<String, Float>()
         val baseFontSize = basePaint.textSize
@@ -53,7 +54,8 @@ object TyperLayoutSolver {
                 val baseW = wordCache.getOrPut(word) { basePaint.measureText(word) }
                 (baseW / baseFontSize) * size
             },
-            minScale = minScale
+            minScale = minScale,
+            smartReshape = smartReshape
         )
     }
 
@@ -67,7 +69,8 @@ object TyperLayoutSolver {
         bubbleHeight: Float,
         isOval: Boolean,
         baseFontSize: Float,
-        minScale: Float = 0.20f
+        minScale: Float = 0.20f,
+        smartReshape: Boolean = true
     ): LayoutResult {
         return solveLayoutInternal(
             rawText = rawText,
@@ -76,7 +79,8 @@ object TyperLayoutSolver {
             isOval = isOval,
             baseFontSize = baseFontSize,
             measureWord = { word, size -> word.length * size * 0.55f },
-            minScale = minScale
+            minScale = minScale,
+            smartReshape = smartReshape
         )
     }
 
@@ -87,7 +91,8 @@ object TyperLayoutSolver {
         isOval: Boolean,
         baseFontSize: Float,
         measureWord: (String, Float) -> Float,
-        minScale: Float = 0.20f
+        minScale: Float = 0.20f,
+        smartReshape: Boolean = true
     ): LayoutResult {
         val trimmed = rawText.trim()
         if (trimmed.isEmpty()) {
@@ -111,6 +116,61 @@ object TyperLayoutSolver {
         // Kasus 1 kata tunggal
         if (originalWords.size == 1) {
             return solveSingleWord(originalWords[0], targetWidth, targetHeight, baseFontSize, measureWord, minScale)
+        }
+
+        if (!smartReshape) {
+            // Jika Smart Reshape dinonaktifkan: pertahankan baris asli atau bungkus sederhana tanpa siluet intan / pemenggalan suku kata
+            val rawLines = trimmed.lines()
+            val scaleSteps = mutableListOf<Float>()
+            var s = 1.0f
+            while (s >= minScale - 0.001f) {
+                scaleSteps.add((s * 100).toInt() / 100f)
+                s -= 0.05f
+            }
+            if (scaleSteps.isEmpty() || scaleSteps.last() > minScale) {
+                scaleSteps.add(minScale)
+            }
+
+            for (scale in scaleSteps) {
+                val curFontSize = baseFontSize * scale
+                val lineHeight = curFontSize * 1.25f
+                val totalH = rawLines.size * lineHeight
+                if (totalH <= targetHeight) {
+                    val maxLineW = rawLines.maxOfOrNull { line ->
+                        val wordsInLine = line.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                        if (wordsInLine.isEmpty()) 0f
+                        else wordsInLine.map { measureWord(it, curFontSize) }.sum() + (wordsInLine.size - 1) * (curFontSize * 0.25f)
+                    } ?: 0f
+
+                    if (maxLineW <= targetWidth) {
+                        val boxW = (maxLineW + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
+                        return LayoutResult(
+                            formattedText = trimmed,
+                            boxWidth = boxW,
+                            scale = scale,
+                            estimatedHeight = totalH,
+                            lineCount = rawLines.size
+                        )
+                    }
+                }
+            }
+
+            // Fallback non-smart reshape pada minScale
+            val fallbackFontSize = baseFontSize * minScale
+            val fallbackLineHeight = fallbackFontSize * 1.25f
+            val maxLineW = rawLines.maxOfOrNull { line ->
+                val wordsInLine = line.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                if (wordsInLine.isEmpty()) 0f
+                else wordsInLine.map { measureWord(it, fallbackFontSize) }.sum() + (wordsInLine.size - 1) * (fallbackFontSize * 0.25f)
+            } ?: targetWidth
+            val boxW = (maxLineW + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
+            return LayoutResult(
+                formattedText = trimmed,
+                boxWidth = boxW,
+                scale = minScale,
+                estimatedHeight = rawLines.size * fallbackLineHeight,
+                lineCount = rawLines.size
+            )
         }
 
         // Evaluasi ukuran font bertahap (Graceful Stepping dari 100% turun hingga minScale)
