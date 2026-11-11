@@ -6208,15 +6208,21 @@ class TextLayer(
                     return content.eval(float2(x, targetY)) * _alpha;
                 }
 
+                // 2D Gaussian Blur terkalibrasi halus (smooth Gaussian distribution)
                 half4 sum = half4(0.0);
                 float totalWeight = 0.0;
-                float b = blur;
+                float sigma = max(0.5, blur * 0.35);
+                float twoSigmaSq = 2.0 * sigma * sigma;
+                float stepScale = max(0.5, blur / 4.0);
 
-                for (float dy = -2.0; dy <= 2.0; dy += 1.0) {
-                    for (float dx = -2.0; dx <= 2.0; dx += 1.0) {
-                        float weight = exp(-(dx * dx + dy * dy) / 2.0);
-                        float sx = clamp(x + dx * b * 0.5, 0.0, size.x);
-                        float sy = clamp(targetY + dy * b * 0.5, 0.0, size.y);
+                for (float dy = -4.0; dy <= 4.0; dy += 1.0) {
+                    float offsetY = dy * stepScale;
+                    float sy = clamp(targetY + offsetY, 0.0, size.y);
+                    for (float dx = -4.0; dx <= 4.0; dx += 1.0) {
+                        float offsetX = dx * stepScale;
+                        float sx = clamp(x + offsetX, 0.0, size.x);
+                        float distSq = offsetX * offsetX + offsetY * offsetY;
+                        float weight = exp(-distSq / twoSigmaSq);
                         sum += content.eval(float2(sx, sy)) * weight;
                         totalWeight += weight;
                     }

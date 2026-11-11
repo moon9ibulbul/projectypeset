@@ -251,6 +251,51 @@ class TyperModeInteractionTest {
         )
         assertNotNull(nonSmartResult)
         assertEquals("When smart reshape is disabled, formattedText should preserve raw text", sampleText, nonSmartResult.formattedText)
+        assertEquals("Box scale should be identical between smart reshape active and inactive", smartResult.scale, nonSmartResult.scale, 0.0001f)
+        assertEquals("Box width should be identical between smart reshape active and inactive", smartResult.boxWidth, nonSmartResult.boxWidth, 0.0001f)
+        assertTrue("Box width should fit inside bubble width", nonSmartResult.boxWidth <= 300f)
+    }
+
+    @Test
+    fun testTyperSmartReshapeDisabledWithOvalMask() {
+        val multilineText = "Ini adalah baris pertama\nIni baris kedua yang cukup panjang\nBaris ketiga"
+        val ovalWidth = 260f
+        val ovalHeight = 260f
+
+        val smartOval = com.astral.typer.utils.TyperLayoutSolver.solveLayoutPure(
+            rawText = multilineText,
+            bubbleWidth = ovalWidth,
+            bubbleHeight = ovalHeight,
+            isOval = true,
+            baseFontSize = 30f,
+            minScale = 0.1f,
+            smartReshape = true
+        )
+
+        val nonSmartOval = com.astral.typer.utils.TyperLayoutSolver.solveLayoutPure(
+            rawText = multilineText,
+            bubbleWidth = ovalWidth,
+            bubbleHeight = ovalHeight,
+            isOval = true,
+            baseFontSize = 30f,
+            minScale = 0.1f,
+            smartReshape = false
+        )
+        assertNotNull(nonSmartOval)
+        assertEquals("When smart reshape is disabled on oval, raw lines should be preserved", multilineText, nonSmartOval.formattedText)
+        assertFalse("Should not contain hyphenation character", nonSmartOval.formattedText.contains("-"))
+        assertEquals("Box scale must match smart reshape active", smartOval.scale, nonSmartOval.scale, 0.0001f)
+        assertEquals("Box width must match smart reshape active", smartOval.boxWidth, nonSmartOval.boxWidth, 0.0001f)
+        assertTrue("Box width must fit inside bubble width", nonSmartOval.boxWidth <= ovalWidth)
+        assertTrue("Scale should be positive", nonSmartOval.scale > 0f)
+    }
+
+    @Test
+    fun testReflectionShaderContainsGaussianBlurLogic() {
+        val shader = com.astral.typer.models.TextLayer.REFLECTION_SHADER
+        assertTrue("Shader should define blur uniform", shader.contains("uniform float blur;"))
+        assertTrue("Shader should implement Gaussian exponential weighting", shader.contains("exp(-distSq / twoSigmaSq)") || shader.contains("exp("))
+        assertTrue("Shader should calculate sigma from blur", shader.contains("sigma"))
     }
 
     @Test
