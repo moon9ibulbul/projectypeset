@@ -118,83 +118,6 @@ object TyperLayoutSolver {
             return solveSingleWord(originalWords[0], targetWidth, targetHeight, baseFontSize, measureWord, minScale)
         }
 
-        if (!smartReshape) {
-            // Ketika smart reshape dinonaktifkan: pertahankan baris asli dari input pengguna (tanpa pemenggalan kata/hyphenation),
-            // namun kalkulasikan box scale dan box width persis seperti algoritma utama dengan mempertimbangkan ukuran dan bentuk mask (oval/kotak).
-            val rawLines = trimmed.lines()
-            val scaleSteps = mutableListOf<Float>()
-            var s = 1.0f
-            while (s >= minScale - 0.001f) {
-                scaleSteps.add((s * 100).toInt() / 100f)
-                s -= 0.05f
-            }
-            if (scaleSteps.isEmpty() || scaleSteps.last() > minScale) {
-                scaleSteps.add(minScale)
-            }
-
-            val L = rawLines.size
-            for (scale in scaleSteps) {
-                val curFontSize = baseFontSize * scale
-                val lineHeight = curFontSize * 1.25f
-                val totalH = L * lineHeight
-                if (totalH <= targetHeight) {
-                    var fits = true
-                    var maxLineWidth = 0f
-                    for (i in 0 until L) {
-                        val line = rawLines[i]
-                        val wordsInLine = line.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
-                        val lineW = if (wordsInLine.isEmpty()) 0f
-                        else wordsInLine.map { measureWord(it, curFontSize) }.sum() + (wordsInLine.size - 1) * (curFontSize * 0.25f)
-
-                        // Batas lebar per baris memperhitungkan bentuk mask (oval vs kotak)
-                        val allowedWidthAtLine = if (isOval && L > 1) {
-                            val yNorm = -0.8f + (1.6f * i) / (L - 1)
-                            val factor = sqrt(max(0.2f, 1.0f - yNorm * yNorm))
-                            targetWidth * factor
-                        } else {
-                            targetWidth
-                        }
-
-                        if (lineW > allowedWidthAtLine) {
-                            fits = false
-                            break
-                        }
-                        if (lineW > maxLineWidth) {
-                            maxLineWidth = lineW
-                        }
-                    }
-
-                    if (fits) {
-                        val boxW = (maxLineWidth + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
-                        return LayoutResult(
-                            formattedText = trimmed,
-                            boxWidth = boxW,
-                            scale = scale,
-                            estimatedHeight = totalH,
-                            lineCount = L
-                        )
-                    }
-                }
-            }
-
-            // Fallback non-smart reshape pada minScale
-            val fallbackFontSize = baseFontSize * minScale
-            val fallbackLineHeight = fallbackFontSize * 1.25f
-            val maxLineW = rawLines.maxOfOrNull { line ->
-                val wordsInLine = line.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
-                if (wordsInLine.isEmpty()) 0f
-                else wordsInLine.map { measureWord(it, fallbackFontSize) }.sum() + (wordsInLine.size - 1) * (fallbackFontSize * 0.25f)
-            } ?: targetWidth
-            val boxW = (maxLineW + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
-            return LayoutResult(
-                formattedText = trimmed,
-                boxWidth = boxW,
-                scale = minScale,
-                estimatedHeight = L * fallbackLineHeight,
-                lineCount = L
-            )
-        }
-
         // Evaluasi ukuran font bertahap (Graceful Stepping dari 100% turun hingga minScale)
         val scaleSteps = mutableListOf<Float>()
         var s = 1.0f
@@ -232,11 +155,11 @@ object TyperLayoutSolver {
         if (bestCandidate != null) {
             val boxW = (bestCandidate.maxLineWidth + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
             return LayoutResult(
-                formattedText = bestCandidate.lines.joinToString("\n"),
+                formattedText = if (smartReshape) bestCandidate.lines.joinToString("\n") else trimmed,
                 boxWidth = boxW,
                 scale = bestCandidate.scale,
                 estimatedHeight = bestCandidate.estimatedHeight,
-                lineCount = bestCandidate.lines.size
+                lineCount = if (smartReshape) bestCandidate.lines.size else trimmed.lines().size
             )
         }
 
@@ -246,11 +169,11 @@ object TyperLayoutSolver {
         val lines = greedyWrapLines(fallbackWords, targetWidth) { w -> measureWord(w, fallbackFontSize) }
         val maxW = lines.maxOfOrNull { measureWord(it, fallbackFontSize) } ?: targetWidth
         return LayoutResult(
-            formattedText = lines.joinToString("\n"),
+            formattedText = if (smartReshape) lines.joinToString("\n") else trimmed,
             boxWidth = (maxW + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f),
             scale = minScale,
             estimatedHeight = lines.size * fallbackFontSize * 1.25f,
-            lineCount = lines.size
+            lineCount = if (smartReshape) lines.size else trimmed.lines().size
         )
     }
 
