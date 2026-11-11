@@ -119,7 +119,8 @@ object TyperLayoutSolver {
         }
 
         if (!smartReshape) {
-            // Jika Smart Reshape dinonaktifkan: pertahankan baris asli atau bungkus sederhana tanpa siluet intan / pemenggalan suku kata
+            // Ketika smart reshape dinonaktifkan: pertahankan baris asli dari input pengguna (tanpa pemenggalan kata/hyphenation),
+            // namun kalkulasikan box scale dan box width persis seperti algoritma utama dengan mempertimbangkan ukuran dan bentuk mask (oval/kotak).
             val rawLines = trimmed.lines()
             val scaleSteps = mutableListOf<Float>()
             var s = 1.0f
@@ -131,25 +132,46 @@ object TyperLayoutSolver {
                 scaleSteps.add(minScale)
             }
 
+            val L = rawLines.size
             for (scale in scaleSteps) {
                 val curFontSize = baseFontSize * scale
                 val lineHeight = curFontSize * 1.25f
-                val totalH = rawLines.size * lineHeight
+                val totalH = L * lineHeight
                 if (totalH <= targetHeight) {
-                    val maxLineW = rawLines.maxOfOrNull { line ->
+                    var fits = true
+                    var maxLineWidth = 0f
+                    for (i in 0 until L) {
+                        val line = rawLines[i]
                         val wordsInLine = line.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
-                        if (wordsInLine.isEmpty()) 0f
+                        val lineW = if (wordsInLine.isEmpty()) 0f
                         else wordsInLine.map { measureWord(it, curFontSize) }.sum() + (wordsInLine.size - 1) * (curFontSize * 0.25f)
-                    } ?: 0f
 
-                    if (maxLineW <= targetWidth) {
-                        val boxW = (maxLineW + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
+                        // Batas lebar per baris memperhitungkan bentuk mask (oval vs kotak)
+                        val allowedWidthAtLine = if (isOval && L > 1) {
+                            val yNorm = -0.8f + (1.6f * i) / (L - 1)
+                            val factor = sqrt(max(0.2f, 1.0f - yNorm * yNorm))
+                            targetWidth * factor
+                        } else {
+                            targetWidth
+                        }
+
+                        if (lineW > allowedWidthAtLine) {
+                            fits = false
+                            break
+                        }
+                        if (lineW > maxLineWidth) {
+                            maxLineWidth = lineW
+                        }
+                    }
+
+                    if (fits) {
+                        val boxW = (maxLineWidth + 10f).coerceAtMost(targetWidth).coerceAtLeast(40f)
                         return LayoutResult(
                             formattedText = trimmed,
                             boxWidth = boxW,
                             scale = scale,
                             estimatedHeight = totalH,
-                            lineCount = rawLines.size
+                            lineCount = L
                         )
                     }
                 }
@@ -168,8 +190,8 @@ object TyperLayoutSolver {
                 formattedText = trimmed,
                 boxWidth = boxW,
                 scale = minScale,
-                estimatedHeight = rawLines.size * fallbackLineHeight,
-                lineCount = rawLines.size
+                estimatedHeight = L * fallbackLineHeight,
+                lineCount = L
             )
         }
 
