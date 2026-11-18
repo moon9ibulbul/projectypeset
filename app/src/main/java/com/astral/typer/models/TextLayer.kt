@@ -6326,6 +6326,47 @@ class TextLayer(
             }
         """
 
+        const val GRADIENT_BLUR_SHADER = """
+            uniform shader content;
+            uniform float2 size;
+            uniform float2 center;
+            uniform float2 dir;
+            uniform float halfLen;
+            uniform float blurLeft;
+            uniform float blurRight;
+
+            half4 main(float2 fragCoord) {
+                float proj = dot(fragCoord - center, dir);
+                float t = clamp((proj / halfLen) * 0.5 + 0.5, 0.0, 1.0);
+                float r = mix(blurLeft, blurRight, t);
+
+                if (r <= 0.1) {
+                    return content.eval(clamp(fragCoord, float2(0.0), size));
+                }
+
+                half4 sum = half4(0.0);
+                float totalWeight = 0.0;
+                float sigma = max(0.35, r * 0.5);
+                float twoSigmaSq = 2.0 * sigma * sigma;
+                float stepScale = max(0.25, r / 4.0);
+
+                for (float dy = -4.0; dy <= 4.0; dy += 1.0) {
+                    float offsetY = dy * stepScale;
+                    float sy = clamp(fragCoord.y + offsetY, 0.0, size.y);
+                    for (float dx = -4.0; dx <= 4.0; dx += 1.0) {
+                        float offsetX = dx * stepScale;
+                        float sx = clamp(fragCoord.x + offsetX, 0.0, size.x);
+                        float distSq = offsetX * offsetX + offsetY * offsetY;
+                        float weight = exp(-distSq / twoSigmaSq);
+                        sum += content.eval(float2(sx, sy)) * weight;
+                        totalWeight += weight;
+                    }
+                }
+
+                return sum / totalWeight;
+            }
+        """
+
         const val PARTICLE_SHADER = """
             uniform shader content;
             uniform float particleSize;
