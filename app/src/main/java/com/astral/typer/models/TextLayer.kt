@@ -4850,15 +4850,28 @@ class TextLayer(
                                     drawInner(recordingCanvas)
                                     node.endRecording()
 
-                                    val shader = android.graphics.RuntimeShader(GRADIENT_BLUR_SHADER)
-                                    shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
-                                    shader.setFloatUniform("center", centerX, centerY)
-                                    shader.setFloatUniform("dir", cos, sin)
-                                    shader.setFloatUniform("halfLen", halfLen)
-                                    shader.setFloatUniform("blurLeft", blurLeft)
-                                    shader.setFloatUniform("blurRight", blurRight)
+                                    val hShader = android.graphics.RuntimeShader(GRADIENT_BLUR_SHADER).apply {
+                                        setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                                        setFloatUniform("center", centerX, centerY)
+                                        setFloatUniform("dir", cos, sin)
+                                        setFloatUniform("halfLen", halfLen)
+                                        setFloatUniform("blurLeft", blurLeft)
+                                        setFloatUniform("blurRight", blurRight)
+                                        setFloatUniform("axis", 1f, 0f)
+                                    }
+                                    val vShader = android.graphics.RuntimeShader(GRADIENT_BLUR_SHADER).apply {
+                                        setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                                        setFloatUniform("center", centerX, centerY)
+                                        setFloatUniform("dir", cos, sin)
+                                        setFloatUniform("halfLen", halfLen)
+                                        setFloatUniform("blurLeft", blurLeft)
+                                        setFloatUniform("blurRight", blurRight)
+                                        setFloatUniform("axis", 0f, 1f)
+                                    }
 
-                                    node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                                    val hEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(hShader, "content")
+                                    val vEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(vShader, "content")
+                                    node.setRenderEffect(android.graphics.RenderEffect.createChainEffect(vEffect, hEffect))
                                     targetCanvas.save()
                                     targetCanvas.translate(drawTranslateX, drawTranslateY)
                                     targetCanvas.drawRenderNode(node)
@@ -6334,6 +6347,7 @@ class TextLayer(
             uniform float halfLen;
             uniform float blurLeft;
             uniform float blurRight;
+            uniform float2 axis;
 
             half4 main(float2 fragCoord) {
                 float proj = dot(fragCoord - center, dir);
@@ -6346,21 +6360,16 @@ class TextLayer(
 
                 half4 sum = half4(0.0);
                 float totalWeight = 0.0;
-                float sigma = max(0.35, r * 0.5);
+                float sigma = max(0.35, r * 0.65);
                 float twoSigmaSq = 2.0 * sigma * sigma;
-                float stepScale = max(0.25, r / 4.0);
+                float stepScale = max(0.25, (r * 1.75) / 20.0);
 
-                for (float dy = -4.0; dy <= 4.0; dy += 1.0) {
-                    float offsetY = dy * stepScale;
-                    float sy = clamp(fragCoord.y + offsetY, 0.0, size.y);
-                    for (float dx = -4.0; dx <= 4.0; dx += 1.0) {
-                        float offsetX = dx * stepScale;
-                        float sx = clamp(fragCoord.x + offsetX, 0.0, size.x);
-                        float distSq = offsetX * offsetX + offsetY * offsetY;
-                        float weight = exp(-distSq / twoSigmaSq);
-                        sum += content.eval(float2(sx, sy)) * weight;
-                        totalWeight += weight;
-                    }
+                for (float d = -20.0; d <= 20.0; d += 1.0) {
+                    float offset = d * stepScale;
+                    float2 sampleCoord = clamp(fragCoord + axis * offset, float2(0.0), size);
+                    float weight = exp(-(offset * offset) / twoSigmaSq);
+                    sum += content.eval(sampleCoord) * weight;
+                    totalWeight += weight;
                 }
 
                 return sum / totalWeight;

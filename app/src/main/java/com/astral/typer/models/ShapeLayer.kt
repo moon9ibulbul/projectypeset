@@ -2052,15 +2052,28 @@ class ShapeLayer(
                                     node.setPosition(0, 0, nodeW, nodeH)
                                     val rc = node.beginRecording(); rc.translate(recordTranslateX, recordTranslateY); drawInner(rc); node.endRecording()
 
-                                    val shader = android.graphics.RuntimeShader(TextLayer.GRADIENT_BLUR_SHADER)
-                                    shader.setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
-                                    shader.setFloatUniform("center", centerX, centerY)
-                                    shader.setFloatUniform("dir", cos, sin)
-                                    shader.setFloatUniform("halfLen", halfLen)
-                                    shader.setFloatUniform("blurLeft", blurLeft)
-                                    shader.setFloatUniform("blurRight", blurRight)
+                                    val hShader = android.graphics.RuntimeShader(TextLayer.GRADIENT_BLUR_SHADER).apply {
+                                        setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                                        setFloatUniform("center", centerX, centerY)
+                                        setFloatUniform("dir", cos, sin)
+                                        setFloatUniform("halfLen", halfLen)
+                                        setFloatUniform("blurLeft", blurLeft)
+                                        setFloatUniform("blurRight", blurRight)
+                                        setFloatUniform("axis", 1f, 0f)
+                                    }
+                                    val vShader = android.graphics.RuntimeShader(TextLayer.GRADIENT_BLUR_SHADER).apply {
+                                        setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                                        setFloatUniform("center", centerX, centerY)
+                                        setFloatUniform("dir", cos, sin)
+                                        setFloatUniform("halfLen", halfLen)
+                                        setFloatUniform("blurLeft", blurLeft)
+                                        setFloatUniform("blurRight", blurRight)
+                                        setFloatUniform("axis", 0f, 1f)
+                                    }
 
-                                    node.setRenderEffect(android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content"))
+                                    val hEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(hShader, "content")
+                                    val vEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(vShader, "content")
+                                    node.setRenderEffect(android.graphics.RenderEffect.createChainEffect(vEffect, hEffect))
                                     targetCanvas.save(); targetCanvas.translate(drawTranslateX, drawTranslateY); targetCanvas.drawRenderNode(node); targetCanvas.restore()
                                     useRenderEffect = true
                                 } catch (e: Exception) {}
