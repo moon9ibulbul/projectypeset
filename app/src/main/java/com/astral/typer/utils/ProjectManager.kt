@@ -157,6 +157,10 @@ object ProjectManager {
         val woodScratchSeed: Long? = null,
         val chromaticColors: List<Int>? = null,
         val blurRadius: Float? = null,
+        val isGradientBlur: Boolean? = null,
+        val blurLeft: Float? = null,
+        val blurRight: Float? = null,
+        val blurAngle: Float? = null,
         val longShadowLength: Float? = null, val longShadowColor: Int? = null, val longShadowAngle: Float? = null,
         val motionBlurLength: Float? = null, val motionBlurAngle: Int? = null,
         val motionBlurKernelSize: Int? = null,
@@ -537,6 +541,10 @@ object ProjectManager {
                         woodScratchSeed = layer.woodScratchSeed,
                         chromaticColors = layer.chromaticColors.toList(),
                         blurRadius = layer.blurRadius,
+                        isGradientBlur = layer.isGradientBlur,
+                        blurLeft = layer.blurLeft,
+                        blurRight = layer.blurRight,
+                        blurAngle = layer.blurAngle,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
                         motionBlurKernelSize = layer.motionBlurKernelSize,
@@ -689,6 +697,7 @@ object ProjectManager {
                         decaySeed = layer.decaySeed,
                         woodScratchSeed = layer.woodScratchSeed,
                         chromaticColors = layer.chromaticColors.toList(), blurRadius = layer.blurRadius,
+                        isGradientBlur = layer.isGradientBlur, blurLeft = layer.blurLeft, blurRight = layer.blurRight, blurAngle = layer.blurAngle,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,
@@ -1546,6 +1555,10 @@ object ProjectManager {
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
 
             model.blurRadius?.let { layer.blurRadius = it }
+            model.isGradientBlur?.let { layer.isGradientBlur = it }
+            model.blurLeft?.let { layer.blurLeft = it }
+            model.blurRight?.let { layer.blurRight = it }
+            model.blurAngle?.let { layer.blurAngle = it }
             model.longShadowLength?.let { layer.longShadowLength = it }
             model.longShadowColor?.let { layer.longShadowColor = it }
             model.longShadowAngle?.let { layer.longShadowAngle = it }
@@ -1752,6 +1765,10 @@ object ProjectManager {
             }
             model.chromaticColors?.let { layer.chromaticColors = it.toIntArray() }
             model.blurRadius?.let { layer.blurRadius = it }
+            model.isGradientBlur?.let { layer.isGradientBlur = it }
+            model.blurLeft?.let { layer.blurLeft = it }
+            model.blurRight?.let { layer.blurRight = it }
+            model.blurAngle?.let { layer.blurAngle = it }
             model.longShadowLength?.let { layer.longShadowLength = it }
             model.longShadowColor?.let { layer.longShadowColor = it }
             model.longShadowAngle?.let { layer.longShadowAngle = it }
@@ -3282,6 +3299,10 @@ object ProjectManager {
                         woodScratchSeed = layer.woodScratchSeed,
                         chromaticColors = layer.chromaticColors.toList(),
                         blurRadius = layer.blurRadius,
+                        isGradientBlur = layer.isGradientBlur,
+                        blurLeft = layer.blurLeft,
+                        blurRight = layer.blurRight,
+                        blurAngle = layer.blurAngle,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
                         motionBlurKernelSize = layer.motionBlurKernelSize,
@@ -3426,6 +3447,7 @@ object ProjectManager {
                         decaySeed = layer.decaySeed,
                         woodScratchSeed = layer.woodScratchSeed,
                         chromaticColors = layer.chromaticColors.toList(), blurRadius = layer.blurRadius,
+                        isGradientBlur = layer.isGradientBlur, blurLeft = layer.blurLeft, blurRight = layer.blurRight, blurAngle = layer.blurAngle,
                         longShadowLength = layer.longShadowLength, longShadowColor = layer.longShadowColor, longShadowAngle = layer.longShadowAngle,
                         motionBlurLength = layer.motionBlurLength, motionBlurAngle = layer.motionBlurAngle,
                         halftoneDotSize = layer.halftoneDotSize, halftoneDotColor = layer.halftoneDotColor, halftoneThreshold = layer.halftoneThreshold,

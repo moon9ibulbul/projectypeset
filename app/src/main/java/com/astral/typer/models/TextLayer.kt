@@ -335,6 +335,10 @@ class TextLayer(
 
     // Gaussian Blur
     override var blurRadius: Float = 0f
+    override var isGradientBlur: Boolean = false
+    override var blurLeft: Float = 0f
+    override var blurRight: Float = 20f
+    override var blurAngle: Float = 0f
 
     // Long Shadow
     override var longShadowLength: Float = 30f
@@ -711,6 +715,10 @@ class TextLayer(
         result = 31 * result + decaySeed.hashCode()
         result = 31 * result + woodScratchSeed.hashCode()
         result = 31 * result + blurRadius.hashCode()
+        result = 31 * result + isGradientBlur.hashCode()
+        result = 31 * result + blurLeft.hashCode()
+        result = 31 * result + blurRight.hashCode()
+        result = 31 * result + blurAngle.hashCode()
         result = 31 * result + longShadowLength.hashCode()
         result = 31 * result + longShadowColor
         result = 31 * result + longShadowAngle.hashCode()
@@ -1561,7 +1569,10 @@ class TextLayer(
         var effectExpansion = 0f
         val checkEffect = { effect: TextEffectType ->
             when(effect) {
-                TextEffectType.GAUSSIAN_BLUR -> effectExpansion = Math.max(effectExpansion, blurRadius * 2.5f)
+                TextEffectType.GAUSSIAN_BLUR -> {
+                    val maxBlur = if (isGradientBlur) maxOf(blurLeft, blurRight) else blurRadius
+                    effectExpansion = Math.max(effectExpansion, maxBlur * 2.5f)
+                }
                 TextEffectType.MOTION_BLUR -> {
                     val velLen = Math.hypot(motionBlurVelocityX.toDouble(), motionBlurVelocityY.toDouble()).toFloat()
                     val expansion = velLen * 0.5f + Math.abs(motionBlurOffset) + 4f
@@ -4813,35 +4824,131 @@ class TextLayer(
                     if (!useRenderEffect) drawInner(targetCanvas)
                 }
                 TextEffectType.GAUSSIAN_BLUR -> {
-                    var useRenderEffect = false
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && targetCanvas.isHardwareAccelerated) {
-                        try {
-                            val node = android.graphics.RenderNode("GaussianBlurNode")
-                            node.setPosition(0, 0, nodeW, nodeH)
+                    if (isGradientBlur) {
+                        val maxBlur = maxOf(blurLeft, blurRight)
+                        if (maxBlur <= 0.1f) {
+                            drawInner(targetCanvas)
+                        } else {
+                            val textBounds = if (!hasBounds) cachedLayout?.let { getTextHorizontalBounds(it, w) } else null
+                            val centerX = if (hasBounds) bounds!!.width() / 2f else pad + ((textBounds?.let { (it.first + it.second) / 2f }) ?: (w / 2f))
+                            val centerY = if (hasBounds) bounds!!.height() / 2f else pad + h / 2f
+                            val halfW = (if (hasBounds) (bounds!!.width() - 2f * (pad + 50f)) / 2f else (textBounds?.let { (it.second - it.first) / 2f } ?: (w / 2f))).coerceAtLeast(1f)
+                            val halfH = (if (hasBounds) (bounds!!.height() - 2f * (pad + 50f)) / 2f else h / 2f).coerceAtLeast(1f)
+                            val angleRad = Math.toRadians(blurAngle.toDouble())
+                            val cos = Math.cos(angleRad).toFloat()
+                            val sin = Math.sin(angleRad).toFloat()
+                            val halfLen = (halfW * Math.abs(cos) + halfH * Math.abs(sin)).coerceAtLeast(1f)
 
-                            val recordingCanvas = node.beginRecording()
-                            recordingCanvas.translate(recordTranslateX, recordTranslateY)
-                            drawInner(recordingCanvas)
-                            node.endRecording()
+                            var useRenderEffect = false
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+                                try {
+                                    val node = android.graphics.RenderNode("GradientBlurNode")
+                                    node.setPosition(0, 0, nodeW, nodeH)
 
-                            val r = blurRadius.coerceAtLeast(0.1f)
-                            node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+                                    val recordingCanvas = node.beginRecording()
+                                    recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                                    drawInner(recordingCanvas)
+                                    node.endRecording()
 
-                            targetCanvas.save()
-                            targetCanvas.translate(drawTranslateX, drawTranslateY)
-                            targetCanvas.drawRenderNode(node)
-                            targetCanvas.restore()
-                            useRenderEffect = true
-                        } catch (e: Exception) {}
-                    }
+                                    val hShader = android.graphics.RuntimeShader(GRADIENT_BLUR_SHADER).apply {
+                                        setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                                        setFloatUniform("center", centerX, centerY)
+                                        setFloatUniform("dir", cos, sin)
+                                        setFloatUniform("halfLen", halfLen)
+                                        setFloatUniform("blurLeft", blurLeft)
+                                        setFloatUniform("blurRight", blurRight)
+                                        setFloatUniform("axis", 1f, 0f)
+                                    }
+                                    val vShader = android.graphics.RuntimeShader(GRADIENT_BLUR_SHADER).apply {
+                                        setFloatUniform("size", nodeW.toFloat(), nodeH.toFloat())
+                                        setFloatUniform("center", centerX, centerY)
+                                        setFloatUniform("dir", cos, sin)
+                                        setFloatUniform("halfLen", halfLen)
+                                        setFloatUniform("blurLeft", blurLeft)
+                                        setFloatUniform("blurRight", blurRight)
+                                        setFloatUniform("axis", 0f, 1f)
+                                    }
 
-                    if (!useRenderEffect) {
-                        val originalMask = paint.maskFilter
-                        if (blurRadius > 0) {
-                            paint.maskFilter = BlurMaskFilter(blurRadius.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                                    val hEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(hShader, "content")
+                                    val vEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(vShader, "content")
+                                    node.setRenderEffect(android.graphics.RenderEffect.createChainEffect(vEffect, hEffect))
+                                    targetCanvas.save()
+                                    targetCanvas.translate(drawTranslateX, drawTranslateY)
+                                    targetCanvas.drawRenderNode(node)
+                                    targetCanvas.restore()
+                                    useRenderEffect = true
+                                } catch (e: Exception) {}
+                            }
+
+                            if (!useRenderEffect) {
+                                val minBlur = minOf(blurLeft, blurRight)
+                                val originalMask = paint.maskFilter
+                                if (Math.abs(blurLeft - blurRight) < 0.5f) {
+                                    paint.maskFilter = BlurMaskFilter(maxBlur.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                                    drawInner(targetCanvas)
+                                    paint.maskFilter = originalMask
+                                } else {
+                                    if (minBlur > 0.1f) {
+                                        paint.maskFilter = BlurMaskFilter(minBlur.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                                    }
+                                    drawInner(targetCanvas)
+                                    paint.maskFilter = originalMask
+
+                                    val tcx = centerX + drawTranslateX
+                                    val tcy = centerY + drawTranslateY
+                                    val layerSave = targetCanvas.saveLayer(null, null)
+                                    paint.maskFilter = BlurMaskFilter(maxBlur.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                                    drawInner(targetCanvas)
+                                    paint.maskFilter = originalMask
+
+                                    val startAlphaColor = if (blurLeft <= blurRight) Color.TRANSPARENT else Color.BLACK
+                                    val endAlphaColor = if (blurLeft <= blurRight) Color.BLACK else Color.TRANSPARENT
+                                    val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+                                        shader = LinearGradient(
+                                            tcx - halfLen * cos, tcy - halfLen * sin,
+                                            tcx + halfLen * cos, tcy + halfLen * sin,
+                                            startAlphaColor, endAlphaColor,
+                                            Shader.TileMode.CLAMP
+                                        )
+                                    }
+                                    val maxDim = Math.max(nodeW, nodeH).toFloat() * 2f
+                                    targetCanvas.drawRect(tcx - maxDim, tcy - maxDim, tcx + maxDim, tcy + maxDim, maskPaint)
+                                    targetCanvas.restoreToCount(layerSave)
+                                }
+                            }
                         }
-                        drawInner(targetCanvas)
-                        paint.maskFilter = originalMask
+                    } else {
+                        var useRenderEffect = false
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S && targetCanvas.isHardwareAccelerated) {
+                            try {
+                                val node = android.graphics.RenderNode("GaussianBlurNode")
+                                node.setPosition(0, 0, nodeW, nodeH)
+
+                                val recordingCanvas = node.beginRecording()
+                                recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                                drawInner(recordingCanvas)
+                                node.endRecording()
+
+                                val r = blurRadius.coerceAtLeast(0.1f)
+                                node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, Shader.TileMode.CLAMP))
+
+                                targetCanvas.save()
+                                targetCanvas.translate(drawTranslateX, drawTranslateY)
+                                targetCanvas.drawRenderNode(node)
+                                targetCanvas.restore()
+                                useRenderEffect = true
+                            } catch (e: Exception) {}
+                        }
+
+                        if (!useRenderEffect) {
+                            val originalMask = paint.maskFilter
+                            if (blurRadius > 0) {
+                                paint.maskFilter = BlurMaskFilter(blurRadius.coerceAtLeast(0.1f), BlurMaskFilter.Blur.NORMAL)
+                            }
+                            drawInner(targetCanvas)
+                            paint.maskFilter = originalMask
+                        }
                     }
                 }
                 TextEffectType.MOTION_BLUR -> {
@@ -6232,6 +6339,43 @@ class TextLayer(
             }
         """
 
+        const val GRADIENT_BLUR_SHADER = """
+            uniform shader content;
+            uniform float2 size;
+            uniform float2 center;
+            uniform float2 dir;
+            uniform float halfLen;
+            uniform float blurLeft;
+            uniform float blurRight;
+            uniform float2 axis;
+
+            half4 main(float2 fragCoord) {
+                float proj = dot(fragCoord - center, dir);
+                float t = clamp((proj / halfLen) * 0.5 + 0.5, 0.0, 1.0);
+                float r = mix(blurLeft, blurRight, t);
+
+                if (r <= 0.1) {
+                    return content.eval(clamp(fragCoord, float2(0.0), size));
+                }
+
+                half4 sum = half4(0.0);
+                float totalWeight = 0.0;
+                float sigma = max(0.35, r * 0.65);
+                float twoSigmaSq = 2.0 * sigma * sigma;
+                float stepScale = max(0.25, (r * 1.75) / 20.0);
+
+                for (float d = -20.0; d <= 20.0; d += 1.0) {
+                    float offset = d * stepScale;
+                    float2 sampleCoord = clamp(fragCoord + axis * offset, float2(0.0), size);
+                    float weight = exp(-(offset * offset) / twoSigmaSq);
+                    sum += content.eval(sampleCoord) * weight;
+                    totalWeight += weight;
+                }
+
+                return sum / totalWeight;
+            }
+        """
+
         const val PARTICLE_SHADER = """
             uniform shader content;
             uniform float particleSize;
@@ -6617,6 +6761,8 @@ class TextLayer(
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f
+        blurLeft *= 2f
+        blurRight *= 2f
         longShadowLength *= 2f
         neonRadius *= 2f
         chromaticShift *= 2f

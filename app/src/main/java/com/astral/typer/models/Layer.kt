@@ -98,6 +98,10 @@ interface StylableLayer {
     var glitchSeed: Long
     var decaySeed: Long
     var blurRadius: Float
+    var isGradientBlur: Boolean
+    var blurLeft: Float
+    var blurRight: Float
+    var blurAngle: Float
     var longShadowLength: Float
     var longShadowColor: Int
     var longShadowAngle: Float

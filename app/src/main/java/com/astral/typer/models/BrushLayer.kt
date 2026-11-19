@@ -512,6 +512,10 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var decaySeed: Long = 0L
     override var woodScratchSeed: Long = 0L
     override var blurRadius: Float = 0f
+    override var isGradientBlur: Boolean = false
+    override var blurLeft: Float = 0f
+    override var blurRight: Float = 20f
+    override var blurAngle: Float = 0f
     override var longShadowLength: Float = 0f
     override var longShadowColor: Int = Color.TRANSPARENT
     override var longShadowAngle: Float = 0f
@@ -2556,6 +2560,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f
+        blurLeft *= 2f
+        blurRight *= 2f
         longShadowLength *= 2f
         neonRadius *= 2f
         chromaticShift *= 2f

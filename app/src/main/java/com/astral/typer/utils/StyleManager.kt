@@ -322,6 +322,12 @@ object StyleManager {
         val reflectionWavelengthEnd: Float = 100.0f,
         val reflectionBlur: Float = 0.0f,
 
+        // Gaussian Gradient Blur
+        val isGradientBlur: Boolean = false,
+        val blurLeft: Float = 0f,
+        val blurRight: Float = 20f,
+        val blurAngle: Float = 0f,
+
         // Zoom Blur
         val zoomBlurCenterX: Float = 0.5f,
         val zoomBlurCenterY: Float = 0.5f,
@@ -512,6 +518,10 @@ object StyleManager {
             reflectionWavelengthStart = l.reflectionWavelengthStart,
             reflectionWavelengthEnd = l.reflectionWavelengthEnd,
             reflectionBlur = l.reflectionBlur,
+            isGradientBlur = l.isGradientBlur,
+            blurLeft = l.blurLeft,
+            blurRight = l.blurRight,
+            blurAngle = l.blurAngle,
             zoomBlurCenterX = l.zoomBlurCenterX,
             zoomBlurCenterY = l.zoomBlurCenterY,
             zoomBlurInnerRadius = l.zoomBlurInnerRadius,
@@ -697,6 +707,10 @@ object StyleManager {
         l.reflectionWavelengthStart = m.reflectionWavelengthStart
         l.reflectionWavelengthEnd = m.reflectionWavelengthEnd
         l.reflectionBlur = m.reflectionBlur
+        l.isGradientBlur = m.isGradientBlur
+        l.blurLeft = m.blurLeft
+        l.blurRight = m.blurRight
+        l.blurAngle = m.blurAngle
 
         // Zoom Blur
         l.zoomBlurCenterX = m.zoomBlurCenterX

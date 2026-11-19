@@ -1681,7 +1681,80 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStartTrackingTouch(s: SeekBar?) {}
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
+                s1.visibility = if (stylableLayer.isGradientBlur) View.GONE else View.VISIBLE
                 settingsLayout.addView(s1)
+
+                val gradientBlurContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    visibility = if (stylableLayer.isGradientBlur) View.VISIBLE else View.GONE
+                }
+
+                val chkGradientBlur = android.widget.CheckBox(this).apply {
+                    text = "Gradient Blur"
+                    isChecked = stylableLayer.isGradientBlur
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    buttonTintList = android.content.res.ColorStateList.valueOf(Color.CYAN)
+                    setOnCheckedChangeListener { _, isChecked ->
+                        stylableLayer.isGradientBlur = isChecked
+                        s1.visibility = if (isChecked) View.GONE else View.VISIBLE
+                        gradientBlurContainer.visibility = if (isChecked) View.VISIBLE else View.GONE
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(chkGradientBlur)
+
+                val currentLeft = stylableLayer.blurLeft
+                val sLeft = createSlider("Left Blur: ${currentLeft.toInt()}", currentLeft.toInt(), 50) {
+                    stylableLayer.blurLeft = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvLeft = sLeft.findViewWithTag<TextView>("SLIDER_LABEL")
+                sLeft.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.blurLeft = p.toFloat()
+                        tvLeft?.text = "Left Blur: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                gradientBlurContainer.addView(sLeft)
+
+                val currentRight = stylableLayer.blurRight
+                val sRight = createSlider("Right Blur: ${currentRight.toInt()}", currentRight.toInt(), 50) {
+                    stylableLayer.blurRight = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvRight = sRight.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRight.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.blurRight = p.toFloat()
+                        tvRight?.text = "Right Blur: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                gradientBlurContainer.addView(sRight)
+
+                val currentAngle = stylableLayer.blurAngle
+                val sAngle = createSlider("Angle: ${currentAngle.toInt()}°", currentAngle.toInt(), 360) {
+                    stylableLayer.blurAngle = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvAngle = sAngle.findViewWithTag<TextView>("SLIDER_LABEL")
+                sAngle.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.blurAngle = p.toFloat()
+                        tvAngle?.text = "Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                gradientBlurContainer.addView(sAngle)
+
+                settingsLayout.addView(gradientBlurContainer)
         }
         if (isEffectActive(TextEffectType.HALFTONE)) {
                 // 1. Type Spinner: INNER vs OUTER

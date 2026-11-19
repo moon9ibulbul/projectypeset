@@ -162,6 +162,10 @@ class ImageLayer(
     override var decaySeed: Long = System.currentTimeMillis()
     override var woodScratchSeed: Long = System.currentTimeMillis()
     override var blurRadius: Float = 0f
+    override var isGradientBlur: Boolean = false
+    override var blurLeft: Float = 0f
+    override var blurRight: Float = 20f
+    override var blurAngle: Float = 0f
     override var longShadowLength: Float = 30f
     override var longShadowColor: Int = Color.DKGRAY
     override var longShadowAngle: Float = 45f
@@ -791,6 +795,8 @@ class ImageLayer(
         motionShadowThickness *= 2f
         shadowThickness *= 2f
         blurRadius *= 2f
+        blurLeft *= 2f
+        blurRight *= 2f
         longShadowLength *= 2f
         neonRadius *= 2f
         chromaticShift *= 2f
