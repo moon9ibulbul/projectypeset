@@ -59,17 +59,22 @@ class InpaintManager(private val context: Context) {
      * @param bounds Optional bounding box for cropped/sub-region inpainting.
      * @return A new Bitmap with the area inpainted, or null if absolutely everything failed.
      */
-    suspend fun inpaint(originalBitmap: Bitmap, maskBitmap: Bitmap, bounds: android.graphics.Rect? = null): Bitmap? {
+    suspend fun inpaint(
+        originalBitmap: Bitmap,
+        maskBitmap: Bitmap,
+        bounds: android.graphics.Rect? = null,
+        onProgress: ((completed: Int, total: Int) -> Unit)? = null
+    ): Bitmap? {
         val rect = bounds ?: android.graphics.Rect(0, 0, originalBitmap.width, originalBitmap.height)
 
         // Ensure bounds are valid and within bitmap boundaries
         if (rect.left < 0 || rect.top < 0 || rect.right > originalBitmap.width || rect.bottom > originalBitmap.height || rect.isEmpty) {
-            return performInpaintOnRegion(originalBitmap, maskBitmap)
+            return performInpaintOnRegion(originalBitmap, maskBitmap, onProgress)
         }
 
         // If bounds cover the whole image, process directly without cropping overhead
         if (rect.left == 0 && rect.top == 0 && rect.width() == originalBitmap.width && rect.height() == originalBitmap.height) {
-            return performInpaintOnRegion(originalBitmap, maskBitmap)
+            return performInpaintOnRegion(originalBitmap, maskBitmap, onProgress)
         }
 
         // Crop and process sub-region
@@ -85,7 +90,7 @@ class InpaintManager(private val context: Context) {
                     Bitmap.createBitmap(maskBitmap, rect.left, rect.top, rect.width(), rect.height())
                 }
 
-                val croppedResult = performInpaintOnRegion(croppedOriginal, croppedMask)
+                val croppedResult = performInpaintOnRegion(croppedOriginal, croppedMask, onProgress)
 
                 // Clean up temporary cropped bitmap
                 if (croppedOriginal != originalBitmap) {
@@ -108,15 +113,19 @@ class InpaintManager(private val context: Context) {
             }
 
             // Fallback to full inpaint if cropped fails
-            performInpaintOnRegion(originalBitmap, maskBitmap)
+            performInpaintOnRegion(originalBitmap, maskBitmap, onProgress)
         }
     }
 
-    private suspend fun performInpaintOnRegion(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
+    private suspend fun performInpaintOnRegion(
+        originalBitmap: Bitmap,
+        maskBitmap: Bitmap,
+        onProgress: ((completed: Int, total: Int) -> Unit)? = null
+    ): Bitmap? {
         return withContext(Dispatchers.Default) {
             when (currentEngine) {
                 Engine.HYBRID -> {
-                    inpaintHybrid(originalBitmap, maskBitmap)
+                    inpaintHybrid(originalBitmap, maskBitmap, onProgress)
                 }
                 Engine.PATCHMATCH -> {
                     inpaintWithPatchMatch(originalBitmap, maskBitmap)
@@ -126,7 +135,7 @@ class InpaintManager(private val context: Context) {
                 }
                 Engine.LAMA -> {
                     if (lamaProcessor.isModelAvailable()) {
-                        val result = lamaProcessor.inpaint(originalBitmap, maskBitmap)
+                        val result = lamaProcessor.inpaint(originalBitmap, maskBitmap, onProgress)
                         if (result != null) return@withContext result
                         Log.w("InpaintManager", "LaMa inpaint failed, falling back to OpenCV")
                     }
@@ -155,7 +164,11 @@ class InpaintManager(private val context: Context) {
      * fills directly using Smart Solid Fill (+1px dilation) for clean, 100% artifact-free results.
      * Complex/artwork areas are routed to LaMa (or Smart Solid Fill fallback if LaMa is unavailable).
      */
-    suspend fun inpaintHybrid(originalBitmap: Bitmap, maskBitmap: Bitmap): Bitmap? {
+    suspend fun inpaintHybrid(
+        originalBitmap: Bitmap,
+        maskBitmap: Bitmap,
+        onProgress: ((completed: Int, total: Int) -> Unit)? = null
+    ): Bitmap? {
         val w = originalBitmap.width
         val h = originalBitmap.height
         val total = w * h
@@ -191,7 +204,7 @@ class InpaintManager(private val context: Context) {
         // 3. Label connected components of blob
         val labels = IntArray(total)
         var labelCount = 0
-        val queue: java.util.Queue<Int> = java.util.LinkedList()
+        val queue = IntArray(total)
 
         // Bounding boxes for each component
         class BlobInfo(val id: Int, var minX: Int, var maxX: Int, var minY: Int, var maxY: Int, var area: Int)
@@ -202,14 +215,16 @@ class InpaintManager(private val context: Context) {
                 labelCount++
                 val curLabel = labelCount
                 labels[i] = curLabel
-                queue.add(i)
+                var head = 0
+                var tail = 0
+                queue[tail++] = i
 
                 val bx = i % w
                 val by = i / w
                 val info = BlobInfo(curLabel, bx, bx, by, by, 1)
 
-                while (!queue.isEmpty()) {
-                    val curr = queue.remove()
+                while (head < tail) {
+                    val curr = queue[head++]
                     val cx = curr % w
                     val cy = curr / w
 
@@ -221,19 +236,19 @@ class InpaintManager(private val context: Context) {
                     // 4-connectivity
                     if (cx > 0) {
                         val n = curr - 1
-                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue[tail++] = n; info.area++ }
                     }
                     if (cx < w - 1) {
                         val n = curr + 1
-                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue[tail++] = n; info.area++ }
                     }
                     if (cy > 0) {
                         val n = curr - w
-                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue[tail++] = n; info.area++ }
                     }
                     if (cy < h - 1) {
                         val n = curr + w
-                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue.add(n); info.area++ }
+                        if (blob[n] && labels[n] == 0) { labels[n] = curLabel; queue[tail++] = n; info.area++ }
                     }
                 }
 
@@ -310,7 +325,7 @@ class InpaintManager(private val context: Context) {
                 }
                 val lamaMaskBitmap = Bitmap.createBitmap(lamaMaskPixels, w, h, Bitmap.Config.ARGB_8888)
 
-                val lamaResult = lamaProcessor.inpaint(resultBitmap, lamaMaskBitmap)
+                val lamaResult = lamaProcessor.inpaint(resultBitmap, lamaMaskBitmap, onProgress)
                 lamaMaskBitmap.recycle()
                 if (lamaResult != null) {
                     resultBitmap.recycle()

@@ -19,9 +19,6 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.FloatBuffer
-import java.util.Collections
-import java.util.LinkedList
-import java.util.Queue
 
 class LaMaProcessor(private val context: Context) {
 
@@ -164,12 +161,14 @@ class LaMaProcessor(private val context: Context) {
             // Optimization options (CPU execution)
             try {
                  sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                 sessionOptions.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
 
-                 // Dynamic thread pool count based on available CPU cores
+                 // On big.LITTLE mobile CPUs, interOp=1 + sequential execution avoids thread contention
+                 // across efficiency cores while intraOp parallelizes heavy Conv/FFT ops.
                  val numCores = Runtime.getRuntime().availableProcessors()
-                 val optimalThreads = (numCores / 2).coerceIn(1, 4)
-                 sessionOptions.setInterOpNumThreads(optimalThreads)
-                 sessionOptions.setIntraOpNumThreads(optimalThreads)
+                 val intraThreads = (numCores / 2).coerceIn(1, 4)
+                 sessionOptions.setInterOpNumThreads(1)
+                 sessionOptions.setIntraOpNumThreads(intraThreads)
             } catch (e: Exception) {
                 Log.w("LaMaProcessor", "Failed to set optimization options", e)
             }
@@ -218,21 +217,27 @@ class LaMaProcessor(private val context: Context) {
         } else false
     }
 
-    suspend fun inpaint(image: Bitmap, mask: Bitmap): Bitmap? = withContext(Dispatchers.Default) {
+    suspend fun inpaint(
+        image: Bitmap,
+        mask: Bitmap,
+        onProgress: ((completed: Int, total: Int) -> Unit)? = null
+    ): Bitmap? = withContext(Dispatchers.Default) {
         if (!isModelAvailable()) return@withContext null
 
         try {
             val env = OrtEnvironment.getEnvironment()
             val session = getSession()
 
-            // 0. Detect separate mask blobs (connected components)
-            // This allows us to process spatially separated masks individually,
-            // resulting in much higher quality (HD) because we don't downscale a huge bounding box.
-            val maskRects = getSeparateMaskRects(mask)
+            // 0. Detect separate mask blobs (connected components) and cluster nearby ones.
+            // Clustering only groups inference bounding boxes (without altering originalMask pixels),
+            // so unmasked gaps between letters/strokes remain untouched and at native resolution.
+            val rawMaskRects = getSeparateMaskRects(mask)
 
-            if (maskRects.isEmpty()) {
+            if (rawMaskRects.isEmpty()) {
                 return@withContext image // Nothing to mask
             }
+
+            val maskRects = clusterMaskRects(rawMaskRects, image.width, image.height)
 
             // We will accumulate results into this bitmap
             // Start with a copy of the original
@@ -243,10 +248,15 @@ class LaMaProcessor(private val context: Context) {
             // Draw base
             canvas.drawBitmap(image, 0f, 0f, paint)
 
-            // Loop through each distinct mask area
-            for (rect in maskRects) {
+            val totalRegions = maskRects.size
+            onProgress?.invoke(0, totalRegions)
+
+            // Loop through each clustered mask region
+            for (index in maskRects.indices) {
+                val rect = maskRects[index]
                 // Process this specific region
                 processRegion(image, mask, rect, session, env, canvas, paint)
+                onProgress?.invoke(index + 1, totalRegions)
             }
 
             return@withContext resultBitmap
@@ -462,22 +472,96 @@ class LaMaProcessor(private val context: Context) {
     }
 
     /**
-     * Finds connected components (blobs) in the mask using a simple BFS/FloodFill.
+     * Clusters nearby bounding rects into larger inference regions without modifying mask pixels.
+     * Ensures the resulting crop (including adaptive margin) stays within [maxCropSide] so no
+     * downscaling occurs and unmasked gaps between text remain completely untouched.
+     */
+    private fun clusterMaskRects(
+        rects: List<android.graphics.Rect>,
+        imgW: Int,
+        imgH: Int,
+        maxCropSide: Int = 768,
+        maxGapPx: Int = 96
+    ): List<android.graphics.Rect> {
+        if (rects.size <= 1) return rects
+
+        // Sort top-to-bottom, left-to-right for deterministic spatial clustering
+        val working = rects.map { android.graphics.Rect(it) }
+            .sortedWith(compareBy({ it.top }, { it.left }))
+            .toMutableList()
+
+        fun canMerge(a: android.graphics.Rect, b: android.graphics.Rect): Boolean {
+            val gapX = kotlin.math.max(0, kotlin.math.max(a.left - b.right, b.left - a.right))
+            val gapY = kotlin.math.max(0, kotlin.math.max(a.top - b.bottom, b.top - a.bottom))
+            if (gapX > maxGapPx || gapY > maxGapPx) return false
+
+            val uLeft = kotlin.math.min(a.left, b.left)
+            val uTop = kotlin.math.min(a.top, b.top)
+            val uRight = kotlin.math.max(a.right, b.right)
+            val uBottom = kotlin.math.max(a.bottom, b.bottom)
+
+            val uW = uRight - uLeft
+            val uH = uBottom - uTop
+            val margin = kotlin.math.max(64, (0.6f * kotlin.math.max(uW, uH)).toInt())
+
+            val cropW = (uRight + margin).coerceIn(0, imgW) - (uLeft - margin).coerceIn(0, imgW)
+            val cropH = (uBottom + margin).coerceIn(0, imgH) - (uTop - margin).coerceIn(0, imgH)
+
+            return kotlin.math.max(cropW, cropH) <= maxCropSide
+        }
+
+        var mergedAny: Boolean
+        do {
+            mergedAny = false
+            val next = ArrayList<android.graphics.Rect>(working.size)
+            val consumed = BooleanArray(working.size)
+
+            for (i in working.indices) {
+                if (consumed[i]) continue
+                val current = android.graphics.Rect(working[i])
+                consumed[i] = true
+
+                // Greedily merge any nearby rects that fit within the native-resolution crop budget
+                var expanded: Boolean
+                do {
+                    expanded = false
+                    for (j in working.indices) {
+                        if (consumed[j]) continue
+                        if (canMerge(current, working[j])) {
+                            current.union(working[j])
+                            consumed[j] = true
+                            expanded = true
+                            mergedAny = true
+                        }
+                    }
+                } while (expanded)
+
+                next.add(current)
+            }
+
+            working.clear()
+            working.addAll(next)
+        } while (mergedAny && working.size > 1)
+
+        return working
+    }
+
+    /**
+     * Finds connected components (blobs) in the mask using a primitive IntArray BFS queue.
      * Returns a list of bounding rectangles for each separate mask area.
-     * This avoids using heavy external dependencies like OpenCV.
      */
     private fun getSeparateMaskRects(mask: Bitmap): List<android.graphics.Rect> {
         val w = mask.width
         val h = mask.height
-        val pixels = IntArray(w * h)
+        val total = w * h
+        val pixels = IntArray(total)
         mask.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val visited = BooleanArray(w * h)
+        val visited = BooleanArray(total)
         val rects = ArrayList<android.graphics.Rect>()
+        val queue = IntArray(total)
 
-        val queue: Queue<Int> = LinkedList()
-
-        for (i in pixels.indices) {
+        for (i in 0 until total) {
             // Check if pixel is part of mask (Alpha > 0) and not visited
             if (!visited[i] && (pixels[i] ushr 24) > 0) {
                 // Found a new component
@@ -487,10 +571,12 @@ class LaMaProcessor(private val context: Context) {
                 var maxY = -1
 
                 visited[i] = true
-                queue.add(i)
+                var head = 0
+                var tail = 0
+                queue[tail++] = i
 
-                while (!queue.isEmpty()) {
-                    val currIdx = queue.remove()
+                while (head < tail) {
+                    val currIdx = queue[head++]
                     val cx = currIdx % w
                     val cy = currIdx / w
 
@@ -506,7 +592,7 @@ class LaMaProcessor(private val context: Context) {
                         val nIdx = currIdx - 1
                         if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
                             visited[nIdx] = true
-                            queue.add(nIdx)
+                            queue[tail++] = nIdx
                         }
                     }
                     // Right
@@ -514,7 +600,7 @@ class LaMaProcessor(private val context: Context) {
                         val nIdx = currIdx + 1
                         if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
                             visited[nIdx] = true
-                            queue.add(nIdx)
+                            queue[tail++] = nIdx
                         }
                     }
                     // Top
@@ -522,7 +608,7 @@ class LaMaProcessor(private val context: Context) {
                         val nIdx = currIdx - w
                         if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
                             visited[nIdx] = true
-                            queue.add(nIdx)
+                            queue[tail++] = nIdx
                         }
                     }
                     // Bottom
@@ -530,7 +616,7 @@ class LaMaProcessor(private val context: Context) {
                         val nIdx = currIdx + w
                         if (!visited[nIdx] && (pixels[nIdx] ushr 24) > 0) {
                             visited[nIdx] = true
-                            queue.add(nIdx)
+                            queue[tail++] = nIdx
                         }
                     }
                 }
