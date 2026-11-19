@@ -385,6 +385,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val cbInpaintDetectTextInside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextInside)
         val cbInpaintDetectTextOutside = findViewById<android.widget.CheckBox>(R.id.cbInpaintDetectTextOutside)
+        val cbFlattenInpaintMask = findViewById<android.widget.CheckBox>(R.id.cbFlattenInpaintMask)
         val rgInpaintDetectButtonAction = findViewById<android.widget.RadioGroup>(R.id.rgInpaintDetectButtonAction)
         val rbDetectAndInpaint = findViewById<android.widget.RadioButton>(R.id.rbDetectAndInpaint)
         val rbDetectOnly = findViewById<android.widget.RadioButton>(R.id.rbDetectOnly)
@@ -394,6 +395,7 @@ class SettingsActivity : AppCompatActivity() {
         // Setup Inpaint UI State
         cbInpaintDetectTextInside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_inside", true)
         cbInpaintDetectTextOutside.isChecked = settingsPrefs.getBoolean("inpaint_detect_text_outside", false)
+        cbFlattenInpaintMask.isChecked = settingsPrefs.getBoolean("inpaint_flatten_mask", false)
 
         val savedDetectAction = settingsPrefs.getString("inpaint_detect_button_action", "Detect + Inpaint")
         if (savedDetectAction == "Detect Only") {
@@ -414,6 +416,10 @@ class SettingsActivity : AppCompatActivity() {
 
         cbInpaintDetectTextOutside.setOnCheckedChangeListener { _, isChecked ->
             settingsPrefs.edit().putBoolean("inpaint_detect_text_outside", isChecked).apply()
+        }
+
+        cbFlattenInpaintMask.setOnCheckedChangeListener { _, isChecked ->
+            settingsPrefs.edit().putBoolean("inpaint_flatten_mask", isChecked).apply()
         }
 
         rgInpaintDetectButtonAction.setOnCheckedChangeListener { _, checkedId ->

@@ -830,6 +830,45 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
+        val flattenMask = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+            .getBoolean("inpaint_flatten_mask", false)
+
+        if (flattenMask) {
+            // Save current state for Undo (Bitmap History)
+            com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
+            canvasView.saveInpaintMaskState()
+
+            // Show Loading Overlay
+            binding.tvLoadingProgress.visibility = View.GONE
+            binding.tvLoadingProgress.text = ""
+            binding.loadingOverlay.visibility = View.VISIBLE
+
+            lifecycleScope.launch {
+                val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds) { completed, total ->
+                    if (total > 1) {
+                        runOnUiThread {
+                            if (binding.loadingOverlay.visibility == View.VISIBLE) {
+                                binding.tvLoadingProgress.visibility = View.VISIBLE
+                                binding.tvLoadingProgress.text = "Inpainting $completed/$total..."
+                            }
+                        }
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    binding.tvLoadingProgress.visibility = View.GONE
+                    binding.loadingOverlay.visibility = View.GONE
+                    if (result != null) {
+                        canvasView.setBackgroundImage(result)
+                        Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                        onSuccess()
+                    } else {
+                        Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            return
+        }
+
         // Save current layer state for Undo
         val layersSnapshot = canvasView.getLayers()
         com.astral.typer.utils.UndoManager.saveState(layersSnapshot)

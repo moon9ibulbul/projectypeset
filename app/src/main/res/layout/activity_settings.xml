@@ -975,6 +975,15 @@
                         android:background="@drawable/bg_button_dynamic" />
                 </LinearLayout>
 
+                <CheckBox
+                    android:id="@+id/cbFlattenInpaintMask"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Flatten Inpainting Mask"
+                    android:checked="false"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:layout_marginTop="12dp"/>
+
             </LinearLayout>
         </LinearLayout>
 
