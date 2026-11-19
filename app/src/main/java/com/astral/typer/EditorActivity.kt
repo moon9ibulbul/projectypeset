@@ -835,12 +835,24 @@ class EditorActivity : AppCompatActivity() {
         canvasView.saveInpaintMaskState()
 
         // Show Loading Overlay
+        binding.tvLoadingProgress.visibility = View.GONE
+        binding.tvLoadingProgress.text = ""
         binding.loadingOverlay.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
-            val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds)
+            val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds) { completed, total ->
+                if (total > 1) {
+                    runOnUiThread {
+                        if (binding.loadingOverlay.visibility == View.VISIBLE) {
+                            binding.tvLoadingProgress.visibility = View.VISIBLE
+                            binding.tvLoadingProgress.text = "Inpainting $completed/$total..."
+                        }
+                    }
+                }
+            }
             withContext(Dispatchers.Main) {
+                binding.tvLoadingProgress.visibility = View.GONE
                 binding.loadingOverlay.visibility = View.GONE
                 if (result != null) {
                     canvasView.setBackgroundImage(result)
