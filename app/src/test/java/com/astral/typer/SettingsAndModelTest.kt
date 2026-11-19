@@ -46,6 +46,10 @@ class SettingsAndModelTest {
         // Test default value of "inpaint_text_padding" must be 2 (2px)
         val defaultMaskPadding = fakePrefs.getInt("inpaint_text_padding", 2)
         assertEquals("Mask Padding must default to 2px", 2, defaultMaskPadding)
+
+        // Test default value of "inpaint_flatten_mask" must be false (unchecked)
+        val defaultFlattenMask = fakePrefs.getBoolean("inpaint_flatten_mask", false)
+        assertFalse("Flatten Inpainting Mask must default to unchecked (false)", defaultFlattenMask)
     }
 
     @Test

@@ -22,14 +22,12 @@ class InpaintManager(private val context: Context) {
         PATCHMATCH,
         SMART_SOLID,
         HYBRID,
-        LAMA,
-        MIGAN
+        LAMA
     }
 
     private var currentEngine: Engine = Engine.OPENCV
     private var isOpenCvInitialized = false
     private val lamaProcessor by lazy { LaMaProcessor(context) }
-    private val miganProcessor by lazy { MiganProcessor(context) }
 
     init {
         try {
@@ -138,14 +136,6 @@ class InpaintManager(private val context: Context) {
                         val result = lamaProcessor.inpaint(originalBitmap, maskBitmap, onProgress)
                         if (result != null) return@withContext result
                         Log.w("InpaintManager", "LaMa inpaint failed, falling back to OpenCV")
-                    }
-                    inpaintWithOpenCVOrFallback(originalBitmap, maskBitmap)
-                }
-                Engine.MIGAN -> {
-                    if (miganProcessor.isModelAvailable()) {
-                        val result = miganProcessor.inpaint(originalBitmap, maskBitmap)
-                        if (result != null) return@withContext result
-                        Log.w("InpaintManager", "MIGAN inpaint failed, falling back to OpenCV")
                     }
                     inpaintWithOpenCVOrFallback(originalBitmap, maskBitmap)
                 }

@@ -19,14 +19,13 @@ class InpaintManagerTest {
     @Test
     fun testInpaintEngineEnumValues() {
         val engines = InpaintManager.Engine.values()
-        assertEquals(6, engines.size)
+        assertEquals(5, engines.size)
 
         assertEquals(InpaintManager.Engine.OPENCV, InpaintManager.Engine.valueOf("OPENCV"))
         assertEquals(InpaintManager.Engine.PATCHMATCH, InpaintManager.Engine.valueOf("PATCHMATCH"))
         assertEquals(InpaintManager.Engine.SMART_SOLID, InpaintManager.Engine.valueOf("SMART_SOLID"))
         assertEquals(InpaintManager.Engine.HYBRID, InpaintManager.Engine.valueOf("HYBRID"))
         assertEquals(InpaintManager.Engine.LAMA, InpaintManager.Engine.valueOf("LAMA"))
-        assertEquals(InpaintManager.Engine.MIGAN, InpaintManager.Engine.valueOf("MIGAN"))
     }
 
     @Test
@@ -55,9 +54,6 @@ class InpaintManagerTest {
 
         inpaintManager.setEngine(InpaintManager.Engine.LAMA)
         assertEquals(InpaintManager.Engine.LAMA, inpaintManager.getEngine())
-
-        inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
-        assertEquals(InpaintManager.Engine.MIGAN, inpaintManager.getEngine())
     }
 
     @Test
