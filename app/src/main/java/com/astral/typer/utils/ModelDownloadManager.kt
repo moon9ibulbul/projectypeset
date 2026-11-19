@@ -30,9 +30,6 @@ object ModelDownloadManager {
     private val _bubbleInt8State = MutableStateFlow(DownloadState())
     val bubbleInt8State: StateFlow<DownloadState> = _bubbleInt8State.asStateFlow()
 
-    private val _miganState = MutableStateFlow(DownloadState())
-    val miganState: StateFlow<DownloadState> = _miganState.asStateFlow()
-
     @Synchronized
     fun startLamaDownload(context: Context) {
         if (_lamaState.value.status == DownloadStatus.DOWNLOADING) return
@@ -112,32 +109,5 @@ object ModelDownloadManager {
 
     fun isBubbleInt8Downloading(): Boolean {
         return _bubbleInt8State.value.status == DownloadStatus.DOWNLOADING
-    }
-
-    @Synchronized
-    fun startMiganDownload(context: Context) {
-        if (_miganState.value.status == DownloadStatus.DOWNLOADING) return
-
-        _miganState.value = DownloadState(DownloadStatus.DOWNLOADING, 0f)
-        scope.launch {
-            val processor = MiganProcessor(context.applicationContext)
-            var lastProgress = -1
-            val success = processor.downloadModel { progress ->
-                val progressPercent = (progress * 100).toInt()
-                if (progressPercent != lastProgress) {
-                    lastProgress = progressPercent
-                    _miganState.value = DownloadState(DownloadStatus.DOWNLOADING, progress)
-                }
-            }
-            if (success) {
-                _miganState.value = DownloadState(DownloadStatus.SUCCESS, 1f)
-            } else {
-                _miganState.value = DownloadState(DownloadStatus.FAILED, 0f)
-            }
-        }
-    }
-
-    fun isMiganDownloading(): Boolean {
-        return _miganState.value.status == DownloadStatus.DOWNLOADING
     }
 }

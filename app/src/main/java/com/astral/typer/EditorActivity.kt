@@ -830,9 +830,28 @@ class EditorActivity : AppCompatActivity() {
             return
         }
 
-        // Save current state for Undo (Bitmap History)
-        com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
+        // Save current layer state for Undo
+        val layersSnapshot = canvasView.getLayers()
+        com.astral.typer.utils.UndoManager.saveState(layersSnapshot)
         canvasView.saveInpaintMaskState()
+
+        // Composite background + existing "Inpaint Mask" layer (if any) as source so subsequent inpaints see prior cleaned areas
+        val existingMaskLayer = layersSnapshot.firstOrNull {
+            it is com.astral.typer.models.ImageLayer && it.name == "Inpaint Mask"
+        } as? com.astral.typer.models.ImageLayer
+        val sourceBitmap: android.graphics.Bitmap
+        var recycleSourceBitmap = false
+        if (existingMaskLayer != null) {
+            sourceBitmap = originalBitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            val compositeCanvas = android.graphics.Canvas(sourceBitmap)
+            val wasVisible = existingMaskLayer.isVisible
+            existingMaskLayer.isVisible = true
+            existingMaskLayer.draw(compositeCanvas)
+            existingMaskLayer.isVisible = wasVisible
+            recycleSourceBitmap = true
+        } else {
+            sourceBitmap = originalBitmap
+        }
 
         // Show Loading Overlay
         binding.tvLoadingProgress.visibility = View.GONE
@@ -841,7 +860,7 @@ class EditorActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
-            val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds) { completed, total ->
+            val result = inpaintManager.inpaint(sourceBitmap, maskBitmap, bounds) { completed, total ->
                 if (total > 1) {
                     runOnUiThread {
                         if (binding.loadingOverlay.visibility == View.VISIBLE) {
@@ -851,14 +870,97 @@ class EditorActivity : AppCompatActivity() {
                     }
                 }
             }
+
+            val finalMaskBitmap = if (result != null) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    val patchBitmap = android.graphics.Bitmap.createBitmap(
+                        originalBitmap.width,
+                        originalBitmap.height,
+                        android.graphics.Bitmap.Config.ARGB_8888
+                    )
+                    val patchCanvas = android.graphics.Canvas(patchBitmap)
+                    patchCanvas.drawColor(Color.TRANSPARENT)
+
+                    val saveCount = patchCanvas.save()
+                    patchCanvas.clipRect(bounds)
+                    patchCanvas.drawBitmap(result, 0f, 0f, null)
+
+                    val transferPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+                    }
+                    if (maskBitmap.width == bounds.width() && maskBitmap.height == bounds.height()) {
+                        patchCanvas.drawBitmap(maskBitmap, bounds.left.toFloat(), bounds.top.toFloat(), transferPaint)
+                    } else {
+                        patchCanvas.drawBitmap(maskBitmap, 0f, 0f, transferPaint)
+                    }
+                    patchCanvas.restoreToCount(saveCount)
+
+                    result.recycle()
+
+                    if (existingMaskLayer != null) {
+                        val mergedBitmap = android.graphics.Bitmap.createBitmap(
+                            originalBitmap.width,
+                            originalBitmap.height,
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        val mergedCanvas = android.graphics.Canvas(mergedBitmap)
+                        mergedCanvas.drawColor(Color.TRANSPARENT)
+                        val wasVisible = existingMaskLayer.isVisible
+                        existingMaskLayer.isVisible = true
+                        existingMaskLayer.draw(mergedCanvas)
+                        existingMaskLayer.isVisible = wasVisible
+                        mergedCanvas.drawBitmap(patchBitmap, 0f, 0f, null)
+                        patchBitmap.recycle()
+                        mergedBitmap
+                    } else {
+                        patchBitmap
+                    }
+                }
+            } else {
+                null
+            }
+
+            if (recycleSourceBitmap) {
+                sourceBitmap.recycle()
+            }
+
             withContext(Dispatchers.Main) {
                 binding.tvLoadingProgress.visibility = View.GONE
                 binding.loadingOverlay.visibility = View.GONE
-                if (result != null) {
-                    canvasView.setBackgroundImage(result)
+                if (finalMaskBitmap != null) {
+                    val currentLayers = canvasView.getLayers().toMutableList()
+                    val oldIdx = currentLayers.indexOfFirst {
+                        it is com.astral.typer.models.ImageLayer && it.name == "Inpaint Mask"
+                    }
+                    if (oldIdx >= 0) {
+                        currentLayers.removeAt(oldIdx)
+                    }
+
+                    val maskLayer = com.astral.typer.models.ImageLayer(finalMaskBitmap, null).apply {
+                        x = originalBitmap.width / 2f
+                        y = originalBitmap.height / 2f
+                        rotation = 0f
+                        scaleX = 1f
+                        scaleY = 1f
+                        isVisible = true
+                        isLocked = true
+                        name = "Inpaint Mask"
+                        opacity = 255
+                        blendMode = "NORMAL"
+                        isOpacityGradient = false
+                        opacityStart = 255
+                        opacityEnd = 0
+                        opacityAngle = 0
+                    }
+
+                    // Always place Inpaint Mask at the very first layer (index 0)
+                    currentLayers.add(0, maskLayer)
+                    canvasView.setLayers(currentLayers)
+
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
                     onSuccess()
                 } else {
+                    com.astral.typer.utils.UndoManager.discardLastState()
                     Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -976,7 +1078,7 @@ class EditorActivity : AppCompatActivity() {
             if (isInpaintMode) {
                  // Mask Undo First
                  if (!canvasView.undoInpaintMask()) {
-                     // If no mask to undo, undo Inpaint Result (Bitmap)
+                     // If no mask to undo, undo Inpaint Result (Bitmap or Layer)
                      val currentBg = canvasView.getBackgroundImage()
                      val restoredBg = com.astral.typer.utils.UndoManager.undoBitmap(currentBg)
                      if (restoredBg != null) {
@@ -984,7 +1086,14 @@ class EditorActivity : AppCompatActivity() {
                          canvasView.restorePreviousInpaintMask()
                          Toast.makeText(this, "Undid Inpaint", Toast.LENGTH_SHORT).show()
                      } else {
-                         Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+                         val restoredLayers = com.astral.typer.utils.UndoManager.undo(canvasView.getLayers())
+                         if (restoredLayers != null) {
+                             canvasView.setLayers(restoredLayers)
+                             canvasView.restorePreviousInpaintMask()
+                             Toast.makeText(this, "Undid Inpaint", Toast.LENGTH_SHORT).show()
+                         } else {
+                             Toast.makeText(this, "Nothing to Undo", Toast.LENGTH_SHORT).show()
+                         }
                      }
                  }
             } else if (currentMenuType == "ERASE") {
@@ -1005,14 +1114,20 @@ class EditorActivity : AppCompatActivity() {
             if (isInpaintMode) {
                 // Mask Redo First
                 if (!canvasView.redoInpaintMask()) {
-                    // Try to redo Bitmap
+                    // Try to redo Bitmap or Layer
                     val currentBg = canvasView.getBackgroundImage()
                     val restoredBg = com.astral.typer.utils.UndoManager.redoBitmap(currentBg)
                     if (restoredBg != null) {
                          canvasView.setBackgroundImage(restoredBg)
                          Toast.makeText(this, "Redid Inpaint", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
+                        val restoredLayers = com.astral.typer.utils.UndoManager.redo(canvasView.getLayers())
+                        if (restoredLayers != null) {
+                            canvasView.setLayers(restoredLayers)
+                            Toast.makeText(this, "Redid Inpaint", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "Nothing to Redo", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             } else {
@@ -4421,9 +4536,7 @@ class EditorActivity : AppCompatActivity() {
 
         // --- Engine Selector ---
         val lamaProcessor = com.astral.typer.utils.LaMaProcessor(this)
-        val miganProcessor = com.astral.typer.utils.MiganProcessor(this)
         val isLamaAvailable = lamaProcessor.isModelAvailable()
-        val isMiganAvailable = miganProcessor.isModelAvailable()
 
         val engineLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -4441,9 +4554,6 @@ class EditorActivity : AppCompatActivity() {
         if (isLamaAvailable) {
             modes.add("LaMa (AI)")
         }
-        if (isMiganAvailable) {
-            modes.add("MIGAN (AI)")
-        }
 
         val spinner = android.widget.Spinner(this)
         val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modes)
@@ -4458,7 +4568,6 @@ class EditorActivity : AppCompatActivity() {
             InpaintManager.Engine.PATCHMATCH -> modes.indexOfFirst { it.contains("Content-Aware") }
             InpaintManager.Engine.SMART_SOLID -> modes.indexOfFirst { it.contains("Smart Solid") }
             InpaintManager.Engine.LAMA -> modes.indexOfFirst { it.contains("LaMa") }
-            InpaintManager.Engine.MIGAN -> modes.indexOfFirst { it.contains("MIGAN") }
         }
         if (defaultIdx >= 0) {
             spinner.setSelection(defaultIdx)
@@ -4485,9 +4594,6 @@ class EditorActivity : AppCompatActivity() {
                     }
                     selectedMode.contains("LaMa") -> {
                         inpaintManager.setEngine(InpaintManager.Engine.LAMA)
-                    }
-                    selectedMode.contains("MIGAN") -> {
-                        inpaintManager.setEngine(InpaintManager.Engine.MIGAN)
                     }
                 }
             }
@@ -5949,7 +6055,6 @@ class EditorActivity : AppCompatActivity() {
                             InpaintManager.Engine.SMART_SOLID -> "Smart Solid Fill"
                             InpaintManager.Engine.OPENCV -> "OpenCV (Telea)"
                             InpaintManager.Engine.PATCHMATCH -> "Content-Aware Fill"
-                            InpaintManager.Engine.MIGAN -> "MIGAN (AI)"
                         }
                         Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
                     }

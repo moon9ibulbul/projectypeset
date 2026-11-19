@@ -669,7 +669,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Unduh model LaMa, MIGAN &amp; Detektor Balon"
+                        android:text="Unduh model LaMa &amp; Detektor Balon"
                         android:textColor="?attr/appTextColorSecondary"
                         android:textSize="12sp"
                         android:layout_marginTop="2dp"/>
@@ -736,67 +736,6 @@
 
                         <Button
                             android:id="@+id/btnDeleteModel"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Delete"
-                            android:textColor="#FF5252"
-                            android:visibility="gone"
-                            android:layout_marginStart="8dp"/>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="?attr/appPanelBorderColor"
-                    android:layout_marginBottom="12dp"/>
-
-                <!-- Inpaint Model MIGAN -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Inpaint Model (MIGAN)"
-                    android:textColor="?attr/appTextColorSecondary"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp"/>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
-                        android:id="@+id/tvMiganModelStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Status: Checking..."
-                        android:textColor="?attr/appTextColorPrimary"
-                        android:layout_marginBottom="8dp"/>
-
-                    <ProgressBar
-                        android:id="@+id/pbMiganModelDownload"
-                        style="?android:attr/progressBarStyleHorizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone"
-                        android:layout_marginBottom="8dp"/>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <Button
-                            android:id="@+id/btnDownloadMiganModel"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Download Model"/>
-
-                        <Button
-                            android:id="@+id/btnDeleteMiganModel"
                             style="@style/Widget.MaterialComponents.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"

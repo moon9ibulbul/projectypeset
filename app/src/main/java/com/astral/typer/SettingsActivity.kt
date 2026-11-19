@@ -26,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.astral.typer.utils.LaMaProcessor
-import com.astral.typer.utils.MiganProcessor
 import com.astral.typer.utils.BubbleDetectorProcessor
 
 class SettingsActivity : AppCompatActivity() {
@@ -369,12 +368,6 @@ class SettingsActivity : AppCompatActivity() {
         val btnDownloadModel = findViewById<Button>(R.id.btnDownloadModel)
         val btnDeleteModel = findViewById<Button>(R.id.btnDeleteModel)
 
-        // Model Views (MIGAN)
-        val tvMiganModelStatus = findViewById<TextView>(R.id.tvMiganModelStatus)
-        val pbMiganModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbMiganModelDownload)
-        val btnDownloadMiganModel = findViewById<Button>(R.id.btnDownloadMiganModel)
-        val btnDeleteMiganModel = findViewById<Button>(R.id.btnDeleteMiganModel)
-
         // Model Views (Bubble Detector)
         val tvTyperModelStatus = findViewById<TextView>(R.id.tvTyperModelStatus)
         val pbTyperModelDownload = findViewById<android.widget.ProgressBar>(R.id.pbTyperModelDownload)
@@ -447,8 +440,6 @@ class SettingsActivity : AppCompatActivity() {
 
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
-        // Init MIGAN Processor Logic
-        val miganProcessor = MiganProcessor(this)
         // Init Bubble Processor
         val bubbleProcessor = BubbleDetectorProcessor(this)
 
@@ -479,16 +470,6 @@ class SettingsActivity : AppCompatActivity() {
                 tvModelStatus.text = "Status: Not Downloaded"
                 btnDownloadModel.text = "Download Model (~200MB)"
                 btnDeleteModel.visibility = android.view.View.GONE
-            }
-
-            if (miganProcessor.isModelAvailable()) {
-                tvMiganModelStatus.text = "Status: Downloaded (Ready)"
-                btnDownloadMiganModel.text = "Redownload"
-                btnDeleteMiganModel.visibility = android.view.View.VISIBLE
-            } else {
-                tvMiganModelStatus.text = "Status: Not Downloaded"
-                btnDownloadMiganModel.text = "Download Model (~27MB)"
-                btnDeleteMiganModel.visibility = android.view.View.GONE
             }
 
             if (bubbleProcessor.isOriginalModelAvailable()) {
@@ -542,34 +523,6 @@ class SettingsActivity : AppCompatActivity() {
                         tvModelStatus.text = "Status: Download Failed"
                         pbModelDownload.visibility = android.view.View.GONE
                         btnDownloadModel.isEnabled = true
-                    }
-                }
-            }
-        }
-
-        lifecycleScope.launch {
-            com.astral.typer.utils.ModelDownloadManager.miganState.collect { state ->
-                when (state.status) {
-                    com.astral.typer.utils.DownloadStatus.IDLE -> {
-                        updateModelStatus()
-                        pbMiganModelDownload.visibility = android.view.View.GONE
-                        btnDownloadMiganModel.isEnabled = true
-                    }
-                    com.astral.typer.utils.DownloadStatus.DOWNLOADING -> {
-                        btnDownloadMiganModel.isEnabled = false
-                        pbMiganModelDownload.visibility = android.view.View.VISIBLE
-                        pbMiganModelDownload.progress = (state.progress * 100).toInt()
-                        tvMiganModelStatus.text = "Status: Downloading ${(state.progress * 100).toInt()}%"
-                    }
-                    com.astral.typer.utils.DownloadStatus.SUCCESS -> {
-                        updateModelStatus()
-                        pbMiganModelDownload.visibility = android.view.View.GONE
-                        btnDownloadMiganModel.isEnabled = true
-                    }
-                    com.astral.typer.utils.DownloadStatus.FAILED -> {
-                        tvMiganModelStatus.text = "Status: Download Failed"
-                        pbMiganModelDownload.visibility = android.view.View.GONE
-                        btnDownloadMiganModel.isEnabled = true
                     }
                 }
             }
@@ -642,17 +595,6 @@ class SettingsActivity : AppCompatActivity() {
             updateModelStatus()
         }
 
-        btnDownloadMiganModel.setOnClickListener {
-            com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
-        }
-
-        btnDeleteMiganModel.setOnClickListener {
-            if (miganProcessor.deleteModel()) {
-                Toast.makeText(this, "Model MIGAN deleted", Toast.LENGTH_SHORT).show()
-            }
-            updateModelStatus()
-        }
-
         btnDownloadTyperModel.setOnClickListener {
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
@@ -680,7 +622,6 @@ class SettingsActivity : AppCompatActivity() {
             contentAiModels.visibility = android.view.View.VISIBLE
             ivAiModelsArrow.rotation = 180f
             com.astral.typer.utils.ModelDownloadManager.startLamaDownload(this@SettingsActivity)
-            com.astral.typer.utils.ModelDownloadManager.startMiganDownload(this@SettingsActivity)
             com.astral.typer.utils.ModelDownloadManager.startBubbleDownload(this@SettingsActivity)
         }
 
