@@ -388,6 +388,7 @@ class TextLayer(
     override var chromaticShift: Float = 5f
     override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt()) // Left, Right, Center (Magenta in middle)
     override var chromaticAngle: Float = 0f
+    override var chromaticBlur: Float = 8f
 
     // Fiery
     override var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -785,6 +786,7 @@ class TextLayer(
         result = 31 * result + chromaticShift.hashCode()
         result = 31 * result + chromaticColors.contentHashCode()
         result = 31 * result + chromaticAngle.hashCode()
+        result = 31 * result + chromaticBlur.hashCode()
         result = 31 * result + multiGradientColors.contentHashCode()
         result = 31 * result + multiGradientAngle.hashCode()
         result = 31 * result + (multiGradientPositions?.contentHashCode() ?: 0)
@@ -1438,6 +1440,7 @@ class TextLayer(
         newLayer.chromaticShift = this.chromaticShift
         newLayer.chromaticColors = this.chromaticColors.clone()
         newLayer.chromaticAngle = this.chromaticAngle
+        newLayer.chromaticBlur = this.chromaticBlur
         newLayer.effectSeed = this.effectSeed
         newLayer.glitchSeed = this.glitchSeed
         newLayer.decaySeed = this.decaySeed
@@ -1675,6 +1678,7 @@ class TextLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
+                TextEffectType.CHROMATIC_ABERRATION_2 -> effectExpansion = Math.max(effectExpansion, chromaticShift + chromaticBlur * 2f)
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.GLITCH2 -> effectExpansion = Math.max(effectExpansion, glitchDistance)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
@@ -2199,7 +2203,8 @@ class TextLayer(
             it == TextEffectType.DROP_SHADOW ||
             it == TextEffectType.BEVEL_EMBOSS ||
             it == TextEffectType.BLOCK_EXTRUDE_3D ||
-            it == TextEffectType.INK_BLEED
+            it == TextEffectType.INK_BLEED ||
+            it == TextEffectType.CHROMATIC_ABERRATION_2
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -4457,6 +4462,19 @@ class TextLayer(
         val drawTranslateY = if (hasBounds) bounds!!.top else -pad
 
         when (effect) {
+                TextEffectType.CHROMATIC_ABERRATION_2 -> {
+                    com.astral.typer.utils.NewEffectsHelper.applyChromatic2(
+                        this,
+                        targetCanvas,
+                        nodeW,
+                        nodeH,
+                        recordTranslateX,
+                        recordTranslateY,
+                        drawTranslateX,
+                        drawTranslateY,
+                        drawInner
+                    )
+                }
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -6940,6 +6958,7 @@ class TextLayer(
         longShadowLength *= 2f
         neonRadius *= 2f
         chromaticShift *= 2f
+        chromaticBlur *= 2f
         pixelBlockSize *= 2f
         twistRadius *= 2f
         twistOffsetX *= 2f

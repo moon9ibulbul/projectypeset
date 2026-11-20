@@ -3,6 +3,7 @@ package com.astral.typer.models
 enum class TextEffectType {
     NONE,
     CHROMATIC_ABERRATION,
+    CHROMATIC_ABERRATION_2,
     GLITCH,
     GLITCH2,
     PIXELATION,

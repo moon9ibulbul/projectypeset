@@ -201,6 +201,7 @@ class ImageLayer(
     override var chromaticShift: Float = 5f
     override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())
     override var chromaticAngle: Float = 0f
+    override var chromaticBlur: Float = 8f
     override var fieryColor: Int = Color.rgb(255, 100, 0)
     override var fieryIntensity: Float = 0.5f
     override var wavyIntensity: Float = 0.5f

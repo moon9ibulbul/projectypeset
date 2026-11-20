@@ -1391,6 +1391,13 @@ class EditorActivity : AppCompatActivity() {
 
             // Defaults
             if (effect == TextEffectType.CHROMATIC_ABERRATION && stylableLayer.chromaticShift == 0f) stylableLayer.chromaticShift = 5f
+            if (effect == TextEffectType.CHROMATIC_ABERRATION_2) {
+                if (stylableLayer.chromaticShift == 0f || stylableLayer.chromaticShift == 5f) stylableLayer.chromaticShift = 7f
+                if (stylableLayer.chromaticBlur == 0f) stylableLayer.chromaticBlur = 8f
+                if (stylableLayer.chromaticColors.contentEquals(intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt()))) {
+                    stylableLayer.chromaticColors = intArrayOf(0xFF0040FF.toInt(), 0xFFFF1A00.toInt(), 0xFF00FF40.toInt())
+                }
+            }
             if (effect == TextEffectType.GLITCH) {
                 if (stylableLayer.glitchIntensity == 0f) stylableLayer.glitchIntensity = 1.0f
             }
@@ -1474,6 +1481,7 @@ class EditorActivity : AppCompatActivity() {
         ))
 
         addEffectCard("Chromatic", TextEffectType.CHROMATIC_ABERRATION)
+        addEffectCard("Chromatic 2", TextEffectType.CHROMATIC_ABERRATION_2)
         addEffectCard("Glitch 1", TextEffectType.GLITCH)
         addEffectCard("Glitch 2", TextEffectType.GLITCH2)
         addEffectCard("Pixelation", TextEffectType.PIXELATION)
@@ -2914,7 +2922,7 @@ class EditorActivity : AppCompatActivity() {
                 })
                 settingsLayout.addView(s1)
         }
-        if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION)) {
+        if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION) || isEffectActive(TextEffectType.CHROMATIC_ABERRATION_2)) {
                 // Chromatic Palette Control
                 val scrollPalette = HorizontalScrollView(this).apply {
                     isHorizontalScrollBarEnabled = false
@@ -2927,6 +2935,7 @@ class EditorActivity : AppCompatActivity() {
 
                 data class ChromaticPaletteItem(val name: String, val colors: IntArray)
                 val palettes = listOf(
+                    ChromaticPaletteItem("Optical RGB", intArrayOf(0xFF0040FF.toInt(), 0xFFFF1A00.toInt(), 0xFF00FF40.toInt())),
                     ChromaticPaletteItem("Standar", intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())),
                     ChromaticPaletteItem("Standar 2", intArrayOf(0xFFFF0000.toInt(), 0xFF0000FF.toInt(), 0xFF00FF00.toInt())),
                     ChromaticPaletteItem("Melancholy", intArrayOf(0xFF4A6984.toInt(), 0xFF7BA4B6.toInt(), 0xFFB3A1C6.toInt())),
@@ -3032,6 +3041,25 @@ class EditorActivity : AppCompatActivity() {
                     override fun onStopTrackingTouch(s: SeekBar?) {}
                 })
                 settingsLayout.addView(s2)
+
+                if (isEffectActive(TextEffectType.CHROMATIC_ABERRATION_2)) {
+                    val currentBlur = stylableLayer.chromaticBlur
+                    val s3 = createSlider("Blur: ${currentBlur.toInt()}", currentBlur.toInt(), 30) {
+                        stylableLayer.chromaticBlur = it.toFloat()
+                        canvasView.invalidate()
+                    }
+                    val tv3 = s3.findViewWithTag<TextView>("SLIDER_LABEL")
+                    s3.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                        override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                            stylableLayer.chromaticBlur = p.toFloat()
+                            tv3?.text = "Blur: $p"
+                            canvasView.invalidate()
+                        }
+                        override fun onStartTrackingTouch(s: SeekBar?) {}
+                        override fun onStopTrackingTouch(s: SeekBar?) {}
+                    })
+                    settingsLayout.addView(s3)
+                }
         }
 
         if (isEffectActive(TextEffectType.TEXT_DECAY)) {

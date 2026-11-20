@@ -551,6 +551,7 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var chromaticShift: Float = 0f
     override var chromaticColors: IntArray = intArrayOf()
     override var chromaticAngle: Float = 0f
+    override var chromaticBlur: Float = 8f
     override var fieryColor: Int = Color.TRANSPARENT
     override var fieryIntensity: Float = 0f
     override var wavyIntensity: Float = 0f
