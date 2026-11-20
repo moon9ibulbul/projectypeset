@@ -24,5 +24,8 @@ enum class TextEffectType {
     SPEED_LINE,
     WOOD_SCRATCH,
     TEXT_TAIL,
-    DROP_SHADOW
+    DROP_SHADOW,
+    BEVEL_EMBOSS,
+    BLOCK_EXTRUDE_3D,
+    INK_BLEED
 }

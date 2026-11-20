@@ -246,6 +246,8 @@ object GoogleFontStoreManager {
         }
     }
 
+    private val previewSemaphore = kotlinx.coroutines.sync.Semaphore(2)
+
     suspend fun loadPreviewTypeface(
         context: Context,
         item: StoreFontItem
@@ -253,22 +255,27 @@ object GoogleFontStoreManager {
         if (item.typeface != null) {
             return@withContext item.typeface
         }
-
-        val previewDir = File(context.cacheDir, PREVIEW_DIR_NAME)
-        if (!previewDir.exists()) previewDir.mkdirs()
-
-        val fileName = "${item.family.replace(" ", "_")}_preview.ttf"
-        val previewFile = File(previewDir, fileName)
-
-        if (previewFile.exists() && previewFile.length() > 0) {
-            try {
-                val tf = Typeface.createFromFile(previewFile)
-                item.typeface = tf
-                return@withContext tf
-            } catch (e: Exception) {
-                previewFile.delete()
+        previewSemaphore.acquire()
+        try {
+            if (item.typeface != null) {
+                return@withContext item.typeface
             }
-        }
+
+            val previewDir = File(context.cacheDir, PREVIEW_DIR_NAME)
+            if (!previewDir.exists()) previewDir.mkdirs()
+
+            val fileName = "${item.family.replace(" ", "_")}_preview.ttf"
+            val previewFile = File(previewDir, fileName)
+
+            if (previewFile.exists() && previewFile.length() > 0) {
+                try {
+                    val tf = Typeface.createFromFile(previewFile)
+                    item.typeface = tf
+                    return@withContext tf
+                } catch (_: Throwable) {
+                    previewFile.delete()
+                }
+            }
 
         var downloaded = false
 
@@ -339,11 +346,14 @@ object GoogleFontStoreManager {
                 item.typeface = tf
                 prunePreviewCache(previewDir)
                 return@withContext tf
-            } catch (e: Exception) {
+            } catch (_: Throwable) {
                 previewFile.delete()
             }
         }
 
         return@withContext null
+        } finally {
+            previewSemaphore.release()
+        }
     }
 }

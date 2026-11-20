@@ -14,7 +14,8 @@ import com.astral.typer.models.TextLayer
 class LayerAdapter(
     private val layers: MutableList<Layer>,
     private val onItemClick: (Layer) -> Unit,
-    private val onDeleteClick: (Layer) -> Unit
+    private val onDeleteClick: (Layer) -> Unit,
+    private val onItemLongClick: ((Layer) -> Unit)? = null
 ) : RecyclerView.Adapter<LayerAdapter.LayerViewHolder>() {
 
     inner class LayerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -139,6 +140,16 @@ class LayerAdapter(
         holder.itemView.setOnClickListener {
              onItemClick(layer)
              notifyDataSetChanged()
+        }
+
+        holder.itemView.setOnLongClickListener {
+             if (onItemLongClick != null) {
+                 onItemLongClick.invoke(layer)
+                 notifyDataSetChanged()
+                 true
+             } else {
+                 false
+             }
         }
 
         holder.btnVisible.setOnClickListener {

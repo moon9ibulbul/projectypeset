@@ -30,6 +30,31 @@ import java.util.zip.ZipOutputStream
 
 object ProjectManager {
 
+    private val thumbnailCacheMaxKb: Int =
+        ((Runtime.getRuntime().maxMemory() / 1024L) / 10L).toInt().coerceIn(4096, 32768)
+
+    private val thumbnailLruCache = object : android.util.LruCache<String, Bitmap>(thumbnailCacheMaxKb) {
+        override fun sizeOf(key: String, value: Bitmap): Int {
+            return (value.byteCount / 1024).coerceAtLeast(1)
+        }
+    }
+
+    private fun thumbnailCacheKey(file: File, prefix: String = "thumb"): String {
+        return "${prefix}:${file.absolutePath}:${file.lastModified()}"
+    }
+
+    fun getCachedThumbnail(file: File, isFolder: Boolean = false): Bitmap? {
+        val key = thumbnailCacheKey(file, if (isFolder) "folder" else "thumb")
+        val bmp = thumbnailLruCache.get(key)
+        return if (bmp != null && !bmp.isRecycled) bmp else null
+    }
+
+    fun invalidateThumbnailCache(file: File) {
+        val pathPrefix = ":${file.absolutePath}:"
+        val keys = thumbnailLruCache.snapshot().keys.filter { it.contains(pathPrefix) }
+        keys.forEach { thumbnailLruCache.remove(it) }
+    }
+
     data class ProjectData(
         val canvasWidth: Int,
         val canvasHeight: Int,
@@ -249,6 +274,19 @@ object ProjectManager {
         val tailOffsetX: Float? = null,
         val tailOffsetY: Float? = null,
         val tailThickness: Float? = null,
+        val bevelDepth: Float? = null,
+        val bevelAngle: Int? = null,
+        val bevelHighlightAlpha: Float? = null,
+        val bevelShadowAlpha: Float? = null,
+        val bevelSoftness: Float? = null,
+        val extrudeDepth: Float? = null,
+        val extrudeAngle: Int? = null,
+        val extrudeColor: Int? = null,
+        val extrudeOutlineColor: Int? = null,
+        val extrudeOutlineWidth: Float? = null,
+        val inkBleedIntensity: Float? = null,
+        val inkBleedRoughness: Float? = null,
+        val inkBleedSeed: Int? = null,
         val tailSeed: Long? = null,
 
         val isOval: Boolean? = null,
@@ -629,6 +667,19 @@ object ProjectManager {
                         tailOffsetX = layer.tailOffsetX,
                         tailOffsetY = layer.tailOffsetY,
                         tailThickness = layer.tailThickness,
+                        bevelDepth = layer.bevelDepth,
+                        bevelAngle = layer.bevelAngle,
+                        bevelHighlightAlpha = layer.bevelHighlightAlpha,
+                        bevelShadowAlpha = layer.bevelShadowAlpha,
+                        bevelSoftness = layer.bevelSoftness,
+                        extrudeDepth = layer.extrudeDepth,
+                        extrudeAngle = layer.extrudeAngle,
+                        extrudeColor = layer.extrudeColor,
+                        extrudeOutlineColor = layer.extrudeOutlineColor,
+                        extrudeOutlineWidth = layer.extrudeOutlineWidth,
+                        inkBleedIntensity = layer.inkBleedIntensity,
+                        inkBleedRoughness = layer.inkBleedRoughness,
+                        inkBleedSeed = layer.inkBleedSeed,
                         tailSeed = layer.tailSeed,
 
                         isOval = layer.isOval,
@@ -774,6 +825,19 @@ object ProjectManager {
                         tailOffsetX = layer.tailOffsetX,
                         tailOffsetY = layer.tailOffsetY,
                         tailThickness = layer.tailThickness,
+                        bevelDepth = layer.bevelDepth,
+                        bevelAngle = layer.bevelAngle,
+                        bevelHighlightAlpha = layer.bevelHighlightAlpha,
+                        bevelShadowAlpha = layer.bevelShadowAlpha,
+                        bevelSoftness = layer.bevelSoftness,
+                        extrudeDepth = layer.extrudeDepth,
+                        extrudeAngle = layer.extrudeAngle,
+                        extrudeColor = layer.extrudeColor,
+                        extrudeOutlineColor = layer.extrudeOutlineColor,
+                        extrudeOutlineWidth = layer.extrudeOutlineWidth,
+                        inkBleedIntensity = layer.inkBleedIntensity,
+                        inkBleedRoughness = layer.inkBleedRoughness,
+                        inkBleedSeed = layer.inkBleedSeed,
                         tailSeed = layer.tailSeed,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,
@@ -1119,6 +1183,11 @@ object ProjectManager {
     }
 
     fun loadFolderThumbnail(context: Context, folder: File): Bitmap? {
+        val cacheKey = thumbnailCacheKey(folder, "folder")
+        thumbnailLruCache.get(cacheKey)?.let { cached ->
+            if (!cached.isRecycled) return cached
+        }
+
         val projects = folder.listFiles { f -> f.extension == "atd" || (f.isDirectory && isProjectDirectory(context, f)) }?.sortedByDescending { it.lastModified() }?.take(3) ?: return null
         if (projects.isEmpty()) return null
 
@@ -1129,7 +1198,7 @@ object ProjectManager {
         val itemSize = (size * 0.8f).toInt()
         for (i in projects.indices.reversed()) {
             val bmp = loadThumbnail(context, projects[i])
-            if (bmp != null) {
+            if (bmp != null && !bmp.isRecycled) {
                 val offset = (i * 20).toFloat()
 
                 // Draw center-cropped
@@ -1147,13 +1216,18 @@ object ProjectManager {
                 }
 
                 canvas.drawBitmap(bmp, src, dst, null)
-                bmp.recycle()
             }
         }
+        thumbnailLruCache.put(cacheKey, result)
         return result
     }
 
     fun loadThumbnail(context: Context, file: File): Bitmap? {
+        val cacheKey = thumbnailCacheKey(file, "thumb")
+        thumbnailLruCache.get(cacheKey)?.let { cached ->
+            if (!cached.isRecycled) return cached
+        }
+
         var resolvedFile = file
         if (file.isDirectory && !File(file, "project.json").exists()) {
             val roots = mutableListOf<File>()
@@ -1191,19 +1265,23 @@ object ProjectManager {
         if (finalFile.isDirectory) {
             val thumbFile = File(finalFile, "thumbnail.png")
             if (thumbFile.exists()) {
-                return BitmapFactory.decodeFile(thumbFile.absolutePath)
+                val bmp = BitmapFactory.decodeFile(thumbFile.absolutePath)
+                if (bmp != null) thumbnailLruCache.put(cacheKey, bmp)
+                return bmp
             }
             return null
         }
 
-        // First check cache
+        // First check disk cache
         val cacheDir = File(context.cacheDir, "thumbnails")
         if (!cacheDir.exists()) cacheDir.mkdirs()
         val pathHash = file.absolutePath.hashCode().toString()
         val cacheFile = File(cacheDir, "${file.name}_${pathHash}.png")
 
         if (cacheFile.exists()) {
-             return BitmapFactory.decodeFile(cacheFile.absolutePath)
+            val bmp = BitmapFactory.decodeFile(cacheFile.absolutePath)
+            if (bmp != null) thumbnailLruCache.put(cacheKey, bmp)
+            return bmp
         }
 
         // Extract from Zip
@@ -1214,8 +1292,9 @@ object ProjectManager {
                     zip.getInputStream(entry).use { input ->
                         val bmp = BitmapFactory.decodeStream(input)
                         if (bmp != null) {
-                            // Save to cache
+                            // Save to disk cache & memory LruCache
                             saveBitmap(bmp, cacheFile)
+                            thumbnailLruCache.put(cacheKey, bmp)
                             return bmp
                         }
                     }
@@ -1662,6 +1741,19 @@ object ProjectManager {
             model.tailOffsetX?.let { layer.tailOffsetX = it }
             model.tailOffsetY?.let { layer.tailOffsetY = it }
             model.tailThickness?.let { layer.tailThickness = it }
+            model.bevelDepth?.let { layer.bevelDepth = it }
+            model.bevelAngle?.let { layer.bevelAngle = it }
+            model.bevelHighlightAlpha?.let { layer.bevelHighlightAlpha = it }
+            model.bevelShadowAlpha?.let { layer.bevelShadowAlpha = it }
+            model.bevelSoftness?.let { layer.bevelSoftness = it }
+            model.extrudeDepth?.let { layer.extrudeDepth = it }
+            model.extrudeAngle?.let { layer.extrudeAngle = it }
+            model.extrudeColor?.let { layer.extrudeColor = it }
+            model.extrudeOutlineColor?.let { layer.extrudeOutlineColor = it }
+            model.extrudeOutlineWidth?.let { layer.extrudeOutlineWidth = it }
+            model.inkBleedIntensity?.let { layer.inkBleedIntensity = it }
+            model.inkBleedRoughness?.let { layer.inkBleedRoughness = it }
+            model.inkBleedSeed?.let { layer.inkBleedSeed = it }
             model.tailSeed?.let { layer.tailSeed = it }
 
             model.isOval?.let { layer.isOval = it }
@@ -1866,6 +1958,19 @@ object ProjectManager {
             model.tailOffsetX?.let { layer.tailOffsetX = it }
             model.tailOffsetY?.let { layer.tailOffsetY = it }
             model.tailThickness?.let { layer.tailThickness = it }
+            model.bevelDepth?.let { layer.bevelDepth = it }
+            model.bevelAngle?.let { layer.bevelAngle = it }
+            model.bevelHighlightAlpha?.let { layer.bevelHighlightAlpha = it }
+            model.bevelShadowAlpha?.let { layer.bevelShadowAlpha = it }
+            model.bevelSoftness?.let { layer.bevelSoftness = it }
+            model.extrudeDepth?.let { layer.extrudeDepth = it }
+            model.extrudeAngle?.let { layer.extrudeAngle = it }
+            model.extrudeColor?.let { layer.extrudeColor = it }
+            model.extrudeOutlineColor?.let { layer.extrudeOutlineColor = it }
+            model.extrudeOutlineWidth?.let { layer.extrudeOutlineWidth = it }
+            model.inkBleedIntensity?.let { layer.inkBleedIntensity = it }
+            model.inkBleedRoughness?.let { layer.inkBleedRoughness = it }
+            model.inkBleedSeed?.let { layer.inkBleedSeed = it }
             model.tailSeed?.let { layer.tailSeed = it }
 
             model.isGlobalGradient?.let { layer.isGlobalGradient = it }
@@ -3381,6 +3486,19 @@ object ProjectManager {
                         tailOffsetX = layer.tailOffsetX,
                         tailOffsetY = layer.tailOffsetY,
                         tailThickness = layer.tailThickness,
+                        bevelDepth = layer.bevelDepth,
+                        bevelAngle = layer.bevelAngle,
+                        bevelHighlightAlpha = layer.bevelHighlightAlpha,
+                        bevelShadowAlpha = layer.bevelShadowAlpha,
+                        bevelSoftness = layer.bevelSoftness,
+                        extrudeDepth = layer.extrudeDepth,
+                        extrudeAngle = layer.extrudeAngle,
+                        extrudeColor = layer.extrudeColor,
+                        extrudeOutlineColor = layer.extrudeOutlineColor,
+                        extrudeOutlineWidth = layer.extrudeOutlineWidth,
+                        inkBleedIntensity = layer.inkBleedIntensity,
+                        inkBleedRoughness = layer.inkBleedRoughness,
+                        inkBleedSeed = layer.inkBleedSeed,
                         tailSeed = layer.tailSeed,
 
                         isOval = layer.isOval,
@@ -3518,6 +3636,19 @@ object ProjectManager {
                         tailOffsetX = layer.tailOffsetX,
                         tailOffsetY = layer.tailOffsetY,
                         tailThickness = layer.tailThickness,
+                        bevelDepth = layer.bevelDepth,
+                        bevelAngle = layer.bevelAngle,
+                        bevelHighlightAlpha = layer.bevelHighlightAlpha,
+                        bevelShadowAlpha = layer.bevelShadowAlpha,
+                        bevelSoftness = layer.bevelSoftness,
+                        extrudeDepth = layer.extrudeDepth,
+                        extrudeAngle = layer.extrudeAngle,
+                        extrudeColor = layer.extrudeColor,
+                        extrudeOutlineColor = layer.extrudeOutlineColor,
+                        extrudeOutlineWidth = layer.extrudeOutlineWidth,
+                        inkBleedIntensity = layer.inkBleedIntensity,
+                        inkBleedRoughness = layer.inkBleedRoughness,
+                        inkBleedSeed = layer.inkBleedSeed,
                         tailSeed = layer.tailSeed,
 
                         motionBlurKernelSize = layer.motionBlurKernelSize,

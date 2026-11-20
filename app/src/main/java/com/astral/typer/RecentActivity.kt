@@ -873,28 +873,39 @@ class RecentActivity : AppCompatActivity() {
                 selectionOverlay.visibility = if (isSelected) View.VISIBLE else View.GONE
                 checkIcon.visibility = if (isSelected) View.VISIBLE else View.GONE
 
-                // Placeholder preview default
+                // Tag guard against ViewHolder recycling
+                previewImage.tag = file.absolutePath
                 val isSubFolder = file.isDirectory && !ProjectManager.isProjectDirectory(this@RecentActivity, file)
-                if (isSubFolder) {
-                    previewImage.setImageResource(android.R.drawable.ic_menu_directions)
-                } else {
-                    previewImage.setImageResource(android.R.drawable.ic_menu_gallery)
-                }
-                previewImage.setColorFilter(Color.DKGRAY)
 
-                // Async Load Thumbnail
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val bmp = if (isSubFolder) {
-                        ProjectManager.loadFolderThumbnail(this@RecentActivity, file)
+                // Fast path: synchronous LruCache hit
+                val memCached = ProjectManager.getCachedThumbnail(file, isFolder = isSubFolder)
+                if (memCached != null) {
+                    previewImage.setImageBitmap(memCached)
+                    previewImage.clearColorFilter()
+                    previewImage.scaleType = ImageView.ScaleType.CENTER_CROP
+                } else {
+                    if (isSubFolder) {
+                        previewImage.setImageResource(android.R.drawable.ic_menu_directions)
                     } else {
-                        ProjectManager.loadThumbnail(this@RecentActivity, file)
+                        previewImage.setImageResource(android.R.drawable.ic_menu_gallery)
                     }
-                    withContext(Dispatchers.Main) {
-                         if (bmp != null) {
-                             previewImage.setImageBitmap(bmp)
-                             previewImage.clearColorFilter()
-                             previewImage.scaleType = ImageView.ScaleType.CENTER_CROP
-                         }
+                    previewImage.setColorFilter(Color.DKGRAY)
+
+                    // Async Load Thumbnail
+                    val targetTag = file.absolutePath
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val bmp = if (isSubFolder) {
+                            ProjectManager.loadFolderThumbnail(this@RecentActivity, file)
+                        } else {
+                            ProjectManager.loadThumbnail(this@RecentActivity, file)
+                        }
+                        withContext(Dispatchers.Main) {
+                            if (bmp != null && !bmp.isRecycled && previewImage.tag == targetTag) {
+                                previewImage.setImageBitmap(bmp)
+                                previewImage.clearColorFilter()
+                                previewImage.scaleType = ImageView.ScaleType.CENTER_CROP
+                            }
+                        }
                     }
                 }
 

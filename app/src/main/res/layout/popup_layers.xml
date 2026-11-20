@@ -6,14 +6,122 @@
     android:orientation="vertical"
     android:padding="8dp">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Layers"
-        android:textColor="?attr/appTextColorPrimary"
-        android:textSize="18sp"
-        android:gravity="center"
-        android:paddingBottom="8dp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvLayersTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Layers"
+            android:textColor="?attr/appTextColorPrimary"
+            android:textSize="18sp"
+            android:gravity="start"/>
+
+        <TextView
+            android:id="@+id/btnToggleMultiSelect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Multi"
+            android:textSize="12sp"
+            android:textColor="?attr/appTextColorPrimary"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="#33888888"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/multiSelectActionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="4dp">
+
+            <TextView
+                android:id="@+id/tvMultiSelectedCount"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="0 selected"
+                android:textSize="11sp"
+                android:textColor="#00BCD4"/>
+
+            <TextView
+                android:id="@+id/btnMultiSelectAll"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Select All"
+                android:textSize="11sp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:padding="5dp"
+                android:layout_marginEnd="4dp"
+                android:background="#33888888"/>
+
+            <TextView
+                android:id="@+id/btnMultiUnselectAll"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Unselect All"
+                android:textSize="11sp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:padding="5dp"
+                android:background="#33888888"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end|center_vertical">
+
+            <TextView
+                android:id="@+id/btnMultiToggleVis"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hide"
+                android:textSize="11sp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:padding="6dp"
+                android:layout_marginEnd="4dp"
+                android:background="#33888888"/>
+
+            <TextView
+                android:id="@+id/btnMultiToggleLock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Lock"
+                android:textSize="11sp"
+                android:textColor="?attr/appTextColorPrimary"
+                android:padding="6dp"
+                android:layout_marginEnd="4dp"
+                android:background="#33888888"/>
+
+            <TextView
+                android:id="@+id/btnMultiDelete"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Del"
+                android:textSize="11sp"
+                android:textColor="#FF5252"
+                android:padding="6dp"
+                android:background="#33FF5252"/>
+        </LinearLayout>
+    </LinearLayout>
 
     <View
         android:layout_width="match_parent"
@@ -23,7 +131,8 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerLayers"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:scrollbars="vertical"/>
 
 </LinearLayout>

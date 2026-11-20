@@ -834,6 +834,9 @@ class EditorActivity : AppCompatActivity() {
             .getBoolean("inpaint_flatten_mask", false)
 
         if (flattenMask) {
+            if (canvasView.getPreInpaintOriginalBitmap() == null) {
+                canvasView.setPreInpaintOriginalBitmap(originalBitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
+            }
             // Save current state for Undo (Bitmap History)
             com.astral.typer.utils.UndoManager.saveBitmapState(originalBitmap)
             canvasView.saveInpaintMaskState()
@@ -1436,6 +1439,19 @@ class EditorActivity : AppCompatActivity() {
             if (effect == TextEffectType.ZOOM_BLUR) {
                 if (stylableLayer.zoomBlurStrength == 0f) stylableLayer.zoomBlurStrength = 0.1f
             }
+            if (effect == TextEffectType.BEVEL_EMBOSS && stylableLayer.bevelDepth == 0f) {
+                stylableLayer.bevelDepth = 6f
+                stylableLayer.bevelHighlightAlpha = 0.75f
+                stylableLayer.bevelShadowAlpha = 0.65f
+                stylableLayer.bevelSoftness = 3f
+            }
+            if (effect == TextEffectType.BLOCK_EXTRUDE_3D && stylableLayer.extrudeDepth == 0f) {
+                stylableLayer.extrudeDepth = 18f
+            }
+            if (effect == TextEffectType.INK_BLEED && stylableLayer.inkBleedIntensity == 0f) {
+                stylableLayer.inkBleedIntensity = 6f
+                stylableLayer.inkBleedRoughness = 5f
+            }
 
             canvasView.invalidate()
             showEffectMenu()
@@ -1463,6 +1479,9 @@ class EditorActivity : AppCompatActivity() {
         addEffectCard("Pixelation", TextEffectType.PIXELATION)
         addEffectCard("Glow", TextEffectType.NEON)
         addEffectCard("Long Shadow", TextEffectType.LONG_SHADOW)
+        addEffectCard("Bevel & Emboss", TextEffectType.BEVEL_EMBOSS)
+        addEffectCard("3D Extrude", TextEffectType.BLOCK_EXTRUDE_3D)
+        addEffectCard("Ink Bleed", TextEffectType.INK_BLEED)
         addEffectCard("Fiery", TextEffectType.FIERY)
         addEffectCard("Wavy", TextEffectType.WAVY)
         addEffectCard("Gaussian Blur", TextEffectType.GAUSSIAN_BLUR)
@@ -2597,6 +2616,194 @@ class EditorActivity : AppCompatActivity() {
                     { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() },
                     { showColorWheelDialogForProperty(stylableLayer.neonColor) { c -> stylableLayer.neonColor = c; canvasView.invalidate(); showEffectMenu() } }
                 ))
+        }
+        if (isEffectActive(TextEffectType.BEVEL_EMBOSS)) {
+                val sDepth = createSlider("Bevel Depth: ${stylableLayer.bevelDepth.toInt()}", stylableLayer.bevelDepth.toInt(), 30) {
+                    stylableLayer.bevelDepth = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                }
+                val tvDepth = sDepth.findViewWithTag<TextView>("SLIDER_LABEL")
+                sDepth.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.bevelDepth = p.coerceAtLeast(1).toFloat()
+                        tvDepth?.text = "Bevel Depth: ${p.coerceAtLeast(1)}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sDepth)
+
+                val sAngle = createSlider("Light Angle: ${stylableLayer.bevelAngle}°", stylableLayer.bevelAngle, 360) {
+                    stylableLayer.bevelAngle = it
+                    canvasView.invalidate()
+                }
+                val tvAngle = sAngle.findViewWithTag<TextView>("SLIDER_LABEL")
+                sAngle.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.bevelAngle = p
+                        tvAngle?.text = "Light Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sAngle)
+
+                val sSoft = createSlider("Softness: ${stylableLayer.bevelSoftness.toInt()}", stylableLayer.bevelSoftness.toInt(), 15) {
+                    stylableLayer.bevelSoftness = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvSoft = sSoft.findViewWithTag<TextView>("SLIDER_LABEL")
+                sSoft.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.bevelSoftness = p.toFloat()
+                        tvSoft?.text = "Softness: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sSoft)
+
+                val sHl = createSlider("Highlight: ${(stylableLayer.bevelHighlightAlpha * 100).toInt()}%", (stylableLayer.bevelHighlightAlpha * 100).toInt(), 100) {
+                    stylableLayer.bevelHighlightAlpha = it / 100f
+                    canvasView.invalidate()
+                }
+                val tvHl = sHl.findViewWithTag<TextView>("SLIDER_LABEL")
+                sHl.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.bevelHighlightAlpha = p / 100f
+                        tvHl?.text = "Highlight: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sHl)
+
+                val sSh = createSlider("Shadow: ${(stylableLayer.bevelShadowAlpha * 100).toInt()}%", (stylableLayer.bevelShadowAlpha * 100).toInt(), 100) {
+                    stylableLayer.bevelShadowAlpha = it / 100f
+                    canvasView.invalidate()
+                }
+                val tvSh = sSh.findViewWithTag<TextView>("SLIDER_LABEL")
+                sSh.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.bevelShadowAlpha = p / 100f
+                        tvSh?.text = "Shadow: $p%"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sSh)
+        }
+        if (isEffectActive(TextEffectType.BLOCK_EXTRUDE_3D)) {
+                val sDepth = createSlider("Extrude Depth: ${stylableLayer.extrudeDepth.toInt()}", stylableLayer.extrudeDepth.toInt(), 80) {
+                    stylableLayer.extrudeDepth = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                }
+                val tvDepth = sDepth.findViewWithTag<TextView>("SLIDER_LABEL")
+                sDepth.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.extrudeDepth = p.coerceAtLeast(1).toFloat()
+                        tvDepth?.text = "Extrude Depth: ${p.coerceAtLeast(1)}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sDepth)
+
+                val sAngle = createSlider("Extrude Angle: ${stylableLayer.extrudeAngle}°", stylableLayer.extrudeAngle, 360) {
+                    stylableLayer.extrudeAngle = it
+                    canvasView.invalidate()
+                }
+                val tvAngle = sAngle.findViewWithTag<TextView>("SLIDER_LABEL")
+                sAngle.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.extrudeAngle = p
+                        tvAngle?.text = "Extrude Angle: $p°"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sAngle)
+
+                val sOutW = createSlider("Extrude Outline: ${stylableLayer.extrudeOutlineWidth.toInt()}", stylableLayer.extrudeOutlineWidth.toInt(), 20) {
+                    stylableLayer.extrudeOutlineWidth = it.toFloat()
+                    canvasView.invalidate()
+                }
+                val tvOutW = sOutW.findViewWithTag<TextView>("SLIDER_LABEL")
+                sOutW.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.extrudeOutlineWidth = p.toFloat()
+                        tvOutW?.text = "Extrude Outline: $p"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sOutW)
+
+                val tvExtColor = TextView(this).apply { text = "Extrude Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,12,0,0) }
+                settingsLayout.addView(tvExtColor)
+                settingsLayout.addView(createColorScroll(stylableLayer.extrudeColor,
+                    { c -> stylableLayer.extrudeColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.extrudeColor) { c -> stylableLayer.extrudeColor = c; canvasView.invalidate(); showEffectMenu() } }
+                ))
+
+                val tvOutColor = TextView(this).apply { text = "Outline Color"; setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary)); setPadding(0,12,0,0) }
+                settingsLayout.addView(tvOutColor)
+                settingsLayout.addView(createColorScroll(stylableLayer.extrudeOutlineColor,
+                    { c -> stylableLayer.extrudeOutlineColor = c; canvasView.invalidate(); showEffectMenu() },
+                    { showColorWheelDialogForProperty(stylableLayer.extrudeOutlineColor) { c -> stylableLayer.extrudeOutlineColor = c; canvasView.invalidate(); showEffectMenu() } }
+                ))
+        }
+        if (isEffectActive(TextEffectType.INK_BLEED)) {
+                val sInt = createSlider("Bleed Intensity: ${stylableLayer.inkBleedIntensity.toInt()}", stylableLayer.inkBleedIntensity.toInt(), 25) {
+                    stylableLayer.inkBleedIntensity = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                }
+                val tvInt = sInt.findViewWithTag<TextView>("SLIDER_LABEL")
+                sInt.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.inkBleedIntensity = p.coerceAtLeast(1).toFloat()
+                        tvInt?.text = "Bleed Intensity: ${p.coerceAtLeast(1)}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sInt)
+
+                val sRough = createSlider("Roughness: ${stylableLayer.inkBleedRoughness.toInt()}", stylableLayer.inkBleedRoughness.toInt(), 20) {
+                    stylableLayer.inkBleedRoughness = it.coerceAtLeast(1).toFloat()
+                    canvasView.invalidate()
+                }
+                val tvRough = sRough.findViewWithTag<TextView>("SLIDER_LABEL")
+                sRough.findViewWithTag<SeekBar>("SLIDER_BAR")?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, p: Int, b: Boolean) {
+                        stylableLayer.inkBleedRoughness = p.coerceAtLeast(1).toFloat()
+                        tvRough?.text = "Roughness: ${p.coerceAtLeast(1)}"
+                        canvasView.invalidate()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) {}
+                })
+                settingsLayout.addView(sRough)
+
+                val btnSeed = android.widget.Button(this).apply {
+                    text = "Randomize Ink Seed"
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+                    background = GradientDrawable().apply { setColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBgColor)); setStroke(dpToPx(1), com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appButtonBorderColor)); cornerRadius = dpToPx(8).toFloat() }
+                    setOnClickListener {
+                        stylableLayer.inkBleedSeed = java.util.Random().nextInt(100000)
+                        canvasView.invalidate()
+                    }
+                }
+                settingsLayout.addView(btnSeed)
         }
         if (isEffectActive(TextEffectType.GLITCH)) {
                 val currentGlitchInt = stylableLayer.glitchIntensity
@@ -4643,8 +4850,38 @@ class EditorActivity : AppCompatActivity() {
             text = "Engine: "
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
         }
+        val btnCompareOriginal = TextView(this).apply {
+            text = "Original"
+            textSize = 11f
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#44FFFFFF"))
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dpToPx(8), 0, 0, 0)
+            }
+            setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        v.alpha = 0.6f
+                        canvasView.setPreviewOriginalInpaint(true)
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        v.alpha = 1.0f
+                        canvasView.setPreviewOriginalInpaint(false)
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+
         engineLayout.addView(tvLabel)
         engineLayout.addView(spinner)
+        engineLayout.addView(btnCompareOriginal)
         toolbar.addView(engineLayout)
 
         // 1. Brush Size / Sensitivity Slider
@@ -5027,9 +5264,6 @@ class EditorActivity : AppCompatActivity() {
 
     // --- LAYERS MENU ---
     private fun showLayerMenu() {
-        val selected = canvasView.getSelectedLayer()
-        canvasView.getLayers().forEach { it.isSelected = (it == selected) }
-
         val popupView = layoutInflater.inflate(R.layout.popup_layers, null)
         val popupWindow = android.widget.PopupWindow(popupView, dpToPx(300), dpToPx(400), true)
         popupWindow.elevation = 20f
@@ -5038,23 +5272,118 @@ class EditorActivity : AppCompatActivity() {
         val recyclerView = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerLayers)
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
 
-        val adapter = LayerAdapter(canvasView.getLayers(), {
-            // On Item Click? Maybe select
-            canvasView.selectLayer(it)
-            canvasView.invalidate()
-        }, { layerToDelete ->
-            // On Delete Click
+        val btnToggleMulti = popupView.findViewById<TextView>(R.id.btnToggleMultiSelect)
+        val multiActionBar = popupView.findViewById<View>(R.id.multiSelectActionBar)
+        val tvSelectedCount = popupView.findViewById<TextView>(R.id.tvMultiSelectedCount)
+        val btnMultiSelectAll = popupView.findViewById<TextView>(R.id.btnMultiSelectAll)
+        val btnMultiUnselectAll = popupView.findViewById<TextView>(R.id.btnMultiUnselectAll)
+        val btnMultiVis = popupView.findViewById<TextView>(R.id.btnMultiToggleVis)
+        val btnMultiLock = popupView.findViewById<TextView>(R.id.btnMultiToggleLock)
+        val btnMultiDel = popupView.findViewById<TextView>(R.id.btnMultiDelete)
+
+        var isMultiSelectMode = canvasView.isMultiSelectActive()
+
+        fun refreshMultiSelectUi() {
+            val selectedCount = canvasView.getSelectedLayers().size
+            if (isMultiSelectMode || selectedCount > 1) {
+                isMultiSelectMode = true
+                multiActionBar.visibility = View.VISIBLE
+                tvSelectedCount.text = "$selectedCount selected"
+                btnToggleMulti.setBackgroundColor(Color.parseColor("#4400BCD4"))
+                val anyVisible = canvasView.getSelectedLayers().any { it.isVisible }
+                btnMultiVis.text = if (anyVisible) "Hide" else "Show"
+                val allLocked = canvasView.getSelectedLayers().isNotEmpty() && canvasView.getSelectedLayers().all { it.isLocked }
+                btnMultiLock.text = if (allLocked) "Unlock" else "Lock"
+            } else {
+                multiActionBar.visibility = View.GONE
+                btnToggleMulti.setBackgroundColor(Color.parseColor("#33888888"))
+            }
+            showPropertiesMenu()
+        }
+
+        val adapter = LayerAdapter(
+            canvasView.getLayers(),
+            onItemClick = { layer ->
+                if (isMultiSelectMode) {
+                    canvasView.toggleMultiSelectLayer(layer)
+                } else {
+                    canvasView.selectLayer(layer)
+                }
+                canvasView.invalidate()
+                refreshMultiSelectUi()
+            },
+            onDeleteClick = { layerToDelete ->
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Delete Layer")
+                    .setMessage("Are you sure you want to delete this layer?")
+                    .setPositiveButton("Delete") { _, _ ->
+                        canvasView.removeLayer(layerToDelete)
+                        popupWindow.dismiss()
+                        showLayerMenu()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            },
+            onItemLongClick = { layer ->
+                isMultiSelectMode = true
+                canvasView.toggleMultiSelectLayer(layer)
+                canvasView.invalidate()
+                refreshMultiSelectUi()
+            }
+        )
+        recyclerView.adapter = adapter
+        refreshMultiSelectUi()
+
+        btnToggleMulti.setOnClickListener {
+            isMultiSelectMode = !isMultiSelectMode
+            if (!isMultiSelectMode) {
+                canvasView.clearMultiSelection()
+                adapter.notifyDataSetChanged()
+            }
+            refreshMultiSelectUi()
+        }
+
+        btnMultiSelectAll.setOnClickListener {
+            isMultiSelectMode = true
+            canvasView.selectAllLayers()
+            adapter.notifyDataSetChanged()
+            refreshMultiSelectUi()
+        }
+
+        btnMultiUnselectAll.setOnClickListener {
+            canvasView.unselectAllLayers()
+            adapter.notifyDataSetChanged()
+            refreshMultiSelectUi()
+        }
+
+        btnMultiVis.setOnClickListener {
+            val anyVisible = canvasView.getSelectedLayers().any { it.isVisible }
+            canvasView.setSelectedLayersVisibility(!anyVisible)
+            adapter.notifyDataSetChanged()
+            refreshMultiSelectUi()
+        }
+
+        btnMultiLock.setOnClickListener {
+            val allLocked = canvasView.getSelectedLayers().isNotEmpty() && canvasView.getSelectedLayers().all { it.isLocked }
+            canvasView.setSelectedLayersLocked(!allLocked)
+            adapter.notifyDataSetChanged()
+            refreshMultiSelectUi()
+        }
+
+        btnMultiDel.setOnClickListener {
+            val count = canvasView.getSelectedLayers().size
+            if (count == 0) return@setOnClickListener
             android.app.AlertDialog.Builder(this)
-                .setTitle("Delete Layer")
-                .setMessage("Are you sure you want to delete this layer?")
+                .setTitle("Delete $count Layers")
+                .setMessage("Are you sure you want to delete $count selected layers?")
                 .setPositiveButton("Delete") { _, _ ->
-                    canvasView.removeLayer(layerToDelete)
-                    showLayerMenu() // Refresh menu
+                    canvasView.deleteSelectedLayers()
+                    popupWindow.dismiss()
+                    showLayerMenu()
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
-        })
-        recyclerView.adapter = adapter
+        }
 
         // Drag and Drop
         val callback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
@@ -5710,7 +6039,17 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropBrush.visibility = View.GONE
         }
 
-        binding.btnPropPuppetWarp.visibility = if (layer is TextLayer) View.VISIBLE else View.GONE
+        binding.btnPropPuppetWarp.visibility = if (layer is TextLayer && !canvasView.isMultiSelectActive()) View.VISIBLE else View.GONE
+
+        if (canvasView.isMultiSelectActive()) {
+            binding.btnPropQuickEdit.visibility = View.GONE
+            binding.btnPropErase.visibility = View.GONE
+            binding.btnPropWarp.visibility = View.GONE
+            binding.btnPropPuppetWarp.visibility = View.GONE
+            binding.btnPropPerspective.visibility = View.GONE
+            binding.btnPropTexture.visibility = View.GONE
+            binding.btnCut.visibility = View.GONE
+        }
 
         val propInnerLayout = binding.menuProperties.getChildAt(0) as? LinearLayout
         if (layer is com.astral.typer.models.BrushLayer || layer is ImageLayer) {
@@ -6888,14 +7227,18 @@ class EditorActivity : AppCompatActivity() {
                                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                                 }
 
+                                tvName.tag = item.family
                                 if (item.typeface != null) {
-                                    tvName.typeface = item.typeface
+                                    try { tvName.typeface = item.typeface } catch (_: Throwable) {}
                                 } else {
+                                    val expectedFamily = item.family
                                     lifecycleScope.launch(Dispatchers.IO) {
                                         val tf = com.astral.typer.utils.GoogleFontStoreManager.loadPreviewTypeface(this@EditorActivity, item)
                                         if (tf != null) {
                                             withContext(Dispatchers.Main) {
-                                                tvName.typeface = tf
+                                                if (!isDestroyed && !isFinishing && isFontPickerVisible && tvName.tag == expectedFamily) {
+                                                    try { tvName.typeface = tf } catch (_: Throwable) {}
+                                                }
                                             }
                                         }
                                     }
@@ -7031,6 +7374,7 @@ class EditorActivity : AppCompatActivity() {
                 val fonts = getSortedFontsForEditor(fontsRaw)
 
                 runOnUiThread {
+                    if (isDestroyed || isFinishing || !isFontPickerVisible) return@runOnUiThread
                     if (list.childCount > 0 && list.getChildAt(list.childCount - 1) == progressBar) {
                         list.removeView(progressBar)
                     }
