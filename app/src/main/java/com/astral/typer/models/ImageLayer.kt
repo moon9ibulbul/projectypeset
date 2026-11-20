@@ -786,7 +786,7 @@ class ImageLayer(
             newLayer.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
         }
         for (p in this.erasePaths) {
-            newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
+            newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness, p.points.toList()))
         }
 
         return newLayer
@@ -873,7 +873,8 @@ class ImageLayer(
             val scaledPaths = erasePaths.map { ep ->
                 val newPath = Path(ep.path)
                 newPath.transform(matrix)
-                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness)
+                val scaledPoints = ep.points.map { ErasePoint(it.x * 2f, it.y * 2f) }
+                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness, scaledPoints)
             }
             erasePaths.clear()
             erasePaths.addAll(scaledPaths)

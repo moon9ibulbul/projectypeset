@@ -430,6 +430,13 @@ class EditorActivity : AppCompatActivity() {
                      } else {
                          layer.typeface = Typeface.DEFAULT
                      }
+                     if (layer.erasePaths.any { it.points.isNotEmpty() }) {
+                         val oldMask = layer.eraseMask
+                         layer.rebuildEraseMask(null)
+                         if (oldMask != null && oldMask !== layer.eraseMask && !oldMask.isRecycled) {
+                             oldMask.recycle()
+                         }
+                     }
                  }
                  restoredLayers.add(layer)
              }
@@ -525,13 +532,17 @@ class EditorActivity : AppCompatActivity() {
         val layersToSave = canvasView.getLayers().toMutableList()
         val sourceProject = currentProjectName
         val bgBitmap = if (canvasView.isBackgroundModified) canvasView.getBackgroundImage() else null
-        val bmp = canvasView.renderToBitmap()
-        val w = bmp.width
-        val h = bmp.height
+        val w = canvasView.canvasWidth
+        val h = canvasView.canvasHeight
 
         val thumbW = 300
-        val thumbH = (h * (thumbW.toFloat() / w)).toInt()
-        val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+        val thumbScale = if (w > 0) thumbW.toFloat() / w.toFloat() else 1f
+        val thumbnail = try {
+            canvasView.renderToBitmap(thumbScale)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            null
+        }
 
         if (isProjectLoadedSuccessfully) {
             ProjectManager.isSaving = true
@@ -559,14 +570,12 @@ class EditorActivity : AppCompatActivity() {
                 } finally {
                     ProjectManager.isSaving = false
                     bgBitmap?.recycle()
-                    bmp.recycle()
-                    thumbnail.recycle()
+                    thumbnail?.recycle()
                 }
             }
         } else {
             bgBitmap?.recycle()
-            bmp.recycle()
-            thumbnail.recycle()
+            thumbnail?.recycle()
         }
     }
 
@@ -4638,14 +4647,18 @@ class EditorActivity : AppCompatActivity() {
         } else {
             null
         }
-        val bmp = canvasView.renderToBitmap()
-        val w = bmp.width
-        val h = bmp.height
+        val w = canvasView.canvasWidth
+        val h = canvasView.canvasHeight
 
-        // Generate Thumbnail
+        // Generate Thumbnail directly at thumbnail scale to avoid OOM on large canvases (e.g. 27000px)
         val thumbW = 300
-        val thumbH = (h * (thumbW.toFloat() / w)).toInt()
-        val thumbnail = android.graphics.Bitmap.createScaledBitmap(bmp, thumbW, thumbH, true)
+        val thumbScale = if (w > 0) thumbW.toFloat() / w.toFloat() else 1f
+        val thumbnail = try {
+            canvasView.renderToBitmap(thumbScale)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            null
+        }
 
         // Save logic
         lifecycleScope.launch(Dispatchers.IO) {
@@ -4671,8 +4684,7 @@ class EditorActivity : AppCompatActivity() {
             } finally {
                 // Recycle temporary bitmaps
                 bgBitmap?.recycle()
-                bmp.recycle()
-                thumbnail.recycle()
+                thumbnail?.recycle()
             }
 
             withContext(Dispatchers.Main) {

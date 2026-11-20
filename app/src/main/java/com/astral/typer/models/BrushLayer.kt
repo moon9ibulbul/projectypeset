@@ -843,7 +843,9 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             copy.eraseMask = this.eraseMask!!.copy(this.eraseMask!!.config, true)
         }
         // Copy erase paths
-        copy.erasePaths.addAll(this.erasePaths)
+        for (p in this.erasePaths) {
+            copy.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness, p.points.toList()))
+        }
         return copy
     }
 
@@ -2638,7 +2640,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             val scaledPaths = erasePaths.map { ep ->
                 val newPath = Path(ep.path)
                 newPath.transform(matrix)
-                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness)
+                val scaledPoints = ep.points.map { ErasePoint(it.x * 2f, it.y * 2f) }
+                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness, scaledPoints)
             }
             erasePaths.clear()
             erasePaths.addAll(scaledPaths)
