@@ -351,12 +351,18 @@ object NewEffectsHelper {
             aC = (sumWC > 0.0) ? (aC / sumWC) : 0.0;
             aR = (sumWR > 0.0) ? (aR / sumWR) : 0.0;
 
-            float3 chromaticRgb = clamp(colorL * aL + colorR * aR + colorC * aC, 0.0, 1.0);
-            float finalAlpha = clamp(max(aL, max(aC, aR)), 0.0, 1.0);
+            float minA = min(aL, min(aC, aR));
+            float fL = max(0.0, aL - minA);
+            float fC = max(0.0, aC - minA);
+            float fR = max(0.0, aR - minA);
+
+            float3 fringeRgb = clamp(colorL * fL + colorR * fR + colorC * fC, 0.0, 1.0);
+            float fringeA = clamp(max(fL, max(fC, fR)), 0.0, 1.0);
 
             half4 base = content.eval(coord);
-            float3 baseUnpremul = (base.a > 0.001) ? (base.rgb / base.a) : float3(0.0);
-            float3 rgb = mix(chromaticRgb, baseUnpremul * chromaticRgb, base.a * 0.4);
+            float bleed = fringeA * 0.8;
+            float3 rgb = clamp(fringeRgb + base.rgb * (1.0 - bleed), 0.0, 1.0);
+            float finalAlpha = clamp(fringeA + base.a * (1.0 - fringeA), 0.0, 1.0);
             rgb = min(rgb, float3(finalAlpha));
 
             return half4(rgb, finalAlpha);
@@ -495,21 +501,27 @@ object NewEffectsHelper {
                         }
                     }
 
-                    val chrR = (rL * aL + rR * aR + rC * aC).coerceIn(0f, 1f)
-                    val chrG = (gL * aL + gR * aR + gC * aC).coerceIn(0f, 1f)
-                    val chrB = (bL * aL + bR * aR + bC * aC).coerceIn(0f, 1f)
-                    val finalA = maxOf(aL, maxOf(aC, aR)).coerceIn(0f, 1f)
+                    val minA = minOf(aL, minOf(aC, aR))
+                    val fL = maxOf(0f, aL - minA)
+                    val fC = maxOf(0f, aC - minA)
+                    val fR = maxOf(0f, aR - minA)
+
+                    val fringeR = (rL * fL + rR * fR + rC * fC).coerceIn(0f, 1f)
+                    val fringeG = (gL * fL + gR * fR + gC * fC).coerceIn(0f, 1f)
+                    val fringeB = (bL * fL + bR * fR + bC * fC).coerceIn(0f, 1f)
+                    val fringeA = maxOf(fL, maxOf(fC, fR)).coerceIn(0f, 1f)
 
                     val basePx = srcPixels[rowOffset + x]
                     val baseA = (basePx ushr 24) / 255f
-                    val baseR = ((basePx ushr 16) and 0xFF) / 255f
-                    val baseG = ((basePx ushr 8) and 0xFF) / 255f
-                    val baseB = (basePx and 0xFF) / 255f
-                    val mixFactor = baseA * 0.4f
+                    val baseR = (((basePx ushr 16) and 0xFF) / 255f) * baseA
+                    val baseG = (((basePx ushr 8) and 0xFF) / 255f) * baseA
+                    val baseB = ((basePx and 0xFF) / 255f) * baseA
 
-                    val outR = (chrR * (1f - mixFactor) + (baseR * chrR) * mixFactor).coerceIn(0f, 1f)
-                    val outG = (chrG * (1f - mixFactor) + (baseG * chrG) * mixFactor).coerceIn(0f, 1f)
-                    val outB = (chrB * (1f - mixFactor) + (baseB * chrB) * mixFactor).coerceIn(0f, 1f)
+                    val invBleed = 1f - fringeA * 0.8f
+                    val finalA = (fringeA + baseA * (1f - fringeA)).coerceIn(0f, 1f)
+                    val outR = (fringeR + baseR * invBleed).coerceIn(0f, finalA)
+                    val outG = (fringeG + baseG * invBleed).coerceIn(0f, finalA)
+                    val outB = (fringeB + baseB * invBleed).coerceIn(0f, finalA)
 
                     val finalAInt = (finalA * 255f + 0.5f).toInt().coerceIn(0, 255)
                     val finalRInt = if (finalA > 0.001f) ((outR / finalA).coerceIn(0f, 1f) * 255f + 0.5f).toInt().coerceIn(0, 255) else 0
