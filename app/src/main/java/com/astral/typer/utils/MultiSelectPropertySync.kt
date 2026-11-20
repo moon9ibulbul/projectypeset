@@ -131,6 +131,7 @@ object MultiSelectPropertySync {
 
             m["chromaticShift"] = layer.chromaticShift
             m["chromaticAngle"] = layer.chromaticAngle
+            m["chromaticBlur"] = layer.chromaticBlur
             m["chromaticColors"] = layer.chromaticColors.copyOf()
             m["glitchIntensity"] = layer.glitchIntensity
             m["glitchAmount"] = layer.glitchAmount
@@ -350,6 +351,7 @@ object MultiSelectPropertySync {
 
                     "chromaticShift" -> target.chromaticShift = v as Float
                     "chromaticAngle" -> target.chromaticAngle = v as Float
+                    "chromaticBlur" -> target.chromaticBlur = v as Float
                     "chromaticColors" -> target.chromaticColors = (v as IntArray).copyOf()
                     "glitchIntensity" -> target.glitchIntensity = v as Float
                     "glitchAmount" -> target.glitchAmount = v as Float

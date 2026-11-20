@@ -214,6 +214,7 @@ object ProjectManager {
         val pixelBlockSize: Float? = null,
         val chromaticShift: Float? = null,
         val chromaticAngle: Float? = null,
+        val chromaticBlur: Float? = null,
         val fieryColor: Int? = null, val fieryIntensity: Float? = null,
         val wavyIntensity: Float? = null, val wavyFrequency: Float? = null,
         val particleSize: Float? = null, val particleSpread: Float? = null, val particleDissolveAngle: Float? = null,
@@ -607,6 +608,7 @@ object ProjectManager {
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
+                        chromaticBlur = layer.chromaticBlur,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity,
                         wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
@@ -766,6 +768,7 @@ object ProjectManager {
                         glitchDirection = layer.glitchDirection,
                         pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
+                        chromaticBlur = layer.chromaticBlur,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle, multiGradientPositions = layer.multiGradientPositions?.toList(),
@@ -1672,6 +1675,7 @@ object ProjectManager {
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
             model.chromaticAngle?.let { layer.chromaticAngle = it }
+            model.chromaticBlur?.let { layer.chromaticBlur = it }
             model.fieryColor?.let { layer.fieryColor = it }
             model.fieryIntensity?.let { layer.fieryIntensity = it }
             model.wavyIntensity?.let { layer.wavyIntensity = it }
@@ -1889,6 +1893,7 @@ object ProjectManager {
             model.pixelBlockSize?.let { layer.pixelBlockSize = it }
             model.chromaticShift?.let { layer.chromaticShift = it }
             model.chromaticAngle?.let { layer.chromaticAngle = it }
+            model.chromaticBlur?.let { layer.chromaticBlur = it }
             model.fieryColor?.let { layer.fieryColor = it }
             model.fieryIntensity?.let { layer.fieryIntensity = it }
             model.wavyIntensity?.let { layer.wavyIntensity = it }
@@ -3432,6 +3437,7 @@ object ProjectManager {
                         pixelBlockSize = layer.pixelBlockSize,
                         chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
+                        chromaticBlur = layer.chromaticBlur,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity,
                         wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
@@ -3583,6 +3589,7 @@ object ProjectManager {
                         glitchDirection = layer.glitchDirection,
                         pixelBlockSize = layer.pixelBlockSize, chromaticShift = layer.chromaticShift,
                         chromaticAngle = layer.chromaticAngle,
+                        chromaticBlur = layer.chromaticBlur,
                         fieryColor = layer.fieryColor, fieryIntensity = layer.fieryIntensity, wavyIntensity = layer.wavyIntensity, wavyFrequency = layer.wavyFrequency,
                         particleSize = layer.particleSize, particleSpread = layer.particleSpread, particleDissolveAngle = layer.particleDissolveAngle,
                         multiGradientColors = layer.multiGradientColors.toList(), multiGradientAngle = layer.multiGradientAngle, multiGradientPositions = layer.multiGradientPositions?.toList(),

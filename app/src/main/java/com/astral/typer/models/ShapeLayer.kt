@@ -257,6 +257,7 @@ class ShapeLayer(
     override var chromaticShift: Float = 5f
     override var chromaticColors: IntArray = intArrayOf(0xFF00FFFF.toInt(), 0xFFFFFF00.toInt(), 0xFFFF00FF.toInt())
     override var chromaticAngle: Float = 0f
+    override var chromaticBlur: Float = 8f
 
     // Fiery
     override var fieryColor: Int = Color.rgb(255, 100, 0)
@@ -647,7 +648,8 @@ class ShapeLayer(
             it == TextEffectType.DROP_SHADOW ||
             it == TextEffectType.BEVEL_EMBOSS ||
             it == TextEffectType.BLOCK_EXTRUDE_3D ||
-            it == TextEffectType.INK_BLEED
+            it == TextEffectType.INK_BLEED ||
+            it == TextEffectType.CHROMATIC_ABERRATION_2
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -1849,6 +1851,19 @@ class ShapeLayer(
         val drawTranslateY = if (hasBounds) bounds!!.top else -pad
 
         when (effect) {
+                TextEffectType.CHROMATIC_ABERRATION_2 -> {
+                    com.astral.typer.utils.NewEffectsHelper.applyChromatic2(
+                        this,
+                        targetCanvas,
+                        nodeW,
+                        nodeH,
+                        recordTranslateX,
+                        recordTranslateY,
+                        drawTranslateX,
+                        drawTranslateY,
+                        drawInner
+                    )
+                }
                 TextEffectType.CHROMATIC_ABERRATION -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -3092,6 +3107,7 @@ class ShapeLayer(
                 TextEffectType.LONG_SHADOW -> effectExpansion = Math.max(effectExpansion, longShadowLength)
                 TextEffectType.RADIAL_BLUR -> effectExpansion = Math.max(effectExpansion, 50f + radialBlurMotionStrength * 0.5f)
                 TextEffectType.CHROMATIC_ABERRATION -> effectExpansion = Math.max(effectExpansion, chromaticShift)
+                TextEffectType.CHROMATIC_ABERRATION_2 -> effectExpansion = Math.max(effectExpansion, chromaticShift + chromaticBlur * 2f)
                 TextEffectType.GLITCH -> effectExpansion = Math.max(effectExpansion, 100f * glitchIntensity)
                 TextEffectType.GLITCH2 -> effectExpansion = Math.max(effectExpansion, glitchDistance)
                 TextEffectType.FIERY -> effectExpansion = Math.max(effectExpansion, fieryIntensity * 50f + 30f)
@@ -3359,7 +3375,7 @@ class ShapeLayer(
         newLayer.motionBlurWeightMode = motionBlurWeightMode
         newLayer.motionBlurShaderVersion = motionBlurShaderVersion
         newLayer.halftoneDotSize = halftoneDotSize; newLayer.halftoneDotColor = halftoneDotColor; newLayer.halftoneThreshold = halftoneThreshold
-        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitchAmount = glitchAmount; newLayer.glitchDistance = glitchDistance; newLayer.glitchDirection = glitchDirection; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.multiGradientPositions = multiGradientPositions?.clone(); newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
+        newLayer.halftoneType = halftoneType; newLayer.halftoneAlpha = halftoneAlpha; newLayer.halftoneRange = halftoneRange; newLayer.halftoneDensity = halftoneDensity; newLayer.halftoneFadingIntensity = halftoneFadingIntensity; newLayer.halftoneShape = halftoneShape; newLayer.neonRadius = neonRadius; newLayer.neonColor = neonColor; newLayer.neonAlpha = neonAlpha; newLayer.neonInnerStrength = neonInnerStrength; newLayer.neonOuterStrength = neonOuterStrength; newLayer.neonKnockout = neonKnockout; newLayer.neonQuality = neonQuality; newLayer.glitchIntensity = glitchIntensity; newLayer.glitchAmount = glitchAmount; newLayer.glitchDistance = glitchDistance; newLayer.glitchDirection = glitchDirection; newLayer.pixelBlockSize = pixelBlockSize; newLayer.chromaticShift = chromaticShift; newLayer.chromaticColors = chromaticColors.clone(); newLayer.chromaticAngle = chromaticAngle; newLayer.chromaticBlur = chromaticBlur; newLayer.effectSeed = effectSeed; newLayer.glitchSeed = glitchSeed; newLayer.decaySeed = decaySeed; newLayer.fieryColor = fieryColor; newLayer.fieryIntensity = fieryIntensity; newLayer.wavyIntensity = wavyIntensity; newLayer.wavyFrequency = wavyFrequency; newLayer.particleSize = particleSize; newLayer.particleSpread = particleSpread; newLayer.particleDissolveAngle = particleDissolveAngle; newLayer.multiGradientColors = multiGradientColors.clone(); newLayer.multiGradientAngle = multiGradientAngle; newLayer.multiGradientPositions = multiGradientPositions?.clone(); newLayer.radialBlurInnerRadius = radialBlurInnerRadius; newLayer.radialBlurMotionStrength = radialBlurMotionStrength
         newLayer.radialBlurCenterX = radialBlurCenterX; newLayer.radialBlurCenterY = radialBlurCenterY
         newLayer.decaySeed = decaySeed; newLayer.woodScratchSeed = woodScratchSeed
         newLayer.woodScratchIntensity = woodScratchIntensity; newLayer.woodScratchColor = woodScratchColor
@@ -3494,6 +3510,7 @@ class ShapeLayer(
         longShadowLength *= 2f
         neonRadius *= 2f
         chromaticShift *= 2f
+        chromaticBlur *= 2f
         pixelBlockSize *= 2f
         twistRadius *= 2f
         twistOffsetX *= 2f

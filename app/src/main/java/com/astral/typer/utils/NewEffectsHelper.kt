@@ -305,4 +305,247 @@ object NewEffectsHelper {
         outBmp.recycle()
         srcBmp.recycle()
     }
+
+    private const val CHROMATIC_ABERRATION_2_SHADER = """
+        uniform shader content;
+        uniform float2 dir;
+        uniform float shift;
+        uniform float blur;
+        uniform float3 colorL;
+        uniform float3 colorR;
+        uniform float3 colorC;
+
+        half4 main(float2 coord) {
+            float sigma = max(0.75, blur * 0.45);
+            float twoSigmaSq = 2.0 * sigma * sigma;
+            float sigmaC = max(0.6, blur * 0.24);
+            float twoSigmaCSq = 2.0 * sigmaC * sigmaC;
+            float maxSpan = shift + blur * 1.35;
+
+            float aL = 0.0;
+            float aC = 0.0;
+            float aR = 0.0;
+            float sumWL = 0.0;
+            float sumWC = 0.0;
+            float sumWR = 0.0;
+
+            for (int i = -16; i <= 16; i++) {
+                float t = float(i) / 16.0;
+                float pos = t * maxSpan;
+                float sA = content.eval(coord + dir * pos).a;
+
+                float dL = pos - shift;
+                float wL = exp(-(dL * dL) / twoSigmaSq);
+                aL += sA * wL;
+                sumWL += wL;
+
+                float wC = exp(-(pos * pos) / twoSigmaCSq);
+                aC += sA * wC;
+                sumWC += wC;
+
+                float dR = pos + shift;
+                float wR = exp(-(dR * dR) / twoSigmaSq);
+                aR += sA * wR;
+                sumWR += wR;
+            }
+
+            aL = (sumWL > 0.0) ? (aL / sumWL) : 0.0;
+            aC = (sumWC > 0.0) ? (aC / sumWC) : 0.0;
+            aR = (sumWR > 0.0) ? (aR / sumWR) : 0.0;
+
+            float minA = min(aL, min(aC, aR));
+            float fL = max(0.0, aL - minA);
+            float fC = max(0.0, aC - minA) * 1.25;
+            float fR = max(0.0, aR - minA);
+
+            float3 fringeRgb = clamp(colorL * fL + colorR * fR + colorC * fC, 0.0, 1.0);
+            float fringeA = clamp(max(fL, max(fC, fR)), 0.0, 1.0);
+
+            half4 base = content.eval(coord);
+            float bleed = fringeA * 0.8;
+            float3 rgb = clamp(fringeRgb + base.rgb * (1.0 - bleed), 0.0, 1.0);
+            float finalAlpha = clamp(fringeA + base.a * (1.0 - fringeA), 0.0, 1.0);
+            rgb = min(rgb, float3(finalAlpha));
+
+            return half4(rgb, finalAlpha);
+        }
+    """
+
+    fun applyChromatic2(
+        layer: StylableLayer,
+        targetCanvas: Canvas,
+        nodeW: Int,
+        nodeH: Int,
+        recordTranslateX: Float,
+        recordTranslateY: Float,
+        drawTranslateX: Float,
+        drawTranslateY: Float,
+        drawInner: (Canvas) -> Unit
+    ) {
+        val angleRad = Math.toRadians(layer.chromaticAngle.toDouble())
+        val dirX = cos(angleRad).toFloat()
+        val dirY = sin(angleRad).toFloat()
+        val shift = layer.chromaticShift.coerceAtLeast(0f)
+        val blur = layer.chromaticBlur.coerceAtLeast(0f)
+
+        val cL = if (layer.chromaticColors.isNotEmpty()) layer.chromaticColors[0] else 0xFF0040FF.toInt()
+        val cR = if (layer.chromaticColors.size > 1) layer.chromaticColors[1] else 0xFFFF1A00.toInt()
+        val cC = if (layer.chromaticColors.size > 2) layer.chromaticColors[2] else 0xFF00FF40.toInt()
+
+        val rL = Color.red(cL) / 255f
+        val gL = Color.green(cL) / 255f
+        val bL = Color.blue(cL) / 255f
+
+        val rR = Color.red(cR) / 255f
+        val gR = Color.green(cR) / 255f
+        val bR = Color.blue(cR) / 255f
+
+        val rC = Color.red(cC) / 255f
+        val gC = Color.green(cC) / 255f
+        val bC = Color.blue(cC) / 255f
+
+        var useRenderEffect = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
+            try {
+                val node = RenderNode("Chromatic2Node")
+                node.setPosition(0, 0, nodeW, nodeH)
+                val recordingCanvas = node.beginRecording()
+                recordingCanvas.translate(recordTranslateX, recordTranslateY)
+                drawInner(recordingCanvas)
+                node.endRecording()
+
+                val shader = RuntimeShader(CHROMATIC_ABERRATION_2_SHADER)
+                shader.setFloatUniform("dir", dirX, dirY)
+                shader.setFloatUniform("shift", shift)
+                shader.setFloatUniform("blur", blur)
+                shader.setFloatUniform("colorL", rL, gL, bL)
+                shader.setFloatUniform("colorR", rR, gR, bR)
+                shader.setFloatUniform("colorC", rC, gC, bC)
+
+                node.setRenderEffect(RenderEffect.createRuntimeShaderEffect(shader, "content"))
+
+                targetCanvas.save()
+                targetCanvas.translate(drawTranslateX, drawTranslateY)
+                targetCanvas.drawRenderNode(node)
+                targetCanvas.restore()
+                useRenderEffect = true
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        if (!useRenderEffect && nodeW > 0 && nodeH > 0) {
+            val srcBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+            val srcCanvas = Canvas(srcBmp)
+            srcCanvas.translate(recordTranslateX, recordTranslateY)
+            drawInner(srcCanvas)
+
+            val total = nodeW * nodeH
+            val srcPixels = IntArray(total)
+            srcBmp.getPixels(srcPixels, 0, nodeW, 0, 0, nodeW, nodeH)
+            val outPixels = IntArray(total)
+
+            val sigma = maxOf(0.75f, blur * 0.45f)
+            val twoSigmaSq = 2.0 * sigma * sigma
+            val sigmaC = maxOf(0.6f, blur * 0.24f)
+            val twoSigmaCSq = 2.0 * sigmaC * sigmaC
+            val maxSpan = shift + blur * 1.35f
+
+            val tapCount = 33
+            val tapDx = IntArray(tapCount)
+            val tapDy = IntArray(tapCount)
+            val wLArr = FloatArray(tapCount)
+            val wCArr = FloatArray(tapCount)
+            val wRArr = FloatArray(tapCount)
+            var sumWL = 0f
+            var sumWC = 0f
+            var sumWR = 0f
+
+            for (i in 0 until tapCount) {
+                val t = (i - 16) / 16f
+                val pos = t * maxSpan
+                tapDx[i] = Math.round(dirX * pos)
+                tapDy[i] = Math.round(dirY * pos)
+
+                val dL = (pos - shift).toDouble()
+                val wL = Math.exp(-(dL * dL) / twoSigmaSq).toFloat()
+                wLArr[i] = wL
+                sumWL += wL
+
+                val dC = pos.toDouble()
+                val wC = Math.exp(-(dC * dC) / twoSigmaCSq).toFloat()
+                wCArr[i] = wC
+                sumWC += wC
+
+                val dR = (pos + shift).toDouble()
+                val wR = Math.exp(-(dR * dR) / twoSigmaSq).toFloat()
+                wRArr[i] = wR
+                sumWR += wR
+            }
+
+            if (sumWL > 0f) for (i in 0 until tapCount) wLArr[i] /= sumWL
+            if (sumWC > 0f) for (i in 0 until tapCount) wCArr[i] /= sumWC
+            if (sumWR > 0f) for (i in 0 until tapCount) wRArr[i] /= sumWR
+
+            for (y in 0 until nodeH) {
+                val rowOffset = y * nodeW
+                for (x in 0 until nodeW) {
+                    var aL = 0f
+                    var aC = 0f
+                    var aR = 0f
+
+                    for (i in 0 until tapCount) {
+                        val sx = x + tapDx[i]
+                        val sy = y + tapDy[i]
+                        if (sx in 0 until nodeW && sy in 0 until nodeH) {
+                            val sA = (srcPixels[sy * nodeW + sx] ushr 24) / 255f
+                            aL += sA * wLArr[i]
+                            aC += sA * wCArr[i]
+                            aR += sA * wRArr[i]
+                        }
+                    }
+
+                    val minA = minOf(aL, minOf(aC, aR))
+                    val fL = maxOf(0f, aL - minA)
+                    val fC = maxOf(0f, aC - minA) * 1.25f
+                    val fR = maxOf(0f, aR - minA)
+
+                    val fringeR = (rL * fL + rR * fR + rC * fC).coerceIn(0f, 1f)
+                    val fringeG = (gL * fL + gR * fR + gC * fC).coerceIn(0f, 1f)
+                    val fringeB = (bL * fL + bR * fR + bC * fC).coerceIn(0f, 1f)
+                    val fringeA = maxOf(fL, maxOf(fC, fR)).coerceIn(0f, 1f)
+
+                    val basePx = srcPixels[rowOffset + x]
+                    val baseA = (basePx ushr 24) / 255f
+                    val baseR = (((basePx ushr 16) and 0xFF) / 255f) * baseA
+                    val baseG = (((basePx ushr 8) and 0xFF) / 255f) * baseA
+                    val baseB = ((basePx and 0xFF) / 255f) * baseA
+
+                    val invBleed = 1f - fringeA * 0.8f
+                    val finalA = (fringeA + baseA * (1f - fringeA)).coerceIn(0f, 1f)
+                    val outR = (fringeR + baseR * invBleed).coerceIn(0f, finalA)
+                    val outG = (fringeG + baseG * invBleed).coerceIn(0f, finalA)
+                    val outB = (fringeB + baseB * invBleed).coerceIn(0f, finalA)
+
+                    val finalAInt = (finalA * 255f + 0.5f).toInt().coerceIn(0, 255)
+                    val finalRInt = if (finalA > 0.001f) ((outR / finalA).coerceIn(0f, 1f) * 255f + 0.5f).toInt().coerceIn(0, 255) else 0
+                    val finalGInt = if (finalA > 0.001f) ((outG / finalA).coerceIn(0f, 1f) * 255f + 0.5f).toInt().coerceIn(0, 255) else 0
+                    val finalBInt = if (finalA > 0.001f) ((outB / finalA).coerceIn(0f, 1f) * 255f + 0.5f).toInt().coerceIn(0, 255) else 0
+
+                    outPixels[rowOffset + x] = (finalAInt shl 24) or (finalRInt shl 16) or (finalGInt shl 8) or finalBInt
+                }
+            }
+
+            val outBmp = Bitmap.createBitmap(nodeW, nodeH, Bitmap.Config.ARGB_8888)
+            outBmp.setPixels(outPixels, 0, nodeW, 0, 0, nodeW, nodeH)
+
+            targetCanvas.save()
+            targetCanvas.translate(drawTranslateX, drawTranslateY)
+            targetCanvas.drawBitmap(outBmp, 0f, 0f, null)
+            targetCanvas.restore()
+
+            outBmp.recycle()
+            srcBmp.recycle()
+        }
+    }
 }
