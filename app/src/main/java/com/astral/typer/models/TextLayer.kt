@@ -2196,7 +2196,10 @@ class TextLayer(
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
             it == TextEffectType.NEON ||
-            it == TextEffectType.DROP_SHADOW
+            it == TextEffectType.DROP_SHADOW ||
+            it == TextEffectType.BEVEL_EMBOSS ||
+            it == TextEffectType.BLOCK_EXTRUDE_3D ||
+            it == TextEffectType.INK_BLEED
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -4730,6 +4733,18 @@ class TextLayer(
                     } else {
                         drawInner(targetCanvas)
                     }
+                }
+                TextEffectType.BEVEL_EMBOSS -> {
+                    val effBounds = RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH)
+                    com.astral.typer.utils.NewEffectsHelper.renderBevelEmboss(targetCanvas, effBounds, this, drawInner)
+                }
+                TextEffectType.BLOCK_EXTRUDE_3D -> {
+                    val effBounds = RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH)
+                    com.astral.typer.utils.NewEffectsHelper.renderBlockExtrude3D(targetCanvas, effBounds, this, drawInner)
+                }
+                TextEffectType.INK_BLEED -> {
+                    val effBounds = RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH)
+                    com.astral.typer.utils.NewEffectsHelper.renderInkBleed(targetCanvas, effBounds, this, drawInner)
                 }
                 TextEffectType.DROP_SHADOW -> {
                     var useRenderEffect = false
