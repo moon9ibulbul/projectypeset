@@ -318,6 +318,8 @@ object NewEffectsHelper {
         half4 main(float2 coord) {
             float sigma = max(0.75, blur * 0.45);
             float twoSigmaSq = 2.0 * sigma * sigma;
+            float sigmaC = max(0.6, blur * 0.24);
+            float twoSigmaCSq = 2.0 * sigmaC * sigmaC;
             float maxSpan = shift + blur * 1.35;
 
             float aL = 0.0;
@@ -337,7 +339,7 @@ object NewEffectsHelper {
                 aL += sA * wL;
                 sumWL += wL;
 
-                float wC = exp(-(pos * pos) / twoSigmaSq);
+                float wC = exp(-(pos * pos) / twoSigmaCSq);
                 aC += sA * wC;
                 sumWC += wC;
 
@@ -353,7 +355,7 @@ object NewEffectsHelper {
 
             float minA = min(aL, min(aC, aR));
             float fL = max(0.0, aL - minA);
-            float fC = max(0.0, aC - minA);
+            float fC = max(0.0, aC - minA) * 1.25;
             float fR = max(0.0, aR - minA);
 
             float3 fringeRgb = clamp(colorL * fL + colorR * fR + colorC * fC, 0.0, 1.0);
@@ -445,6 +447,8 @@ object NewEffectsHelper {
 
             val sigma = maxOf(0.75f, blur * 0.45f)
             val twoSigmaSq = 2.0 * sigma * sigma
+            val sigmaC = maxOf(0.6f, blur * 0.24f)
+            val twoSigmaCSq = 2.0 * sigmaC * sigmaC
             val maxSpan = shift + blur * 1.35f
 
             val tapCount = 33
@@ -469,7 +473,7 @@ object NewEffectsHelper {
                 sumWL += wL
 
                 val dC = pos.toDouble()
-                val wC = Math.exp(-(dC * dC) / twoSigmaSq).toFloat()
+                val wC = Math.exp(-(dC * dC) / twoSigmaCSq).toFloat()
                 wCArr[i] = wC
                 sumWC += wC
 
@@ -503,7 +507,7 @@ object NewEffectsHelper {
 
                     val minA = minOf(aL, minOf(aC, aR))
                     val fL = maxOf(0f, aL - minA)
-                    val fC = maxOf(0f, aC - minA)
+                    val fC = maxOf(0f, aC - minA) * 1.25f
                     val fR = maxOf(0f, aR - minA)
 
                     val fringeR = (rL * fL + rR * fR + rC * fC).coerceIn(0f, 1f)
