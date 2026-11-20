@@ -680,9 +680,17 @@ class ShapeLayer(
                     drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds, viewScale = viewScale)
                 } else {
                     val shouldCacheEffects = activeEffects.isNotEmpty() || isMotionShadow || shadowRadius > 0f
+                    val hasGpuShaderEffect = canvas.isHardwareAccelerated &&
+                            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                            activeEffects.any {
+                                it != TextEffectType.BEVEL_EMBOSS &&
+                                it != TextEffectType.BLOCK_EXTRUDE_3D &&
+                                it != TextEffectType.PIXELATION &&
+                                it != TextEffectType.LONG_SHADOW
+                            }
                     val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
                     val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
-                    val canUseEffectCache = shouldCacheEffects && bmpW in 1..2048 && bmpH in 1..2048 && erasePaths.isEmpty() && activeErasePath == null
+                    val canUseEffectCache = shouldCacheEffects && !hasGpuShaderEffect && bmpW in 1..2048 && bmpH in 1..2048 && erasePaths.isEmpty() && activeErasePath == null
 
                     if (canUseEffectCache) {
                         val fullHash = calculateShapeEffectHash(w, h, pad, qualityScale, skipEffects = false, viewScale = viewScale)

@@ -1330,6 +1330,7 @@ class AstralCanvasView @JvmOverloads constructor(
         if (multiSelectedLayers.isEmpty() && selectedLayer != null) {
             multiSelectedLayers.add(selectedLayer!!)
         }
+        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
         onLayerSelectedListener?.onLayerSelected(selectedLayer)
         invalidate()
     }
@@ -1862,6 +1863,7 @@ class AstralCanvasView @JvmOverloads constructor(
         if (selectedLayer != layer) {
             selectedLayer = layer
             layers.forEach { it.isSelected = (it == layer) }
+            com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
             onLayerSelectedListener?.onLayerSelected(layer)
             isPerspectiveMode = false
             isPerspectiveSkewMode = false
@@ -1869,6 +1871,7 @@ class AstralCanvasView @JvmOverloads constructor(
             invalidate()
         } else {
             layers.forEach { it.isSelected = (it == layer) }
+            com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
             invalidate()
         }
     }
@@ -1886,6 +1889,7 @@ class AstralCanvasView @JvmOverloads constructor(
             selectedLayer = newPrimary
             onLayerSelectedListener?.onLayerSelected(newPrimary)
         }
+        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
         isPerspectiveMode = false
         isPerspectiveSkewMode = false
         exitCutMode()
@@ -1899,6 +1903,7 @@ class AstralCanvasView @JvmOverloads constructor(
             multiSelectedLayers.add(primary)
         }
         layers.forEach { it.isSelected = (it == primary) }
+        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
         invalidate()
     }
 
@@ -2423,6 +2428,9 @@ class AstralCanvasView @JvmOverloads constructor(
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 2f
         canvas.drawRect(backgroundRect, paint)
+
+        // Sync multi-selected layer properties before drawing
+        com.astral.typer.utils.MultiSelectPropertySync.syncIfNeeded(selectedLayer, multiSelectedLayers)
 
         // Draw Layers
         drawScene(canvas)
@@ -3778,7 +3786,13 @@ class AstralCanvasView @JvmOverloads constructor(
                 val hitLayer = layers.findLast { it.contains(cx, cy) }
                 if (hitLayer != null) {
                     wasSelectedInitially = (selectedLayer == hitLayer)
-                    selectLayer(hitLayer)
+                    if (multiSelectedLayers.size > 1 && multiSelectedLayers.contains(hitLayer)) {
+                        selectedLayer = hitLayer
+                        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(hitLayer)
+                        onLayerSelectedListener?.onLayerSelected(hitLayer)
+                    } else {
+                        selectLayer(hitLayer)
+                    }
                     invalidate()
 
                     if (currentMode != Mode.NONE) {

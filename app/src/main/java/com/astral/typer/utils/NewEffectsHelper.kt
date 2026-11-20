@@ -36,15 +36,14 @@ object NewEffectsHelper {
         }
 
         half4 main(float2 coord) {
-            float freq = max(0.02, roughness * 0.045);
+            float freq = max(0.03, roughness * 0.06);
             float n1 = noise(coord * freq);
             float n2 = noise(coord * freq * 2.3 + float2(17.1, 31.7));
-            float2 offset = float2(n1 - 0.5, n2 - 0.5) * intensity * 2.2;
+            float2 offset = float2(n1 - 0.5, n2 - 0.5) * intensity * 3.2;
             half4 col = inputShader.eval(coord + offset);
-            // Subtle organic edge feather/bleed
-            float bleed = noise(coord * freq * 3.7 + float2(5.2, 9.4));
-            if (col.a > 0.05 && col.a < 0.95) {
-                col.a = clamp(col.a + (bleed - 0.45) * 0.25, 0.0, 1.0);
+            float bleed = noise(coord * freq * 4.1 + float2(5.2, 9.4));
+            if (col.a > 0.05 && col.a < 0.98) {
+                col.a = clamp(col.a + (bleed - 0.35) * 0.45, 0.0, 1.0);
             }
             return col;
         }
@@ -55,6 +54,28 @@ object NewEffectsHelper {
         val h = bounds.height().coerceAtLeast(1f)
         val maxDim = maxOf(w, h)
         return if (maxDim > MAX_OFFSCREEN_DIM) MAX_OFFSCREEN_DIM / maxDim else 1f
+    }
+
+    private fun createTintedSilhouette(src: Bitmap, color: Int): Bitmap {
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
+        }
+        c.drawBitmap(src, 0f, 0f, p)
+        return out
+    }
+
+    private fun blurBitmapFast(src: Bitmap, radius: Float): Bitmap {
+        if (radius <= 0.5f) return src.copy(Bitmap.Config.ARGB_8888, false)
+        // Fast 2-step downscale/upscale box-like blur (works identically on all APIs & software/hardware)
+        val downFactor = (1f + radius * 0.28f).coerceIn(1.2f, 6f)
+        val dw = (src.width / downFactor).toInt().coerceAtLeast(1)
+        val dh = (src.height / downFactor).toInt().coerceAtLeast(1)
+        val small = Bitmap.createScaledBitmap(src, dw, dh, true)
+        val blurred = Bitmap.createScaledBitmap(small, src.width, src.height, true)
+        if (small != blurred) small.recycle()
+        return blurred
     }
 
     fun renderBevelEmboss(
@@ -73,69 +94,52 @@ object NewEffectsHelper {
         srcCanvas.translate(-bounds.left, -bounds.top)
         drawContentBlock(srcCanvas)
 
-        val alphaBmp = srcBmp.extractAlpha()
+        val whiteSil = createTintedSilhouette(srcBmp, Color.WHITE)
+        val blackSil = createTintedSilhouette(srcBmp, Color.BLACK)
 
         val rad = Math.toRadians(layer.bevelAngle.toDouble())
         val dist = layer.bevelDepth.coerceIn(1f, 40f) * scale
         val dx = (cos(rad) * dist).toFloat()
         val dy = (sin(rad) * dist).toFloat()
-        val softness = (layer.bevelSoftness.coerceIn(0f, 15f) * scale)
+        val softness = layer.bevelSoftness.coerceIn(0f, 15f) * scale
 
-        // Build inner highlight rim: alphaBmp minus shifted alphaBmp
-        val hlBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-        val hlCanvas = Canvas(hlBmp)
-        val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        hlCanvas.drawBitmap(alphaBmp, 0f, 0f, whitePaint)
         val cutPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
         }
-        hlCanvas.drawBitmap(alphaBmp, dx, dy, cutPaint)
 
-        // Build inner shadow rim: alphaBmp minus opposite shifted alphaBmp
+        // Inner highlight rim: whiteSil minus whiteSil shifted by (dx, dy)
+        val hlBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val hlCanvas = Canvas(hlBmp)
+        hlCanvas.drawBitmap(whiteSil, 0f, 0f, null)
+        hlCanvas.drawBitmap(whiteSil, dx, dy, cutPaint)
+
+        // Inner shadow rim: blackSil minus blackSil shifted by (-dx, -dy)
         val shBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         val shCanvas = Canvas(shBmp)
-        val blackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
-        shCanvas.drawBitmap(alphaBmp, 0f, 0f, blackPaint)
-        shCanvas.drawBitmap(alphaBmp, -dx, -dy, cutPaint)
+        shCanvas.drawBitmap(blackSil, 0f, 0f, null)
+        shCanvas.drawBitmap(blackSil, -dx, -dy, cutPaint)
 
-        // Composite onto srcBmp inside a masked layer
-        val compCanvas = Canvas(srcBmp)
-        val saveCount = compCanvas.saveLayer(0f, 0f, bmpW.toFloat(), bmpH.toFloat(), null)
+        val hlFinal = if (softness > 0.5f) blurBitmapFast(hlBmp, softness) else hlBmp
+        val shFinal = if (softness > 0.5f) blurBitmapFast(shBmp, softness) else shBmp
 
-        if (softness > 0.5f) {
-            val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                maskFilter = BlurMaskFilter(softness, BlurMaskFilter.Blur.NORMAL)
-            }
-            val hlBlurred = hlBmp.extractAlpha(blurPaint, null)
-            val shBlurred = shBmp.extractAlpha(blurPaint, null)
-            val hlDrawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                alpha = (layer.bevelHighlightAlpha.coerceIn(0f, 1f) * 255).toInt()
-            }
-            val shDrawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK
-                alpha = (layer.bevelShadowAlpha.coerceIn(0f, 1f) * 255).toInt()
-            }
-            compCanvas.drawBitmap(hlBlurred, 0f, 0f, hlDrawPaint)
-            compCanvas.drawBitmap(shBlurred, 0f, 0f, shDrawPaint)
-            hlBlurred.recycle()
-            shBlurred.recycle()
-        } else {
-            val hlDrawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                alpha = (layer.bevelHighlightAlpha.coerceIn(0f, 1f) * 255).toInt()
-            }
-            val shDrawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                alpha = (layer.bevelShadowAlpha.coerceIn(0f, 1f) * 255).toInt()
-            }
-            compCanvas.drawBitmap(hlBmp, 0f, 0f, hlDrawPaint)
-            compCanvas.drawBitmap(shBmp, 0f, 0f, shDrawPaint)
+        // Composite highlight and shadow onto srcBmp clipped to srcBmp alpha
+        val bevelOverlay = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val overlayCanvas = Canvas(bevelOverlay)
+        val hlPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            alpha = (layer.bevelHighlightAlpha.coerceIn(0f, 1f) * 255).toInt()
         }
-
+        val shPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            alpha = (layer.bevelShadowAlpha.coerceIn(0f, 1f) * 255).toInt()
+        }
+        overlayCanvas.drawBitmap(hlFinal, 0f, 0f, hlPaint)
+        overlayCanvas.drawBitmap(shFinal, 0f, 0f, shPaint)
         val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
         }
-        compCanvas.drawBitmap(alphaBmp, 0f, 0f, maskPaint)
-        compCanvas.restoreToCount(saveCount)
+        overlayCanvas.drawBitmap(srcBmp, 0f, 0f, maskPaint)
+
+        val compCanvas = Canvas(srcBmp)
+        compCanvas.drawBitmap(bevelOverlay, 0f, 0f, null)
 
         canvas.save()
         canvas.translate(bounds.left, bounds.top)
@@ -143,9 +147,13 @@ object NewEffectsHelper {
         canvas.drawBitmap(srcBmp, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
         canvas.restore()
 
+        if (hlFinal !== hlBmp) hlFinal.recycle()
+        if (shFinal !== shBmp) shFinal.recycle()
         hlBmp.recycle()
         shBmp.recycle()
-        alphaBmp.recycle()
+        whiteSil.recycle()
+        blackSil.recycle()
+        bevelOverlay.recycle()
         srcBmp.recycle()
     }
 
@@ -165,8 +173,7 @@ object NewEffectsHelper {
         srcCanvas.translate(-bounds.left, -bounds.top)
         drawContentBlock(srcCanvas)
 
-        val alphaBmp = srcBmp.extractAlpha()
-
+        val extrudeSil = createTintedSilhouette(srcBmp, layer.extrudeColor)
         val rad = Math.toRadians(layer.extrudeAngle.toDouble())
         val depth = layer.extrudeDepth.coerceIn(1f, 120f)
         val totalDx = (cos(rad) * depth).toFloat()
@@ -177,12 +184,12 @@ object NewEffectsHelper {
         canvas.translate(bounds.left, bounds.top)
         canvas.scale(1f / scale, 1f / scale)
 
+        val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
         // Optional outline behind extrusion
         val outlineW = layer.extrudeOutlineWidth.coerceIn(0f, 25f) * scale
         if (outlineW > 0.5f) {
-            val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = layer.extrudeOutlineColor
-            }
+            val outlineSil = createTintedSilhouette(srcBmp, layer.extrudeOutlineColor)
             val ringCount = 8
             for (i in steps downTo 0) {
                 val t = i / steps.toFloat()
@@ -192,25 +199,23 @@ object NewEffectsHelper {
                     val rAngle = (r * 2.0 * Math.PI) / ringCount
                     val rx = ox + (cos(rAngle) * outlineW).toFloat()
                     val ry = oy + (sin(rAngle) * outlineW).toFloat()
-                    canvas.drawBitmap(alphaBmp, rx, ry, outlinePaint)
+                    canvas.drawBitmap(outlineSil, rx, ry, drawPaint)
                 }
             }
+            outlineSil.recycle()
         }
 
         // Solid 3D extrude steps
-        val extrudePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = layer.extrudeColor
-        }
         for (i in steps downTo 1) {
             val t = i / steps.toFloat()
-            canvas.drawBitmap(alphaBmp, totalDx * t * scale, totalDy * t * scale, extrudePaint)
+            canvas.drawBitmap(extrudeSil, totalDx * t * scale, totalDy * t * scale, drawPaint)
         }
 
         // Foreground content
-        canvas.drawBitmap(srcBmp, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        canvas.drawBitmap(srcBmp, 0f, 0f, drawPaint)
         canvas.restore()
 
-        alphaBmp.recycle()
+        extrudeSil.recycle()
         srcBmp.recycle()
     }
 
@@ -243,11 +248,11 @@ object NewEffectsHelper {
                 canvas.restore()
                 return
             } catch (_: Throwable) {
-                // Fallback to software path below
+                // Fallback to pixel displacement below
             }
         }
 
-        // Software / API < 33 fallback: organic seeded multi-stamp bleed
+        // Fast deterministic pixel-displacement fallback (works on all APIs & software canvases)
         val scale = computeSafeScale(bounds)
         val bmpW = ceil(bounds.width() * scale).toInt().coerceAtLeast(1)
         val bmpH = ceil(bounds.height() * scale).toInt().coerceAtLeast(1)
@@ -258,25 +263,45 @@ object NewEffectsHelper {
         srcCanvas.translate(-bounds.left, -bounds.top)
         drawContentBlock(srcCanvas)
 
-        val rng = Random(layer.inkBleedSeed)
-        val amp = layer.inkBleedIntensity.coerceIn(0.5f, 25f) * scale * 0.45f
-        val stampCount = 6
+        val totalPixels = bmpW * bmpH
+        val srcPixels = IntArray(totalPixels)
+        val dstPixels = IntArray(totalPixels)
+        srcBmp.getPixels(srcPixels, 0, bmpW, 0, 0, bmpW, bmpH)
+
+        val amp = (layer.inkBleedIntensity.coerceIn(1f, 25f) * scale * 0.9f)
+        val freq = (layer.inkBleedRoughness.coerceIn(1f, 20f) * 0.08f)
+        val seedOffset = (layer.inkBleedSeed % 1000) * 0.17f
+
+        // Precompute per-row and per-col wave tables for O(W*H) speed without per-pixel trig
+        val rowDx = IntArray(bmpH) { y ->
+            val v = sin(y * freq + seedOffset) + 0.5 * sin(y * freq * 2.3 + seedOffset * 1.7)
+            (v * amp * 0.65).toInt()
+        }
+        val colDy = IntArray(bmpW) { x ->
+            val v = cos(x * freq * 1.1 + seedOffset * 1.3) + 0.5 * sin(x * freq * 2.7 + seedOffset)
+            (v * amp * 0.65).toInt()
+        }
+
+        for (y in 0 until bmpH) {
+            val rowBase = y * bmpW
+            val dx = rowDx[y]
+            for (x in 0 until bmpW) {
+                val sx = (x + dx).coerceIn(0, bmpW - 1)
+                val sy = (y + colDy[x]).coerceIn(0, bmpH - 1)
+                dstPixels[rowBase + x] = srcPixels[sy * bmpW + sx]
+            }
+        }
+
+        val outBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        outBmp.setPixels(dstPixels, 0, bmpW, 0, 0, bmpW, bmpH)
 
         canvas.save()
         canvas.translate(bounds.left, bounds.top)
         canvas.scale(1f / scale, 1f / scale)
-
-        val bleedPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-            alpha = 110
-        }
-        for (i in 0 until stampCount) {
-            val jx = (rng.nextFloat() - 0.5f) * 2f * amp
-            val jy = (rng.nextFloat() - 0.5f) * 2f * amp
-            canvas.drawBitmap(srcBmp, jx, jy, bleedPaint)
-        }
-        canvas.drawBitmap(srcBmp, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        canvas.drawBitmap(outBmp, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
         canvas.restore()
 
+        outBmp.recycle()
         srcBmp.recycle()
     }
 }
