@@ -471,6 +471,25 @@ class TextLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Bevel & Emboss
+    override var bevelDepth: Float = 6f
+    override var bevelAngle: Int = 135
+    override var bevelHighlightAlpha: Float = 0.75f
+    override var bevelShadowAlpha: Float = 0.65f
+    override var bevelSoftness: Float = 3f
+
+    // 3D Block Extrude
+    override var extrudeDepth: Float = 18f
+    override var extrudeAngle: Int = 45
+    override var extrudeColor: Int = Color.parseColor("#222222")
+    override var extrudeOutlineColor: Int = Color.BLACK
+    override var extrudeOutlineWidth: Float = 0f
+
+    // Ink Bleed
+    override var inkBleedIntensity: Float = 6f
+    override var inkBleedRoughness: Float = 5f
+    override var inkBleedSeed: Int = 1234
+
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f
@@ -524,11 +543,26 @@ class TextLayer(
     @Transient
     var cachedSpeedLineHash: Int = 0
 
-    // Base Content Caching for Warp & Perspective optimization
+    // Base Content Caching for Warp & Perspective optimization (Dual-slot for skipEffects)
     @Transient
     var cleanContentCache: Bitmap? = null
     @Transient
     var cleanContentHash: Int = 0
+
+    @Transient
+    private var fastCleanContentCache: Bitmap? = null
+    @Transient
+    private var fastCleanContentHash: Int = 0
+
+    // Dirty-Hash Effect Bitmap Cache (Dual-slot for skipEffects)
+    @Transient
+    private var fullEffectBitmapCache: Bitmap? = null
+    @Transient
+    private var fullEffectBitmapHash: Int = 0
+    @Transient
+    private var fastEffectBitmapCache: Bitmap? = null
+    @Transient
+    private var fastEffectBitmapHash: Int = 0
 
     @Transient
     var erasedContentCache: Bitmap? = null
@@ -824,26 +858,71 @@ class TextLayer(
         result = 31 * result + speedLineColor.hashCode()
         result = 31 * result + speedLineAngle.hashCode()
 
+        // Bevel & Emboss
+        result = 31 * result + bevelDepth.hashCode()
+        result = 31 * result + bevelAngle
+        result = 31 * result + bevelHighlightAlpha.hashCode()
+        result = 31 * result + bevelShadowAlpha.hashCode()
+        result = 31 * result + bevelSoftness.hashCode()
+
+        // 3D Block Extrude
+        result = 31 * result + extrudeDepth.hashCode()
+        result = 31 * result + extrudeAngle
+        result = 31 * result + extrudeColor
+        result = 31 * result + extrudeOutlineColor
+        result = 31 * result + extrudeOutlineWidth.hashCode()
+
+        // Ink Bleed
+        result = 31 * result + inkBleedIntensity.hashCode()
+        result = 31 * result + inkBleedRoughness.hashCode()
+        result = 31 * result + inkBleedSeed
+
         return result
     }
 
     private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
-        // 1. Ensure cleanContentCache is valid
-        val cleanHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects, viewScale = viewScale)
-        val cleanValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
+        // Dual-slot cache for skipEffects:
+        // Slot A (cleanContentCache) = full effects; Slot B (fastCleanContentCache) = fast-pan.
+        val fullHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = false, viewScale = viewScale)
+        val fullValid = cleanContentCache != null && !cleanContentCache!!.isRecycled &&
                 cleanContentCache!!.width == bmpW && cleanContentCache!!.height == bmpH &&
-                cleanContentHash == cleanHash
+                cleanContentHash == fullHash
 
-        if (!cleanValid) {
-            cleanContentCache?.recycle()
-            val newClean = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
-            val c = Canvas(newClean)
-            c.scale(qualityScale, qualityScale)
-            c.translate(pad, pad)
-            drawCleanContent(c, layout, w, ch, skipEffects = skipEffects, viewScale = viewScale)
-            cleanContentCache = newClean
-            cleanContentHash = cleanHash
-            erasedContentHash = -1 // force update erased content
+        val activeCleanBmp: Bitmap
+        if (skipEffects) {
+            if (fullValid) {
+                activeCleanBmp = cleanContentCache!!
+            } else {
+                val fastHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = true, viewScale = viewScale)
+                val fastValid = fastCleanContentCache != null && !fastCleanContentCache!!.isRecycled &&
+                        fastCleanContentCache!!.width == bmpW && fastCleanContentCache!!.height == bmpH &&
+                        fastCleanContentHash == fastHash
+                if (!fastValid) {
+                    fastCleanContentCache?.recycle()
+                    val newFast = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                    val c = Canvas(newFast)
+                    c.scale(qualityScale, qualityScale)
+                    c.translate(pad, pad)
+                    drawCleanContent(c, layout, w, ch, skipEffects = true, viewScale = viewScale)
+                    fastCleanContentCache = newFast
+                    fastCleanContentHash = fastHash
+                    erasedContentHash = -1
+                }
+                activeCleanBmp = fastCleanContentCache!!
+            }
+        } else {
+            if (!fullValid) {
+                cleanContentCache?.recycle()
+                val newClean = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                val c = Canvas(newClean)
+                c.scale(qualityScale, qualityScale)
+                c.translate(pad, pad)
+                drawCleanContent(c, layout, w, ch, skipEffects = false, viewScale = viewScale)
+                cleanContentCache = newClean
+                cleanContentHash = fullHash
+                erasedContentHash = -1 // force update erased content
+            }
+            activeCleanBmp = cleanContentCache!!
         }
 
         // 2. Ensure erasedContentCache has matching size
@@ -861,7 +940,7 @@ class TextLayer(
             c.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
             // Draw clean content
-            c.drawBitmap(cleanContentCache!!, 0f, 0f, null)
+            c.drawBitmap(activeCleanBmp, 0f, 0f, null)
 
             // Apply Erase Mask (with scale since clean content is qualityScale-scaled)
             val isWarpActive = isWarp && (_warpMesh != null || letterWarpMeshes.isNotEmpty())
@@ -907,6 +986,16 @@ class TextLayer(
     fun recycleCache() {
         cleanContentCache?.recycle()
         cleanContentCache = null
+        cleanContentHash = 0
+        fastCleanContentCache?.recycle()
+        fastCleanContentCache = null
+        fastCleanContentHash = 0
+        fullEffectBitmapCache?.recycle()
+        fullEffectBitmapCache = null
+        fullEffectBitmapHash = 0
+        fastEffectBitmapCache?.recycle()
+        fastEffectBitmapCache = null
+        fastEffectBitmapHash = 0
         erasedContentCache?.recycle()
         erasedContentCache = null
         assembledWarpBmpCache?.recycle()
@@ -1610,6 +1699,12 @@ class TextLayer(
                     val expansion = Math.max(extX, extY) + tailWavyIntensity * 5f + 30f
                     effectExpansion = Math.max(effectExpansion, expansion)
                 }
+                TextEffectType.BLOCK_EXTRUDE_3D -> {
+                    effectExpansion = Math.max(effectExpansion, extrudeDepth + extrudeOutlineWidth + 8f)
+                }
+                TextEffectType.INK_BLEED -> {
+                    effectExpansion = Math.max(effectExpansion, inkBleedIntensity * 1.5f + 8f)
+                }
                 else -> {}
             }
         }
@@ -2237,16 +2332,72 @@ class TextLayer(
                          }
                      }
                  } else {
-                     // If fixedHeight is set, we need to clip the content area
-                     if (fixedHeight != null && fixedHeight!! > 0) {
-                         canvas.save()
-                         canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
-                         canvas.translate(dx, dy)
-                         drawContent(canvas, layout, w, h, skipEffects = skipEffects, viewScale = viewScale)
-                         canvas.restore()
+                     val shouldCacheEffects = activeEffects.isNotEmpty() || isMotionShadow || shadowRadius > 0f
+                     val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+                     val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
+                     val canUseEffectCache = shouldCacheEffects && bmpW in 1..2048 && bmpH in 1..2048 && (fixedHeight == null || fixedHeight!! <= 0)
+
+                     if (canUseEffectCache) {
+                         val fullHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = false, viewScale = viewScale)
+                         val fullValid = fullEffectBitmapCache != null && !fullEffectBitmapCache!!.isRecycled &&
+                                 fullEffectBitmapCache!!.width == bmpW && fullEffectBitmapCache!!.height == bmpH &&
+                                 fullEffectBitmapHash == fullHash
+
+                         val cachedBmp: Bitmap
+                         if (skipEffects) {
+                             if (fullValid) {
+                                 // Dual-slot: reuse hot full-effect cache during pan/zoom without overwriting it
+                                 cachedBmp = fullEffectBitmapCache!!
+                             } else {
+                                 val fastHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects = true, viewScale = viewScale)
+                                 val fastValid = fastEffectBitmapCache != null && !fastEffectBitmapCache!!.isRecycled &&
+                                         fastEffectBitmapCache!!.width == bmpW && fastEffectBitmapCache!!.height == bmpH &&
+                                         fastEffectBitmapHash == fastHash
+                                 if (!fastValid) {
+                                     fastEffectBitmapCache?.recycle()
+                                     val newFast = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                     val c = Canvas(newFast)
+                                     c.scale(qualityScale, qualityScale)
+                                     c.translate(pad, pad)
+                                     drawContent(c, layout, w, h, skipEffects = true, viewScale = viewScale)
+                                     fastEffectBitmapCache = newFast
+                                     fastEffectBitmapHash = fastHash
+                                 }
+                                 cachedBmp = fastEffectBitmapCache!!
+                             }
+                         } else {
+                             if (!fullValid) {
+                                 fullEffectBitmapCache?.recycle()
+                                 val newFull = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                 val c = Canvas(newFull)
+                                 c.scale(qualityScale, qualityScale)
+                                 c.translate(pad, pad)
+                                 drawContent(c, layout, w, h, skipEffects = false, viewScale = viewScale)
+                                 fullEffectBitmapCache = newFull
+                                 fullEffectBitmapHash = fullHash
+                             }
+                             cachedBmp = fullEffectBitmapCache!!
+                         }
+
+                         val destRect = RectF(
+                             -w / 2f - pad,
+                             -h / 2f - pad,
+                             -w / 2f - pad + cachedBmp.width / qualityScale,
+                             -h / 2f - pad + cachedBmp.height / qualityScale
+                         )
+                         canvas.drawBitmap(cachedBmp, null, destRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
                      } else {
-                         canvas.translate(dx, dy)
-                         drawContent(canvas, layout, w, h, skipEffects = skipEffects, viewScale = viewScale)
+                         // If fixedHeight is set, we need to clip the content area
+                         if (fixedHeight != null && fixedHeight!! > 0) {
+                             canvas.save()
+                             canvas.clipRect(-w/2f - pad, -h/2f - pad, w/2f + pad, h/2f + pad)
+                             canvas.translate(dx, dy)
+                             drawContent(canvas, layout, w, h, skipEffects = skipEffects, viewScale = viewScale)
+                             canvas.restore()
+                         } else {
+                             canvas.translate(dx, dy)
+                             drawContent(canvas, layout, w, h, skipEffects = skipEffects, viewScale = viewScale)
+                         }
                      }
                  }
             }
@@ -6784,6 +6935,11 @@ class TextLayer(
         tailOffsetX *= 2f
         tailOffsetY *= 2f
         tailWavyIntensity *= 2f
+        bevelDepth *= 2f
+        bevelSoftness *= 2f
+        extrudeDepth *= 2f
+        extrudeOutlineWidth *= 2f
+        inkBleedIntensity *= 2f
         halftoneDotSize *= 2f
         halftoneRange *= 2f
         halftoneDensity /= 2f

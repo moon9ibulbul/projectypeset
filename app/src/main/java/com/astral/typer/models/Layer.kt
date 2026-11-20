@@ -222,6 +222,25 @@ interface StylableLayer {
     var tailSeed: Long
     var tailThickness: Float
 
+    // Bevel & Emboss
+    var bevelDepth: Float
+    var bevelAngle: Int
+    var bevelHighlightAlpha: Float
+    var bevelShadowAlpha: Float
+    var bevelSoftness: Float
+
+    // 3D Block Extrude
+    var extrudeDepth: Float
+    var extrudeAngle: Int
+    var extrudeColor: Int
+    var extrudeOutlineColor: Int
+    var extrudeOutlineWidth: Float
+
+    // Ink Bleed
+    var inkBleedIntensity: Float
+    var inkBleedRoughness: Float
+    var inkBleedSeed: Int
+
     // Erase
     var eraseMask: Bitmap?
     val erasePaths: MutableList<ErasePathData>

@@ -622,6 +622,25 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Bevel & Emboss
+    override var bevelDepth: Float = 6f
+    override var bevelAngle: Int = 135
+    override var bevelHighlightAlpha: Float = 0.75f
+    override var bevelShadowAlpha: Float = 0.65f
+    override var bevelSoftness: Float = 3f
+
+    // 3D Block Extrude
+    override var extrudeDepth: Float = 18f
+    override var extrudeAngle: Int = 45
+    override var extrudeColor: Int = Color.parseColor("#222222")
+    override var extrudeOutlineColor: Int = Color.BLACK
+    override var extrudeOutlineWidth: Float = 0f
+
+    // Ink Bleed
+    override var inkBleedIntensity: Float = 6f
+    override var inkBleedRoughness: Float = 5f
+    override var inkBleedSeed: Int = 1234
+
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f

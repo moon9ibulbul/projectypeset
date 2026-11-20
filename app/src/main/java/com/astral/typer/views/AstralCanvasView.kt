@@ -68,12 +68,15 @@ class AstralCanvasView @JvmOverloads constructor(
     // Layers
     private val layers = mutableListOf<Layer>()
     private var selectedLayer: Layer? = null
+    private val multiSelectedLayers = linkedSetOf<Layer>()
 
     // Modes
     private var isPerspectiveMode = false
     var isPerspectiveSkewMode = false
         private set
     private var isInpaintMode = false
+    private var previewOriginalInpaint = false
+    private var preInpaintOriginalBitmap: Bitmap? = null
     private var isWarpToolActive = false
     var isTyperActive = false
     var preventDeselection = false
@@ -1320,8 +1323,12 @@ class AstralCanvasView @JvmOverloads constructor(
     fun setLayers(newLayers: List<Layer>) {
         layers.clear()
         layers.addAll(newLayers)
-        selectedLayer = layers.find { it.isSelected }
-        layers.forEach { it.isSelected = (it == selectedLayer) }
+        multiSelectedLayers.clear()
+        multiSelectedLayers.addAll(layers.filter { it.isSelected })
+        selectedLayer = multiSelectedLayers.lastOrNull() ?: layers.find { it.isSelected }
+        if (multiSelectedLayers.isEmpty() && selectedLayer != null) {
+            multiSelectedLayers.add(selectedLayer!!)
+        }
         onLayerSelectedListener?.onLayerSelected(selectedLayer)
         invalidate()
     }
@@ -1329,6 +1336,25 @@ class AstralCanvasView @JvmOverloads constructor(
     fun getSelectedLayer(): Layer? {
         return selectedLayer
     }
+
+    fun getSelectedLayers(): List<Layer> {
+        return if (multiSelectedLayers.isNotEmpty()) multiSelectedLayers.toList() else listOfNotNull(selectedLayer)
+    }
+
+    fun isMultiSelectActive(): Boolean = multiSelectedLayers.size > 1
+
+    fun setPreviewOriginalInpaint(preview: Boolean) {
+        if (previewOriginalInpaint != preview) {
+            previewOriginalInpaint = preview
+            invalidate()
+        }
+    }
+
+    fun setPreInpaintOriginalBitmap(bmp: Bitmap?) {
+        preInpaintOriginalBitmap = bmp
+    }
+
+    fun getPreInpaintOriginalBitmap(): Bitmap? = preInpaintOriginalBitmap
 
     fun setPerspectiveMode(enabled: Boolean) {
         isPerspectiveMode = enabled
@@ -1828,6 +1854,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
         }
+        multiSelectedLayers.clear()
+        if (layer != null) {
+            multiSelectedLayers.add(layer)
+        }
         if (selectedLayer != layer) {
             selectedLayer = layer
             layers.forEach { it.isSelected = (it == layer) }
@@ -1838,7 +1868,68 @@ class AstralCanvasView @JvmOverloads constructor(
             invalidate()
         } else {
             layers.forEach { it.isSelected = (it == layer) }
+            invalidate()
         }
+    }
+
+    fun toggleMultiSelectLayer(layer: Layer) {
+        if (multiSelectedLayers.contains(layer)) {
+            multiSelectedLayers.remove(layer)
+            layer.isSelected = false
+        } else {
+            multiSelectedLayers.add(layer)
+            layer.isSelected = true
+        }
+        val newPrimary = multiSelectedLayers.lastOrNull()
+        if (selectedLayer != newPrimary) {
+            selectedLayer = newPrimary
+            onLayerSelectedListener?.onLayerSelected(newPrimary)
+        }
+        isPerspectiveMode = false
+        isPerspectiveSkewMode = false
+        exitCutMode()
+        invalidate()
+    }
+
+    fun clearMultiSelection() {
+        val primary = selectedLayer
+        multiSelectedLayers.clear()
+        if (primary != null) {
+            multiSelectedLayers.add(primary)
+        }
+        layers.forEach { it.isSelected = (it == primary) }
+        invalidate()
+    }
+
+    fun deleteSelectedLayers() {
+        val targets = getSelectedLayers()
+        if (targets.isEmpty()) return
+        com.astral.typer.utils.UndoManager.saveState(layers)
+        targets.forEach { target ->
+            if (layers.contains(target)) {
+                removeLayerAndClipped(target)
+            }
+        }
+        multiSelectedLayers.clear()
+        selectedLayer = null
+        onLayerSelectedListener?.onLayerSelected(null)
+        invalidate()
+    }
+
+    fun setSelectedLayersVisibility(visible: Boolean) {
+        val targets = getSelectedLayers()
+        if (targets.isEmpty()) return
+        com.astral.typer.utils.UndoManager.saveState(layers)
+        targets.forEach { it.isVisible = visible }
+        invalidate()
+    }
+
+    fun setSelectedLayersLocked(locked: Boolean) {
+        val targets = getSelectedLayers()
+        if (targets.isEmpty()) return
+        com.astral.typer.utils.UndoManager.saveState(layers)
+        targets.forEach { it.isLocked = locked }
+        invalidate()
     }
 
     fun deleteSelectedLayer() {
@@ -2309,8 +2400,10 @@ class AstralCanvasView @JvmOverloads constructor(
         paint.style = Paint.Style.FILL
         canvas.drawRect(backgroundRect, paint)
 
-        // Draw Background Tiles with Frustum Culling
-        if (backgroundTiles.isNotEmpty()) {
+        // Draw Background Tiles with Frustum Culling (or pre-inpaint original when comparing)
+        if (previewOriginalInpaint && preInpaintOriginalBitmap != null && !preInpaintOriginalBitmap!!.isRecycled) {
+            canvas.drawBitmap(preInpaintOriginalBitmap!!, null, backgroundRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        } else if (backgroundTiles.isNotEmpty()) {
             val visibleViewport = RectF(0f, 0f, width.toFloat(), height.toFloat())
             val inverse = Matrix()
             viewMatrix.invert(inverse)
@@ -2382,7 +2475,7 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         // Draw Inpaint Path (Vector optimized, no cache bitmap)
-        if (isInpaintMode) {
+        if (isInpaintMode && !previewOriginalInpaint) {
             val inpaintBounds = RectF()
             for (op in inpaintOps) {
                 val tempBounds = RectF()
@@ -2487,7 +2580,11 @@ class AstralCanvasView @JvmOverloads constructor(
 
         // Draw Selection Overlay
         if (currentMode != Mode.EYEDROPPER && !isInpaintMode && currentMode != Mode.GRADATION) {
-             selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+             if (multiSelectedLayers.size > 1) {
+                 multiSelectedLayers.forEach { drawSelectionOverlay(canvas, it) }
+             } else {
+                 selectedLayer?.let { drawSelectionOverlay(canvas, it) }
+             }
         }
 
         // Draw Gradation Line
@@ -2692,7 +2789,7 @@ class AstralCanvasView @JvmOverloads constructor(
         var i = 0
         while (i < layersList.size) {
             val layer = layersList[i]
-            if (!layer.isVisible) {
+            if (!layer.isVisible || (previewOriginalInpaint && layer is ImageLayer && layer.name == "Inpaint Mask")) {
                 i++
                 while (i < layersList.size && layersList[i].isClipped) {
                     i++
@@ -3907,8 +4004,17 @@ class AstralCanvasView @JvmOverloads constructor(
                                     showHorizontalCenterLine = false
                                 }
 
-                                layer.x += dx
-                                layer.y += dy
+                                if (multiSelectedLayers.size > 1 && multiSelectedLayers.contains(layer)) {
+                                    multiSelectedLayers.forEach { target ->
+                                        if (!target.isLocked) {
+                                            target.x += dx
+                                            target.y += dy
+                                        }
+                                    }
+                                } else {
+                                    layer.x += dx
+                                    layer.y += dy
+                                }
                                 lastTouchX = cx
                                 lastTouchY = cy
                                 invalidate()

@@ -340,6 +340,25 @@ class ShapeLayer(
     override var tailSeed: Long = System.currentTimeMillis()
     override var tailThickness: Float = 10f
 
+    // Bevel & Emboss
+    override var bevelDepth: Float = 6f
+    override var bevelAngle: Int = 135
+    override var bevelHighlightAlpha: Float = 0.75f
+    override var bevelShadowAlpha: Float = 0.65f
+    override var bevelSoftness: Float = 3f
+
+    // 3D Block Extrude
+    override var extrudeDepth: Float = 18f
+    override var extrudeAngle: Int = 45
+    override var extrudeColor: Int = Color.parseColor("#222222")
+    override var extrudeOutlineColor: Int = Color.BLACK
+    override var extrudeOutlineWidth: Float = 0f
+
+    // Ink Bleed
+    override var inkBleedIntensity: Float = 6f
+    override var inkBleedRoughness: Float = 5f
+    override var inkBleedSeed: Int = 1234
+
     // Drop Shadow Shader Effect
     override var dropShadowAlpha: Float = 0.5f
     override var dropShadowBlur: Float = 2f
@@ -381,6 +400,12 @@ class ShapeLayer(
     @Transient var morphedBmpCache: Bitmap? = null
     @Transient var morphedBmpHash: Int = 0
 
+    // Dirty-Hash Effect Bitmap Cache (Dual-slot for skipEffects)
+    @Transient private var fullEffectBitmapCache: Bitmap? = null
+    @Transient private var fullEffectBitmapHash: Int = 0
+    @Transient private var fastEffectBitmapCache: Bitmap? = null
+    @Transient private var fastEffectBitmapHash: Int = 0
+
     @Transient var stroke1BmpCache: Bitmap? = null
     @Transient var stroke1BmpHash: Int = 0
     @Transient val stroke1Offset = IntArray(2)
@@ -395,9 +420,78 @@ class ShapeLayer(
 
     fun recycleMorphedCaches() {
         morphedBmpCache?.recycle(); morphedBmpCache = null; morphedBmpHash = 0
+        fullEffectBitmapCache?.recycle(); fullEffectBitmapCache = null; fullEffectBitmapHash = 0
+        fastEffectBitmapCache?.recycle(); fastEffectBitmapCache = null; fastEffectBitmapHash = 0
         stroke1BmpCache?.recycle(); stroke1BmpCache = null; stroke1BmpHash = 0
         stroke2BmpCache?.recycle(); stroke2BmpCache = null; stroke2BmpHash = 0
         stroke3BmpCache?.recycle(); stroke3BmpCache = null; stroke3BmpHash = 0
+    }
+
+    private fun calculateShapeEffectHash(w: Float, h: Float, pad: Float, qualityScale: Float, skipEffects: Boolean, viewScale: Float): Int {
+        var result = shapeName.hashCode()
+        result = 31 * result + w.hashCode()
+        result = 31 * result + h.hashCode()
+        result = 31 * result + pad.hashCode()
+        result = 31 * result + qualityScale.hashCode()
+        result = 31 * result + skipEffects.hashCode()
+        result = 31 * result + (viewScale >= 0.2f).hashCode()
+        result = 31 * result + color
+        result = 31 * result + strokeColor
+        result = 31 * result + strokeWidth.hashCode()
+        result = 31 * result + doubleStrokeColor
+        result = 31 * result + doubleStrokeWidth.hashCode()
+        result = 31 * result + tripleStrokeColor
+        result = 31 * result + tripleStrokeWidth.hashCode()
+        result = 31 * result + isRoughStroke.hashCode()
+        result = 31 * result + roughStrokeRoughness.hashCode()
+        result = 31 * result + isGradient.hashCode()
+        result = 31 * result + gradientStartColor
+        result = 31 * result + gradientEndColor
+        result = 31 * result + gradientAngle
+        result = 31 * result + hasMiddleColor.hashCode()
+        result = 31 * result + gradientMiddleColor
+        result = 31 * result + shadowColor
+        result = 31 * result + shadowRadius.hashCode()
+        result = 31 * result + shadowDx.hashCode()
+        result = 31 * result + shadowDy.hashCode()
+        result = 31 * result + shadowThickness.hashCode()
+        result = 31 * result + isMotionShadow.hashCode()
+        result = 31 * result + motionShadowDistance.hashCode()
+        result = 31 * result + motionShadowAngle
+        result = 31 * result + motionShadowThickness.hashCode()
+        result = 31 * result + currentEffect.hashCode()
+        result = 31 * result + secondaryEffect.hashCode()
+        result = 31 * result + tertiaryEffect.hashCode()
+        result = 31 * result + blurRadius.hashCode()
+        result = 31 * result + isGradientBlur.hashCode()
+        result = 31 * result + neonRadius.hashCode()
+        result = 31 * result + neonColor
+        result = 31 * result + neonAlpha.hashCode()
+        result = 31 * result + neonInnerStrength.hashCode()
+        result = 31 * result + neonOuterStrength.hashCode()
+        result = 31 * result + halftoneDotSize.hashCode()
+        result = 31 * result + halftoneDotColor
+        result = 31 * result + motionBlurLength.hashCode()
+        result = 31 * result + motionBlurAngle
+        result = 31 * result + longShadowLength.hashCode()
+        result = 31 * result + longShadowColor
+        result = 31 * result + longShadowAngle.hashCode()
+        result = 31 * result + bevelDepth.hashCode()
+        result = 31 * result + bevelAngle
+        result = 31 * result + bevelHighlightAlpha.hashCode()
+        result = 31 * result + bevelShadowAlpha.hashCode()
+        result = 31 * result + bevelSoftness.hashCode()
+        result = 31 * result + extrudeDepth.hashCode()
+        result = 31 * result + extrudeAngle
+        result = 31 * result + extrudeColor
+        result = 31 * result + extrudeOutlineColor
+        result = 31 * result + extrudeOutlineWidth.hashCode()
+        result = 31 * result + inkBleedIntensity.hashCode()
+        result = 31 * result + inkBleedRoughness.hashCode()
+        result = 31 * result + inkBleedSeed
+        result = 31 * result + (patternName?.hashCode() ?: 0)
+        result = 31 * result + (textureBitmap?.hashCode() ?: 0)
+        return result
     }
 
     @Transient
@@ -550,7 +644,10 @@ class ShapeLayer(
             it == TextEffectType.ZOOM_BLUR ||
             it == TextEffectType.GAUSSIAN_BLUR ||
             it == TextEffectType.NEON ||
-            it == TextEffectType.DROP_SHADOW
+            it == TextEffectType.DROP_SHADOW ||
+            it == TextEffectType.BEVEL_EMBOSS ||
+            it == TextEffectType.BLOCK_EXTRUDE_3D ||
+            it == TextEffectType.INK_BLEED
         }
         val useHardwareTransformEffects = hasTransform && hasHardwareShaderEffect && canvas.isHardwareAccelerated
 
@@ -582,8 +679,63 @@ class ShapeLayer(
                 if (isWarp && warpMesh != null) {
                     drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds, viewScale = viewScale)
                 } else {
-                     canvas.translate(dx, dy)
-                     drawContent(canvas, w, h, skipEffects = skipEffects, viewScale = viewScale)
+                    val shouldCacheEffects = activeEffects.isNotEmpty() || isMotionShadow || shadowRadius > 0f
+                    val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
+                    val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
+                    val canUseEffectCache = shouldCacheEffects && bmpW in 1..2048 && bmpH in 1..2048 && erasePaths.isEmpty() && activeErasePath == null
+
+                    if (canUseEffectCache) {
+                        val fullHash = calculateShapeEffectHash(w, h, pad, qualityScale, skipEffects = false, viewScale = viewScale)
+                        val fullValid = fullEffectBitmapCache != null && !fullEffectBitmapCache!!.isRecycled &&
+                                fullEffectBitmapCache!!.width == bmpW && fullEffectBitmapCache!!.height == bmpH &&
+                                fullEffectBitmapHash == fullHash
+
+                        val cachedBmp: Bitmap
+                        if (skipEffects) {
+                            if (fullValid) {
+                                cachedBmp = fullEffectBitmapCache!!
+                            } else {
+                                val fastHash = calculateShapeEffectHash(w, h, pad, qualityScale, skipEffects = true, viewScale = viewScale)
+                                val fastValid = fastEffectBitmapCache != null && !fastEffectBitmapCache!!.isRecycled &&
+                                        fastEffectBitmapCache!!.width == bmpW && fastEffectBitmapCache!!.height == bmpH &&
+                                        fastEffectBitmapHash == fastHash
+                                if (!fastValid) {
+                                    fastEffectBitmapCache?.recycle()
+                                    val newFast = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                    val c = Canvas(newFast)
+                                    c.scale(qualityScale, qualityScale)
+                                    c.translate(pad, pad)
+                                    drawContent(c, w, h, skipEffects = true, viewScale = viewScale)
+                                    fastEffectBitmapCache = newFast
+                                    fastEffectBitmapHash = fastHash
+                                }
+                                cachedBmp = fastEffectBitmapCache!!
+                            }
+                        } else {
+                            if (!fullValid) {
+                                fullEffectBitmapCache?.recycle()
+                                val newFull = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                                val c = Canvas(newFull)
+                                c.scale(qualityScale, qualityScale)
+                                c.translate(pad, pad)
+                                drawContent(c, w, h, skipEffects = false, viewScale = viewScale)
+                                fullEffectBitmapCache = newFull
+                                fullEffectBitmapHash = fullHash
+                            }
+                            cachedBmp = fullEffectBitmapCache!!
+                        }
+
+                        val destRect = RectF(
+                            -w / 2f - pad,
+                            -h / 2f - pad,
+                            -w / 2f - pad + cachedBmp.width / qualityScale,
+                            -h / 2f - pad + cachedBmp.height / qualityScale
+                        )
+                        canvas.drawBitmap(cachedBmp, null, destRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+                    } else {
+                        canvas.translate(dx, dy)
+                        drawContent(canvas, w, h, skipEffects = skipEffects, viewScale = viewScale)
+                    }
                 }
             }
         } finally {
@@ -1931,6 +2083,18 @@ class ShapeLayer(
                         drawInner(targetCanvas)
                     }
                 }
+                TextEffectType.BEVEL_EMBOSS -> {
+                    val effBounds = RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH)
+                    com.astral.typer.utils.NewEffectsHelper.renderBevelEmboss(targetCanvas, effBounds, this, drawInner)
+                }
+                TextEffectType.BLOCK_EXTRUDE_3D -> {
+                    val effBounds = RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH)
+                    com.astral.typer.utils.NewEffectsHelper.renderBlockExtrude3D(targetCanvas, effBounds, this, drawInner)
+                }
+                TextEffectType.INK_BLEED -> {
+                    val effBounds = RectF(drawTranslateX, drawTranslateY, drawTranslateX + nodeW, drawTranslateY + nodeH)
+                    com.astral.typer.utils.NewEffectsHelper.renderInkBleed(targetCanvas, effBounds, this, drawInner)
+                }
                 TextEffectType.DROP_SHADOW -> {
                     var useRenderEffect = false
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU && targetCanvas.isHardwareAccelerated) {
@@ -2940,6 +3104,12 @@ class ShapeLayer(
                 TextEffectType.TEXT_TAIL -> {
                     effectExpansion = Math.max(effectExpansion, tailLength + tailWavyIntensity * 5f + 20f)
                 }
+                TextEffectType.BLOCK_EXTRUDE_3D -> {
+                    effectExpansion = Math.max(effectExpansion, extrudeDepth + extrudeOutlineWidth + 8f)
+                }
+                TextEffectType.INK_BLEED -> {
+                    effectExpansion = Math.max(effectExpansion, inkBleedIntensity * 1.5f + 8f)
+                }
                 else -> {}
             }
         }
@@ -3237,6 +3407,25 @@ class ShapeLayer(
         newLayer.tailOffsetY = tailOffsetY
         newLayer.tailSeed = tailSeed
         newLayer.tailThickness = tailThickness
+
+        // Bevel & Emboss
+        newLayer.bevelDepth = bevelDepth
+        newLayer.bevelAngle = bevelAngle
+        newLayer.bevelHighlightAlpha = bevelHighlightAlpha
+        newLayer.bevelShadowAlpha = bevelShadowAlpha
+        newLayer.bevelSoftness = bevelSoftness
+
+        // 3D Block Extrude
+        newLayer.extrudeDepth = extrudeDepth
+        newLayer.extrudeAngle = extrudeAngle
+        newLayer.extrudeColor = extrudeColor
+        newLayer.extrudeOutlineColor = extrudeOutlineColor
+        newLayer.extrudeOutlineWidth = extrudeOutlineWidth
+
+        // Ink Bleed
+        newLayer.inkBleedIntensity = inkBleedIntensity
+        newLayer.inkBleedRoughness = inkBleedRoughness
+        newLayer.inkBleedSeed = inkBleedSeed
 
         return newLayer
     }
