@@ -17,7 +17,9 @@ object FontManager {
     private var cachedStandardFonts: List<FontItem>? = null
     private var cachedCustomFonts: List<FontItem>? = null
 
-    private val typefaceLruCache = android.util.LruCache<String, Typeface>(64)
+    private val fontLoadLock = Any()
+
+    private val typefaceLruCache = android.util.LruCache<String, Typeface>(256)
 
     private val fontPreviewCacheMaxKb: Int =
         ((Runtime.getRuntime().maxMemory() / 1024L) / 20L).toInt().coerceIn(2048, 8192)
@@ -29,35 +31,50 @@ object FontManager {
     }
 
     fun getCachedTypeface(file: File): Typeface? {
+        if (!file.exists() || file.length() <= 0L) return null
         val key = "${file.absolutePath}:${file.lastModified()}"
-        typefaceLruCache.get(key)?.let { return it }
+        synchronized(typefaceLruCache) {
+            typefaceLruCache.get(key)?.let { return it }
+        }
         return try {
-            val tf = Typeface.createFromFile(file)
-            typefaceLruCache.put(key, tf)
+            val tf: Typeface? = Typeface.createFromFile(file)
+            if (tf != null) {
+                synchronized(typefaceLruCache) {
+                    typefaceLruCache.put(key, tf)
+                }
+            }
             tf
-        } catch (e: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
 
     fun getOrRenderFontPreview(key: String, typeface: Typeface?, sampleText: String, textColor: Int, widthPx: Int, heightPx: Int): android.graphics.Bitmap? {
-        val fullKey = "$key:$textColor:${widthPx}x$heightPx:$sampleText"
-        fontPreviewLruCache.get(fullKey)?.let { cached ->
-            if (!cached.isRecycled) return cached
+        return try {
+            val fullKey = "$key:$textColor:${widthPx}x$heightPx:$sampleText"
+            synchronized(fontPreviewLruCache) {
+                fontPreviewLruCache.get(fullKey)?.let { cached ->
+                    if (!cached.isRecycled) return cached
+                }
+            }
+            if (widthPx <= 0 || heightPx <= 0) return null
+            val bmp = android.graphics.Bitmap.createBitmap(widthPx, heightPx, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(bmp)
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = textColor
+                textSize = heightPx * 0.55f
+                this.typeface = typeface ?: Typeface.DEFAULT
+            }
+            val fm = p.fontMetrics
+            val y = (heightPx - fm.ascent - fm.descent) / 2f
+            c.drawText(sampleText, 8f, y, p)
+            synchronized(fontPreviewLruCache) {
+                fontPreviewLruCache.put(fullKey, bmp)
+            }
+            bmp
+        } catch (_: Throwable) {
+            null
         }
-        if (widthPx <= 0 || heightPx <= 0) return null
-        val bmp = android.graphics.Bitmap.createBitmap(widthPx, heightPx, android.graphics.Bitmap.Config.ARGB_8888)
-        val c = android.graphics.Canvas(bmp)
-        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = textColor
-            textSize = heightPx * 0.55f
-            this.typeface = typeface ?: Typeface.DEFAULT
-        }
-        val fm = p.fontMetrics
-        val y = (heightPx - fm.ascent - fm.descent) / 2f
-        c.drawText(sampleText, 8f, y, p)
-        fontPreviewLruCache.put(fullKey, bmp)
-        return bmp
     }
 
     data class FontItem(
@@ -68,7 +85,7 @@ object FontManager {
         val isCustom: Boolean = false
     )
 
-    fun getStandardFonts(context: Context): List<FontItem> {
+    fun getStandardFonts(context: Context): List<FontItem> = synchronized(fontLoadLock) {
         cachedStandardFonts?.let { return it }
 
         val list = mutableListOf<FontItem>()
@@ -95,8 +112,7 @@ object FontManager {
                              typeface = tf,
                              isCustom = false // Treat as standard
                          ))
-                     } catch (e: Exception) {
-                         e.printStackTrace()
+                     } catch (_: Throwable) {
                      }
                  }
              }
@@ -144,7 +160,7 @@ object FontManager {
         }
     }
 
-    fun getCustomFonts(context: Context): List<FontItem> {
+    fun getCustomFonts(context: Context): List<FontItem> = synchronized(fontLoadLock) {
         cachedCustomFonts?.let { return it }
 
         val list = mutableListOf<FontItem>()
@@ -165,8 +181,7 @@ object FontManager {
                         isFavorite = favorites.contains(file.absolutePath), // Use path as ID for custom
                         isCustom = true
                     ))
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                } catch (_: Throwable) {
                 }
             }
         }

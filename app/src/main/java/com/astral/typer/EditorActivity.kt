@@ -7227,14 +7227,18 @@ class EditorActivity : AppCompatActivity() {
                                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                                 }
 
+                                tvName.tag = item.family
                                 if (item.typeface != null) {
-                                    tvName.typeface = item.typeface
+                                    try { tvName.typeface = item.typeface } catch (_: Throwable) {}
                                 } else {
+                                    val expectedFamily = item.family
                                     lifecycleScope.launch(Dispatchers.IO) {
                                         val tf = com.astral.typer.utils.GoogleFontStoreManager.loadPreviewTypeface(this@EditorActivity, item)
                                         if (tf != null) {
                                             withContext(Dispatchers.Main) {
-                                                tvName.typeface = tf
+                                                if (!isDestroyed && !isFinishing && isFontPickerVisible && tvName.tag == expectedFamily) {
+                                                    try { tvName.typeface = tf } catch (_: Throwable) {}
+                                                }
                                             }
                                         }
                                     }
@@ -7370,6 +7374,7 @@ class EditorActivity : AppCompatActivity() {
                 val fonts = getSortedFontsForEditor(fontsRaw)
 
                 runOnUiThread {
+                    if (isDestroyed || isFinishing || !isFontPickerVisible) return@runOnUiThread
                     if (list.childCount > 0 && list.getChildAt(list.childCount - 1) == progressBar) {
                         list.removeView(progressBar)
                     }
