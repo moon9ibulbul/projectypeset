@@ -5275,6 +5275,8 @@ class EditorActivity : AppCompatActivity() {
         val btnToggleMulti = popupView.findViewById<TextView>(R.id.btnToggleMultiSelect)
         val multiActionBar = popupView.findViewById<View>(R.id.multiSelectActionBar)
         val tvSelectedCount = popupView.findViewById<TextView>(R.id.tvMultiSelectedCount)
+        val btnMultiSelectAll = popupView.findViewById<TextView>(R.id.btnMultiSelectAll)
+        val btnMultiUnselectAll = popupView.findViewById<TextView>(R.id.btnMultiUnselectAll)
         val btnMultiVis = popupView.findViewById<TextView>(R.id.btnMultiToggleVis)
         val btnMultiLock = popupView.findViewById<TextView>(R.id.btnMultiToggleLock)
         val btnMultiDel = popupView.findViewById<TextView>(R.id.btnMultiDelete)
@@ -5296,6 +5298,7 @@ class EditorActivity : AppCompatActivity() {
                 multiActionBar.visibility = View.GONE
                 btnToggleMulti.setBackgroundColor(Color.parseColor("#33888888"))
             }
+            showPropertiesMenu()
         }
 
         val adapter = LayerAdapter(
@@ -5337,6 +5340,19 @@ class EditorActivity : AppCompatActivity() {
                 canvasView.clearMultiSelection()
                 adapter.notifyDataSetChanged()
             }
+            refreshMultiSelectUi()
+        }
+
+        btnMultiSelectAll.setOnClickListener {
+            isMultiSelectMode = true
+            canvasView.selectAllLayers()
+            adapter.notifyDataSetChanged()
+            refreshMultiSelectUi()
+        }
+
+        btnMultiUnselectAll.setOnClickListener {
+            canvasView.unselectAllLayers()
+            adapter.notifyDataSetChanged()
             refreshMultiSelectUi()
         }
 
@@ -6023,7 +6039,17 @@ class EditorActivity : AppCompatActivity() {
             binding.btnPropBrush.visibility = View.GONE
         }
 
-        binding.btnPropPuppetWarp.visibility = if (layer is TextLayer) View.VISIBLE else View.GONE
+        binding.btnPropPuppetWarp.visibility = if (layer is TextLayer && !canvasView.isMultiSelectActive()) View.VISIBLE else View.GONE
+
+        if (canvasView.isMultiSelectActive()) {
+            binding.btnPropQuickEdit.visibility = View.GONE
+            binding.btnPropErase.visibility = View.GONE
+            binding.btnPropWarp.visibility = View.GONE
+            binding.btnPropPuppetWarp.visibility = View.GONE
+            binding.btnPropPerspective.visibility = View.GONE
+            binding.btnPropTexture.visibility = View.GONE
+            binding.btnCut.visibility = View.GONE
+        }
 
         val propInnerLayout = binding.menuProperties.getChildAt(0) as? LinearLayout
         if (layer is com.astral.typer.models.BrushLayer || layer is ImageLayer) {

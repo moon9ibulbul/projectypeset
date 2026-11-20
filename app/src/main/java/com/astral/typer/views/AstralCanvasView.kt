@@ -1907,6 +1907,30 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun selectAllLayers() {
+        multiSelectedLayers.clear()
+        layers.forEach {
+            it.isSelected = true
+            multiSelectedLayers.add(it)
+        }
+        val newPrimary = multiSelectedLayers.lastOrNull()
+        if (selectedLayer != newPrimary) {
+            selectedLayer = newPrimary
+            onLayerSelectedListener?.onLayerSelected(newPrimary)
+        }
+        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
+        invalidate()
+    }
+
+    fun unselectAllLayers() {
+        multiSelectedLayers.clear()
+        layers.forEach { it.isSelected = false }
+        selectedLayer = null
+        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(null)
+        onLayerSelectedListener?.onLayerSelected(null)
+        invalidate()
+    }
+
     fun deleteSelectedLayers() {
         val targets = getSelectedLayers()
         if (targets.isEmpty()) return
@@ -2934,7 +2958,7 @@ class AstralCanvasView @JvmOverloads constructor(
             }
         }
 
-        if (isEraseLayerMode) {
+        if (isEraseLayerMode || isMultiSelectActive()) {
             canvas.restore()
             return
         }
@@ -3690,7 +3714,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                     }
 
-                    if (!isPerspectiveMode && !isWarpToolActive) {
+                    if (!isPerspectiveMode && !isWarpToolActive && !isMultiSelectActive()) {
                         val halfW = layer.getWidth() / 2f
                         val halfH = layer.getHeight() / 2f
 

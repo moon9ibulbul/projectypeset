@@ -163,9 +163,12 @@ object NewEffectsHelper {
         layer: StylableLayer,
         drawContentBlock: (Canvas) -> Unit
     ) {
-        val scale = computeSafeScale(bounds)
-        val bmpW = ceil(bounds.width() * scale).toInt().coerceAtLeast(1)
-        val bmpH = ceil(bounds.height() * scale).toInt().coerceAtLeast(1)
+        val w = bounds.width().coerceAtLeast(1f)
+        val h = bounds.height().coerceAtLeast(1f)
+        val maxDim = maxOf(w, h)
+        val scale = if (maxDim > 1024f) 1024f / maxDim else 1f
+        val bmpW = ceil(w * scale).toInt().coerceAtLeast(1)
+        val bmpH = ceil(h * scale).toInt().coerceAtLeast(1)
 
         val srcBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         val srcCanvas = Canvas(srcBmp)
@@ -178,43 +181,41 @@ object NewEffectsHelper {
         val depth = layer.extrudeDepth.coerceIn(1f, 120f)
         val totalDx = (cos(rad) * depth).toFloat()
         val totalDy = (sin(rad) * depth).toFloat()
-        val steps = depth.toInt().coerceIn(2, 48)
+        val steps = (depth / 2.5f).toInt().coerceIn(2, 22)
+
+        val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
+        // Composite solid 3D extrude steps into a single bitmap so outline only draws 8x total (not steps * 8x)
+        val extrudeBmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+        val extrudeCanvas = Canvas(extrudeBmp)
+        for (i in steps downTo 1) {
+            val t = i / steps.toFloat()
+            extrudeCanvas.drawBitmap(extrudeSil, totalDx * t * scale, totalDy * t * scale, drawPaint)
+        }
+        extrudeCanvas.drawBitmap(extrudeSil, 0f, 0f, drawPaint)
 
         canvas.save()
         canvas.translate(bounds.left, bounds.top)
         canvas.scale(1f / scale, 1f / scale)
 
-        val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-
-        // Optional outline behind extrusion
         val outlineW = layer.extrudeOutlineWidth.coerceIn(0f, 25f) * scale
         if (outlineW > 0.5f) {
-            val outlineSil = createTintedSilhouette(srcBmp, layer.extrudeOutlineColor)
+            val outlineBmp = createTintedSilhouette(extrudeBmp, layer.extrudeOutlineColor)
             val ringCount = 8
-            for (i in steps downTo 0) {
-                val t = i / steps.toFloat()
-                val ox = totalDx * t * scale
-                val oy = totalDy * t * scale
-                for (r in 0 until ringCount) {
-                    val rAngle = (r * 2.0 * Math.PI) / ringCount
-                    val rx = ox + (cos(rAngle) * outlineW).toFloat()
-                    val ry = oy + (sin(rAngle) * outlineW).toFloat()
-                    canvas.drawBitmap(outlineSil, rx, ry, drawPaint)
-                }
+            for (r in 0 until ringCount) {
+                val rAngle = (r * 2.0 * Math.PI) / ringCount
+                val rx = (cos(rAngle) * outlineW).toFloat()
+                val ry = (sin(rAngle) * outlineW).toFloat()
+                canvas.drawBitmap(outlineBmp, rx, ry, drawPaint)
             }
-            outlineSil.recycle()
+            outlineBmp.recycle()
         }
 
-        // Solid 3D extrude steps
-        for (i in steps downTo 1) {
-            val t = i / steps.toFloat()
-            canvas.drawBitmap(extrudeSil, totalDx * t * scale, totalDy * t * scale, drawPaint)
-        }
-
-        // Foreground content
+        canvas.drawBitmap(extrudeBmp, 0f, 0f, drawPaint)
         canvas.drawBitmap(srcBmp, 0f, 0f, drawPaint)
         canvas.restore()
 
+        extrudeBmp.recycle()
         extrudeSil.recycle()
         srcBmp.recycle()
     }
