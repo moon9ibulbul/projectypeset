@@ -291,8 +291,8 @@ object MultiSelectPropertySync {
                     "opacity" -> target.opacity = v as Int
                     "blendMode" -> target.blendMode = v as String
                     "isOpacityGradient" -> target.isOpacityGradient = v as Boolean
-                    "opacityStart" -> target.opacityStart = v as Float
-                    "opacityEnd" -> target.opacityEnd = v as Float
+                    "opacityStart" -> target.opacityStart = v as Int
+                    "opacityEnd" -> target.opacityEnd = v as Int
                     "opacityAngle" -> target.opacityAngle = v as Int
 
                     "shadowColor" -> target.shadowColor = v as Int
@@ -362,7 +362,7 @@ object MultiSelectPropertySync {
                     "neonInnerStrength" -> target.neonInnerStrength = v as Float
                     "neonOuterStrength" -> target.neonOuterStrength = v as Float
                     "neonKnockout" -> target.neonKnockout = v as Boolean
-                    "neonQuality" -> target.neonQuality = v as Int
+                    "neonQuality" -> target.neonQuality = (v as Number).toFloat()
                     "longShadowLength" -> target.longShadowLength = v as Float
                     "longShadowColor" -> target.longShadowColor = v as Int
                     "longShadowAngle" -> target.longShadowAngle = v as Float
@@ -474,7 +474,7 @@ object MultiSelectPropertySync {
                 when (key) {
                     "fontSize" -> target.fontSize = v as Float
                     "fontPath" -> target.fontPath = v as String?
-                    "typeface" -> target.typeface = v as Typeface?
+                    "typeface" -> (v as? Typeface)?.let { target.typeface = it }
                     "textAlign" -> target.textAlign = v as Layout.Alignment
                     "isJustified" -> target.isJustified = v as Boolean
                     "letterSpacing" -> target.letterSpacing = v as Float
