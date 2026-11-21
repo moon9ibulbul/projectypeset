@@ -58,6 +58,7 @@ class TextLayer(
                 letterWarpRows.clear()
                 letterWarpCols.clear()
                 selectedWarpIndex = -1
+                invalidateWarpRenderCaches()
             }
             enforceFormattingStyles()
         }
@@ -880,6 +881,42 @@ class TextLayer(
         result = 31 * result + inkBleedSeed
 
         return result
+    }
+
+    /**
+     * Drops the warp/morph caches that were baked for the previous string. The caches are also
+     * keyed by content hashes, but clearing them here guarantees that an edited text layer can
+     * never render one frame of stale glyphs (or stale effect silhouettes) while warping.
+     */
+    private fun invalidateWarpRenderCaches() {
+        assembledWarpBmpCache?.recycle()
+        assembledWarpBmpCache = null
+        assembledWarpBmpHash = 0
+        morphedBmpCache?.recycle()
+        morphedBmpCache = null
+        morphedBmpHash = 0
+        erasedContentHash = -1 // force erased content to be rebuilt on the next draw
+    }
+
+    /**
+     * Snaps the render resolution multiplier to coarse steps.
+     *
+     * The effect/warp bitmap caches are keyed on `qualityScale`, so an exact multiplier made every
+     * 1% Box Scale change build a new key and re-render the whole effect stack on the UI thread.
+     * Snapping keeps one cache entry alive across a range of box-scale steps (and across small
+     * zoom changes) while never rendering below the requested resolution, so nothing gets blurry.
+     */
+    private fun quantizeQualityScale(scale: Float, maxScale: Float): Float {
+        val s = Math.max(1f, scale)
+        return when {
+            s <= 1f -> 1f
+            s <= 1.25f -> 1.25f
+            s <= 1.5f -> 1.5f
+            s <= 2f -> 2f
+            s <= 2.5f -> 2.5f
+            s <= 3f -> 3f
+            else -> Math.max(maxScale, 4f)
+        }
     }
 
     private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
@@ -2221,7 +2258,7 @@ class TextLayer(
         }
 
         val effectiveScale = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * Math.max(1f, viewScale)
-        val baseQualityScale = Math.max(1f, effectiveScale).coerceAtMost(4f)
+        val baseQualityScale = quantizeQualityScale(effectiveScale, 4f)
         val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
 
         try {
@@ -3353,7 +3390,12 @@ class TextLayer(
             val targetBmpH = ceil(bounds.height() * qualityScale).toInt()
 
             val contentHash = if (isFreshBmp) assembledWarpBmpHash else erasedContentHash
-            val shapeHash = listOf(cleanContentHash, contentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
+            // `cleanContentHash` is only refreshed by the CPU effects path. When effects are drawn on
+            // the GPU after the warp (skipEffects = true), it stays stale, so hashing it made the
+            // morphed warp bitmap keep rendering the previous text until Box Scale changed the key.
+            // Recompute the hash from live content so edits always invalidate the warped output.
+            val liveContentHash = calculateCleanContentHash(w, ch, pad, qualityScale, skipEffects, viewScale = viewScale)
+            val shapeHash = listOf(liveContentHash, contentHash, _warpRows, _warpCols, _warpMesh?.contentHashCode() ?: 0, bounds.left, bounds.top, qualityScale).hashCode()
             if (morphedBmpCache == null || morphedBmpCache!!.isRecycled || morphedBmpCache!!.width != targetBmpW || morphedBmpCache!!.height != targetBmpH || morphedBmpHash != shapeHash) {
                 recycleMorphedCaches()
                 val morphedBmp = Bitmap.createBitmap(targetBmpW, targetBmpH, Bitmap.Config.ARGB_8888)
