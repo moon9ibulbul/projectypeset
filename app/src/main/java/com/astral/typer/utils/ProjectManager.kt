@@ -402,8 +402,8 @@ object ProjectManager {
         subFolder: String? = null,
         sourceProjectName: String? = null
     ): Boolean {
+        val tempDir = File(context.cacheDir, "temp_save_${System.currentTimeMillis()}_${(0..9999).random()}")
         try {
-            val tempDir = File(context.cacheDir, "temp_save")
             if (tempDir.exists()) tempDir.deleteRecursively()
             if (!tempDir.mkdirs() && !tempDir.exists()) return false
 
@@ -450,10 +450,15 @@ object ProjectManager {
                     }
 
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val textEraseMask = layer.eraseMask
+                    if (textEraseMask != null && !textEraseMask.isRecycled) {
                         val name = "erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(textEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
 
                     val erasePathModels = layer.erasePaths.map { ep ->
@@ -704,10 +709,15 @@ object ProjectManager {
                         texPath = "images/$name"
                     }
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val shapeEraseMask = layer.eraseMask
+                    if (shapeEraseMask != null && !shapeEraseMask.isRecycled) {
                         val name = "shape_erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(shapeEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
                     val erasePathModels = layer.erasePaths.map { ep ->
                         ErasePathModel(
@@ -856,10 +866,15 @@ object ProjectManager {
                     saveBitmap(layer.bitmap, File(imagesDir, imgName))
 
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val imageEraseMask = layer.eraseMask
+                    if (imageEraseMask != null && !imageEraseMask.isRecycled) {
                         val name = "image_erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(imageEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
                     val erasePathModels = layer.erasePaths.map { ep ->
                         ErasePathModel(
@@ -888,10 +903,15 @@ object ProjectManager {
                     saveBitmap(layer.bitmap, File(imagesDir, brushImgName))
 
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val brushEraseMask = layer.eraseMask
+                    if (brushEraseMask != null && !brushEraseMask.isRecycled) {
                         val name = "brush_erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(brushEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
                     val erasePathModels = layer.erasePaths.map { ep ->
                         ErasePathModel(
@@ -978,6 +998,12 @@ object ProjectManager {
         } catch (e: Exception) {
             e.printStackTrace()
             return false
+        } finally {
+            try {
+                if (tempDir.exists()) tempDir.deleteRecursively()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -1321,8 +1347,12 @@ object ProjectManager {
                     val path = android.graphics.Path()
                     if (epm.points.isNotEmpty()) {
                         path.moveTo(epm.points[0].x, epm.points[0].y)
-                        for (i in 1 until epm.points.size) {
-                            path.lineTo(epm.points[i].x, epm.points[i].y)
+                        if (epm.points.size == 1) {
+                            path.lineTo(epm.points[0].x + 0.01f, epm.points[0].y)
+                        } else {
+                            for (i in 1 until epm.points.size) {
+                                path.lineTo(epm.points[i].x, epm.points[i].y)
+                            }
                         }
                     }
                     layer.erasePaths.add(
@@ -2083,6 +2113,31 @@ object ProjectManager {
         layer.opacityStart = model.opacityStart
         layer.opacityEnd = model.opacityEnd
         layer.opacityAngle = model.opacityAngle
+        if (layer is com.astral.typer.models.StylableLayer) {
+            val hasValidPathPoints = layer.erasePaths.any { it.points.isNotEmpty() }
+            if (hasValidPathPoints) {
+                try {
+                    if (layer is com.astral.typer.models.BrushLayer) {
+                        if (layer.eraseMask == null) {
+                            layer.eraseMask = android.graphics.Bitmap.createBitmap(
+                                layer.canvasWidth.coerceAtLeast(1),
+                                layer.canvasHeight.coerceAtLeast(1),
+                                android.graphics.Bitmap.Config.ARGB_8888
+                            )
+                        }
+                        layer.rebuildEraseMask(null)
+                    } else {
+                        val oldMask = layer.eraseMask
+                        layer.rebuildEraseMask(null)
+                        if (oldMask != null && oldMask !== layer.eraseMask && !oldMask.isRecycled) {
+                            oldMask.recycle()
+                        }
+                    }
+                } catch (t: Throwable) {
+                    t.printStackTrace()
+                }
+            }
+        }
     }
 
     // --- Helper Methods ---
@@ -2411,7 +2466,26 @@ object ProjectManager {
                 success = false
             }
 
-            // Fallback to JPEG if PNG compression failed
+            // Fallback to WEBP (preserves alpha channel) or JPEG if PNG compression failed
+            if (!success) {
+                if (tempFile.exists()) tempFile.delete()
+                try {
+                    java.io.BufferedOutputStream(FileOutputStream(tempFile)).use { out ->
+                        @Suppress("DEPRECATION")
+                        val webpFormat = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                            Bitmap.CompressFormat.WEBP_LOSSY
+                        } else {
+                            Bitmap.CompressFormat.WEBP
+                        }
+                        success = bitmap.compress(webpFormat, 90, out)
+                        out.flush()
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.e("ProjectManager", "WEBP compression failed, falling back to JPEG", e)
+                    success = false
+                }
+            }
+
             if (!success) {
                 if (tempFile.exists()) tempFile.delete()
                 try {
@@ -3281,10 +3355,15 @@ object ProjectManager {
                     }
 
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val textEraseMask = layer.eraseMask
+                    if (textEraseMask != null && !textEraseMask.isRecycled) {
                         val name = "erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(textEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
 
                     val erasePathModels = layer.erasePaths.map { ep ->
@@ -3526,10 +3605,15 @@ object ProjectManager {
                         texPath = "images/$name"
                     }
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val shapeEraseMask = layer.eraseMask
+                    if (shapeEraseMask != null && !shapeEraseMask.isRecycled) {
                         val name = "shape_erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(shapeEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
                     val erasePathModels = layer.erasePaths.map { ep ->
                         ErasePathModel(
@@ -3671,10 +3755,15 @@ object ProjectManager {
                     saveBitmap(layer.bitmap, File(imagesDir, imgName))
 
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val imageEraseMask = layer.eraseMask
+                    if (imageEraseMask != null && !imageEraseMask.isRecycled) {
                         val name = "image_erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(imageEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
                     val erasePathModels = layer.erasePaths.map { ep ->
                         ErasePathModel(
@@ -3703,10 +3792,15 @@ object ProjectManager {
                     saveBitmap(layer.bitmap, File(imagesDir, brushImgName))
 
                     var erasePath: String? = null
-                    if (layer.eraseMask != null) {
+                    val brushEraseMask = layer.eraseMask
+                    if (brushEraseMask != null && !brushEraseMask.isRecycled) {
                         val name = "brush_erase_$index.png"
-                        saveBitmap(layer.eraseMask!!, File(imagesDir, name))
-                        erasePath = "images/$name"
+                        try {
+                            saveBitmap(brushEraseMask, File(imagesDir, name))
+                            erasePath = "images/$name"
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
                     }
                     val erasePathModels = layer.erasePaths.map { ep ->
                         ErasePathModel(

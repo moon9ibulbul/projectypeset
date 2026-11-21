@@ -3621,7 +3621,9 @@ class AstralCanvasView @JvmOverloads constructor(
                 MotionEvent.ACTION_DOWN -> {
                     com.astral.typer.utils.UndoManager.saveState(layers)
                     stylable.eraseDragRevision++
-                    currentLayerErasePath.reset(); currentLayerErasePath.moveTo(maskX, maskY)
+                    currentLayerErasePath.reset()
+                    currentLayerErasePath.moveTo(maskX, maskY)
+                    currentLayerErasePath.lineTo(maskX + 0.01f, maskY)
                     currentLayerErasePoints.clear()
                     currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(maskX, maskY))
                     if (stylable.eraseMask == null) {
@@ -3653,7 +3655,7 @@ class AstralCanvasView @JvmOverloads constructor(
                     stylable.activeEraseHardness = layerEraseHardness
                     invalidate()
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     stylable.eraseDragRevision++
                     stylable.activeErasePath = null
                     if (!currentLayerErasePath.isEmpty) {

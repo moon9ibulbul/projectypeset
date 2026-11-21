@@ -3369,7 +3369,7 @@ class ShapeLayer(
         newLayer.textureBitmap = textureBitmap; newLayer.textureOffsetX = textureOffsetX; newLayer.textureOffsetY = textureOffsetY
         newLayer.patternName = patternName; newLayer.patternColor = patternColor; newLayer.patternAlpha = patternAlpha; newLayer.patternScale = patternScale; newLayer.patternRotation = patternRotation
         if (eraseMask != null) newLayer.eraseMask = eraseMask!!.copy(eraseMask!!.config, true)
-        for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
+        for (p in erasePaths) newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness, p.points.toList()))
         newLayer.currentEffect = currentEffect; newLayer.secondaryEffect = secondaryEffect; newLayer.tertiaryEffect = tertiaryEffect; newLayer.blurRadius = blurRadius; newLayer.isGradientBlur = isGradientBlur; newLayer.blurLeft = blurLeft; newLayer.blurRight = blurRight; newLayer.blurAngle = blurAngle; newLayer.longShadowLength = longShadowLength; newLayer.longShadowColor = longShadowColor; newLayer.longShadowAngle = longShadowAngle; newLayer.motionBlurLength = motionBlurLength; newLayer.motionBlurAngle = motionBlurAngle
         newLayer.motionBlurKernelSize = motionBlurKernelSize; newLayer.motionBlurOffset = motionBlurOffset; newLayer.motionBlurVelocityX = motionBlurVelocityX; newLayer.motionBlurVelocityY = motionBlurVelocityY
         newLayer.motionBlurWeightMode = motionBlurWeightMode
@@ -3564,7 +3564,8 @@ class ShapeLayer(
             val scaledPaths = erasePaths.map { ep ->
                 val newPath = Path(ep.path)
                 newPath.transform(matrix)
-                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness)
+                val scaledPoints = ep.points.map { ErasePoint(it.x * 2f, it.y * 2f) }
+                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness, scaledPoints)
             }
             erasePaths.clear()
             erasePaths.addAll(scaledPaths)

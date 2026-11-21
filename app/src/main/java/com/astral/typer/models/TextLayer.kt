@@ -1398,7 +1398,7 @@ class TextLayer(
 
         // Clone paths (Paths are mutable, need deep copy)
         for (p in this.erasePaths) {
-            newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness))
+            newLayer.erasePaths.add(ErasePathData(Path(p.path), p.size, p.opacity, p.hardness, p.points.toList()))
         }
 
         newLayer.currentEffect = this.currentEffect
@@ -2294,8 +2294,8 @@ class TextLayer(
                              RectF(
                                  -w / 2f - pad,
                                  -h / 2f - pad,
-                                 -w / 2f - pad + eraseMask!!.width,
-                                 -h / 2f - pad + eraseMask!!.height
+                                 w / 2f + pad,
+                                 -h / 2f + ch + pad
                              )
                          } else null
 
@@ -7017,7 +7017,8 @@ class TextLayer(
             val scaledPaths = erasePaths.map { ep ->
                 val newPath = Path(ep.path)
                 newPath.transform(matrix)
-                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness)
+                val scaledPoints = ep.points.map { ErasePoint(it.x * 2f, it.y * 2f) }
+                ErasePathData(newPath, ep.size * 2f, ep.opacity, ep.hardness, scaledPoints)
             }
             erasePaths.clear()
             erasePaths.addAll(scaledPaths)
