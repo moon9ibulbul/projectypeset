@@ -599,8 +599,9 @@ class RecentActivity : AppCompatActivity() {
                     true
                 }
                 2 -> { // Remove
-                    removeSelectedProjects()
+                    val filesToRemove = adapter.selectedItems.toList()
                     mode.finish()
+                    confirmRemoveSelectedProjects(filesToRemove)
                     true
                 }
                 3 -> { // Export to PDF
@@ -804,8 +805,24 @@ class RecentActivity : AppCompatActivity() {
         }
     }
 
-    private fun removeSelectedProjects() {
-        val files = adapter.selectedItems.toList()
+    private fun confirmRemoveSelectedProjects(files: List<File>) {
+        if (files.isEmpty()) return
+
+        val message = if (files.size == 1) {
+            "Are you sure you want to permanently delete this project? This action cannot be undone."
+        } else {
+            "Are you sure you want to permanently delete these ${files.size} projects? This action cannot be undone."
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Delete Project")
+            .setMessage(message)
+            .setPositiveButton("Delete") { _, _ -> removeSelectedProjects(files) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun removeSelectedProjects(files: List<File>) {
         var deletedCount = 0
 
         lifecycleScope.launch(Dispatchers.IO) {

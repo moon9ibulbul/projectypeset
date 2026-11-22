@@ -535,7 +535,7 @@ class MainActivity : AppCompatActivity() {
                                                     1 -> { // Delete
                                                         android.app.AlertDialog.Builder(this@MainActivity)
                                                             .setTitle("Delete Project")
-                                                            .setMessage("Delete '$name'?")
+                                                            .setMessage("Are you sure you want to permanently delete '$name'? This action cannot be undone.")
                                                             .setPositiveButton("Delete") { _, _ ->
                                                                 lifecycleScope.launch(Dispatchers.IO) {
                                                                     ProjectManager.deleteProjectFolder(this@MainActivity, file)
