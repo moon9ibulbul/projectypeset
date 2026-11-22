@@ -2282,13 +2282,19 @@ class TextLayer(
                         }
                     }
                 }
-                renderChain(activeEffects.size - 1, canvas)
+                if (skipEffects) {
+                    // Fast interaction (pan/zoom): draw the warped content alone instead of
+                    // re-running the hardware shader chain for every frame.
+                    drawTransformed(canvas)
+                } else {
+                    renderChain(activeEffects.size - 1, canvas)
+                }
             } else {
                 if (isWarpActive) {
                     if (_warpMesh != null) {
-                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false, bounds = bounds, viewScale = viewScale)
+                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds, viewScale = viewScale)
                     } else {
-                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false, viewScale = viewScale)
+                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects, viewScale = viewScale)
                     }
                 } else {
                  val pad = calculatePadding()
@@ -4429,7 +4435,7 @@ class TextLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask) {
+            if (!isDrawingClippingMask && !skipEffects) {
                 drawShadows(innerCanvas)
             }
 

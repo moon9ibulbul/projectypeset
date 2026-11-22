@@ -2841,7 +2841,15 @@ class AstralCanvasView @JvmOverloads constructor(
 
         val prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val disableFastInteraction = prefs.getBoolean("disable_fast_interaction", false)
-        val isFastInteraction = !disableFastInteraction && currentMode == Mode.PAN_ZOOM
+        // Dragging a size handle re-renders the layer every frame just like pan/zoom, so the
+        // same effect skipping applies while the box scale/stretch is being changed.
+        val isFastInteraction = !disableFastInteraction && (
+                currentMode == Mode.PAN_ZOOM ||
+                        currentMode == Mode.RESIZE_LAYER ||
+                        currentMode == Mode.STRETCH_H ||
+                        currentMode == Mode.STRETCH_V ||
+                        currentMode == Mode.BOX_WIDTH
+                )
 
         val disableLOD = prefs.getBoolean("disable_lod_scaling", false)
         val viewScale = if (disableLOD) 1.0f else getCurrentViewScale()
@@ -4168,7 +4176,12 @@ class AstralCanvasView @JvmOverloads constructor(
                      currentMode = Mode.TYPER
                      invalidate()
                 } else {
-                     val wasPanZoom = (currentMode == Mode.PAN_ZOOM)
+                     // Any mode that renders without effects needs a full redraw once it ends.
+                     val wasFastInteraction = currentMode == Mode.PAN_ZOOM ||
+                             currentMode == Mode.RESIZE_LAYER ||
+                             currentMode == Mode.STRETCH_H ||
+                             currentMode == Mode.STRETCH_V ||
+                             currentMode == Mode.BOX_WIDTH
                      // If we are in Mode.NONE and haven't moved, it was a tap on empty space.
                      if (currentMode == Mode.NONE && !hasMoved) {
                          if (!preventDeselection) {
@@ -4176,7 +4189,7 @@ class AstralCanvasView @JvmOverloads constructor(
                          }
                      }
                      currentMode = Mode.NONE
-                     if (wasPanZoom) {
+                     if (wasFastInteraction) {
                          invalidate()
                      }
                 }

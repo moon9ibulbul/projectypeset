@@ -676,7 +676,13 @@ class ShapeLayer(
                         }
                     }
                 }
-                renderChain(activeEffects.size - 1, canvas)
+                if (skipEffects) {
+                    // Fast interaction (pan/zoom): draw the warped content alone instead of
+                    // re-running the hardware shader chain for every frame.
+                    drawTransformed(canvas)
+                } else {
+                    renderChain(activeEffects.size - 1, canvas)
+                }
             } else {
                 if (isWarp && warpMesh != null) {
                     drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds, viewScale = viewScale)
@@ -1754,7 +1760,7 @@ class ShapeLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask) {
+            if (!isDrawingClippingMask && !skipEffects) {
                 drawShadows(innerCanvas)
             }
 
