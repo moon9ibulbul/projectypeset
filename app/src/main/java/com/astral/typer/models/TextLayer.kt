@@ -2282,7 +2282,13 @@ class TextLayer(
                         }
                     }
                 }
-                renderChain(activeEffects.size - 1, canvas)
+                if (skipEffects) {
+                    // Fast interaction (pan/zoom): draw the warped content alone instead of
+                    // re-running the hardware shader chain for every frame.
+                    drawTransformed(canvas)
+                } else {
+                    renderChain(activeEffects.size - 1, canvas)
+                }
             } else {
                 if (isWarpActive) {
                     if (_warpMesh != null) {
