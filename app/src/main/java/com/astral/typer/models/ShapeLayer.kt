@@ -1754,7 +1754,7 @@ class ShapeLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask) {
+            if (!isDrawingClippingMask && !skipEffects) {
                 drawShadows(innerCanvas)
             }
 

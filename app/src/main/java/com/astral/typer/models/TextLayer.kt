@@ -2286,9 +2286,9 @@ class TextLayer(
             } else {
                 if (isWarpActive) {
                     if (_warpMesh != null) {
-                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = false, bounds = bounds, viewScale = viewScale)
+                        drawWarped(canvas, layout, w, h, ch, _warpRows, _warpCols, _warpMesh!!, qualityScale, skipEffects = skipEffects, bounds = bounds, viewScale = viewScale)
                     } else {
-                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = false, viewScale = viewScale)
+                        drawCharacterByCharacter(canvas, layout, w, h, ch, qualityScale, skipEffects = skipEffects, viewScale = viewScale)
                     }
                 } else {
                  val pad = calculatePadding()
@@ -4429,7 +4429,7 @@ class TextLayer(
         }
 
         val drawBase = { innerCanvas: Canvas ->
-            if (!isDrawingClippingMask) {
+            if (!isDrawingClippingMask && !skipEffects) {
                 drawShadows(innerCanvas)
             }
 
