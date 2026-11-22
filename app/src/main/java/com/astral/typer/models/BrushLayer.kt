@@ -946,7 +946,16 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             val cropW = (cropRight - cropLeft).coerceAtLeast(1f)
             val cropH = (cropBottom - cropTop).coerceAtLeast(1f)
 
-            val scale = 1.0f
+            // Build the stroke/shadow buffer at the resolution it is actually shown at. Zoomed out,
+            // a full-resolution buffer of a huge brush layer costs ~100x the pixels it contributes,
+            // and the blur passes over it run every frame.
+            val scale = RenderQuality.effectQualityScale(
+                Math.max(Math.abs(scaleX), Math.abs(scaleY)),
+                viewScale,
+                maxScale = 1f,
+                contentWidth = cropW,
+                contentHeight = cropH
+            )
 
             val bmpW = Math.ceil((cropW * scale).toDouble()).toInt().coerceAtLeast(1)
             val bmpH = Math.ceil((cropH * scale).toDouble()).toInt().coerceAtLeast(1)

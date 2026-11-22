@@ -387,8 +387,13 @@ class ImageLayer(
         val saveCount = canvas.saveLayer(bounds, layerPaint)
 
         if (isWarp && warpMesh != null) {
-            val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-            val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
+            val qualityScale = RenderQuality.effectQualityScale(
+                Math.max(Math.abs(scaleX), Math.abs(scaleY)),
+                viewScale,
+                maxScale = 3f,
+                contentWidth = w + pad * 2,
+                contentHeight = h + pad * 2
+            )
             drawWarped(canvas, w, h, warpRows, warpCols, warpMesh!!, qualityScale)
         } else {
              canvas.translate(dx, dy)

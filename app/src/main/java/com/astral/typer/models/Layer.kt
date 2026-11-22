@@ -411,3 +411,77 @@ abstract class Layer {
 
     open fun doubleResolution() {}
 }
+
+/**
+ * Zoom-aware render resolution for offscreen (effect / warp) bitmaps.
+ *
+ * Layer effects are rendered into layer-local bitmaps and afterwards down-scaled by the canvas
+ * zoom. The previous rule only looked at the layer transform (`max(1f, |scaleX|, |scaleY|)`), so a
+ * layer covering thousands of pixels kept a full-resolution (or super-sampled) effect bitmap even
+ * while the whole project was fitted to the screen at 10%. In a tall project every visible layer
+ * then holds and uploads a huge texture for a few hundred screen pixels, the GPU texture cache
+ * thrashes and the editor stutters although nothing on screen is actually large.
+ *
+ * This multiplier follows the size the layer really occupies on screen and is snapped to coarse
+ * steps so the bitmap caches stay valid across small zoom changes (a new key re-renders the whole
+ * effect stack on the UI thread).
+ */
+object RenderQuality {
+    /** Never render an effect bitmap below this fraction of layer resolution. */
+    private const val MIN_QUALITY = 0.25f
+
+    /** Hard budget per cached effect bitmap (8M px ~= 32 MB ARGB). */
+    private const val MAX_BITMAP_PIXELS = 8_000_000f
+
+    private val STEPS = floatArrayOf(0.25f, 0.375f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 2.5f, 3f, 4f)
+
+    /**
+     * @param layerScale combined layer scale in project space (max of |scaleX|, |scaleY|)
+     * @param viewScale current canvas zoom (1f = 100%)
+     * @param maxScale upper bound for the multiplier for this layer type
+     * @param contentWidth width of the rendered content (padding included), 0 to skip the budget
+     * @param contentHeight height of the rendered content (padding included), 0 to skip the budget
+     */
+    fun effectQualityScale(
+        layerScale: Float,
+        viewScale: Float,
+        maxScale: Float = 3f,
+        contentWidth: Float = 0f,
+        contentHeight: Float = 0f
+    ): Float {
+        val upper = Math.max(1f, maxScale)
+        val scale = Math.max(1f, Math.abs(layerScale)).coerceAtMost(upper)
+
+        // Pixels the layer content really occupies on screen after layer transform and canvas zoom.
+        // At 100% this is exactly the old multiplier, so normal editing costs what it used to.
+        val screenScale = scale * viewScale.coerceAtLeast(0.001f)
+        val wanted = screenScale.coerceIn(MIN_QUALITY, upper)
+
+        var quality = snapUp(wanted)
+
+        // Very large content at moderate zoom can still ask for an unallocatable bitmap.
+        if (contentWidth > 0f && contentHeight > 0f) {
+            val area = contentWidth.coerceAtLeast(1f) * contentHeight.coerceAtLeast(1f)
+            if (area * quality * quality > MAX_BITMAP_PIXELS) {
+                val budget = kotlin.math.sqrt((MAX_BITMAP_PIXELS / area).toDouble()).toFloat()
+                quality = snapDown(budget.coerceIn(MIN_QUALITY, upper))
+            }
+        }
+
+        return quality.coerceIn(MIN_QUALITY, upper)
+    }
+
+    /** Snaps up to the first step, so the cached render is never below the requested resolution. */
+    private fun snapUp(value: Float): Float {
+        for (step in STEPS) if (step >= value) return step
+        return STEPS[STEPS.size - 1]
+    }
+
+    private fun snapDown(value: Float): Float {
+        var result = MIN_QUALITY
+        for (step in STEPS) {
+            if (step <= value) result = step
+        }
+        return result
+    }
+}
