@@ -2141,12 +2141,22 @@ class AstralCanvasView @JvmOverloads constructor(
         return tiles
     }
 
-    fun setBackgroundImage(bitmap: android.graphics.Bitmap) {
+    fun setBackgroundImage(bitmap: android.graphics.Bitmap, resizeCanvas: Boolean = false) {
         for (tile in backgroundTiles) {
             tile.bitmap.recycle()
         }
         backgroundTiles.clear()
         backgroundTiles.addAll(createTilesFromBitmap(bitmap))
+
+        // A replacement base image can have a different resolution than the current canvas.
+        // Follow its size so the canvas (and with it saving and exporting) matches the new image.
+        if (resizeCanvas && (bitmap.width != canvasWidth || bitmap.height != canvasHeight)) {
+            canvasWidth = bitmap.width
+            canvasHeight = bitmap.height
+            backgroundRect.set(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat())
+            post { centerCanvas() }
+        }
+
         isBackgroundModified = true
         invalidate()
     }
@@ -2934,12 +2944,21 @@ class AstralCanvasView @JvmOverloads constructor(
         val disableFastInteraction = prefs.getBoolean("disable_fast_interaction", false)
         // Dragging a size handle re-renders the layer every frame just like pan/zoom, so the
         // same effect skipping applies while the box scale/stretch is being changed.
+        // Moving a layer, and especially dragging a warp/perspective point, also re-renders every
+        // frame, so the same effect skipping applies. Warped layers are the most expensive case.
         val isFastInteraction = !disableFastInteraction && (
                 currentMode == Mode.PAN_ZOOM ||
                         currentMode == Mode.RESIZE_LAYER ||
                         currentMode == Mode.STRETCH_H ||
                         currentMode == Mode.STRETCH_V ||
-                        currentMode == Mode.BOX_WIDTH
+                        currentMode == Mode.BOX_WIDTH ||
+                        currentMode == Mode.DRAG_LAYER ||
+                        currentMode == Mode.ROTATE_LAYER ||
+                        currentMode == Mode.WARP_DRAG ||
+                        currentMode == Mode.PERSPECTIVE_DRAG_TL ||
+                        currentMode == Mode.PERSPECTIVE_DRAG_TR ||
+                        currentMode == Mode.PERSPECTIVE_DRAG_BR ||
+                        currentMode == Mode.PERSPECTIVE_DRAG_BL
                 )
 
         val disableLOD = prefs.getBoolean("disable_lod_scaling", false)
@@ -4272,7 +4291,14 @@ class AstralCanvasView @JvmOverloads constructor(
                              currentMode == Mode.RESIZE_LAYER ||
                              currentMode == Mode.STRETCH_H ||
                              currentMode == Mode.STRETCH_V ||
-                             currentMode == Mode.BOX_WIDTH
+                             currentMode == Mode.BOX_WIDTH ||
+                             currentMode == Mode.DRAG_LAYER ||
+                             currentMode == Mode.ROTATE_LAYER ||
+                             currentMode == Mode.WARP_DRAG ||
+                             currentMode == Mode.PERSPECTIVE_DRAG_TL ||
+                             currentMode == Mode.PERSPECTIVE_DRAG_TR ||
+                             currentMode == Mode.PERSPECTIVE_DRAG_BR ||
+                             currentMode == Mode.PERSPECTIVE_DRAG_BL
                      // If we are in Mode.NONE and haven't moved, it was a tap on empty space.
                      if (currentMode == Mode.NONE && !hasMoved) {
                          if (!preventDeselection) {

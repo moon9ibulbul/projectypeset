@@ -177,7 +177,8 @@ class EditorActivity : AppCompatActivity() {
                 }
                 val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
                 if (bitmap != null) {
-                    canvasView.setBackgroundImage(bitmap)
+                    // The new base image may have a different size, so the canvas must follow it.
+                    canvasView.setBackgroundImage(bitmap, resizeCanvas = true)
                     Toast.makeText(this, "Base image updated!", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
