@@ -2841,6 +2841,9 @@ class AstralCanvasView @JvmOverloads constructor(
 
              canvas.restore()
         }
+
+        // Zoom percentage overlay in screen space (sticky under the top bar)
+        drawZoomIndicator(canvas)
     }
 
     private fun drawChain(canvas: Canvas, layersList: List<Layer>, index: Int, viewport: RectF? = null, skipEffects: Boolean = false, viewScale: Float = 1.0f): Int {
@@ -3176,9 +3179,6 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         canvas.restore()
-
-        // Zoom percentage overlay in screen space
-        drawZoomIndicator(canvas)
     }
 
     private fun lineIntersectsLayer(p1: PointF, p2: PointF, layer: Layer): Boolean {
