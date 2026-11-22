@@ -898,27 +898,6 @@ class TextLayer(
         erasedContentHash = -1 // force erased content to be rebuilt on the next draw
     }
 
-    /**
-     * Snaps the render resolution multiplier to coarse steps.
-     *
-     * The effect/warp bitmap caches are keyed on `qualityScale`, so an exact multiplier made every
-     * 1% Box Scale change build a new key and re-render the whole effect stack on the UI thread.
-     * Snapping keeps one cache entry alive across a range of box-scale steps (and across small
-     * zoom changes) while never rendering below the requested resolution, so nothing gets blurry.
-     */
-    private fun quantizeQualityScale(scale: Float, maxScale: Float): Float {
-        val s = Math.max(1f, scale)
-        return when {
-            s <= 1f -> 1f
-            s <= 1.25f -> 1.25f
-            s <= 1.5f -> 1.5f
-            s <= 2f -> 2f
-            s <= 2.5f -> 2.5f
-            s <= 3f -> 3f
-            else -> Math.max(maxScale, 4f)
-        }
-    }
-
     private fun getErasedContentBitmap(layout: StaticLayout, w: Float, ch: Float, pad: Float, qualityScale: Float, bmpW: Int, bmpH: Int, skipEffects: Boolean = false, viewScale: Float = 1.0f): Bitmap {
         // Dual-slot cache for skipEffects:
         // Slot A (cleanContentCache) = full effects; Slot B (fastCleanContentCache) = fast-pan.
@@ -2257,9 +2236,13 @@ class TextLayer(
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !(isMotionShadow && motionShadowDistance > 0f) && !hasHighlight
         }
 
-        val effectiveScale = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * Math.max(1f, viewScale)
-        val baseQualityScale = quantizeQualityScale(effectiveScale, 4f)
-        val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
+        val qualityScale = RenderQuality.effectQualityScale(
+            Math.max(Math.abs(scaleX), Math.abs(scaleY)),
+            viewScale,
+            maxScale = 4f,
+            contentWidth = w + pad * 2,
+            contentHeight = ch + pad * 2
+        )
 
         try {
             if (useHardwareTransformEffects) {
@@ -2525,12 +2508,18 @@ class TextLayer(
         canvas.restore()
     }
 
-    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false, bounds: RectF) {
+    private fun drawPerspective(canvas: Canvas, layout: StaticLayout, w: Float, h: Float, ch: Float, skipEffects: Boolean = false, bounds: RectF, viewScale: Float = 1.0f) {
         val srcRect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
 
-        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val qualityScale = RenderQuality.effectQualityScale(
+            Math.max(Math.abs(scaleX), Math.abs(scaleY)),
+            viewScale,
+            maxScale = 3f,
+            contentWidth = w + pad * 2,
+            contentHeight = ch + pad * 2
+        )
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((ch + pad * 2) * qualityScale).toInt()
 

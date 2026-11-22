@@ -656,8 +656,13 @@ class ShapeLayer(
         if (hasTransform) {
             isDrawingStrokePass = !isRoughStroke && shadowRadius <= 0f && shadowThickness <= 0f && !(isMotionShadow && motionShadowDistance > 0f)
         }
-        val baseQualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
-        val qualityScale = if (viewScale < 0.2f) (baseQualityScale * 0.5f).coerceAtLeast(0.5f) else baseQualityScale
+        val qualityScale = RenderQuality.effectQualityScale(
+            Math.max(Math.abs(scaleX), Math.abs(scaleY)),
+            viewScale,
+            maxScale = 3f,
+            contentWidth = w + pad * 2,
+            contentHeight = h + pad * 2
+        )
 
         try {
             if (useHardwareTransformEffects) {
@@ -801,7 +806,13 @@ class ShapeLayer(
         val matrix = calculatePerspectiveMatrix(srcRect, perspectivePoints!!)
         val pad = calculatePadding()
 
-        val qualityScale = Math.max(1f, Math.max(Math.abs(scaleX), Math.abs(scaleY))).coerceAtMost(3f)
+        val qualityScale = RenderQuality.effectQualityScale(
+            Math.max(Math.abs(scaleX), Math.abs(scaleY)),
+            viewScale,
+            maxScale = 3f,
+            contentWidth = w + pad * 2,
+            contentHeight = h + pad * 2
+        )
         val bmpW = ceil((w + pad * 2) * qualityScale).toInt()
         val bmpH = ceil((h + pad * 2) * qualityScale).toInt()
 
