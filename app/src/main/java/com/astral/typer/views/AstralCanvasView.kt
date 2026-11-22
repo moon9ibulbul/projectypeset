@@ -1,5 +1,6 @@
 package com.astral.typer.views
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
@@ -27,6 +28,7 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class AstralCanvasView @JvmOverloads constructor(
     context: Context,
@@ -1197,6 +1199,17 @@ class AstralCanvasView @JvmOverloads constructor(
         return center
     }
 
+    /**
+     * Scrolls the canvas so that [layer] is centered in the viewport without changing the zoom level.
+     */
+    fun scrollToLayer(layer: Layer) {
+        if (width == 0 || height == 0) return
+        val layerCenter = floatArrayOf(layer.x, layer.y)
+        viewMatrix.mapPoints(layerCenter)
+        viewMatrix.postTranslate(width / 2f - layerCenter[0], height / 2f - layerCenter[1])
+        invalidate()
+    }
+
     fun getBackgroundImage(): android.graphics.Bitmap? {
         // Reconstruct full bitmap from tiles for compatibility (e.g. Saving)
         // Warning: This may OOM on huge images.
@@ -1747,6 +1760,22 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private val viewMatrix = Matrix()
     private val invertedMatrix = Matrix()
+
+    // Zoom percentage overlay
+    private var zoomIndicatorText = "100%"
+    private var zoomIndicatorAlpha = 0f
+    private var zoomIndicatorAnimator: ValueAnimator? = null
+    private val zoomIndicatorBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#CC000000")
+        style = Paint.Style.FILL
+    }
+    private val zoomIndicatorTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 14f * resources.displayMetrics.scaledDensity
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        textAlign = Paint.Align.LEFT
+    }
+    private val zoomIndicatorHideRunnable = Runnable { fadeOutZoomIndicator() }
 
     private fun getCurrentViewScale(): Float {
         val values = FloatArray(9)
@@ -2419,6 +2448,65 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    private fun showZoomIndicator() {
+        zoomIndicatorText = "${(getCurrentViewScale() * 100f).roundToInt()}%"
+        removeCallbacks(zoomIndicatorHideRunnable)
+        zoomIndicatorAnimator?.cancel()
+        if (zoomIndicatorAlpha < 0.99f) {
+            zoomIndicatorAnimator = ValueAnimator.ofFloat(zoomIndicatorAlpha, 1f).apply {
+                duration = 120L
+                addUpdateListener {
+                    zoomIndicatorAlpha = it.animatedValue as Float
+                    invalidate()
+                }
+                start()
+            }
+        }
+        postDelayed(zoomIndicatorHideRunnable, 1000L)
+    }
+
+    private fun fadeOutZoomIndicator() {
+        zoomIndicatorAnimator?.cancel()
+        zoomIndicatorAnimator = ValueAnimator.ofFloat(zoomIndicatorAlpha, 0f).apply {
+            duration = 250L
+            addUpdateListener {
+                zoomIndicatorAlpha = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun drawZoomIndicator(canvas: Canvas) {
+        if (zoomIndicatorAlpha <= 0.01f) return
+
+        val alpha = (255 * zoomIndicatorAlpha).toInt().coerceIn(0, 255)
+        zoomIndicatorBgPaint.alpha = alpha
+        zoomIndicatorTextPaint.alpha = alpha
+
+        val density = resources.displayMetrics.density
+        val paddingH = 10f * density
+        val paddingV = 5f * density
+        val left = 12f * density
+        val top = 12f * density
+
+        val fontMetrics = zoomIndicatorTextPaint.fontMetrics
+        val textWidth = zoomIndicatorTextPaint.measureText(zoomIndicatorText)
+        val textHeight = fontMetrics.descent - fontMetrics.ascent
+        val right = left + textWidth + paddingH * 2f
+        val bottom = top + textHeight + paddingV * 2f
+
+        val rect = RectF(left, top, right, bottom)
+        val corner = 8f * density
+        canvas.drawRoundRect(rect, corner, corner, zoomIndicatorBgPaint)
+        canvas.drawText(
+            zoomIndicatorText,
+            left + paddingH,
+            top + paddingV - fontMetrics.ascent,
+            zoomIndicatorTextPaint
+        )
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
@@ -3088,6 +3176,9 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         canvas.restore()
+
+        // Zoom percentage overlay in screen space
+        drawZoomIndicator(canvas)
     }
 
     private fun lineIntersectsLayer(p1: PointF, p2: PointF, layer: Layer): Boolean {
@@ -4207,6 +4298,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 val focusY = detector.focusY
                 viewMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY)
                 invalidate()
+                showZoomIndicator()
             }
             return true
         }

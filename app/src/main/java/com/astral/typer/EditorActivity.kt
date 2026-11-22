@@ -5348,6 +5348,8 @@ class EditorActivity : AppCompatActivity() {
                     canvasView.toggleMultiSelectLayer(layer)
                 } else {
                     canvasView.selectLayer(layer)
+                    // Single selection: bring the selected layer into view
+                    canvasView.scrollToLayer(layer)
                 }
                 canvasView.invalidate()
                 refreshMultiSelectUi()
