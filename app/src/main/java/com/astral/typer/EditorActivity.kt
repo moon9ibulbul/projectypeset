@@ -1430,6 +1430,9 @@ class EditorActivity : AppCompatActivity() {
                     getTertiaryEffect() -> {
                         setTertiaryEffect(TextEffectType.NONE)
                     }
+                    else -> {
+                        // Effect is not in any slot; nothing to deactivate.
+                    }
                 }
                 canvasView.invalidate()
                 showEffectMenu()
