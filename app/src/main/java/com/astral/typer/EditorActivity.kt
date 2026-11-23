@@ -1071,16 +1071,16 @@ class EditorActivity : AppCompatActivity() {
         // Skip regions that ended up empty instead of adding a transparent layer.
         var hasInk = false
         val row = IntArray(w)
-        var y = 0
-        while (y < h && !hasInk) {
-            patch.getPixels(row, 0, w, 0, y, w, 1)
+        var scanY = 0
+        while (scanY < h && !hasInk) {
+            patch.getPixels(row, 0, w, 0, scanY, w, 1)
             for (pixel in row) {
                 if ((pixel ushr 24) != 0) {
                     hasInk = true
                     break
                 }
             }
-            y++
+            scanY++
         }
         if (!hasInk) {
             patch.recycle()
