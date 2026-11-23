@@ -923,63 +923,96 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
 
-            val finalMaskBitmap = if (result != null) {
+            // The composed inpaint source is no longer needed once the engine has returned,
+            // so release that full-canvas copy before allocating the mask patch.
+            if (recycleSourceBitmap) {
+                sourceBitmap.recycle()
+            }
+
+            // The "Inpaint Mask" layer only needs to cover the touched region, not the whole
+            // canvas. A full-canvas ARGB_8888 patch (plus the full-canvas merge buffer and the
+            // inpaint result) is 3 x 4 bytes per pixel and OOMs mid-range phones on large
+            // canvases, so the patch is cropped to the mask bounds (union with any previous mask).
+            val finalMaskData = if (result != null) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    val existing = existingMaskLayer
+                    val patchBounds = android.graphics.Rect(bounds)
+                    if (existing != null) {
+                        // Keep mask content from earlier inpaints that lies outside these bounds.
+                        val halfW = existing.getWidth() * existing.scaleX / 2f
+                        val halfH = existing.getHeight() * existing.scaleY / 2f
+                        patchBounds.union(
+                            android.graphics.Rect(
+                                Math.floor((existing.x - halfW).toDouble()).toInt(),
+                                Math.floor((existing.y - halfH).toDouble()).toInt(),
+                                Math.ceil((existing.x + halfW).toDouble()).toInt(),
+                                Math.ceil((existing.y + halfH).toDouble()).toInt()
+                            )
+                        )
+                        patchBounds.left = patchBounds.left.coerceIn(0, originalBitmap.width)
+                        patchBounds.top = patchBounds.top.coerceIn(0, originalBitmap.height)
+                        patchBounds.right = patchBounds.right.coerceIn(0, originalBitmap.width)
+                        patchBounds.bottom = patchBounds.bottom.coerceIn(0, originalBitmap.height)
+                    }
+                    if (patchBounds.isEmpty) patchBounds.set(bounds)
+
+                    val patchW = patchBounds.width().coerceAtLeast(1)
+                    val patchH = patchBounds.height().coerceAtLeast(1)
                     val patchBitmap = android.graphics.Bitmap.createBitmap(
-                        originalBitmap.width,
-                        originalBitmap.height,
+                        patchW,
+                        patchH,
                         android.graphics.Bitmap.Config.ARGB_8888
                     )
                     val patchCanvas = android.graphics.Canvas(patchBitmap)
                     patchCanvas.drawColor(Color.TRANSPARENT)
 
+                    // Carry over mask content from earlier inpaints
+                    if (existing != null) {
+                        val wasVisible = existing.isVisible
+                        existing.isVisible = true
+                        patchCanvas.save()
+                        patchCanvas.translate(-patchBounds.left.toFloat(), -patchBounds.top.toFloat())
+                        existing.draw(patchCanvas)
+                        patchCanvas.restore()
+                        existing.isVisible = wasVisible
+                    }
+
+                    // Draw the inpaint result cropped to the touched bounds
                     val saveCount = patchCanvas.save()
+                    patchCanvas.translate(-patchBounds.left.toFloat(), -patchBounds.top.toFloat())
                     patchCanvas.clipRect(bounds)
                     patchCanvas.drawBitmap(result, 0f, 0f, null)
+                    patchCanvas.restoreToCount(saveCount)
 
+                    // Apply the inpaint mask (DST_IN) only inside the touched bounds so carried
+                    // over mask content outside them is preserved.
                     val transferPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
                     }
+                    patchCanvas.save()
+                    patchCanvas.clipRect(bounds)
+                    patchCanvas.translate(-patchBounds.left.toFloat(), -patchBounds.top.toFloat())
                     if (maskBitmap.width == bounds.width() && maskBitmap.height == bounds.height()) {
                         patchCanvas.drawBitmap(maskBitmap, bounds.left.toFloat(), bounds.top.toFloat(), transferPaint)
                     } else {
                         patchCanvas.drawBitmap(maskBitmap, 0f, 0f, transferPaint)
                     }
-                    patchCanvas.restoreToCount(saveCount)
+                    patchCanvas.restore()
 
                     result.recycle()
 
-                    if (existingMaskLayer != null) {
-                        val mergedBitmap = android.graphics.Bitmap.createBitmap(
-                            originalBitmap.width,
-                            originalBitmap.height,
-                            android.graphics.Bitmap.Config.ARGB_8888
-                        )
-                        val mergedCanvas = android.graphics.Canvas(mergedBitmap)
-                        mergedCanvas.drawColor(Color.TRANSPARENT)
-                        val wasVisible = existingMaskLayer.isVisible
-                        existingMaskLayer.isVisible = true
-                        existingMaskLayer.draw(mergedCanvas)
-                        existingMaskLayer.isVisible = wasVisible
-                        mergedCanvas.drawBitmap(patchBitmap, 0f, 0f, null)
-                        patchBitmap.recycle()
-                        mergedBitmap
-                    } else {
-                        patchBitmap
-                    }
+                    Pair(patchBitmap, patchBounds)
                 }
             } else {
                 null
             }
 
-            if (recycleSourceBitmap) {
-                sourceBitmap.recycle()
-            }
-
             withContext(Dispatchers.Main) {
                 binding.tvLoadingProgress.visibility = View.GONE
                 binding.loadingOverlay.visibility = View.GONE
-                if (finalMaskBitmap != null) {
+                if (finalMaskData != null) {
+                    val finalMaskBitmap = finalMaskData.first
+                    val maskBounds = finalMaskData.second
                     val currentLayers = canvasView.getLayers().toMutableList()
                     val oldIdx = currentLayers.indexOfFirst {
                         it is com.astral.typer.models.ImageLayer && it.name == "Inpaint Mask"
@@ -989,8 +1022,8 @@ class EditorActivity : AppCompatActivity() {
                     }
 
                     val maskLayer = com.astral.typer.models.ImageLayer(finalMaskBitmap, null).apply {
-                        x = originalBitmap.width / 2f
-                        y = originalBitmap.height / 2f
+                        x = maskBounds.exactCenterX()
+                        y = maskBounds.exactCenterY()
                         rotation = 0f
                         scaleX = 1f
                         scaleY = 1f
@@ -1376,15 +1409,34 @@ class EditorActivity : AppCompatActivity() {
             return card
         }
 
-        val handleEffectToggle = { effect: TextEffectType, isToggleOff: Boolean ->
+        // Tapping a card of an already active effect deactivates it. The remaining effects
+        // shift up one slot (third -> second, second -> first) so the chain never has holes.
+        val handleEffectToggle = toggle@ { effect: TextEffectType, isToggleOff: Boolean ->
             if (effect == TextEffectType.NONE) {
                 setEffect(TextEffectType.NONE)
                 setSecondaryEffect(TextEffectType.NONE)
                 setTertiaryEffect(TextEffectType.NONE)
-            } else if (isToggleOff) {
-                if (getEffect() == effect) setEffect(TextEffectType.NONE)
-                if (getSecondaryEffect() == effect) setSecondaryEffect(TextEffectType.NONE)
-                if (getTertiaryEffect() == effect) setTertiaryEffect(TextEffectType.NONE)
+            } else if (isToggleOff || getEffect() == effect || getSecondaryEffect() == effect || getTertiaryEffect() == effect) {
+                when (effect) {
+                    getEffect() -> {
+                        setEffect(getSecondaryEffect())
+                        setSecondaryEffect(getTertiaryEffect())
+                        setTertiaryEffect(TextEffectType.NONE)
+                    }
+                    getSecondaryEffect() -> {
+                        setSecondaryEffect(getTertiaryEffect())
+                        setTertiaryEffect(TextEffectType.NONE)
+                    }
+                    getTertiaryEffect() -> {
+                        setTertiaryEffect(TextEffectType.NONE)
+                    }
+                    else -> {
+                        // Effect is not in any slot; nothing to deactivate.
+                    }
+                }
+                canvasView.invalidate()
+                showEffectMenu()
+                return@toggle
             } else {
                 if (getEffect() == TextEffectType.NONE) {
                     setEffect(effect)
