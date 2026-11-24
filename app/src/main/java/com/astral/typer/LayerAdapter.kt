@@ -46,75 +46,62 @@ class LayerAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LayerViewHolder {
         val context = parent.context
-        val dp16 = (16 * context.resources.displayMetrics.density).toInt()
-        val dp8 = (8 * context.resources.displayMetrics.density).toInt()
+        val rowHeight = dp(context, 26)
+        val iconSize = dp(context, 22)
 
         val layout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setPadding(dp8, dp8, dp8, dp8)
+            setPadding(dp(context, 6), dp(context, 2), dp(context, 4), dp(context, 2))
             gravity = Gravity.CENTER_VERTICAL
         }
 
         val btnDrag = ImageView(context).apply {
             id = 7
-            layoutParams = LinearLayout.LayoutParams(dp16 * 3, dp16 * 2)
-            setPadding(4, 4, 4, 4)
+            layoutParams = LinearLayout.LayoutParams(dp(context, 22), dp(context, 22))
+            setPadding(dp(context, 2), dp(context, 2), dp(context, 2), dp(context, 2))
             setImageResource(com.astral.typer.R.drawable.ic_drag_indicator)
             setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
-            alpha = 0.7f
+            alpha = 0.55f
             isClickable = true
             contentDescription = "Drag to reorder layer"
         }
 
         val tvChevron = TextView(context).apply {
             id = 6
-            textSize = 14f
+            textSize = 11f
             gravity = Gravity.CENTER
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
-            layoutParams = LinearLayout.LayoutParams(dp16, ViewGroup.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(dp(context, 14), ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         val tvName = TextView(context).apply {
             id = 1
-            textSize = 14f
+            textSize = 12f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appTextColorPrimary))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
-        val btnVisible = ImageView(context).apply {
-            id = 2
-            layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
-            setPadding(4,4,4,4)
-            setImageResource(android.R.drawable.ic_menu_view) // Built-in eye icon? Or close enough
-            // Using generic resources for simplicity or color filters
-            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
+        val iconTint = com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint)
+
+        fun rowIcon(id: Int, res: Int, description: String) = ImageView(context).apply {
+            this.id = id
+            layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+            setPadding(dp(context, 3), dp(context, 3), dp(context, 3), dp(context, 3))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setImageResource(res)
+            setColorFilter(iconTint)
+            contentDescription = description
         }
 
-        val btnLock = ImageView(context).apply {
-            id = 3
-            layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
-            setPadding(4,4,4,4)
-            setImageResource(android.R.drawable.ic_lock_idle_lock) // Or generic lock
-            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
-        }
+        val btnVisible = rowIcon(2, com.astral.typer.R.drawable.ic_visibility, "Toggle layer visibility")
+        val btnLock = rowIcon(3, com.astral.typer.R.drawable.ic_lock, "Toggle layer lock")
+        val btnClip = rowIcon(5, com.astral.typer.R.drawable.ic_layer_clip, "Clip to layer below")
+        val btnDelete = rowIcon(4, com.astral.typer.R.drawable.ic_trash, "Delete layer")
 
-        val btnClip = ImageView(context).apply {
-            id = 5
-            layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
-            setPadding(4,4,4,4)
-            setImageResource(android.R.drawable.ic_menu_directions) // Icon for Clip to Layer Below
-            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
-        }
-
-        val btnDelete = ImageView(context).apply {
-            id = 4
-            layoutParams = LinearLayout.LayoutParams(dp16 * 2, dp16 * 2)
-            setPadding(4,4,4,4)
-            setImageResource(android.R.drawable.ic_menu_delete) // Or generic trash
-            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
-        }
-
+        layout.minimumHeight = rowHeight
         layout.addView(btnDrag)
         layout.addView(tvChevron)
         layout.addView(tvName)
@@ -129,15 +116,12 @@ class LayerAdapter(
     override fun onBindViewHolder(holder: LayerViewHolder, position: Int) {
         val row = rows[position]
         val context = holder.itemView.context
-        val dp8 = (8 * context.resources.displayMetrics.density).toInt()
-        val dp16 = (16 * context.resources.displayMetrics.density).toInt()
         val iconTint = com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint)
 
-        holder.container.setPadding(dp8, dp8, dp8, dp8)
         holder.btnClip.visibility = View.VISIBLE
 
         // A dedicated handle avoids clashing with long-press multi-select.
-        holder.btnDrag.alpha = 0.7f
+        holder.btnDrag.alpha = 0.55f
         holder.btnDrag.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 onDragHandleTouch?.invoke(holder)
@@ -153,8 +137,8 @@ class LayerAdapter(
             holder.tvName.setPadding(0, 0, 0, 0)
             holder.tvName.text = row.groupName ?: "Folder"
 
-            holder.btnVisible.alpha = if (row.isGroupVisibleAll) 1.0f else 0.5f
-            holder.btnLock.alpha = if (row.isGroupLockedAll) 1.0f else 0.5f
+            holder.btnVisible.alpha = if (row.isGroupVisibleAll) 1.0f else 0.4f
+            holder.btnLock.alpha = if (row.isGroupLockedAll) 1.0f else 0.4f
             holder.btnLock.setColorFilter(if (row.isGroupLockedAll) Color.RED else iconTint)
             holder.btnClip.visibility = View.INVISIBLE
             holder.btnVisible.setOnClickListener { onGroupVisibleToggle(row) }
@@ -162,13 +146,7 @@ class LayerAdapter(
             holder.btnDelete.setOnClickListener { onDeleteGroup(row) }
 
             if (row.isGroupSelected) {
-                val strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
-                val rRadius = (4 * context.resources.displayMetrics.density)
-                holder.container.background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(Color.parseColor("#202196F3"))
-                    setStroke(strokeWidth, Color.parseColor("#2196F3"))
-                    cornerRadius = rRadius
-                }
+                holder.container.background = selectionBackground(context)
             } else {
                 holder.container.background = null
                 holder.container.setBackgroundColor(Color.TRANSPARENT)
@@ -195,26 +173,19 @@ class LayerAdapter(
         holder.tvChevron.setOnClickListener(null)
 
         val baseName = if (layer is TextLayer) "Text: ${layer.text.take(10)}" else layer.name
-        holder.tvName.setPadding(dp16 * row.depth, 0, 0, 0)
+        holder.tvName.setPadding(dp(context, 10) * row.depth, 0, 0, 0)
         holder.tvName.text = baseName
 
         // Highlight selection
         if (layer.isSelected) {
-            val strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
-            val rRadius = (4 * context.resources.displayMetrics.density)
-            val drawable = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.parseColor("#202196F3"))
-                setStroke(strokeWidth, Color.parseColor("#2196F3"))
-                cornerRadius = rRadius
-            }
-            holder.container.background = drawable
+            holder.container.background = selectionBackground(context)
         } else {
             holder.container.background = null
             holder.container.setBackgroundColor(Color.TRANSPARENT)
         }
 
-        holder.btnVisible.alpha = if (layer.isVisible) 1.0f else 0.5f
-        holder.btnLock.alpha = if (layer.isLocked) 1.0f else 0.5f
+        holder.btnVisible.alpha = if (layer.isVisible) 1.0f else 0.4f
+        holder.btnLock.alpha = if (layer.isLocked) 1.0f else 0.4f
         holder.btnLock.setColorFilter(if (layer.isLocked) Color.RED else iconTint)
 
         val layerIndex = canvasIndexOf(layer)
@@ -222,7 +193,7 @@ class LayerAdapter(
             holder.btnClip.visibility = View.INVISIBLE
         } else {
             holder.btnClip.visibility = View.VISIBLE
-            holder.btnClip.alpha = if (layer.isClipped) 1.0f else 0.5f
+            holder.btnClip.alpha = if (layer.isClipped) 1.0f else 0.4f
             holder.btnClip.setColorFilter(if (layer.isClipped) Color.CYAN else iconTint)
         }
 
@@ -265,6 +236,26 @@ class LayerAdapter(
         holder.btnDelete.setOnClickListener {
             onDeleteClick(row)
         }
+    }
+
+    private fun selectionBackground(context: android.content.Context): android.graphics.drawable.GradientDrawable {
+        val strokeWidth = dp(context, 1)
+        return android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.parseColor("#202196F3"))
+            setStroke(strokeWidth, Color.parseColor("#2196F3"))
+            cornerRadius = dp(context, 4).toFloat()
+        }
+    }
+
+    private fun dp(context: android.content.Context, value: Int): Int =
+        (value * context.resources.displayMetrics.density).toInt()
+
+    companion object {
+        /** Height of one row in the layer panel, matching the row layout above. */
+        const val ROW_HEIGHT_DP = 26
+
+        /** The panel shows at most this many rows; additional layers scroll. */
+        const val MAX_VISIBLE_ROWS = 6
     }
 
     /** Index of the layer in the flat list, used to hide clipping on the bottom layer. */

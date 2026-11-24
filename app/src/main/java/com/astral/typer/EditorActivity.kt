@@ -941,14 +941,23 @@ class EditorActivity : AppCompatActivity() {
                     if (replacedLayers.isNotEmpty()) {
                         currentLayers.removeAll { layer -> replacedLayers.any { it === layer } }
                     }
-                    // Keep the inpaint mask layers at the bottom of the stack
-                    currentLayers.addAll(0, newMaskLayers)
+                    // The inpaint folder stays the bottom-most block of the stack, and a fresh mask
+                    // goes on top of that block instead of below the older masks.
+                    currentLayers.addAll(inpaintGroupTopIndex(currentLayers), newMaskLayers)
                     canvasView.setLayers(currentLayers)
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
                     onSuccess()
                 }
             }
         }
+    }
+
+    /** Insertion index just above the inpaint folder block, which is the stack's bottom block. */
+    private fun inpaintGroupTopIndex(layers: List<com.astral.typer.models.Layer>): Int {
+        val lastGroupIndex = layers.indexOfLast {
+            it.groupId == com.astral.typer.models.Layer.INPAINT_GROUP_ID
+        }
+        return lastGroupIndex + 1
     }
 
     /**
@@ -5414,21 +5423,109 @@ class EditorActivity : AppCompatActivity() {
     // --- LAYERS MENU ---
     private fun showLayerMenu() {
         val popupView = layoutInflater.inflate(R.layout.popup_layers, null)
-        val popupWindow = android.widget.PopupWindow(popupView, dpToPx(300), dpToPx(400), true)
-        popupWindow.elevation = 20f
-        popupWindow.showAsDropDown(binding.btnLayers, -dpToPx(200), 0)
-
+        val popupWidth = dpToPx(272)
         val recyclerView = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerLayers)
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        // At most six rows fit in the panel; the remaining layers scroll inside the list.
+        val rowHeightPx = dpToPx(LayerAdapter.ROW_HEIGHT_DP)
+        fun applyListHeight() {
+            val visibleRows = canvasView.buildLayerRows().size
+                .coerceIn(1, LayerAdapter.MAX_VISIBLE_ROWS)
+            val targetHeight = rowHeightPx * visibleRows
+            if (recyclerView.layoutParams.height != targetHeight) {
+                recyclerView.layoutParams = recyclerView.layoutParams.apply { height = targetHeight }
+            }
+        }
+        applyListHeight()
+
+        val popupWindow = android.widget.PopupWindow(
+            popupView,
+            popupWidth,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        )
+        popupWindow.elevation = 20f
+
+        // The panel floats wherever the user drops it; dragging its header moves it and the
+        // position is remembered for the next time the panel opens.
+        val panelPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val insets = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
+        val topInset = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
+        val bottomInset = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        val margin = dpToPx(4)
+        val minX = margin
+        val minY = topInset + margin
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val panelHeight = popupView.measuredHeight
+        val maxX = (screenW - popupWidth - margin).coerceAtLeast(minX)
+        val maxY = (screenH - bottomInset - panelHeight - margin).coerceAtLeast(minY)
+
+        // First open: right-aligned under the layers button. Afterwards: the saved position.
+        val anchorLocation = IntArray(2)
+        binding.btnLayers.getLocationOnScreen(anchorLocation)
+        val defaultX = (anchorLocation[0] + binding.btnLayers.width - popupWidth).coerceIn(minX, maxX)
+        val defaultY = (anchorLocation[1] + binding.btnLayers.height + margin).coerceIn(minY, maxY)
+        var panelX = panelPrefs.getInt("layer_panel_x", defaultX).coerceIn(minX, maxX)
+        var panelY = panelPrefs.getInt("layer_panel_y", defaultY).coerceIn(minY, maxY)
+
+        val dragHeader = popupView.findViewById<View>(R.id.layerPanelHeader)
+        var dragStartRawX = 0f
+        var dragStartRawY = 0f
+        var dragStartPanelX = 0
+        var dragStartPanelY = 0
+        dragHeader.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    dragStartRawX = event.rawX
+                    dragStartRawY = event.rawY
+                    dragStartPanelX = panelX
+                    dragStartPanelY = panelY
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    panelX = (dragStartPanelX + (event.rawX - dragStartRawX)).toInt().coerceIn(minX, maxX)
+                    panelY = (dragStartPanelY + (event.rawY - dragStartRawY)).toInt().coerceIn(minY, maxY)
+                    popupWindow.update(panelX, panelY, -1, -1)
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    panelPrefs.edit()
+                        .putInt("layer_panel_x", panelX)
+                        .putInt("layer_panel_y", panelY)
+                        .apply()
+                    true
+                }
+                else -> false
+            }
+        }
+        popupWindow.showAtLocation(
+            binding.root,
+            android.view.Gravity.TOP or android.view.Gravity.START,
+            panelX,
+            panelY
+        )
+
+        // The row count and the multi-select bar change the panel height, so keep it on screen.
+        fun syncPanelSize() {
+            popupWindow.update()
+            val contentHeight = popupView.height.takeIf { it > 0 } ?: popupView.measuredHeight
+            val limitY = (screenH - bottomInset - contentHeight - margin).coerceAtLeast(minY)
+            if (panelY > limitY) {
+                panelY = limitY
+                popupWindow.update(panelX, panelY, -1, -1)
+            }
+        }
 
         val btnToggleMulti = popupView.findViewById<TextView>(R.id.btnToggleMultiSelect)
         val multiActionBar = popupView.findViewById<View>(R.id.multiSelectActionBar)
         val tvSelectedCount = popupView.findViewById<TextView>(R.id.tvMultiSelectedCount)
-        val btnMultiSelectAll = popupView.findViewById<TextView>(R.id.btnMultiSelectAll)
-        val btnMultiUnselectAll = popupView.findViewById<TextView>(R.id.btnMultiUnselectAll)
-        val btnMultiVis = popupView.findViewById<TextView>(R.id.btnMultiToggleVis)
-        val btnMultiLock = popupView.findViewById<TextView>(R.id.btnMultiToggleLock)
-        val btnMultiDel = popupView.findViewById<TextView>(R.id.btnMultiDelete)
+        val btnMultiSelectAll = popupView.findViewById<android.widget.ImageView>(R.id.btnMultiSelectAll)
+        val btnMultiUnselectAll = popupView.findViewById<android.widget.ImageView>(R.id.btnMultiUnselectAll)
 
         var isMultiSelectMode = canvasView.isMultiSelectActive()
 
@@ -5439,19 +5536,19 @@ class EditorActivity : AppCompatActivity() {
                 multiActionBar.visibility = View.VISIBLE
                 tvSelectedCount.text = "$selectedCount selected"
                 btnToggleMulti.setBackgroundColor(Color.parseColor("#4400BCD4"))
-                val anyVisible = canvasView.getSelectedLayers().any { it.isVisible }
-                btnMultiVis.text = if (anyVisible) "Hide" else "Show"
-                val allLocked = canvasView.getSelectedLayers().isNotEmpty() && canvasView.getSelectedLayers().all { it.isLocked }
-                btnMultiLock.text = if (allLocked) "Unlock" else "Lock"
             } else {
                 multiActionBar.visibility = View.GONE
                 btnToggleMulti.setBackgroundColor(Color.parseColor("#33888888"))
             }
+            // The panel hugs its content, so resizing is needed when the bar appears or goes away.
+            syncPanelSize()
             showPropertiesMenu()
         }
 
         fun refreshRows() {
             (recyclerView.adapter as? LayerAdapter)?.refresh()
+            applyListHeight()
+            syncPanelSize()
         }
 
         var itemTouchHelper: androidx.recyclerview.widget.ItemTouchHelper? = null
@@ -5563,68 +5660,89 @@ class EditorActivity : AppCompatActivity() {
             refreshMultiSelectUi()
         }
 
-        btnMultiVis.setOnClickListener {
-            val anyVisible = canvasView.getSelectedLayers().any { it.isVisible }
-            canvasView.setSelectedLayersVisibility(!anyVisible)
-            adapter.refresh()
-            refreshMultiSelectUi()
+        // Drag preview: the rows stay in place while dragging and an animated line marks the
+        // slot the layer will land in, instead of shifting the stack one row at a time.
+        var dragFromRow = -1
+        var dropRow = -1
+        var isDraggingRow = false
+        val dropPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#2196F3")
         }
+        val dropPulse = android.animation.ValueAnimator.ofFloat(0.4f, 1f).apply {
+            duration = 600
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+        }
+        val dropIndicator = object : androidx.recyclerview.widget.RecyclerView.ItemDecoration() {
+            var visible = false
+            var targetRow = -1
 
-        btnMultiLock.setOnClickListener {
-            val allLocked = canvasView.getSelectedLayers().isNotEmpty() && canvasView.getSelectedLayers().all { it.isLocked }
-            canvasView.setSelectedLayersLocked(!allLocked)
-            adapter.refresh()
-            refreshMultiSelectUi()
+            override fun onDrawOver(
+                c: android.graphics.Canvas,
+                parent: androidx.recyclerview.widget.RecyclerView,
+                state: androidx.recyclerview.widget.RecyclerView.State
+            ) {
+                if (!visible || targetRow < 0) return
+                val child = parent.layoutManager?.findViewByPosition(targetRow) ?: return
+                // Rows are listed top-most first, so a downward drag lands below its target row.
+                val lineY = if (targetRow < dragFromRow) child.top.toFloat() else child.bottom.toFloat()
+                val inset = dpToPx(6).toFloat()
+                val halfLine = dpToPx(1).toFloat()
+                dropPaint.alpha = (255 * (dropPulse.animatedValue as Float)).toInt()
+                c.drawRoundRect(inset, lineY - halfLine, parent.width - inset, lineY + halfLine, halfLine, halfLine, dropPaint)
+                c.drawCircle(inset + dpToPx(3), lineY, dpToPx(3).toFloat(), dropPaint)
+                c.drawCircle(parent.width - inset - dpToPx(3), lineY, dpToPx(3).toFloat(), dropPaint)
+            }
         }
-
-        btnMultiDel.setOnClickListener {
-            val count = canvasView.getSelectedLayers().size
-            if (count == 0) return@setOnClickListener
-            android.app.AlertDialog.Builder(this)
-                .setTitle("Delete $count Layers")
-                .setMessage("Are you sure you want to delete $count selected layers?")
-                .setPositiveButton("Delete") { _, _ ->
-                    canvasView.deleteSelectedLayers()
-                    popupWindow.dismiss()
-                    showLayerMenu()
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
+        dropPulse.addUpdateListener { recyclerView.invalidate() }
+        recyclerView.addItemDecoration(dropIndicator)
 
         // Drag and Drop
         val callback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
             androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0
         ) {
-            private var dragOccurred = false
-
             // Long-press belongs to multi-select; dragging starts from the row's handle only.
             override fun isLongPressDragEnabled(): Boolean = false
 
             override fun onSelectedChanged(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(vh, actionState)
                 if (actionState == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_DRAG) {
+                    dragFromRow = vh?.adapterPosition ?: -1
+                    dropRow = dragFromRow
+                    dropIndicator.targetRow = dragFromRow
+                    dropIndicator.visible = false
                     com.astral.typer.utils.UndoManager.saveState(canvasView.getLayers())
-                    dragOccurred = true
+                    isDraggingRow = true
+                    dropPulse.start()
                 }
             }
 
             override fun onMove(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, target: androidx.recyclerview.widget.RecyclerView.ViewHolder): Boolean {
-                val from = vh.adapterPosition
                 val to = target.adapterPosition
-                val changed = canvasView.moveLayerBlock(from, to)
-                if (changed) {
-                    // A folder moves its children too, so the whole row list is rebuilt.
-                    adapter.refresh()
-                }
+                if (to == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return false
+                // Do not reorder mid-drag: only move the preview line, so a drop applies one move.
+                dropRow = to
+                dropIndicator.targetRow = to
+                dropIndicator.visible = to != dragFromRow
+                rv.invalidate()
                 return true
             }
 
             override fun clearView(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder) {
                 super.clearView(rv, vh)
-                if (dragOccurred) {
-                    adapter.refresh()
-                    dragOccurred = false
+                dropIndicator.visible = false
+                dropPulse.cancel()
+                rv.invalidate()
+                if (isDraggingRow) {
+                    val from = dragFromRow
+                    val to = dropRow
+                    isDraggingRow = false
+                    dragFromRow = -1
+                    dropRow = -1
+                    if (from >= 0 && to >= 0 && from != to && canvasView.moveLayerBlock(from, to)) {
+                        // A folder moves its children too, so the whole row list is rebuilt.
+                        adapter.refresh()
+                    }
                 }
             }
 
@@ -6254,7 +6372,12 @@ class EditorActivity : AppCompatActivity() {
 
         if (canvasView.isMultiSelectActive()) {
             binding.btnPropQuickEdit.visibility = View.GONE
-            binding.btnPropErase.visibility = View.GONE
+            // A selected inpaint mask folder is only a stack of mask images, so erasing them
+            // stays available next to Opacity.
+            val onlyInpaintMasks = canvasView.getSelectedLayers().let { selected ->
+                selected.isNotEmpty() && selected.all { it is ImageLayer && it.name == "Inpaint Mask" }
+            }
+            binding.btnPropErase.visibility = if (onlyInpaintMasks) View.VISIBLE else View.GONE
             binding.btnPropWarp.visibility = View.GONE
             binding.btnPropPuppetWarp.visibility = View.GONE
             binding.btnPropPerspective.visibility = View.GONE

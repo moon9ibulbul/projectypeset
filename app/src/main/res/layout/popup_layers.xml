@@ -1,17 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:background="?attr/appSurfaceColor"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="6dp">
 
     <LinearLayout
+        android:id="@+id/layerPanelHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingBottom="8dp">
+        android:paddingStart="2dp"
+        android:paddingEnd="0dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/ivLayerPanelDragHandle"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="2dp"
+            android:alpha="0.55"
+            android:contentDescription="Drag to move the layer panel"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_drag_indicator"
+            app:tint="?attr/appIconTint"/>
 
         <TextView
             android:id="@+id/tvLayersTitle"
@@ -20,7 +35,7 @@
             android:layout_weight="1"
             android:text="Layers"
             android:textColor="?attr/appTextColorPrimary"
-            android:textSize="18sp"
+            android:textSize="14sp"
             android:gravity="start"/>
 
         <TextView
@@ -28,12 +43,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Multi"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textColor="?attr/appTextColorPrimary"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
             android:background="#33888888"/>
     </LinearLayout>
 
@@ -41,86 +56,41 @@
         android:id="@+id/multiSelectActionBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingBottom="6dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingBottom="4dp"
         android:visibility="gone">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/tvMultiSelectedCount"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingBottom="4dp">
+            android:layout_weight="1"
+            android:text="0 selected"
+            android:textSize="11sp"
+            android:textColor="#00BCD4"/>
 
-            <TextView
-                android:id="@+id/tvMultiSelectedCount"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="0 selected"
-                android:textSize="11sp"
-                android:textColor="#00BCD4"/>
+        <ImageView
+            android:id="@+id/btnMultiSelectAll"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_select_all"
+            android:background="#33888888"
+            android:contentDescription="Select all layers"
+            app:tint="?attr/appIconTint"/>
 
-            <TextView
-                android:id="@+id/btnMultiSelectAll"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Select All"
-                android:textSize="11sp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:padding="5dp"
-                android:layout_marginEnd="4dp"
-                android:background="#33888888"/>
-
-            <TextView
-                android:id="@+id/btnMultiUnselectAll"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Unselect All"
-                android:textSize="11sp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:padding="5dp"
-                android:background="#33888888"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="end|center_vertical">
-
-            <TextView
-                android:id="@+id/btnMultiToggleVis"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Hide"
-                android:textSize="11sp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:padding="6dp"
-                android:layout_marginEnd="4dp"
-                android:background="#33888888"/>
-
-            <TextView
-                android:id="@+id/btnMultiToggleLock"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Lock"
-                android:textSize="11sp"
-                android:textColor="?attr/appTextColorPrimary"
-                android:padding="6dp"
-                android:layout_marginEnd="4dp"
-                android:background="#33888888"/>
-
-            <TextView
-                android:id="@+id/btnMultiDelete"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Del"
-                android:textSize="11sp"
-                android:textColor="#FF5252"
-                android:padding="6dp"
-                android:background="#33FF5252"/>
-        </LinearLayout>
+        <ImageView
+            android:id="@+id/btnMultiUnselectAll"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="4dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_remove_selection"
+            android:background="#33888888"
+            android:contentDescription="Unselect all layers"
+            app:tint="?attr/appIconTint"/>
     </LinearLayout>
 
     <View
@@ -131,8 +101,7 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerLayers"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:scrollbars="vertical"/>
 
 </LinearLayout>
