@@ -2,19 +2,31 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:background="?attr/appSurfaceColor"
     android:orientation="vertical"
     android:padding="6dp">
 
     <LinearLayout
+        android:id="@+id/layerPanelHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="4dp"
+        android:paddingStart="2dp"
         android:paddingEnd="0dp"
         android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/ivLayerPanelDragHandle"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="2dp"
+            android:alpha="0.55"
+            android:contentDescription="Drag to move the layer panel"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_drag_indicator"
+            app:tint="?attr/appIconTint"/>
 
         <TextView
             android:id="@+id/tvLayersTitle"
@@ -89,8 +101,7 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerLayers"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:scrollbars="vertical"/>
 
 </LinearLayout>

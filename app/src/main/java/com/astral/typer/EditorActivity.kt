@@ -941,14 +941,23 @@ class EditorActivity : AppCompatActivity() {
                     if (replacedLayers.isNotEmpty()) {
                         currentLayers.removeAll { layer -> replacedLayers.any { it === layer } }
                     }
-                    // Keep the inpaint mask layers at the bottom of the stack
-                    currentLayers.addAll(0, newMaskLayers)
+                    // The inpaint folder stays the bottom-most block of the stack, and a fresh mask
+                    // goes on top of that block instead of below the older masks.
+                    currentLayers.addAll(inpaintGroupTopIndex(currentLayers), newMaskLayers)
                     canvasView.setLayers(currentLayers)
                     Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
                     onSuccess()
                 }
             }
         }
+    }
+
+    /** Insertion index just above the inpaint folder block, which is the stack's bottom block. */
+    private fun inpaintGroupTopIndex(layers: List<com.astral.typer.models.Layer>): Int {
+        val lastGroupIndex = layers.indexOfLast {
+            it.groupId == com.astral.typer.models.Layer.INPAINT_GROUP_ID
+        }
+        return lastGroupIndex + 1
     }
 
     /**
@@ -5415,28 +5424,102 @@ class EditorActivity : AppCompatActivity() {
     private fun showLayerMenu() {
         val popupView = layoutInflater.inflate(R.layout.popup_layers, null)
         val popupWidth = dpToPx(272)
-        // Size the panel to the space below the top bar, so the popup is never pushed up over it.
-        val anchorLocation = IntArray(2)
-        binding.btnLayers.getLocationInWindow(anchorLocation)
-        val windowHeight = binding.root.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-        val availableBelow = windowHeight - (anchorLocation[1] + binding.btnLayers.height) - dpToPx(6)
-        val popupHeight = availableBelow.coerceAtMost(dpToPx(380)).coerceAtLeast(dpToPx(160))
-        val popupWindow = android.widget.PopupWindow(popupView, popupWidth, popupHeight, true)
-        popupWindow.elevation = 20f
-        // Align the panel's right edge with the layers button, then keep it on screen.
-        val preferredOffsetX = binding.btnLayers.width - popupWidth
-        val absoluteX = anchorLocation[0] + preferredOffsetX
-        val minX = dpToPx(8)
-        val maxX = resources.displayMetrics.widthPixels - popupWidth - dpToPx(8)
-        val offsetX = preferredOffsetX + when {
-            absoluteX < minX -> minX - absoluteX
-            absoluteX > maxX -> maxX - absoluteX
-            else -> 0
-        }
-        popupWindow.showAsDropDown(binding.btnLayers, offsetX, 0)
-
         val recyclerView = popupView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerLayers)
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        // At most six rows fit in the panel; the remaining layers scroll inside the list.
+        val rowHeightPx = dpToPx(LayerAdapter.ROW_HEIGHT_DP)
+        fun applyListHeight() {
+            val visibleRows = canvasView.buildLayerRows().size
+                .coerceIn(1, LayerAdapter.MAX_VISIBLE_ROWS)
+            val targetHeight = rowHeightPx * visibleRows
+            if (recyclerView.layoutParams.height != targetHeight) {
+                recyclerView.layoutParams = recyclerView.layoutParams.apply { height = targetHeight }
+            }
+        }
+        applyListHeight()
+
+        val popupWindow = android.widget.PopupWindow(
+            popupView,
+            popupWidth,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        )
+        popupWindow.elevation = 20f
+
+        // The panel floats wherever the user drops it; dragging its header moves it and the
+        // position is remembered for the next time the panel opens.
+        val panelPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val insets = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
+        val topInset = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
+        val bottomInset = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        val margin = dpToPx(4)
+        val minX = margin
+        val minY = topInset + margin
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val panelHeight = popupView.measuredHeight
+        val maxX = (screenW - popupWidth - margin).coerceAtLeast(minX)
+        val maxY = (screenH - bottomInset - panelHeight - margin).coerceAtLeast(minY)
+
+        // First open: right-aligned under the layers button. Afterwards: the saved position.
+        val anchorLocation = IntArray(2)
+        binding.btnLayers.getLocationOnScreen(anchorLocation)
+        val defaultX = (anchorLocation[0] + binding.btnLayers.width - popupWidth).coerceIn(minX, maxX)
+        val defaultY = (anchorLocation[1] + binding.btnLayers.height + margin).coerceIn(minY, maxY)
+        var panelX = panelPrefs.getInt("layer_panel_x", defaultX).coerceIn(minX, maxX)
+        var panelY = panelPrefs.getInt("layer_panel_y", defaultY).coerceIn(minY, maxY)
+
+        val dragHeader = popupView.findViewById<View>(R.id.layerPanelHeader)
+        var dragStartRawX = 0f
+        var dragStartRawY = 0f
+        var dragStartPanelX = 0
+        var dragStartPanelY = 0
+        dragHeader.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    dragStartRawX = event.rawX
+                    dragStartRawY = event.rawY
+                    dragStartPanelX = panelX
+                    dragStartPanelY = panelY
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    panelX = (dragStartPanelX + (event.rawX - dragStartRawX)).toInt().coerceIn(minX, maxX)
+                    panelY = (dragStartPanelY + (event.rawY - dragStartRawY)).toInt().coerceIn(minY, maxY)
+                    popupWindow.update(panelX, panelY, -1, -1)
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    panelPrefs.edit()
+                        .putInt("layer_panel_x", panelX)
+                        .putInt("layer_panel_y", panelY)
+                        .apply()
+                    true
+                }
+                else -> false
+            }
+        }
+        popupWindow.showAtLocation(
+            binding.root,
+            android.view.Gravity.TOP or android.view.Gravity.START,
+            panelX,
+            panelY
+        )
+
+        // The row count and the multi-select bar change the panel height, so keep it on screen.
+        fun syncPanelSize() {
+            popupWindow.update()
+            val contentHeight = popupView.height.takeIf { it > 0 } ?: popupView.measuredHeight
+            val limitY = (screenH - bottomInset - contentHeight - margin).coerceAtLeast(minY)
+            if (panelY > limitY) {
+                panelY = limitY
+                popupWindow.update(panelX, panelY, -1, -1)
+            }
+        }
 
         val btnToggleMulti = popupView.findViewById<TextView>(R.id.btnToggleMultiSelect)
         val multiActionBar = popupView.findViewById<View>(R.id.multiSelectActionBar)
@@ -5457,11 +5540,15 @@ class EditorActivity : AppCompatActivity() {
                 multiActionBar.visibility = View.GONE
                 btnToggleMulti.setBackgroundColor(Color.parseColor("#33888888"))
             }
+            // The panel hugs its content, so resizing is needed when the bar appears or goes away.
+            syncPanelSize()
             showPropertiesMenu()
         }
 
         fun refreshRows() {
             (recyclerView.adapter as? LayerAdapter)?.refresh()
+            applyListHeight()
+            syncPanelSize()
         }
 
         var itemTouchHelper: androidx.recyclerview.widget.ItemTouchHelper? = null

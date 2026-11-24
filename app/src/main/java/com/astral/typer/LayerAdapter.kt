@@ -250,6 +250,14 @@ class LayerAdapter(
     private fun dp(context: android.content.Context, value: Int): Int =
         (value * context.resources.displayMetrics.density).toInt()
 
+    companion object {
+        /** Height of one row in the layer panel, matching the row layout above. */
+        const val ROW_HEIGHT_DP = 26
+
+        /** The panel shows at most this many rows; additional layers scroll. */
+        const val MAX_VISIBLE_ROWS = 6
+    }
+
     /** Index of the layer in the flat list, used to hide clipping on the bottom layer. */
     private fun canvasIndexOf(layer: com.astral.typer.models.Layer): Int {
         return layersProvider().indexOfFirst { it === layer }
