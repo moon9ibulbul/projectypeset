@@ -267,6 +267,12 @@ data class ErasePathData(
 )
 
 abstract class Layer {
+    companion object {
+        /** Folder that collects the per-region inpaint mask layers. */
+        const val INPAINT_GROUP_ID = "inpaint_mask_group"
+        const val INPAINT_GROUP_NAME = "Inpaint Masks"
+    }
+
     var x: Float = 0f
     var y: Float = 0f
     var rotation: Float = 0f
@@ -278,6 +284,10 @@ abstract class Layer {
     var isVisible: Boolean = true
     var isLocked: Boolean = false
     var isClipped: Boolean = false
+    // Folder membership. Layers sharing a groupId form one folder in the layer panel; the
+    // children stay separate layers, so their bitmaps are never merged into one buffer.
+    var groupId: String? = null
+    var groupName: String? = null
     var isDrawingClippingMask: Boolean = false
     @Transient var isDrawingStrokePass: Boolean = false
     var name: String = "Layer"
@@ -485,3 +495,19 @@ object RenderQuality {
         return result
     }
 }
+
+/**
+ * One row of the layer panel. A folder is rendered as a header row followed by its children when
+ * expanded; [layer] is null on header rows.
+ */
+data class LayerRow(
+    val layer: Layer? = null,
+    val groupId: String? = null,
+    val groupName: String? = null,
+    val isGroupHeader: Boolean = false,
+    val isExpanded: Boolean = true,
+    val depth: Int = 0,
+    val isGroupVisibleAll: Boolean = true,
+    val isGroupLockedAll: Boolean = false,
+    val isGroupSelected: Boolean = false
+)

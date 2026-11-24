@@ -741,6 +741,8 @@ class BrushLayer(var canvasWidth: Int, var canvasHeight: Int) : Layer(), Stylabl
             isVisible = this@BrushLayer.isVisible
             isLocked = this@BrushLayer.isLocked
             isClipped = this@BrushLayer.isClipped
+            groupId = this@BrushLayer.groupId
+            groupName = this@BrushLayer.groupName
             name = this@BrushLayer.name
             opacity = this@BrushLayer.opacity
             blendMode = this@BrushLayer.blendMode
