@@ -5533,7 +5533,7 @@ class EditorActivity : AppCompatActivity() {
                 refreshMultiSelectUi()
             },
             onDragHandleTouch = { holder ->
-                if (holder.bindingAdapterPosition != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                if (holder.adapterPosition != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
                     itemTouchHelper?.startDrag(holder)
                 }
             }
