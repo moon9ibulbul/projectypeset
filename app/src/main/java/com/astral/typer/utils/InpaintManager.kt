@@ -22,12 +22,22 @@ class InpaintManager(private val context: Context) {
         PATCHMATCH,
         SMART_SOLID,
         HYBRID,
-        LAMA
+        LAMA,
+        WAVESPEED
     }
 
     private var currentEngine: Engine = Engine.OPENCV
     private var isOpenCvInitialized = false
     private val lamaProcessor by lazy { LaMaProcessor(context) }
+    private val waveSpeedClient by lazy { WaveSpeedInpaintClient(context) }
+
+    /** Last WaveSpeed AI error, so the UI can show the API message instead of a generic failure. */
+    var lastError: String? = null
+        private set
+
+    fun clearLastError() {
+        lastError = null
+    }
 
     init {
         try {
@@ -61,18 +71,21 @@ class InpaintManager(private val context: Context) {
         originalBitmap: Bitmap,
         maskBitmap: Bitmap,
         bounds: android.graphics.Rect? = null,
-        onProgress: ((completed: Int, total: Int) -> Unit)? = null
+        onProgress: ((completed: Int, total: Int) -> Unit)? = null,
+        prompt: String? = null,
+        onStatus: ((percent: Int, message: String) -> Unit)? = null
     ): Bitmap? {
+        lastError = null
         val rect = bounds ?: android.graphics.Rect(0, 0, originalBitmap.width, originalBitmap.height)
 
         // Ensure bounds are valid and within bitmap boundaries
         if (rect.left < 0 || rect.top < 0 || rect.right > originalBitmap.width || rect.bottom > originalBitmap.height || rect.isEmpty) {
-            return performInpaintOnRegion(originalBitmap, maskBitmap, onProgress)
+            return performInpaintOnRegion(originalBitmap, maskBitmap, onProgress, prompt, onStatus)
         }
 
         // If bounds cover the whole image, process directly without cropping overhead
         if (rect.left == 0 && rect.top == 0 && rect.width() == originalBitmap.width && rect.height() == originalBitmap.height) {
-            return performInpaintOnRegion(originalBitmap, maskBitmap, onProgress)
+            return performInpaintOnRegion(originalBitmap, maskBitmap, onProgress, prompt, onStatus)
         }
 
         // Crop and process sub-region
@@ -88,7 +101,7 @@ class InpaintManager(private val context: Context) {
                     Bitmap.createBitmap(maskBitmap, rect.left, rect.top, rect.width(), rect.height())
                 }
 
-                val croppedResult = performInpaintOnRegion(croppedOriginal, croppedMask, onProgress)
+                val croppedResult = performInpaintOnRegion(croppedOriginal, croppedMask, onProgress, prompt, onStatus)
 
                 // Clean up temporary cropped bitmap
                 if (croppedOriginal != originalBitmap) {
@@ -111,14 +124,16 @@ class InpaintManager(private val context: Context) {
             }
 
             // Fallback to full inpaint if cropped fails
-            performInpaintOnRegion(originalBitmap, maskBitmap, onProgress)
+            performInpaintOnRegion(originalBitmap, maskBitmap, onProgress, prompt, onStatus)
         }
     }
 
     private suspend fun performInpaintOnRegion(
         originalBitmap: Bitmap,
         maskBitmap: Bitmap,
-        onProgress: ((completed: Int, total: Int) -> Unit)? = null
+        onProgress: ((completed: Int, total: Int) -> Unit)? = null,
+        prompt: String? = null,
+        onStatus: ((percent: Int, message: String) -> Unit)? = null
     ): Bitmap? {
         return withContext(Dispatchers.Default) {
             when (currentEngine) {
@@ -138,6 +153,24 @@ class InpaintManager(private val context: Context) {
                         Log.w("InpaintManager", "LaMa inpaint failed, falling back to OpenCV")
                     }
                     inpaintWithOpenCVOrFallback(originalBitmap, maskBitmap)
+                }
+                Engine.WAVESPEED -> {
+                    try {
+                        waveSpeedClient.inpaint(
+                            image = originalBitmap,
+                            mask = maskBitmap,
+                            prompt = prompt.orEmpty(),
+                            onProgress = onStatus
+                        )
+                    } catch (e: WaveSpeedInpaintClient.WaveSpeedException) {
+                        lastError = e.message ?: "Wavespeed AI inpainting failed"
+                        Log.e("InpaintManager", "Wavespeed AI inpaint failed: ${e.message}")
+                        null
+                    } catch (e: Exception) {
+                        lastError = e.message ?: "Wavespeed AI inpainting failed"
+                        Log.e("InpaintManager", "Wavespeed AI inpaint failed", e)
+                        null
+                    }
                 }
                 Engine.OPENCV -> {
                     inpaintWithOpenCVOrFallback(originalBitmap, maskBitmap)

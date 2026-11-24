@@ -842,7 +842,29 @@ class EditorActivity : AppCompatActivity() {
      * far apart (e.g. top and bottom of a 27,000 px canvas), which is what crashed mid-range
      * phones.
      */
-    private fun performInpaint(regions: List<android.graphics.Rect>, onSuccess: () -> Unit) {
+    private fun performInpaint(
+        regions: List<android.graphics.Rect>,
+        waveSpeedPrompt: String? = null,
+        onSuccess: () -> Unit
+    ) {
+        val isWaveSpeedEngine = inpaintManager.getEngine() == InpaintManager.Engine.WAVESPEED
+        val showInpaintProgress: (String) -> Unit = { message ->
+            runOnUiThread {
+                if (binding.loadingOverlay.visibility == View.VISIBLE) {
+                    binding.tvLoadingProgress.visibility = View.VISIBLE
+                    binding.tvLoadingProgress.text = message
+                }
+            }
+        }
+        val waveSpeedStatus: ((Int, String) -> Unit)? = if (isWaveSpeedEngine) {
+            val callback: (Int, String) -> Unit = { percent, _ ->
+                showInpaintProgress("Wavespeed AI: $percent%")
+            }
+            callback
+        } else {
+            null
+        }
+
         val originalBitmap = canvasView.getBackgroundImage()
         if (originalBitmap == null) {
             Toast.makeText(this, "No image to inpaint", Toast.LENGTH_SHORT).show()
@@ -869,16 +891,23 @@ class EditorActivity : AppCompatActivity() {
             binding.loadingOverlay.visibility = View.VISIBLE
 
             lifecycleScope.launch {
-                val result = inpaintManager.inpaint(originalBitmap, maskBitmap, bounds) { completed, total ->
-                    if (total > 1) {
-                        runOnUiThread {
-                            if (binding.loadingOverlay.visibility == View.VISIBLE) {
-                                binding.tvLoadingProgress.visibility = View.VISIBLE
-                                binding.tvLoadingProgress.text = "Inpainting $completed/$total..."
+                val result = inpaintManager.inpaint(
+                    originalBitmap = originalBitmap,
+                    maskBitmap = maskBitmap,
+                    bounds = bounds,
+                    onProgress = { completed, total ->
+                        if (total > 1) {
+                            runOnUiThread {
+                                if (binding.loadingOverlay.visibility == View.VISIBLE) {
+                                    binding.tvLoadingProgress.visibility = View.VISIBLE
+                                    binding.tvLoadingProgress.text = "Inpainting $completed/$total..."
+                                }
                             }
                         }
-                    }
-                }
+                    },
+                    prompt = waveSpeedPrompt,
+                    onStatus = waveSpeedStatus
+                )
                 if (!maskBitmap.isRecycled) maskBitmap.recycle()
                 withContext(Dispatchers.Main) {
                     binding.tvLoadingProgress.visibility = View.GONE
@@ -888,7 +917,7 @@ class EditorActivity : AppCompatActivity() {
                         Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
                         onSuccess()
                     } else {
-                        Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
+                        showInpaintError()
                     }
                 }
             }
@@ -926,7 +955,14 @@ class EditorActivity : AppCompatActivity() {
                         }
                     }
                 }
-                val layer = inpaintRegion(originalBitmap, region, existingMaskLayers, replacedLayers)
+                val layer = inpaintRegion(
+                    originalBitmap,
+                    region,
+                    existingMaskLayers,
+                    replacedLayers,
+                    waveSpeedPrompt,
+                    waveSpeedStatus
+                )
                 if (layer != null) newMaskLayers.add(layer)
             }
 
@@ -935,7 +971,7 @@ class EditorActivity : AppCompatActivity() {
                 binding.loadingOverlay.visibility = View.GONE
                 if (newMaskLayers.isEmpty()) {
                     com.astral.typer.utils.UndoManager.discardLastState()
-                    Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
+                    showInpaintError()
                 } else {
                     val currentLayers = canvasView.getLayers().toMutableList()
                     if (replacedLayers.isNotEmpty()) {
@@ -950,6 +986,76 @@ class EditorActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Wavespeed AI needs a prompt, so Apply first asks for one and then starts the inpaint pass.
+     * Detection and automatic inpainting are intentionally not offered for this engine.
+     */
+    private fun startWaveSpeedInpaint(regions: List<android.graphics.Rect>) {
+        val client = com.astral.typer.utils.WaveSpeedInpaintClient(this)
+        if (!client.isConfigured()) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Wavespeed AI")
+                .setMessage("Add your Wavespeed AI API key and model ID in Settings > AI & Model Inpaint first.")
+                .setPositiveButton("Open Settings") { _, _ ->
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        if (regions.isEmpty()) {
+            Toast.makeText(this, "Paint or select the area to inpaint first", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val input = EditText(this).apply {
+            hint = "Describe what should replace the selected area"
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            setHintTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorSecondary))
+            textSize = 15f
+            minLines = 3
+            gravity = Gravity.TOP
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+        }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Wavespeed AI Prompt")
+            .setView(input)
+            .setPositiveButton("Submit", null)
+            .setNegativeButton("Cancel", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val prompt = input.text.toString().trim()
+                if (prompt.isEmpty()) {
+                    input.error = "Prompt is required"
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                performInpaint(regions, waveSpeedPrompt = prompt) {
+                    canvasView.clearInpaintMask()
+                }
+            }
+        }
+        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        dialog.show()
+        input.requestFocus()
+    }
+
+    /** Shows the engine's own error message (e.g. an API rejection) instead of a generic toast. */
+    private fun showInpaintError() {
+        val message = inpaintManager.lastError
+        if (message.isNullOrBlank()) {
+            Toast.makeText(this, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
+        } else {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Inpaint failed")
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .show()
+        }
+        inpaintManager.clearLastError()
     }
 
     /** Insertion index just above the inpaint folder block, which is the stack's bottom block. */
@@ -970,7 +1076,9 @@ class EditorActivity : AppCompatActivity() {
         originalBitmap: android.graphics.Bitmap,
         region: android.graphics.Rect,
         existingMaskLayers: List<com.astral.typer.models.ImageLayer>,
-        replacedLayers: MutableList<com.astral.typer.models.ImageLayer>
+        replacedLayers: MutableList<com.astral.typer.models.ImageLayer>,
+        waveSpeedPrompt: String? = null,
+        waveSpeedStatus: ((Int, String) -> Unit)? = null
     ): com.astral.typer.models.ImageLayer? {
         val rect = android.graphics.Rect(region)
         rect.left = rect.left.coerceIn(0, originalBitmap.width)
@@ -1007,7 +1115,12 @@ class EditorActivity : AppCompatActivity() {
 
         var inpaintResult: android.graphics.Bitmap? = null
         try {
-            inpaintResult = inpaintManager.inpaint(regionSource, maskBitmap)
+            inpaintResult = inpaintManager.inpaint(
+                originalBitmap = regionSource,
+                maskBitmap = maskBitmap,
+                prompt = waveSpeedPrompt,
+                onStatus = waveSpeedStatus
+            )
         } catch (e: Exception) {
             android.util.Log.e("EditorActivity", "Region inpaint failed", e)
         }
@@ -4884,8 +4997,12 @@ class EditorActivity : AppCompatActivity() {
                 }
                 setOnClickListener {
                     val regions = canvasView.getInpaintMaskRegions()
-                    performInpaint(regions) {
-                        canvasView.clearInpaintMask()
+                    if (inpaintManager.getEngine() == InpaintManager.Engine.WAVESPEED) {
+                        startWaveSpeedInpaint(regions)
+                    } else {
+                        performInpaint(regions) {
+                            canvasView.clearInpaintMask()
+                        }
                     }
                 }
             }
@@ -4958,6 +5075,7 @@ class EditorActivity : AppCompatActivity() {
         if (isLamaAvailable) {
             modes.add("LaMa (AI)")
         }
+        modes.add("Wavespeed AI (Cloud)")
 
         val spinner = android.widget.Spinner(this)
         val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modes)
@@ -4972,12 +5090,19 @@ class EditorActivity : AppCompatActivity() {
             InpaintManager.Engine.PATCHMATCH -> modes.indexOfFirst { it.contains("Content-Aware") }
             InpaintManager.Engine.SMART_SOLID -> modes.indexOfFirst { it.contains("Smart Solid") }
             InpaintManager.Engine.LAMA -> modes.indexOfFirst { it.contains("LaMa") }
+            InpaintManager.Engine.WAVESPEED -> modes.indexOfFirst { it.contains("Wavespeed") }
         }
         if (defaultIdx >= 0) {
             spinner.setSelection(defaultIdx)
         } else {
             spinner.setSelection(0)
             inpaintManager.setEngine(InpaintManager.Engine.HYBRID)
+        }
+
+        fun updateDetectButtonForEngine() {
+            val detectVisible = inpaintManager.getEngine() != InpaintManager.Engine.WAVESPEED
+            binding.canvasContainer.findViewWithTag<View>("INPAINT_DETECT_BTN")?.visibility =
+                if (detectVisible) View.VISIBLE else View.GONE
         }
 
         spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
@@ -4998,6 +5123,16 @@ class EditorActivity : AppCompatActivity() {
                     }
                     selectedMode.contains("LaMa") -> {
                         inpaintManager.setEngine(InpaintManager.Engine.LAMA)
+                    }
+                    selectedMode.contains("Wavespeed") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.WAVESPEED)
+                    }
+                }
+                updateDetectButtonForEngine()
+                if (inpaintManager.getEngine() == InpaintManager.Engine.WAVESPEED) {
+                    val client = com.astral.typer.utils.WaveSpeedInpaintClient(this@EditorActivity)
+                    if (!client.isConfigured()) {
+                        Toast.makeText(this@EditorActivity, "Set your Wavespeed AI API key in Settings", Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -5194,7 +5329,9 @@ class EditorActivity : AppCompatActivity() {
             btnDetectText.setOnClickListener {
                 detectTextForInpaint()
             }
+            btnDetectText.tag = "INPAINT_DETECT_BTN"
             btnContainer.addView(btnDetectText)
+            updateDetectButtonForEngine()
         }
 
         // Helper to update button visual
@@ -6711,6 +6848,12 @@ class EditorActivity : AppCompatActivity() {
         val bg = canvasView.getBackgroundImage()
         if (bg == null) return
 
+        // Wavespeed AI is prompt-driven; text detection and automatic inpainting are disabled.
+        if (inpaintManager.getEngine() == InpaintManager.Engine.WAVESPEED) {
+            Toast.makeText(this, "Text detection and auto inpaint are disabled for Wavespeed AI", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val prefs = getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
         val detectInside = prefs.getBoolean("inpaint_detect_text_inside", true)
         val detectOutside = prefs.getBoolean("inpaint_detect_text_outside", false)
@@ -6766,6 +6909,7 @@ class EditorActivity : AppCompatActivity() {
                             InpaintManager.Engine.SMART_SOLID -> "Smart Solid Fill"
                             InpaintManager.Engine.OPENCV -> "OpenCV (Telea)"
                             InpaintManager.Engine.PATCHMATCH -> "Content-Aware Fill"
+                            InpaintManager.Engine.WAVESPEED -> "Wavespeed AI"
                         }
                         Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
                     }
@@ -6777,6 +6921,10 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun detectSmartSelectedTextForInpaint(lassoPath: Path) {
+        if (inpaintManager.getEngine() == InpaintManager.Engine.WAVESPEED) {
+            Toast.makeText(this, "Text detection and auto inpaint are disabled for Wavespeed AI", Toast.LENGTH_SHORT).show()
+            return
+        }
         val bg = canvasView.getBackgroundImage()
         if (bg == null) return
 
