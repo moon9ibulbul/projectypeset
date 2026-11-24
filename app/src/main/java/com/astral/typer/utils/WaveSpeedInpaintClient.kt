@@ -175,13 +175,20 @@ class WaveSpeedInpaintClient(private val context: Context) {
                 } else {
                     // Without a mask the model repaints the whole crop, so keep everything outside
                     // the painted selection and take only the generated pixels inside it.
-                    val selected = scaledBack.copy(Bitmap.Config.ARGB_8888, true)
-                        ?: throw WaveSpeedException("Could not prepare the inpainted result.")
+                    // The mask is the destination and the model output is drawn over it with
+                    // SRC_IN, otherwise the kept pixels would take the mask's white colour.
+                    val selected = try {
+                        Bitmap.createBitmap(cropW, cropH, Bitmap.Config.ARGB_8888)
+                    } catch (e: OutOfMemoryError) {
+                        throw WaveSpeedException("Could not prepare the inpainted result.")
+                    }
                     try {
                         val srcIn = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
                         }
-                        Canvas(selected).drawBitmap(maskCrop, 0f, 0f, srcIn)
+                        val selectedCanvas = Canvas(selected)
+                        selectedCanvas.drawBitmap(maskCrop, 0f, 0f, null)
+                        selectedCanvas.drawBitmap(scaledBack, 0f, 0f, srcIn)
                         composedCanvas.drawBitmap(selected, crop.left.toFloat(), crop.top.toFloat(), null)
                     } finally {
                         if (!selected.isRecycled) selected.recycle()
