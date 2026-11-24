@@ -2315,9 +2315,8 @@ class AstralCanvasView @JvmOverloads constructor(
             if (fromInBlock == -1 || toInBlock == -1) return false
             val moved = block.removeAt(fromInBlock)
             block.add(toInBlock.coerceIn(0, block.size), moved)
-            if (block.firstOrNull()?.groupId == null) {
-                for (j in block.indices) block[j].isClipped = j > 0
-            }
+            // Clipping is a property of the layer itself, not of its position: dragging a layer
+            // keeps its isClipped flag, so the clip travels with the layer wherever it lands.
         } else {
             // Move the whole unit, so a folder always keeps its children and their order
             val blockToMove = blocks.removeAt(fromBlockIdx)
@@ -2326,6 +2325,8 @@ class AstralCanvasView @JvmOverloads constructor(
 
         layers.clear()
         blocks.forEach { layers.addAll(it) }
+        // The bottom-most layer has nothing below it to clip to, so it cannot stay clipped.
+        layers.firstOrNull()?.let { if (it.isClipped) it.isClipped = false }
         invalidate()
         return true
     }
