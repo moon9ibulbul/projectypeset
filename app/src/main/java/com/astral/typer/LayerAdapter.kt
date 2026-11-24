@@ -195,14 +195,8 @@ class LayerAdapter(
         holder.tvChevron.setOnClickListener(null)
 
         val baseName = if (layer is TextLayer) "Text: ${layer.text.take(10)}" else layer.name
-        val indent = dp16 * row.depth
-        if (layer.isClipped) {
-            holder.tvName.setPadding(indent + dp16, 0, 0, 0)
-            holder.tvName.text = "\u21B3 $baseName"
-        } else {
-            holder.tvName.setPadding(indent, 0, 0, 0)
-            holder.tvName.text = baseName
-        }
+        holder.tvName.setPadding(dp16 * row.depth, 0, 0, 0)
+        holder.tvName.text = baseName
 
         // Highlight selection
         if (layer.isSelected) {
@@ -262,8 +256,10 @@ class LayerAdapter(
         holder.btnClip.setOnClickListener {
              com.astral.typer.utils.UndoManager.saveState(layersProvider())
              layer.isClipped = !layer.isClipped
-             notifyItemChanged(position)
+             // Toggling clipping does not change the selection, but onItemClick can select this
+             // layer and deselect another one, so every row has to be rebound.
              onItemClick(row)
+             refresh()
         }
 
         holder.btnDelete.setOnClickListener {

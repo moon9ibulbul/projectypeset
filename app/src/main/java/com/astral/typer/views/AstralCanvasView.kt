@@ -2302,6 +2302,15 @@ class AstralCanvasView @JvmOverloads constructor(
             return moveLayerInsideGroup(fromLayer.groupId!!, fromLayer, toLayer)
         }
 
+        // In multi-select mode the whole selection is dragged as one unit. Folders keep their
+        // existing block behaviour, so this only applies to plain layers outside folders.
+        val selectedLayers = layers.filter { it.isSelected }
+        if (selectedLayers.size > 1 && fromLayer.isSelected && !toLayer.isSelected &&
+            selectedLayers.none { it.groupId != null } && toLayer.groupId == null
+        ) {
+            return moveSelectedLayerBlock(fromRow, toRow, selectedLayers, toLayer)
+        }
+
         val blocks = buildLayerBlocks()
         val fromBlockIdx = blocks.indexOfFirst { block -> block.any { it === fromLayer } }
         val toBlockIdx = blocks.indexOfFirst { block -> block.any { it === toLayer } }
@@ -2330,6 +2339,32 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
         return true
     }
+
+    /**
+     * Moves every selected layer together, keeping their relative order, so the dropped layer
+     * lands at the row it was dropped on.
+     */
+    private fun moveSelectedLayerBlock(
+        fromRow: Int,
+        toRow: Int,
+        selected: List<Layer>,
+        toLayer: Layer
+    ): Boolean {
+        val remaining = layers.filterNot { layer -> selected.any { it === layer } }.toMutableList()
+        val targetIndex = remaining.indexOfFirst { it === toLayer }
+        if (targetIndex == -1) return false
+        // Rows are listed top-most first, so dropping above the target inserts after it in the list.
+        val insertAt = if (toRow < fromRow) targetIndex + 1 else targetIndex
+        remaining.addAll(insertAt.coerceIn(0, remaining.size), selected)
+
+        layers.clear()
+        layers.addAll(remaining)
+        // The bottom-most layer has nothing below it to clip to, so it cannot stay clipped.
+        layers.firstOrNull()?.let { if (it.isClipped) it.isClipped = false }
+        invalidate()
+        return true
+    }
+
     fun initCanvas(width: Int, height: Int, color: Int) {
         canvasWidth = width
         canvasHeight = height
