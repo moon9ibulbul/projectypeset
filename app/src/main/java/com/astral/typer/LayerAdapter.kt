@@ -2,6 +2,7 @@ package com.astral.typer
 
 import android.graphics.Color
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -20,7 +21,8 @@ class LayerAdapter(
     private val onToggleExpand: (LayerRow) -> Unit,
     private val onGroupVisibleToggle: (LayerRow) -> Unit,
     private val onGroupLockToggle: (LayerRow) -> Unit,
-    private val onItemLongClick: ((LayerRow) -> Unit)? = null
+    private val onItemLongClick: ((LayerRow) -> Unit)? = null,
+    private val onDragHandleTouch: ((RecyclerView.ViewHolder) -> Unit)? = null
 ) : RecyclerView.Adapter<LayerAdapter.LayerViewHolder>() {
 
     private var rows: List<LayerRow> = rowsProvider()
@@ -32,6 +34,7 @@ class LayerAdapter(
     }
 
     inner class LayerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val btnDrag: ImageView = itemView.findViewById(7)
         val tvChevron: TextView = itemView.findViewById(6)
         val tvName: TextView = itemView.findViewById(1) // ID set below
         val btnVisible: ImageView = itemView.findViewById(2)
@@ -51,6 +54,17 @@ class LayerAdapter(
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             setPadding(dp8, dp8, dp8, dp8)
             gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val btnDrag = ImageView(context).apply {
+            id = 7
+            layoutParams = LinearLayout.LayoutParams(dp16 * 3, dp16 * 2)
+            setPadding(4, 4, 4, 4)
+            setImageResource(com.astral.typer.R.drawable.ic_drag_indicator)
+            setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
+            alpha = 0.7f
+            isClickable = true
+            contentDescription = "Drag to reorder layer"
         }
 
         val tvChevron = TextView(context).apply {
@@ -101,6 +115,7 @@ class LayerAdapter(
             setColorFilter(com.astral.typer.utils.ThemeUtils.getColorFromAttr(context, com.astral.typer.R.attr.appIconTint))
         }
 
+        layout.addView(btnDrag)
         layout.addView(tvChevron)
         layout.addView(tvName)
         layout.addView(btnVisible)
@@ -120,6 +135,15 @@ class LayerAdapter(
 
         holder.container.setPadding(dp8, dp8, dp8, dp8)
         holder.btnClip.visibility = View.VISIBLE
+
+        // A dedicated handle avoids clashing with long-press multi-select.
+        holder.btnDrag.alpha = 0.7f
+        holder.btnDrag.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                onDragHandleTouch?.invoke(holder)
+            }
+            false
+        }
 
         if (row.isGroupHeader) {
             holder.tvChevron.visibility = View.VISIBLE
