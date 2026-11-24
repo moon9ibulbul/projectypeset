@@ -85,6 +85,7 @@ object ProjectManager {
         val type: String, // "TEXT" or "IMAGE"
         val x: Float, val y: Float, val rotation: Float, val scaleX: Float, val scaleY: Float,
         val isVisible: Boolean, val isLocked: Boolean, val isClipped: Boolean? = null, val name: String,
+        val groupId: String? = null, val groupName: String? = null,
         val opacity: Int, val blendMode: String,
         val isOpacityGradient: Boolean, val opacityStart: Int, val opacityEnd: Int, val opacityAngle: Int,
 
@@ -527,6 +528,7 @@ object ProjectManager {
                         type = "TEXT",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
 
@@ -731,6 +733,7 @@ object ProjectManager {
                         type = "SHAPE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         shapeName = layer.shapeName, color = layer.color,
@@ -889,6 +892,7 @@ object ProjectManager {
                         type = "IMAGE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         imagePath = "images/$imgName",
@@ -926,6 +930,7 @@ object ProjectManager {
                         type = "BRUSH",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         brushPath = "images/$brushImgName",
@@ -2106,6 +2111,8 @@ object ProjectManager {
         layer.isVisible = model.isVisible
         layer.isLocked = model.isLocked
         layer.isClipped = model.isClipped ?: false
+        layer.groupId = model.groupId
+        layer.groupName = model.groupName
         layer.name = model.name
         layer.opacity = model.opacity
         layer.blendMode = model.blendMode
@@ -2559,11 +2566,9 @@ object ProjectManager {
         var i = 0
         while (i < layersList.size) {
             val layer = layersList[i]
-            if (!layer.isVisible) {
+            // A folder is drawn (and clipped against) as one unit; its children are consumed here.
+            if (layer.groupId != null && i > 0 && layersList[i - 1].groupId == layer.groupId) {
                 i++
-                while (i < layersList.size && layersList[i].isClipped) {
-                    i++
-                }
                 continue
             }
             i = drawChain(canvas, layersList, i)
@@ -2572,17 +2577,27 @@ object ProjectManager {
 
     private fun drawChain(canvas: android.graphics.Canvas, layersList: List<Layer>, index: Int): Int {
         val layer = layersList[index]
-        val nextIndex = index + 1
+        var groupEnd = index
+        val group = layer.groupId
+        if (group != null) {
+            while (groupEnd + 1 < layersList.size && layersList[groupEnd + 1].groupId == group) groupEnd++
+        }
+        val nextIndex = groupEnd + 1
         val hasClippedChildren = nextIndex < layersList.size && layersList[nextIndex].isClipped && layersList[nextIndex].isVisible
 
+        fun drawMember(memberIndex: Int, asMask: Boolean) {
+            val member = layersList[memberIndex]
+            if (!member.isVisible) return
+            member.isDrawingClippingMask = asMask
+            member.draw(canvas)
+            member.isDrawingClippingMask = false
+        }
+
         if (hasClippedChildren) {
-            layer.isDrawingClippingMask = false
-            layer.draw(canvas)
+            for (i in index..groupEnd) drawMember(i, false)
 
             val saveCount = canvas.saveLayer(null, null)
-            layer.isDrawingClippingMask = true
-            layer.draw(canvas)
-            layer.isDrawingClippingMask = false
+            for (i in index..groupEnd) drawMember(i, true)
 
             val clipPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
@@ -2593,8 +2608,7 @@ object ProjectManager {
             canvas.restoreToCount(saveCount)
             return finalIndex
         } else {
-            layer.isDrawingClippingMask = false
-            layer.draw(canvas)
+            for (i in index..groupEnd) drawMember(i, false)
 
             if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
                 var scan = nextIndex
@@ -3431,6 +3445,7 @@ object ProjectManager {
                         type = "TEXT",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
 
@@ -3627,6 +3642,7 @@ object ProjectManager {
                         type = "SHAPE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         shapeName = layer.shapeName, color = layer.color,
@@ -3778,6 +3794,7 @@ object ProjectManager {
                         type = "IMAGE",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         imagePath = "images/$imgName",
@@ -3815,6 +3832,7 @@ object ProjectManager {
                         type = "BRUSH",
                         x = layer.x, y = layer.y, rotation = layer.rotation, scaleX = layer.scaleX, scaleY = layer.scaleY,
                         isVisible = layer.isVisible, isLocked = layer.isLocked, isClipped = layer.isClipped, name = layer.name,
+                        groupId = layer.groupId, groupName = layer.groupName,
                         opacity = layer.opacity, blendMode = layer.blendMode,
                         isOpacityGradient = layer.isOpacityGradient, opacityStart = layer.opacityStart, opacityEnd = layer.opacityEnd, opacityAngle = layer.opacityAngle,
                         brushPath = "images/$brushImgName",
@@ -4122,6 +4140,8 @@ object ProjectManager {
                         isVisible = true,
                         isLocked = true,
                         name = "Inpaint Mask",
+                        groupId = com.astral.typer.models.Layer.INPAINT_GROUP_ID,
+                        groupName = com.astral.typer.models.Layer.INPAINT_GROUP_NAME,
                         opacity = 255,
                         blendMode = "NORMAL",
                         isOpacityGradient = false,

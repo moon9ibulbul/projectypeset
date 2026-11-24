@@ -111,8 +111,10 @@ class AstralCanvasView @JvmOverloads constructor(
     var layerEraseHardness = 0f
 
     // Temp path for layer erase
-    private val currentLayerErasePath = Path()
-    private val currentLayerErasePoints = mutableListOf<com.astral.typer.models.ErasePoint>()
+    // Folder (layer group) state. Expansion is session-only; folder membership is on the layers.
+    private val groupExpanded = mutableMapOf<String, Boolean>()
+    private val multiErasePaths = HashMap<Layer, Path>()
+    private val multiErasePoints = HashMap<Layer, MutableList<com.astral.typer.models.ErasePoint>>()
 
     // Saved brush state variables for BrushLayer erase toggle
     private var savedBrushName: String = "pencil"
@@ -1444,9 +1446,20 @@ class AstralCanvasView @JvmOverloads constructor(
         if (multiSelectedLayers.isEmpty() && selectedLayer != null) {
             multiSelectedLayers.add(selectedLayer!!)
         }
+        adoptInpaintMasksIntoGroup()
         com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
         onLayerSelectedListener?.onLayerSelected(selectedLayer)
         invalidate()
+    }
+
+    /** Inpaint masks saved before folders existed still belong in the inpaint folder. */
+    private fun adoptInpaintMasksIntoGroup() {
+        for (layer in layers) {
+            if (layer.groupId == null && layer is ImageLayer && layer.name == "Inpaint Mask") {
+                layer.groupId = Layer.INPAINT_GROUP_ID
+                layer.groupName = Layer.INPAINT_GROUP_NAME
+            }
+        }
     }
 
     fun getSelectedLayer(): Layer? {
@@ -2061,6 +2074,108 @@ class AstralCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    // --- LAYER FOLDERS ---
+
+    fun isGroupExpanded(groupId: String): Boolean {
+        return groupExpanded[groupId] ?: (groupId != Layer.INPAINT_GROUP_ID)
+    }
+
+    fun toggleGroupExpanded(groupId: String) {
+        groupExpanded[groupId] = !isGroupExpanded(groupId)
+        invalidate()
+    }
+
+    fun getGroupLayers(groupId: String): List<Layer> = layers.filter { it.groupId == groupId }
+
+    /**
+     * Builds the layer panel rows, top-most first. A folder is one header row plus its children,
+     * which are only listed while the folder is expanded.
+     */
+    fun buildLayerRows(): List<com.astral.typer.models.LayerRow> {
+        val rows = ArrayList<com.astral.typer.models.LayerRow>()
+        var i = layers.size - 1
+        while (i >= 0) {
+            val layer = layers[i]
+            val group = layer.groupId
+            if (group == null) {
+                rows.add(com.astral.typer.models.LayerRow(layer = layer))
+                i--
+                continue
+            }
+            var start = i
+            while (start - 1 >= 0 && layers[start - 1].groupId == group) start--
+            val members = layers.subList(start, i + 1)
+            val expanded = isGroupExpanded(group)
+            rows.add(
+                com.astral.typer.models.LayerRow(
+                    groupId = group,
+                    groupName = layer.groupName ?: "Folder",
+                    isGroupHeader = true,
+                    isExpanded = expanded,
+                    isGroupVisibleAll = members.all { it.isVisible },
+                    isGroupLockedAll = members.all { it.isLocked },
+                    isGroupSelected = members.all { it.isSelected }
+                )
+            )
+            if (expanded) {
+                for (j in i downTo start) {
+                    rows.add(
+                        com.astral.typer.models.LayerRow(
+                            layer = layers[j],
+                            groupId = group,
+                            groupName = layer.groupName,
+                            depth = 1
+                        )
+                    )
+                }
+            }
+            i = start - 1
+        }
+        return rows
+    }
+
+    /** Clicking a folder selects every child, exactly like a multi-selection of its layers. */
+    fun selectLayerGroup(groupId: String) {
+        val members = getGroupLayers(groupId)
+        if (members.isEmpty()) return
+        (selectedLayer as? com.astral.typer.models.BrushLayer)?.let {
+            if (it.isDrawingStroke) it.cancelStroke()
+        }
+        multiSelectedLayers.clear()
+        layers.forEach { it.isSelected = false }
+        members.forEach {
+            it.isSelected = true
+            multiSelectedLayers.add(it)
+        }
+        selectedLayer = members.lastOrNull()
+        com.astral.typer.utils.MultiSelectPropertySync.resetSnapshot(selectedLayer)
+        onLayerSelectedListener?.onLayerSelected(selectedLayer)
+        isPerspectiveMode = false
+        isPerspectiveSkewMode = false
+        exitCutMode()
+        invalidate()
+    }
+
+    /** Merged bounds of the selection; a folder is treated as one region for its operations. */
+    fun getSelectedLayersBounds(): RectF? {
+        var bounds: RectF? = null
+        for (layer in getSelectedLayers()) {
+            val layerBounds = layer.getCanvasBounds()
+            if (bounds == null) bounds = RectF(layerBounds) else bounds.union(layerBounds)
+        }
+        return bounds
+    }
+
+    fun setLayerGroupVisibility(groupId: String, visible: Boolean) {
+        getGroupLayers(groupId).forEach { it.isVisible = visible }
+        invalidate()
+    }
+
+    fun setLayerGroupLocked(groupId: String, locked: Boolean) {
+        getGroupLayers(groupId).forEach { it.isLocked = locked }
+        invalidate()
+    }
+
     fun deleteSelectedLayers() {
         val targets = getSelectedLayers()
         if (targets.isEmpty()) return
@@ -2134,70 +2249,86 @@ class AstralCanvasView @JvmOverloads constructor(
         }
     }
 
-    fun moveLayerBlock(fromAdapterPos: Int, toAdapterPos: Int): Boolean {
-        val fromListIdx = layers.size - 1 - fromAdapterPos
-        val toListIdx = layers.size - 1 - toAdapterPos
-
-        if (fromListIdx < 0 || fromListIdx >= layers.size || toListIdx < 0 || toListIdx >= layers.size) return false
-        if (fromListIdx == toListIdx) return false
-
-        // Group into blocks
+    /** Groups the flat layer list into move units: one folder, or one clipping chain. */
+    private fun buildLayerBlocks(): MutableList<MutableList<Layer>> {
         val blocks = mutableListOf<MutableList<Layer>>()
-        var currentBlock: MutableList<Layer>? = null
+        var current: MutableList<Layer>? = null
         for (layer in layers) {
-            if (!layer.isClipped || currentBlock == null) {
-                currentBlock = mutableListOf(layer)
-                blocks.add(currentBlock)
+            val currentGroup = current?.firstOrNull()?.groupId
+            val sameFolder = current != null && layer.groupId != null && layer.groupId == currentGroup
+            // A clipped layer attaches to the unit below it, including a whole folder.
+            val clippedToUnitBelow = current != null && layer.isClipped && layer.groupId == null
+            if (sameFolder || clippedToUnitBelow) {
+                current!!.add(layer)
             } else {
-                currentBlock.add(layer)
+                current = mutableListOf(layer)
+                blocks.add(current)
             }
         }
+        return blocks
+    }
 
-        val fromLayer = layers[fromListIdx]
-        val toLayer = layers[toListIdx]
+    private fun getGroupStartLayer(groupId: String?): Layer? {
+        if (groupId == null) return null
+        return layers.firstOrNull { it.groupId == groupId }
+    }
 
-        var fromBlockIdx = -1
-        var toBlockIdx = -1
-        for (i in 0 until blocks.size) {
-            if (blocks[i].contains(fromLayer)) {
-                fromBlockIdx = i
-            }
-            if (blocks[i].contains(toLayer)) {
-                toBlockIdx = i
-            }
-        }
-
-        if (fromBlockIdx == -1 || toBlockIdx == -1) return false
-
-        if (fromBlockIdx == toBlockIdx) {
-            // Internal rearrangement within the same block
-            val block = blocks[fromBlockIdx]
-            val fromInBlockIdx = block.indexOf(fromLayer)
-            val toInBlockIdx = block.indexOf(toLayer)
-            if (fromInBlockIdx != -1 && toInBlockIdx != -1) {
-                block.removeAt(fromInBlockIdx)
-                block.add(toInBlockIdx, fromLayer)
-                // Enforce clipping rules
-                for (j in 0 until block.size) {
-                    block[j].isClipped = (j > 0)
-                }
-            }
-        } else {
-            // Move block to new position
-            val blockToMove = blocks.removeAt(fromBlockIdx)
-            blocks.add(toBlockIdx, blockToMove)
-        }
-
-        // Reconstruct layers list
-        layers.clear()
-        for (b in blocks) {
-            layers.addAll(b)
-        }
-
+    private fun moveLayerInsideGroup(groupId: String, fromLayer: Layer, toLayer: Layer): Boolean {
+        val members = layers.filter { it.groupId == groupId }
+        val fromIdx = members.indexOfFirst { it === fromLayer }
+        val toIdx = members.indexOfFirst { it === toLayer }
+        if (fromIdx == -1 || toIdx == -1 || fromIdx == toIdx) return false
+        val reordered = members.toMutableList()
+        val moved = reordered.removeAt(fromIdx)
+        reordered.add(toIdx.coerceIn(0, reordered.size), moved)
+        var insertAt = layers.indexOfFirst { it.groupId == groupId }
+        if (insertAt == -1) return false
+        layers.removeAll { it.groupId == groupId }
+        if (insertAt > layers.size) insertAt = layers.size
+        layers.addAll(insertAt, reordered)
         invalidate()
         return true
     }
 
+    fun moveLayerBlock(fromRow: Int, toRow: Int): Boolean {
+        val rows = buildLayerRows()
+        if (fromRow !in rows.indices || toRow !in rows.indices || fromRow == toRow) return false
+        val fromRowData = rows[fromRow]
+        val toRowData = rows[toRow]
+        val fromLayer = fromRowData.layer ?: getGroupStartLayer(fromRowData.groupId) ?: return false
+        val toLayer = toRowData.layer ?: getGroupStartLayer(toRowData.groupId) ?: return false
+        if (fromLayer === toLayer) return false
+        if (fromLayer.groupId != null && fromLayer.groupId == toLayer.groupId) {
+            return moveLayerInsideGroup(fromLayer.groupId!!, fromLayer, toLayer)
+        }
+
+        val blocks = buildLayerBlocks()
+        val fromBlockIdx = blocks.indexOfFirst { block -> block.any { it === fromLayer } }
+        val toBlockIdx = blocks.indexOfFirst { block -> block.any { it === toLayer } }
+        if (fromBlockIdx == -1 || toBlockIdx == -1) return false
+
+        if (fromBlockIdx == toBlockIdx) {
+            // Internal rearrangement within the same unit
+            val block = blocks[fromBlockIdx]
+            val fromInBlock = block.indexOfFirst { it === fromLayer }
+            val toInBlock = block.indexOfFirst { it === toLayer }
+            if (fromInBlock == -1 || toInBlock == -1) return false
+            val moved = block.removeAt(fromInBlock)
+            block.add(toInBlock.coerceIn(0, block.size), moved)
+            if (block.firstOrNull()?.groupId == null) {
+                for (j in block.indices) block[j].isClipped = j > 0
+            }
+        } else {
+            // Move the whole unit, so a folder always keeps its children and their order
+            val blockToMove = blocks.removeAt(fromBlockIdx)
+            blocks.add(toBlockIdx.coerceIn(0, blocks.size), blockToMove)
+        }
+
+        layers.clear()
+        blocks.forEach { layers.addAll(it) }
+        invalidate()
+        return true
+    }
     fun initCanvas(width: Int, height: Int, color: Int) {
         canvasWidth = width
         canvasHeight = height
@@ -2814,6 +2945,7 @@ class AstralCanvasView @JvmOverloads constructor(
         if (currentMode != Mode.EYEDROPPER && !isInpaintMode && currentMode != Mode.GRADATION) {
              if (multiSelectedLayers.size > 1) {
                  multiSelectedLayers.forEach { drawSelectionOverlay(canvas, it) }
+                 drawSelectedGroupBounds(canvas)
              } else {
                  selectedLayer?.let { drawSelectionOverlay(canvas, it) }
              }
@@ -2959,14 +3091,31 @@ class AstralCanvasView @JvmOverloads constructor(
 
     private fun drawChain(canvas: Canvas, layersList: List<Layer>, index: Int, viewport: RectF? = null, skipEffects: Boolean = false, viewScale: Float = 1.0f): Int {
         val layer = layersList[index]
-        val nextIndex = index + 1
+        // A folder draws as one unit, so a layer clipped to the folder is masked by every child.
+        var groupEnd = index
+        val group = layer.groupId
+        if (group != null) {
+            while (groupEnd + 1 < layersList.size && layersList[groupEnd + 1].groupId == group) groupEnd++
+        }
+        val nextIndex = groupEnd + 1
         val hasClippedChildren = nextIndex < layersList.size && layersList[nextIndex].isClipped && layersList[nextIndex].isVisible
 
-        val isVisibleInViewport = viewport == null || RectF.intersects(layer.getCanvasBounds(), viewport)
+        fun drawMember(memberIndex: Int, asMask: Boolean) {
+            val member = layersList[memberIndex]
+            if (!member.isVisible) return
+            if (previewOriginalInpaint && member is ImageLayer && member.name == "Inpaint Mask") return
+            member.isDrawingClippingMask = asMask
+            member.draw(canvas, skipEffects, viewScale)
+            member.isDrawingClippingMask = false
+        }
+
+        val isVisibleInViewport = viewport == null || (index..groupEnd).any {
+            layersList[it].isVisible && RectF.intersects(layersList[it].getCanvasBounds(), viewport)
+        }
 
         if (hasClippedChildren) {
             if (!isVisibleInViewport) {
-                // If base layer is outside viewport, check if any clipped children are visible
+                // If the base is outside the viewport, check whether any clipped child is visible
                 var scan = nextIndex
                 var hasVisibleChild = false
                 while (scan < layersList.size && layersList[scan].isClipped) {
@@ -2985,15 +3134,12 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
 
-            // First, draw the base layer normally (with strokes, shadows, fill, etc.)
-            layer.isDrawingClippingMask = false
-            layer.draw(canvas, skipEffects, viewScale)
+            // First, draw the base (a single layer or every layer of a folder) normally
+            for (i in index..groupEnd) drawMember(i, false)
 
-            // Now draw the clipping mask and clipped layers on top of it
+            // Now draw the clipping mask and the clipped layers on top of it
             val saveCount = canvas.saveLayer(null, null)
-            layer.isDrawingClippingMask = true
-            layer.draw(canvas, skipEffects, viewScale)
-            layer.isDrawingClippingMask = false
+            for (i in index..groupEnd) drawMember(i, true)
 
             val clipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
@@ -3005,8 +3151,7 @@ class AstralCanvasView @JvmOverloads constructor(
             return finalIndex
         } else {
             if (isVisibleInViewport) {
-                layer.isDrawingClippingMask = false
-                layer.draw(canvas, skipEffects, viewScale)
+                for (i in index..groupEnd) drawMember(i, false)
             }
 
             if (nextIndex < layersList.size && layersList[nextIndex].isClipped) {
@@ -3024,11 +3169,9 @@ class AstralCanvasView @JvmOverloads constructor(
         var i = 0
         while (i < layersList.size) {
             val layer = layersList[i]
-            if (!layer.isVisible || (previewOriginalInpaint && layer is ImageLayer && layer.name == "Inpaint Mask")) {
+            // Children of a folder are consumed together with their folder by one drawChain call.
+            if (layer.groupId != null && i > 0 && layersList[i - 1].groupId == layer.groupId) {
                 i++
-                while (i < layersList.size && layersList[i].isClipped) {
-                    i++
-                }
                 continue
             }
             i = drawChain(canvas, layersList, i, viewport, skipEffects, viewScale)
@@ -3066,6 +3209,18 @@ class AstralCanvasView @JvmOverloads constructor(
         val viewScale = if (disableLOD) 1.0f else getCurrentViewScale()
 
         drawLayers(canvas, layers, visibleViewport, isFastInteraction, viewScale)
+    }
+
+    /** One box around the merged bounds of a selected folder, so it reads as a single region. */
+    private fun drawSelectedGroupBounds(canvas: Canvas) {
+        val group = selectedLayer?.groupId ?: return
+        val bounds = getSelectedLayersBounds() ?: return
+        if (getGroupLayers(group).size < 2) return
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.CYAN
+        paint.strokeWidth = 2f / getCurrentViewScale().coerceAtLeast(0.01f)
+        canvas.drawRect(bounds, paint)
+        paint.style = Paint.Style.FILL
     }
 
     private fun drawSelectionOverlay(canvas: Canvas, layer: Layer) {
@@ -3818,74 +3973,101 @@ class AstralCanvasView @JvmOverloads constructor(
             return true
         }
 
-        if (isEraseLayerMode && selectedLayer is com.astral.typer.models.StylableLayer) {
-            val layer = selectedLayer!!
-            val stylable = layer as com.astral.typer.models.StylableLayer
-            if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
-                currentMode = Mode.PAN_ZOOM; scaleDetector.onTouchEvent(event); gestureDetector.onTouchEvent(event)
-                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                    currentMode = Mode.ERASE_LAYER
-                    invalidate()
+        if (isEraseLayerMode && selectedLayer !is com.astral.typer.models.BrushLayer) {
+            // Erasing with a folder selected applies one stroke to every child, so the folder behaves
+            // like one merged region while each child keeps its own bitmap and erase mask.
+            val eraseTargets = getSelectedLayers().filter { it is com.astral.typer.models.StylableLayer }
+            if (eraseTargets.isNotEmpty()) {
+                if (pointerCount >= 2 || currentMode == Mode.PAN_ZOOM) {
+                    currentMode = Mode.PAN_ZOOM; scaleDetector.onTouchEvent(event); gestureDetector.onTouchEvent(event)
+                    if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        currentMode = Mode.ERASE_LAYER
+                        invalidate()
+                    }
+                    return true
+                }
+
+                fun eraseLocalMatrix(target: Layer): Matrix {
+                    val m = Matrix()
+                    m.postTranslate(-target.x, -target.y)
+                    m.postRotate(-target.rotation)
+                    m.postScale(1f / target.scaleX, 1f / target.scaleY)
+                    return m
+                }
+
+                fun erasePaintFor(target: Layer) {
+                    val stylable = target as com.astral.typer.models.StylableLayer
+                    stylable.activeErasePath = multiErasePaths[target]
+                    stylable.activeEraseSize = layerEraseSize
+                    stylable.activeEraseOpacity = layerEraseOpacity
+                    stylable.activeEraseHardness = layerEraseHardness
+                }
+
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        com.astral.typer.utils.UndoManager.saveState(layers)
+                        multiErasePaths.clear()
+                        multiErasePoints.clear()
+                        for (target in eraseTargets) {
+                            val stylable = target as com.astral.typer.models.StylableLayer
+                            val start = floatArrayOf(cx, cy)
+                            eraseLocalMatrix(target).mapPoints(start)
+                            val path = Path()
+                            path.moveTo(start[0], start[1])
+                            path.lineTo(start[0] + 0.01f, start[1])
+                            val points = mutableListOf(com.astral.typer.models.ErasePoint(start[0], start[1]))
+                            multiErasePaths[target] = path
+                            multiErasePoints[target] = points
+                            if (stylable.eraseMask == null) {
+                                val pad = stylable.calculatePadding()
+                                val maskW = (target.getWidth().toInt().coerceAtLeast(1) + pad * 2).toInt().coerceAtLeast(1)
+                                val maskH = (target.getHeight().toInt().coerceAtLeast(1) + pad * 2).toInt().coerceAtLeast(1)
+                                stylable.eraseMask = android.graphics.Bitmap.createBitmap(maskW, maskH, android.graphics.Bitmap.Config.ARGB_8888)
+                            }
+                            stylable.eraseDragRevision++
+                            erasePaintFor(target)
+                        }
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val historySize = event.historySize
+                        for (target in eraseTargets) {
+                            val path = multiErasePaths[target] ?: continue
+                            val points = multiErasePoints[target] ?: continue
+                            for (h in 0 until historySize) {
+                                val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
+                                invertedMatrix.mapPoints(hpt)
+                                val local = floatArrayOf(hpt[0], hpt[1])
+                                eraseLocalMatrix(target).mapPoints(local)
+                                path.lineTo(local[0], local[1])
+                                points.add(com.astral.typer.models.ErasePoint(local[0], local[1]))
+                            }
+                            val local = floatArrayOf(cx, cy)
+                            eraseLocalMatrix(target).mapPoints(local)
+                            path.lineTo(local[0], local[1])
+                            points.add(com.astral.typer.models.ErasePoint(local[0], local[1]))
+                            (target as com.astral.typer.models.StylableLayer).eraseDragRevision++
+                            erasePaintFor(target)
+                        }
+                        invalidate()
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        for (target in eraseTargets) {
+                            val stylable = target as com.astral.typer.models.StylableLayer
+                            val path = multiErasePaths[target]
+                            val points = multiErasePoints[target]
+                            stylable.eraseDragRevision++
+                            stylable.activeErasePath = null
+                            if (path != null && points != null && !path.isEmpty) {
+                                stylable.addErasePath(Path(path), layerEraseSize, layerEraseOpacity, layerEraseHardness, points.toList())
+                            }
+                        }
+                        multiErasePaths.clear()
+                        multiErasePoints.clear()
+                        invalidate()
+                    }
                 }
                 return true
             }
-            val localPoint = floatArrayOf(cx, cy); val globalToLocal = Matrix()
-            globalToLocal.postTranslate(-layer.x, -layer.y); globalToLocal.postRotate(-layer.rotation); globalToLocal.postScale(1/layer.scaleX, 1/layer.scaleY); globalToLocal.mapPoints(localPoint)
-            val pad = stylable.calculatePadding()
-            val w = layer.getWidth().toInt().coerceAtLeast(1); val h = layer.getHeight().toInt().coerceAtLeast(1)
-            val maskW = (w + pad * 2).toInt().coerceAtLeast(1)
-            val maskH = (h + pad * 2).toInt().coerceAtLeast(1)
-            val maskX = localPoint[0]; val maskY = localPoint[1]
-            when(event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    com.astral.typer.utils.UndoManager.saveState(layers)
-                    stylable.eraseDragRevision++
-                    currentLayerErasePath.reset()
-                    currentLayerErasePath.moveTo(maskX, maskY)
-                    currentLayerErasePath.lineTo(maskX + 0.01f, maskY)
-                    currentLayerErasePoints.clear()
-                    currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(maskX, maskY))
-                    if (stylable.eraseMask == null) {
-                         stylable.eraseMask = android.graphics.Bitmap.createBitmap(maskW, maskH, android.graphics.Bitmap.Config.ARGB_8888)
-                    }
-                    stylable.activeErasePath = currentLayerErasePath
-                    stylable.activeEraseSize = layerEraseSize
-                    stylable.activeEraseOpacity = layerEraseOpacity
-                    stylable.activeEraseHardness = layerEraseHardness
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    stylable.eraseDragRevision++
-                    val historySize = event.historySize
-                    for (h in 0 until historySize) {
-                        val hpt = floatArrayOf(event.getHistoricalX(h), event.getHistoricalY(h))
-                        invertedMatrix.mapPoints(hpt)
-                        val hLocalPoint = floatArrayOf(hpt[0], hpt[1])
-                        globalToLocal.mapPoints(hLocalPoint)
-                        val hmX = hLocalPoint[0]
-                        val hmY = hLocalPoint[1]
-                        currentLayerErasePath.lineTo(hmX, hmY)
-                        currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(hmX, hmY))
-                    }
-                    currentLayerErasePath.lineTo(maskX, maskY)
-                    currentLayerErasePoints.add(com.astral.typer.models.ErasePoint(maskX, maskY))
-                    stylable.activeErasePath = currentLayerErasePath
-                    stylable.activeEraseSize = layerEraseSize
-                    stylable.activeEraseOpacity = layerEraseOpacity
-                    stylable.activeEraseHardness = layerEraseHardness
-                    invalidate()
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    stylable.eraseDragRevision++
-                    stylable.activeErasePath = null
-                    if (!currentLayerErasePath.isEmpty) {
-                        stylable.addErasePath(Path(currentLayerErasePath), layerEraseSize, layerEraseOpacity, layerEraseHardness, currentLayerErasePoints.toList())
-                        currentLayerErasePath.reset()
-                        currentLayerErasePoints.clear()
-                    }
-                    invalidate()
-                }
-            }
-            return true
         }
 
         when (event.actionMasked) {

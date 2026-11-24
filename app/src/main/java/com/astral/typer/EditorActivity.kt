@@ -1098,6 +1098,8 @@ class EditorActivity : AppCompatActivity() {
             isVisible = true
             isLocked = true
             name = "Inpaint Mask"
+            groupId = com.astral.typer.models.Layer.INPAINT_GROUP_ID
+            groupName = com.astral.typer.models.Layer.INPAINT_GROUP_NAME
             opacity = 255
             blendMode = "NORMAL"
             isOpacityGradient = false
@@ -4302,8 +4304,8 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showEraseMenu() {
         val container = prepareContainer()
-        val layer = canvasView.getSelectedLayer()
-        if (layer !is StylableLayer) return
+        // A folder selection erases every child at once, so any stylable child is enough.
+        if (canvasView.getSelectedLayers().none { it is StylableLayer }) return
 
         canvasView.setEraseLayerMode(true)
 
@@ -5448,34 +5450,83 @@ class EditorActivity : AppCompatActivity() {
             showPropertiesMenu()
         }
 
+        fun refreshRows() {
+            (recyclerView.adapter as? LayerAdapter)?.refresh()
+        }
+
         val adapter = LayerAdapter(
-            canvasView.getLayers(),
-            onItemClick = { layer ->
-                if (isMultiSelectMode) {
-                    canvasView.toggleMultiSelectLayer(layer)
+            rowsProvider = { canvasView.buildLayerRows() },
+            layersProvider = { canvasView.getLayers() },
+            onItemClick = { row ->
+                val group = row.groupId
+                if (row.isGroupHeader && group != null) {
+                    // A folder behaves exactly like selecting all of its layers.
+                    isMultiSelectMode = true
+                    canvasView.selectLayerGroup(group)
+                } else if (isMultiSelectMode) {
+                    row.layer?.let { canvasView.toggleMultiSelectLayer(it) }
                 } else {
-                    canvasView.selectLayer(layer)
-                    // Single selection: bring the selected layer into view
-                    canvasView.scrollToLayer(layer)
+                    row.layer?.let {
+                        canvasView.selectLayer(it)
+                        // Single selection: bring the selected layer into view
+                        canvasView.scrollToLayer(it)
+                    }
                 }
                 canvasView.invalidate()
                 refreshMultiSelectUi()
             },
-            onDeleteClick = { layerToDelete ->
-                android.app.AlertDialog.Builder(this)
-                    .setTitle("Delete Layer")
-                    .setMessage("Are you sure you want to delete this layer?")
-                    .setPositiveButton("Delete") { _, _ ->
-                        canvasView.removeLayer(layerToDelete)
-                        popupWindow.dismiss()
-                        showLayerMenu()
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
+            onDeleteClick = { row ->
+                val layerToDelete = row.layer
+                if (layerToDelete != null) {
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("Delete Layer")
+                        .setMessage("Are you sure you want to delete this layer?")
+                        .setPositiveButton("Delete") { _, _ ->
+                            canvasView.removeLayer(layerToDelete)
+                            popupWindow.dismiss()
+                            showLayerMenu()
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
             },
-            onItemLongClick = { layer ->
+            onDeleteGroup = { row ->
+                val group = row.groupId
+                if (group != null) {
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("Delete Folder")
+                        .setMessage("Delete this folder and every layer inside it?")
+                        .setPositiveButton("Delete") { _, _ ->
+                            canvasView.selectLayerGroup(group)
+                            canvasView.deleteSelectedLayers()
+                            popupWindow.dismiss()
+                            showLayerMenu()
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            },
+            onToggleExpand = { row ->
+                row.groupId?.let { canvasView.toggleGroupExpanded(it) }
+                refreshRows()
+            },
+            onGroupVisibleToggle = { row ->
+                row.groupId?.let { canvasView.setLayerGroupVisibility(it, !row.isGroupVisibleAll) }
+                refreshRows()
+                refreshMultiSelectUi()
+            },
+            onGroupLockToggle = { row ->
+                row.groupId?.let { canvasView.setLayerGroupLocked(it, !row.isGroupLockedAll) }
+                refreshRows()
+                refreshMultiSelectUi()
+            },
+            onItemLongClick = { row ->
                 isMultiSelectMode = true
-                canvasView.toggleMultiSelectLayer(layer)
+                if (row.isGroupHeader) {
+                    row.groupId?.let { canvasView.selectLayerGroup(it) }
+                } else {
+                    row.layer?.let { canvasView.toggleMultiSelectLayer(it) }
+                }
                 canvasView.invalidate()
                 refreshMultiSelectUi()
             }
@@ -5487,7 +5538,7 @@ class EditorActivity : AppCompatActivity() {
             isMultiSelectMode = !isMultiSelectMode
             if (!isMultiSelectMode) {
                 canvasView.clearMultiSelection()
-                adapter.notifyDataSetChanged()
+                adapter.refresh()
             }
             refreshMultiSelectUi()
         }
@@ -5495,27 +5546,27 @@ class EditorActivity : AppCompatActivity() {
         btnMultiSelectAll.setOnClickListener {
             isMultiSelectMode = true
             canvasView.selectAllLayers()
-            adapter.notifyDataSetChanged()
+            adapter.refresh()
             refreshMultiSelectUi()
         }
 
         btnMultiUnselectAll.setOnClickListener {
             canvasView.unselectAllLayers()
-            adapter.notifyDataSetChanged()
+            adapter.refresh()
             refreshMultiSelectUi()
         }
 
         btnMultiVis.setOnClickListener {
             val anyVisible = canvasView.getSelectedLayers().any { it.isVisible }
             canvasView.setSelectedLayersVisibility(!anyVisible)
-            adapter.notifyDataSetChanged()
+            adapter.refresh()
             refreshMultiSelectUi()
         }
 
         btnMultiLock.setOnClickListener {
             val allLocked = canvasView.getSelectedLayers().isNotEmpty() && canvasView.getSelectedLayers().all { it.isLocked }
             canvasView.setSelectedLayersLocked(!allLocked)
-            adapter.notifyDataSetChanged()
+            adapter.refresh()
             refreshMultiSelectUi()
         }
 
@@ -5553,7 +5604,8 @@ class EditorActivity : AppCompatActivity() {
                 val to = target.adapterPosition
                 val changed = canvasView.moveLayerBlock(from, to)
                 if (changed) {
-                    adapter.notifyItemMoved(from, to)
+                    // A folder moves its children too, so the whole row list is rebuilt.
+                    adapter.refresh()
                 }
                 return true
             }
@@ -5561,7 +5613,7 @@ class EditorActivity : AppCompatActivity() {
             override fun clearView(rv: androidx.recyclerview.widget.RecyclerView, vh: androidx.recyclerview.widget.RecyclerView.ViewHolder) {
                 super.clearView(rv, vh)
                 if (dragOccurred) {
-                    adapter.notifyDataSetChanged()
+                    adapter.refresh()
                     dragOccurred = false
                 }
             }

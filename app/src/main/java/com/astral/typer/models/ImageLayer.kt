@@ -730,6 +730,8 @@ class ImageLayer(
         newLayer.isVisible = isVisible
         newLayer.isLocked = isLocked
         newLayer.isClipped = isClipped
+        newLayer.groupId = groupId
+        newLayer.groupName = groupName
         newLayer.name = name
 
         newLayer.opacity = opacity

@@ -1543,6 +1543,8 @@ class TextLayer(
         newLayer.isVisible = this.isVisible
         newLayer.isLocked = this.isLocked
         newLayer.isClipped = this.isClipped
+        newLayer.groupId = this.groupId
+        newLayer.groupName = this.groupName
         newLayer.name = this.name
 
         return newLayer
