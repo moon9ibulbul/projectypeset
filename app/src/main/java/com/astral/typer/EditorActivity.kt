@@ -5454,6 +5454,8 @@ class EditorActivity : AppCompatActivity() {
             (recyclerView.adapter as? LayerAdapter)?.refresh()
         }
 
+        var itemTouchHelper: androidx.recyclerview.widget.ItemTouchHelper? = null
+
         val adapter = LayerAdapter(
             rowsProvider = { canvasView.buildLayerRows() },
             layersProvider = { canvasView.getLayers() },
@@ -5529,6 +5531,11 @@ class EditorActivity : AppCompatActivity() {
                 }
                 canvasView.invalidate()
                 refreshMultiSelectUi()
+            },
+            onDragHandleTouch = { holder ->
+                if (holder.bindingAdapterPosition != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                    itemTouchHelper?.startDrag(holder)
+                }
             }
         )
         recyclerView.adapter = adapter
@@ -5591,6 +5598,9 @@ class EditorActivity : AppCompatActivity() {
         ) {
             private var dragOccurred = false
 
+            // Long-press belongs to multi-select; dragging starts from the row's handle only.
+            override fun isLongPressDragEnabled(): Boolean = false
+
             override fun onSelectedChanged(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(vh, actionState)
                 if (actionState == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_DRAG) {
@@ -5620,7 +5630,7 @@ class EditorActivity : AppCompatActivity() {
 
             override fun onSwiped(vh: androidx.recyclerview.widget.RecyclerView.ViewHolder, dir: Int) {}
         }
-        val itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(callback)
+        itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(callback)
         itemTouchHelper.attachToRecyclerView(recyclerView)
     }
 
