@@ -833,7 +833,16 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun performInpaint(maskBitmap: android.graphics.Bitmap, bounds: android.graphics.Rect, onSuccess: () -> Unit) {
+    /**
+     * Inpaints the given mask regions one at a time.
+     *
+     * Every region is cropped out of the background, inpainted on its own, and stored in an
+     * "Inpaint Mask" layer that covers only that region. Merging all mask marks into a single
+     * union rectangle used to make the working area almost the whole canvas when the marks were
+     * far apart (e.g. top and bottom of a 27,000 px canvas), which is what crashed mid-range
+     * phones.
+     */
+    private fun performInpaint(regions: List<android.graphics.Rect>, onSuccess: () -> Unit) {
         val originalBitmap = canvasView.getBackgroundImage()
         if (originalBitmap == null) {
             Toast.makeText(this, "No image to inpaint", Toast.LENGTH_SHORT).show()
@@ -844,6 +853,9 @@ class EditorActivity : AppCompatActivity() {
             .getBoolean("inpaint_flatten_mask", false)
 
         if (flattenMask) {
+            // Flattening rewrites the whole background, so it still needs one full-canvas result.
+            val bounds = canvasView.getInpaintMaskBounds()
+            val maskBitmap = canvasView.getInpaintMask(bounds)
             if (canvasView.getPreInpaintOriginalBitmap() == null) {
                 canvasView.setPreInpaintOriginalBitmap(originalBitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
             }
@@ -867,6 +879,7 @@ class EditorActivity : AppCompatActivity() {
                         }
                     }
                 }
+                if (!maskBitmap.isRecycled) maskBitmap.recycle()
                 withContext(Dispatchers.Main) {
                     binding.tvLoadingProgress.visibility = View.GONE
                     binding.loadingOverlay.visibility = View.GONE
@@ -887,23 +900,9 @@ class EditorActivity : AppCompatActivity() {
         com.astral.typer.utils.UndoManager.saveState(layersSnapshot)
         canvasView.saveInpaintMaskState()
 
-        // Composite background + existing "Inpaint Mask" layer (if any) as source so subsequent inpaints see prior cleaned areas
-        val existingMaskLayer = layersSnapshot.firstOrNull {
-            it is com.astral.typer.models.ImageLayer && it.name == "Inpaint Mask"
-        } as? com.astral.typer.models.ImageLayer
-        val sourceBitmap: android.graphics.Bitmap
-        var recycleSourceBitmap = false
-        if (existingMaskLayer != null) {
-            sourceBitmap = originalBitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
-            val compositeCanvas = android.graphics.Canvas(sourceBitmap)
-            val wasVisible = existingMaskLayer.isVisible
-            existingMaskLayer.isVisible = true
-            existingMaskLayer.draw(compositeCanvas)
-            existingMaskLayer.isVisible = wasVisible
-            recycleSourceBitmap = true
-        } else {
-            sourceBitmap = originalBitmap
-        }
+        val existingMaskLayers = layersSnapshot.filterIsInstance<com.astral.typer.models.ImageLayer>()
+            .filter { it.name == "Inpaint Mask" }
+        val workRegions = if (regions.isEmpty()) listOf(canvasView.getInpaintMaskBounds()) else regions
 
         // Show Loading Overlay
         binding.tvLoadingProgress.visibility = View.GONE
@@ -911,144 +910,200 @@ class EditorActivity : AppCompatActivity() {
         binding.loadingOverlay.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            // Run heavy inpaint on background thread (inpaint function is suspend and handles Dispatchers)
-            val result = inpaintManager.inpaint(sourceBitmap, maskBitmap, bounds) { completed, total ->
-                if (total > 1) {
-                    runOnUiThread {
-                        if (binding.loadingOverlay.visibility == View.VISIBLE) {
+            val newMaskLayers = ArrayList<com.astral.typer.models.ImageLayer>()
+            val replacedLayers = ArrayList<com.astral.typer.models.ImageLayer>()
+            var processed = 0
+            for (region in workRegions) {
+                processed++
+                withContext(Dispatchers.Main) {
+                    if (binding.loadingOverlay.visibility == View.VISIBLE) {
+                        if (workRegions.size > 1) {
                             binding.tvLoadingProgress.visibility = View.VISIBLE
-                            binding.tvLoadingProgress.text = "Inpainting $completed/$total..."
+                            binding.tvLoadingProgress.text = "Inpainting area $processed/${workRegions.size}..."
+                        } else {
+                            binding.tvLoadingProgress.visibility = View.GONE
+                            binding.tvLoadingProgress.text = ""
                         }
                     }
                 }
-            }
-
-            // The composed inpaint source is no longer needed once the engine has returned,
-            // so release that full-canvas copy before allocating the mask patch.
-            if (recycleSourceBitmap) {
-                sourceBitmap.recycle()
-            }
-
-            // The "Inpaint Mask" layer only needs to cover the touched region, not the whole
-            // canvas. A full-canvas ARGB_8888 patch (plus the full-canvas merge buffer and the
-            // inpaint result) is 3 x 4 bytes per pixel and OOMs mid-range phones on large
-            // canvases, so the patch is cropped to the mask bounds (union with any previous mask).
-            val finalMaskData = if (result != null) {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    val existing = existingMaskLayer
-                    val patchBounds = android.graphics.Rect(bounds)
-                    if (existing != null) {
-                        // Keep mask content from earlier inpaints that lies outside these bounds.
-                        val halfW = existing.getWidth() * existing.scaleX / 2f
-                        val halfH = existing.getHeight() * existing.scaleY / 2f
-                        patchBounds.union(
-                            android.graphics.Rect(
-                                Math.floor((existing.x - halfW).toDouble()).toInt(),
-                                Math.floor((existing.y - halfH).toDouble()).toInt(),
-                                Math.ceil((existing.x + halfW).toDouble()).toInt(),
-                                Math.ceil((existing.y + halfH).toDouble()).toInt()
-                            )
-                        )
-                        patchBounds.left = patchBounds.left.coerceIn(0, originalBitmap.width)
-                        patchBounds.top = patchBounds.top.coerceIn(0, originalBitmap.height)
-                        patchBounds.right = patchBounds.right.coerceIn(0, originalBitmap.width)
-                        patchBounds.bottom = patchBounds.bottom.coerceIn(0, originalBitmap.height)
-                    }
-                    if (patchBounds.isEmpty) patchBounds.set(bounds)
-
-                    val patchW = patchBounds.width().coerceAtLeast(1)
-                    val patchH = patchBounds.height().coerceAtLeast(1)
-                    val patchBitmap = android.graphics.Bitmap.createBitmap(
-                        patchW,
-                        patchH,
-                        android.graphics.Bitmap.Config.ARGB_8888
-                    )
-                    val patchCanvas = android.graphics.Canvas(patchBitmap)
-                    patchCanvas.drawColor(Color.TRANSPARENT)
-
-                    // Carry over mask content from earlier inpaints
-                    if (existing != null) {
-                        val wasVisible = existing.isVisible
-                        existing.isVisible = true
-                        patchCanvas.save()
-                        patchCanvas.translate(-patchBounds.left.toFloat(), -patchBounds.top.toFloat())
-                        existing.draw(patchCanvas)
-                        patchCanvas.restore()
-                        existing.isVisible = wasVisible
-                    }
-
-                    // Draw the inpaint result cropped to the touched bounds
-                    val saveCount = patchCanvas.save()
-                    patchCanvas.translate(-patchBounds.left.toFloat(), -patchBounds.top.toFloat())
-                    patchCanvas.clipRect(bounds)
-                    patchCanvas.drawBitmap(result, 0f, 0f, null)
-                    patchCanvas.restoreToCount(saveCount)
-
-                    // Apply the inpaint mask (DST_IN) only inside the touched bounds so carried
-                    // over mask content outside them is preserved.
-                    val transferPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
-                    }
-                    patchCanvas.save()
-                    patchCanvas.clipRect(bounds)
-                    patchCanvas.translate(-patchBounds.left.toFloat(), -patchBounds.top.toFloat())
-                    if (maskBitmap.width == bounds.width() && maskBitmap.height == bounds.height()) {
-                        patchCanvas.drawBitmap(maskBitmap, bounds.left.toFloat(), bounds.top.toFloat(), transferPaint)
-                    } else {
-                        patchCanvas.drawBitmap(maskBitmap, 0f, 0f, transferPaint)
-                    }
-                    patchCanvas.restore()
-
-                    result.recycle()
-
-                    Pair(patchBitmap, patchBounds)
-                }
-            } else {
-                null
+                val layer = inpaintRegion(originalBitmap, region, existingMaskLayers, replacedLayers)
+                if (layer != null) newMaskLayers.add(layer)
             }
 
             withContext(Dispatchers.Main) {
                 binding.tvLoadingProgress.visibility = View.GONE
                 binding.loadingOverlay.visibility = View.GONE
-                if (finalMaskData != null) {
-                    val finalMaskBitmap = finalMaskData.first
-                    val maskBounds = finalMaskData.second
-                    val currentLayers = canvasView.getLayers().toMutableList()
-                    val oldIdx = currentLayers.indexOfFirst {
-                        it is com.astral.typer.models.ImageLayer && it.name == "Inpaint Mask"
-                    }
-                    if (oldIdx >= 0) {
-                        currentLayers.removeAt(oldIdx)
-                    }
-
-                    val maskLayer = com.astral.typer.models.ImageLayer(finalMaskBitmap, null).apply {
-                        x = maskBounds.exactCenterX()
-                        y = maskBounds.exactCenterY()
-                        rotation = 0f
-                        scaleX = 1f
-                        scaleY = 1f
-                        isVisible = true
-                        isLocked = true
-                        name = "Inpaint Mask"
-                        opacity = 255
-                        blendMode = "NORMAL"
-                        isOpacityGradient = false
-                        opacityStart = 255
-                        opacityEnd = 0
-                        opacityAngle = 0
-                    }
-
-                    // Always place Inpaint Mask at the very first layer (index 0)
-                    currentLayers.add(0, maskLayer)
-                    canvasView.setLayers(currentLayers)
-
-                    Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
-                    onSuccess()
-                } else {
+                if (newMaskLayers.isEmpty()) {
                     com.astral.typer.utils.UndoManager.discardLastState()
                     Toast.makeText(this@EditorActivity, "Inpaint Failed: Check Logs", Toast.LENGTH_SHORT).show()
+                } else {
+                    val currentLayers = canvasView.getLayers().toMutableList()
+                    if (replacedLayers.isNotEmpty()) {
+                        currentLayers.removeAll { layer -> replacedLayers.any { it === layer } }
+                    }
+                    // Keep the inpaint mask layers at the bottom of the stack
+                    currentLayers.addAll(0, newMaskLayers)
+                    canvasView.setLayers(currentLayers)
+                    Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                    onSuccess()
                 }
             }
+        }
+    }
+
+    /**
+     * Inpaints one region and returns a mask layer covering only that region, or null on failure.
+     *
+     * @param replacedLayers receives earlier mask layers whose pixels were carried into the new
+     * patch, so the caller can drop them without losing coverage.
+     */
+    private suspend fun inpaintRegion(
+        originalBitmap: android.graphics.Bitmap,
+        region: android.graphics.Rect,
+        existingMaskLayers: List<com.astral.typer.models.ImageLayer>,
+        replacedLayers: MutableList<com.astral.typer.models.ImageLayer>
+    ): com.astral.typer.models.ImageLayer? {
+        val rect = android.graphics.Rect(region)
+        rect.left = rect.left.coerceIn(0, originalBitmap.width)
+        rect.top = rect.top.coerceIn(0, originalBitmap.height)
+        rect.right = rect.right.coerceIn(0, originalBitmap.width)
+        rect.bottom = rect.bottom.coerceIn(0, originalBitmap.height)
+        if (rect.isEmpty) return null
+
+        val w = rect.width()
+        val h = rect.height()
+
+        val maskBitmap = withContext(Dispatchers.Main) { canvasView.getInpaintMask(rect) }
+
+        // Crop only this region; a full-canvas source or result copy is what OOMs on big canvases.
+        val regionSource = try {
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            if (!maskBitmap.isRecycled) maskBitmap.recycle()
+            return null
+        }
+        val sourceCanvas = android.graphics.Canvas(regionSource)
+        sourceCanvas.drawBitmap(originalBitmap, -rect.left.toFloat(), -rect.top.toFloat(), null)
+
+        // Include pixels from earlier inpaints so this pass samples already cleaned content.
+        sourceCanvas.save()
+        sourceCanvas.translate(-rect.left.toFloat(), -rect.top.toFloat())
+        for (layer in existingMaskLayers) {
+            val wasVisible = layer.isVisible
+            layer.isVisible = true
+            layer.draw(sourceCanvas)
+            layer.isVisible = wasVisible
+        }
+        sourceCanvas.restore()
+
+        var inpaintResult: android.graphics.Bitmap? = null
+        try {
+            inpaintResult = inpaintManager.inpaint(regionSource, maskBitmap)
+        } catch (e: Exception) {
+            android.util.Log.e("EditorActivity", "Region inpaint failed", e)
+        }
+        val inpainted = inpaintResult
+        if (inpainted == null) {
+            if (!maskBitmap.isRecycled) maskBitmap.recycle()
+            if (!regionSource.isRecycled) regionSource.recycle()
+            return null
+        }
+
+        val patch = try {
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            if (inpainted !== regionSource && !regionSource.isRecycled) regionSource.recycle()
+            if (!inpainted.isRecycled) inpainted.recycle()
+            if (!maskBitmap.isRecycled) maskBitmap.recycle()
+            return null
+        }
+
+        val patchCanvas = android.graphics.Canvas(patch)
+        patchCanvas.drawColor(Color.TRANSPARENT)
+
+        // Earlier mask layers fully inside this region become part of the patch first, so their
+        // pixels outside the fresh mask survive even though the old layer is dropped afterwards.
+        val carriedOver = ArrayList<com.astral.typer.models.ImageLayer>()
+        for (layer in existingMaskLayers) {
+            val halfW = layer.getWidth() * layer.scaleX / 2f
+            val halfH = layer.getHeight() * layer.scaleY / 2f
+            val layerBounds = android.graphics.Rect(
+                Math.floor((layer.x - halfW).toDouble()).toInt(),
+                Math.floor((layer.y - halfH).toDouble()).toInt(),
+                Math.ceil((layer.x + halfW).toDouble()).toInt(),
+                Math.ceil((layer.y + halfH).toDouble()).toInt()
+            )
+            if (!rect.contains(layerBounds)) continue
+            val wasVisible = layer.isVisible
+            layer.isVisible = true
+            patchCanvas.save()
+            patchCanvas.translate(-rect.left.toFloat(), -rect.top.toFloat())
+            layer.draw(patchCanvas)
+            patchCanvas.restore()
+            layer.isVisible = wasVisible
+            carriedOver.add(layer)
+        }
+
+        // Keep only the painted pixels of the fresh result (mask alpha + SRC_IN) and draw them
+        // over the carried content, so re-inpainting an area always replaces the old pixels.
+        val freshPixels = try {
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            patch.recycle()
+            if (inpainted !== regionSource && !regionSource.isRecycled) regionSource.recycle()
+            if (!inpainted.isRecycled) inpainted.recycle()
+            if (!maskBitmap.isRecycled) maskBitmap.recycle()
+            return null
+        }
+        val freshCanvas = android.graphics.Canvas(freshPixels)
+        freshCanvas.drawBitmap(maskBitmap, 0f, 0f, null)
+        val srcInPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        }
+        freshCanvas.drawBitmap(inpainted, 0f, 0f, srcInPaint)
+        patchCanvas.drawBitmap(freshPixels, 0f, 0f, null)
+        freshPixels.recycle()
+
+        if (inpainted !== regionSource && !regionSource.isRecycled) regionSource.recycle()
+        if (!inpainted.isRecycled) inpainted.recycle()
+        if (!maskBitmap.isRecycled) maskBitmap.recycle()
+
+        // Skip regions that ended up empty instead of adding a transparent layer.
+        var hasInk = false
+        val row = IntArray(w)
+        var scanY = 0
+        while (scanY < h && !hasInk) {
+            patch.getPixels(row, 0, w, 0, scanY, w, 1)
+            for (pixel in row) {
+                if ((pixel ushr 24) != 0) {
+                    hasInk = true
+                    break
+                }
+            }
+            scanY++
+        }
+        if (!hasInk) {
+            patch.recycle()
+            return null
+        }
+
+        replacedLayers.addAll(carriedOver)
+
+        return com.astral.typer.models.ImageLayer(patch, null).apply {
+            x = rect.exactCenterX()
+            y = rect.exactCenterY()
+            rotation = 0f
+            scaleX = 1f
+            scaleY = 1f
+            isVisible = true
+            isLocked = true
+            name = "Inpaint Mask"
+            opacity = 255
+            blendMode = "NORMAL"
+            isOpacityGradient = false
+            opacityStart = 255
+            opacityEnd = 0
+            opacityAngle = 0
         }
     }
 
@@ -4817,9 +4872,8 @@ class EditorActivity : AppCompatActivity() {
                     setMargins(0, 0, 0, dpToPx(32))
                 }
                 setOnClickListener {
-                    val bounds = canvasView.getInpaintMaskBounds()
-                    val mask = canvasView.getInpaintMask(bounds)
-                    performInpaint(mask, bounds) {
+                    val regions = canvasView.getInpaintMaskRegions()
+                    performInpaint(regions) {
                         canvasView.clearInpaintMask()
                     }
                 }
@@ -6514,11 +6568,10 @@ class EditorActivity : AppCompatActivity() {
                     Toast.makeText(this@EditorActivity, "Detected ${textRects.size} text areas", Toast.LENGTH_SHORT).show()
                 } else {
                     // Execute Inpaint automatically using currently selected engine
-                    val bounds = canvasView.getInpaintMaskBounds()
-                    val croppedMask = canvasView.getInpaintMask(bounds)
+                    val regions = canvasView.getInpaintMaskRegions()
 
-                    // Use performInpaint with bounds to ensure cropped sub-region inpainting is properly mapped back to canvas
-                    performInpaint(croppedMask, bounds) {
+                    // Inpaint each detected region separately so no canvas-sized buffer is allocated
+                    performInpaint(regions) {
                         canvasView.clearInpaintMask()
                         val activeEngine = inpaintManager.getEngine()
                         val lamaInstalled = com.astral.typer.utils.LaMaProcessor(this@EditorActivity).isModelAvailable()

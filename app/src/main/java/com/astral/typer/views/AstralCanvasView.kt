@@ -783,6 +783,107 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     /**
+     * Splits the active inpaint mask into tight work regions.
+     *
+     * Marks that are close together are merged into a single cluster, so an ordinary edit stays
+     * a single region. Clusters are additionally capped to 1024 px per side, which keeps every
+     * bitmap allocated for inpainting bounded even on a 27,000 px canvas. Marks that are far
+     * apart (for example one at the top and one at the bottom of a tall canvas) therefore become
+     * separate regions instead of one canvas-sized union rectangle.
+     */
+    fun getInpaintMaskRegions(): List<android.graphics.Rect> {
+        val fullCanvas = android.graphics.Rect(0, 0, canvasWidth, canvasHeight)
+        if (inpaintOps.isEmpty()) return listOf(fullCanvas)
+
+        val expandPad = if (inpaintMaskExpand != 0) abs(inpaintMaskExpand) + 2 else 0
+        val opRects = ArrayList<android.graphics.Rect>(inpaintOps.size)
+        for (op in inpaintOps) {
+            val temp = android.graphics.RectF()
+            op.path.computeBounds(temp, true)
+            if (op.tool == InpaintTool.BRUSH || op.tool == InpaintTool.ERASER) {
+                val sw = if (op.strokeWidth > 0f) op.strokeWidth else brushSize
+                temp.inset(-sw / 2f - 2f, -sw / 2f - 2f)
+            }
+            if (expandPad > 0) {
+                temp.inset(-expandPad.toFloat(), -expandPad.toFloat())
+            }
+            val rect = android.graphics.Rect()
+            temp.roundOut(rect)
+            rect.left = rect.left.coerceIn(0, canvasWidth)
+            rect.top = rect.top.coerceIn(0, canvasHeight)
+            rect.right = rect.right.coerceIn(0, canvasWidth)
+            rect.bottom = rect.bottom.coerceIn(0, canvasHeight)
+            if (!rect.isEmpty) opRects.add(rect)
+        }
+        if (opRects.isEmpty()) return listOf(fullCanvas)
+
+        // Cluster nearby marks (union-find over a small proximity window).
+        val parent = IntArray(opRects.size) { it }
+        fun root(index: Int): Int {
+            var current = index
+            while (parent[current] != current) current = parent[current]
+            return current
+        }
+        val proximity = 32
+        for (i in opRects.indices) {
+            for (j in i + 1 until opRects.size) {
+                if (root(i) == root(j)) continue
+                val a = opRects[i]
+                val b = opRects[j]
+                val near = a.left - proximity <= b.right && b.left - proximity <= a.right &&
+                    a.top - proximity <= b.bottom && b.top - proximity <= a.bottom
+                if (near) {
+                    parent[root(i)] = root(j)
+                }
+            }
+        }
+
+        val clusterBounds = LinkedHashMap<Int, android.graphics.Rect>()
+        val clusterMembers = LinkedHashMap<Int, MutableList<android.graphics.Rect>>()
+        for (i in opRects.indices) {
+            val key = root(i)
+            val bounds = clusterBounds[key]
+            if (bounds == null) {
+                clusterBounds[key] = android.graphics.Rect(opRects[i])
+                clusterMembers[key] = mutableListOf(opRects[i])
+            } else {
+                bounds.union(opRects[i])
+                clusterMembers[key]?.add(opRects[i])
+            }
+        }
+
+        // Cap every cluster and drop tiles that contain no mark.
+        val maxRegion = 1024
+        val overlap = 64
+        val step = maxRegion - overlap
+        val regions = ArrayList<android.graphics.Rect>()
+        for ((key, bounds) in clusterBounds) {
+            val members = clusterMembers[key] ?: emptyList()
+            if (bounds.width() <= maxRegion && bounds.height() <= maxRegion) {
+                regions.add(bounds)
+                continue
+            }
+            var y = bounds.top
+            while (y < bounds.bottom) {
+                val bottom = minOf(bounds.bottom, y + maxRegion)
+                var x = bounds.left
+                while (x < bounds.right) {
+                    val right = minOf(bounds.right, x + maxRegion)
+                    val tile = android.graphics.Rect(x, y, right, bottom)
+                    if (members.any { android.graphics.Rect.intersects(it, tile) }) {
+                        regions.add(tile)
+                    }
+                    if (right >= bounds.right) break
+                    x += step
+                }
+                if (bottom >= bounds.bottom) break
+                y += step
+            }
+        }
+        return if (regions.isEmpty()) listOf(fullCanvas) else regions
+    }
+
+    /**
      * Dilates (expand > 0) or erodes (expand < 0) a binary mask bitmap.
      * Uses OpenCV if available, or a fast fallback algorithm.
      */
