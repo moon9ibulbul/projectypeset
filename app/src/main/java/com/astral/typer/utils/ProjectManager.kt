@@ -4151,7 +4151,19 @@ object ProjectManager {
                         imagePath = "images/$maskImageName"
                     )
 
-                    val updatedLayers = projectData.layers + maskLayerModel
+                    // The inpaint folder is the bottom-most block of the stack, so it is kept
+                    // together at the start, and the newest mask goes on top of that block rather
+                    // than below the older masks.
+                    val updatedLayers = projectData.layers.toMutableList().apply {
+                        val existingMasks = filter {
+                            it.groupId == com.astral.typer.models.Layer.INPAINT_GROUP_ID
+                        }
+                        if (existingMasks.isNotEmpty()) {
+                            removeAll(existingMasks)
+                            addAll(0, existingMasks)
+                        }
+                        add(existingMasks.size, maskLayerModel)
+                    }
                     val updatedProjectData = projectData.copy(layers = updatedLayers)
                     jsonFile.writeText(gson.toJson(updatedProjectData))
 

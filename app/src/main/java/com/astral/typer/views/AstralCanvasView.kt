@@ -1460,6 +1460,22 @@ class AstralCanvasView @JvmOverloads constructor(
                 layer.groupName = Layer.INPAINT_GROUP_NAME
             }
         }
+        normalizeInpaintGroupBlock()
+    }
+
+    /**
+     * The inpaint folder is the bottom-most block of the stack, so it is always kept together at
+     * the start of the list. Masks added elsewhere (older projects, batch inpaint) would otherwise
+     * split the folder into several headers.
+     */
+    fun normalizeInpaintGroupBlock() {
+        val groupLayers = layers.filter { it.groupId == Layer.INPAINT_GROUP_ID }
+        if (groupLayers.isEmpty()) return
+        val alreadyAtBottom = layers.indices.take(groupLayers.size)
+            .all { index -> layers[index] === groupLayers[index] }
+        if (alreadyAtBottom) return
+        layers.removeAll { it.groupId == Layer.INPAINT_GROUP_ID }
+        layers.addAll(0, groupLayers)
     }
 
     fun getSelectedLayer(): Layer? {
@@ -2336,6 +2352,8 @@ class AstralCanvasView @JvmOverloads constructor(
         blocks.forEach { layers.addAll(it) }
         // The bottom-most layer has nothing below it to clip to, so it cannot stay clipped.
         layers.firstOrNull()?.let { if (it.isClipped) it.isClipped = false }
+        // The inpaint folder stays the bottom-most block no matter where it was dragged to.
+        normalizeInpaintGroupBlock()
         invalidate()
         return true
     }
