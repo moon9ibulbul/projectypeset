@@ -5,8 +5,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.util.Base64
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +42,24 @@ class WaveSpeedInpaintClient(private val context: Context) {
 
     fun getModel(): String {
         val saved = prefs.getString(PREF_MODEL, "")?.trim().orEmpty()
-        return saved.ifEmpty { DEFAULT_MODEL }
+        return normalizeModelId(saved.ifEmpty { DEFAULT_MODEL })
+    }
+
+    /** `wavespeed-ai/flux-2-pro/edit/` and `/wavespeed-ai/...` are not valid model paths. */
+    private fun normalizeModelId(raw: String): String {
+        val trimmed = raw.trim().trim('/')
+        return if (trimmed.isEmpty()) DEFAULT_MODEL else trimmed
+    }
+
+    /**
+     * Multi-image edit models (`wavespeed-ai/flux-2-pro/edit`, `google/gemini-2.5-flash-image/edit`, ...)
+     * take `images: [url]` and have no mask parameter, so they repaint the whole uploaded crop.
+     * Mask-based inpainting models (`wavespeed-ai/flux-fill-dev`, LaMa, ...) take `image` + `mask_image`.
+     */
+    private fun modelUsesImageList(model: String): Boolean {
+        val id = model.lowercase()
+        if (MASK_MODEL_HINTS.any { id.contains(it) }) return false
+        return IMAGE_LIST_MODEL_HINTS.any { id.contains(it) } || id.endsWith("/edit")
     }
 
     fun isConfigured(): Boolean = getApiKey().isNotEmpty() && getModel().isNotEmpty()
@@ -63,6 +84,7 @@ class WaveSpeedInpaintClient(private val context: Context) {
         if (prompt.isBlank()) {
             throw WaveSpeedException("A prompt is required for Wavespeed AI inpainting.")
         }
+        val useMask = !modelUsesImageList(model)
 
         val maskFull = if (mask.width != image.width || mask.height != image.height) {
             Bitmap.createScaledBitmap(mask, image.width, image.height, true)
@@ -102,18 +124,26 @@ class WaveSpeedInpaintClient(private val context: Context) {
 
             onProgress?.invoke(5, "Wavespeed AI: preparing 5%")
             val imageBytes = encodePng(sendImage)
-            val maskBytes = encodePng(sendMask)
 
             onProgress?.invoke(8, "Wavespeed AI: uploading image 8%")
             val imageUrl = upload(imageBytes, "inpaint-source.png", apiKey)
-            onProgress?.invoke(15, "Wavespeed AI: uploading mask 15%")
-            val maskUrl = upload(maskBytes, "inpaint-mask.png", apiKey)
+            val maskUrl = if (useMask) {
+                onProgress?.invoke(15, "Wavespeed AI: uploading mask 15%")
+                upload(encodePng(sendMask), "inpaint-mask.png", apiKey)
+            } else {
+                null
+            }
             onProgress?.invoke(22, "Wavespeed AI: submitting 22%")
 
             val payload = JsonObject().apply {
                 addProperty("prompt", prompt.trim())
-                addProperty("image", imageUrl)
-                addProperty("mask_image", maskUrl)
+                if (useMask) {
+                    addProperty("image", imageUrl)
+                    addProperty("mask_image", maskUrl)
+                } else {
+                    // Edit models only accept a list of reference images and ignore any mask.
+                    add("images", JsonArray().apply { add(imageUrl) })
+                }
                 addProperty("enable_base64_output", true)
             }
             val submit = postJson("$BASE_URL/$model", apiKey, payload)
@@ -139,7 +169,24 @@ class WaveSpeedInpaintClient(private val context: Context) {
             try {
                 val composed = image.copy(Bitmap.Config.ARGB_8888, true)
                     ?: throw WaveSpeedException("Could not prepare the inpainted result.")
-                Canvas(composed).drawBitmap(scaledBack, crop.left.toFloat(), crop.top.toFloat(), null)
+                val composedCanvas = Canvas(composed)
+                if (useMask) {
+                    composedCanvas.drawBitmap(scaledBack, crop.left.toFloat(), crop.top.toFloat(), null)
+                } else {
+                    // Without a mask the model repaints the whole crop, so keep everything outside
+                    // the painted selection and take only the generated pixels inside it.
+                    val selected = scaledBack.copy(Bitmap.Config.ARGB_8888, true)
+                        ?: throw WaveSpeedException("Could not prepare the inpainted result.")
+                    try {
+                        val srcIn = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                        }
+                        Canvas(selected).drawBitmap(maskCrop, 0f, 0f, srcIn)
+                        composedCanvas.drawBitmap(selected, crop.left.toFloat(), crop.top.toFloat(), null)
+                    } finally {
+                        if (!selected.isRecycled) selected.recycle()
+                    }
+                }
                 onProgress?.invoke(100, "Wavespeed AI: done 100%")
                 composed
             } finally {
@@ -493,6 +540,12 @@ class WaveSpeedInpaintClient(private val context: Context) {
         private const val POLL_INTERVAL_MS = 3000L
         private const val ESTIMATED_TASK_SECONDS = 25f
         private const val MAX_POLL_FAILURES = 5
+
+        /** Models that really take a mask and inpaint only the selected pixels. */
+        private val MASK_MODEL_HINTS = listOf("flux-fill", "inpaint", "lama")
+
+        /** Models whose schema is `images: [url]` with no mask field. */
+        private val IMAGE_LIST_MODEL_HINTS = listOf("gemini", "nano-banana", "flux-2", "seedream")
 
         const val PREF_API_KEY = "wavespeed_api_key"
         const val PREF_MODEL = "wavespeed_model"
