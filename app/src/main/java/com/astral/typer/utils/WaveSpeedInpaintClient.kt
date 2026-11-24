@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -26,14 +27,33 @@ import kotlin.math.roundToInt
 /**
  * WaveSpeed AI cloud inpainting (https://wavespeed.ai/docs/rest-api).
  *
- * Only the neighbourhood of the painted selection is uploaded so the request (and its cost)
- * stays small. The source crop is uploaded together with a black/white mask, a prediction is
- * submitted with the user prompt, polled until completion, and the returned image is composited
- * back into the original bitmap.
+ * Wavespeed bills per run, not per pixel, so several painted areas are packed into a single
+ * request whenever the model allows it: mask models get one crop with every mask blob, and edit
+ * models (no mask input) get a texture atlas of the small crops. Only the neighbourhood of the
+ * selection is uploaded so the request stays small.
  */
 class WaveSpeedInpaintClient(private val context: Context) {
 
     class WaveSpeedException(message: String, val httpCode: Int = 0) : Exception(message)
+
+    /** One planned Wavespeed run: regions that share a single request. */
+    private class BatchPlan(
+        val indices: List<Int>,
+        val union: Rect,
+        val sheetWidth: Int = 0,
+        val sheetHeight: Int = 0,
+        val cells: List<AtlasCell> = emptyList()
+    )
+
+    /** Placement of one small crop inside the atlas sent to an edit model. */
+    private class AtlasCell(
+        val index: Int,
+        val crop: Rect,
+        val destX: Int,
+        val destY: Int,
+        val drawWidth: Int,
+        val drawHeight: Int
+    )
 
     private val prefs = context.applicationContext
         .getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
@@ -63,6 +83,26 @@ class WaveSpeedInpaintClient(private val context: Context) {
     }
 
     fun isConfigured(): Boolean = getApiKey().isNotEmpty() && getModel().isNotEmpty()
+
+    /** How many Wavespeed runs the given areas need for the configured model. */
+    fun estimateRequests(regions: List<Rect>, imageBounds: Rect): Int {
+        if (regions.isEmpty() || imageBounds.isEmpty) return 0
+        return planBatches(regions, imageBounds).size
+    }
+
+    /**
+     * Human readable summary for the prompt dialog, e.g.
+     * `3 areas -> 1 Wavespeed run (~$0.06)`.
+     */
+    fun describeRequestPlan(regions: List<Rect>, imageBounds: Rect): String {
+        val runs = estimateRequests(regions, imageBounds)
+        if (runs <= 0) return ""
+        val areas = if (regions.size == 1) "1 area" else "${regions.size} areas"
+        val runsText = if (runs == 1) "1 Wavespeed run" else "$runs Wavespeed runs"
+        val price = unitPriceUsd(getModel())
+        val cost = if (price == null) "" else " (~${formatUsd(price * runs)})"
+        return "$areas \u2192 $runsText$cost"
+    }
 
     /**
      * @param image source image (usually an already cropped inpaint region).
@@ -206,6 +246,432 @@ class WaveSpeedInpaintClient(private val context: Context) {
             }
             if (maskFull !== mask && !maskFull.isRecycled) maskFull.recycle()
         }
+    }
+
+    /**
+     * Inpaints many areas with as few Wavespeed runs as possible and returns one result per
+     * region (same size as the region, null when that region could not be produced).
+     *
+     * Mask models receive one crop whose mask holds every blob of the batch. Edit models have no
+     * mask input, so their small crops are packed side by side into a single atlas image; the
+     * caller still limits the result to the painted pixels.
+     */
+    suspend fun inpaintRegions(
+        regions: List<Rect>,
+        imageBounds: Rect,
+        prompt: String,
+        sourceProvider: suspend (Rect) -> Bitmap?,
+        maskProvider: suspend (Rect) -> Bitmap?,
+        onProgress: ((percent: Int, message: String) -> Unit)? = null
+    ): List<Bitmap?> = withContext(Dispatchers.IO) {
+        val apiKey = getApiKey()
+        if (apiKey.isEmpty()) {
+            throw WaveSpeedException("Wavespeed AI API key is not set. Add it in Settings > AI & Model Inpaint.")
+        }
+        if (prompt.isBlank()) {
+            throw WaveSpeedException("A prompt is required for Wavespeed AI inpainting.")
+        }
+        val model = getModel()
+        val useMask = !modelUsesImageList(model)
+        val results = arrayOfNulls<Bitmap>(regions.size)
+        if (regions.isEmpty() || imageBounds.isEmpty) return@withContext results.toList()
+
+        val plans = planBatches(regions, imageBounds)
+        if (plans.isEmpty()) return@withContext results.toList()
+
+        for ((planIndex, plan) in plans.withIndex()) {
+            val base = planIndex * 100 / plans.size
+            val span = max(1, 100 / plans.size)
+            val report: ((Int, String) -> Unit)? = onProgress?.let { callback ->
+                { percent: Int, message: String ->
+                    val overall = (base + percent * span / 100).coerceIn(0, 100)
+                    callback(overall, message)
+                }
+            }
+            if (useMask) {
+                runMaskGroup(plan, regions, model, prompt, apiKey, sourceProvider, maskProvider, report) { index, bitmap ->
+                    results[index]?.let { if (!it.isRecycled) it.recycle() }
+                    results[index] = bitmap
+                }
+            } else {
+                runAtlas(plan, regions, model, prompt, apiKey, sourceProvider, report) { index, bitmap ->
+                    results[index]?.let { if (!it.isRecycled) it.recycle() }
+                    results[index] = bitmap
+                }
+            }
+        }
+        results.toList()
+    }
+
+    /** Sends one crop that carries every mask blob of [plan]. */
+    private suspend fun runMaskGroup(
+        plan: BatchPlan,
+        regions: List<Rect>,
+        model: String,
+        prompt: String,
+        apiKey: String,
+        sourceProvider: suspend (Rect) -> Bitmap?,
+        maskProvider: suspend (Rect) -> Bitmap?,
+        onProgress: ((Int, String) -> Unit)?,
+        onResult: (Int, Bitmap) -> Unit
+    ) {
+        val union = plan.union
+        if (union.isEmpty) return
+        val source = sourceProvider(union) ?: return
+        val mask = maskProvider(union)
+        if (mask == null) {
+            if (!source.isRecycled) source.recycle()
+            return
+        }
+        var generated: Bitmap? = null
+        try {
+            val output = request(source, mask, model, prompt, apiKey, onProgress)
+            generated = output
+            for (index in plan.indices) {
+                val region = regions.getOrNull(index) ?: continue
+                if (region.width() <= 0 || region.height() <= 0) continue
+                val patch = try {
+                    Bitmap.createBitmap(region.width(), region.height(), Bitmap.Config.ARGB_8888)
+                } catch (e: OutOfMemoryError) {
+                    continue
+                }
+                Canvas(patch).drawBitmap(
+                    output,
+                    (union.left - region.left).toFloat(),
+                    (union.top - region.top).toFloat(),
+                    null
+                )
+                onResult(index, patch)
+            }
+        } finally {
+            if (!source.isRecycled) source.recycle()
+            if (!mask.isRecycled) mask.recycle()
+            if (generated != null && !generated.isRecycled) generated.recycle()
+        }
+    }
+
+    /** Packs the crops of [plan] into one atlas image, then cuts the generated cells back out. */
+    private suspend fun runAtlas(
+        plan: BatchPlan,
+        regions: List<Rect>,
+        model: String,
+        prompt: String,
+        apiKey: String,
+        sourceProvider: suspend (Rect) -> Bitmap?,
+        onProgress: ((Int, String) -> Unit)?,
+        onResult: (Int, Bitmap) -> Unit
+    ) {
+        if (plan.sheetWidth <= 0 || plan.sheetHeight <= 0 || plan.cells.isEmpty()) return
+        val sheet = try {
+            Bitmap.createBitmap(plan.sheetWidth, plan.sheetHeight, Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            throw WaveSpeedException("The selected areas are too large to batch together.")
+        }
+        val sources = HashMap<Int, Bitmap>()
+        var generated: Bitmap? = null
+        try {
+            val sheetCanvas = Canvas(sheet)
+            sheetCanvas.drawColor(Color.WHITE)
+            val cellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+            for (cell in plan.cells) {
+                val src = sourceProvider(cell.crop) ?: continue
+                sources[cell.index] = src
+                val destination = Rect(
+                    cell.destX,
+                    cell.destY,
+                    cell.destX + cell.drawWidth,
+                    cell.destY + cell.drawHeight
+                )
+                sheetCanvas.drawBitmap(src, null, destination, cellPaint)
+            }
+            if (sources.isEmpty()) return
+
+            val output = request(sheet, null, model, prompt, apiKey, onProgress)
+            generated = output
+            val scaleX = output.width.toFloat() / plan.sheetWidth
+            val scaleY = output.height.toFloat() / plan.sheetHeight
+            for (cell in plan.cells) {
+                val region = regions.getOrNull(cell.index) ?: continue
+                if (region.width() <= 0 || region.height() <= 0) continue
+                if (!sources.containsKey(cell.index)) continue
+                val cellResult = try {
+                    Bitmap.createBitmap(cell.crop.width(), cell.crop.height(), Bitmap.Config.ARGB_8888)
+                } catch (e: OutOfMemoryError) {
+                    continue
+                }
+                val cellCanvas = Canvas(cellResult)
+                cellCanvas.drawBitmap(
+                    output,
+                    Rect(
+                        (cell.destX * scaleX).roundToInt(),
+                        (cell.destY * scaleY).roundToInt(),
+                        ((cell.destX + cell.drawWidth) * scaleX).roundToInt(),
+                        ((cell.destY + cell.drawHeight) * scaleY).roundToInt()
+                    ),
+                    Rect(0, 0, cellResult.width, cellResult.height),
+                    cellPaint
+                )
+                val patch = try {
+                    Bitmap.createBitmap(region.width(), region.height(), Bitmap.Config.ARGB_8888)
+                } catch (e: OutOfMemoryError) {
+                    cellResult.recycle()
+                    continue
+                }
+                Canvas(patch).drawBitmap(
+                    cellResult,
+                    (cell.crop.left - region.left).toFloat(),
+                    (cell.crop.top - region.top).toFloat(),
+                    null
+                )
+                cellResult.recycle()
+                onResult(cell.index, patch)
+            }
+        } finally {
+            for (source in sources.values) {
+                if (!source.isRecycled) source.recycle()
+            }
+            if (generated != null && !generated.isRecycled) generated.recycle()
+            if (!sheet.isRecycled) sheet.recycle()
+        }
+    }
+
+    /** Uploads one prepared image (plus its mask for mask models) and returns the raw result. */
+    private suspend fun request(
+        image: Bitmap,
+        mask: Bitmap?,
+        model: String,
+        prompt: String,
+        apiKey: String,
+        onProgress: ((Int, String) -> Unit)?
+    ): Bitmap {
+        val useMask = !modelUsesImageList(model)
+        if (useMask && mask == null) {
+            throw WaveSpeedException("This model needs a mask, but no selection was provided.")
+        }
+        if (image.width <= 0 || image.height <= 0) {
+            throw WaveSpeedException("The selected area is empty.")
+        }
+
+        val scaledMask = if (useMask && mask != null && (mask.width != image.width || mask.height != image.height)) {
+            Bitmap.createScaledBitmap(mask, image.width, image.height, true)
+        } else {
+            mask
+        }
+
+        val scale = computeScale(image.width, image.height)
+        val sendW = max(1, (image.width * scale).roundToInt())
+        val sendH = max(1, (image.height * scale).roundToInt())
+        val sendImage = if (sendW != image.width || sendH != image.height) {
+            Bitmap.createScaledBitmap(image, sendW, sendH, true)
+        } else {
+            image
+        }
+        val sendMaskSource = if (scaledMask != null && (sendW != scaledMask.width || sendH != scaledMask.height)) {
+            Bitmap.createScaledBitmap(scaledMask, sendW, sendH, true)
+        } else {
+            scaledMask
+        }
+
+        val temporaries = ArrayList<Bitmap>()
+        if (sendImage !== image) temporaries.add(sendImage)
+        if (sendMaskSource != null && sendMaskSource !== scaledMask) temporaries.add(sendMaskSource)
+        try {
+            val sendMask = if (sendMaskSource != null) {
+                val bitmap = Bitmap.createBitmap(sendW, sendH, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                canvas.drawColor(Color.BLACK)
+                canvas.drawBitmap(sendMaskSource, 0f, 0f, null)
+                temporaries.add(bitmap)
+                bitmap
+            } else {
+                null
+            }
+
+            onProgress?.invoke(5, "Wavespeed AI: preparing 5%")
+            onProgress?.invoke(8, "Wavespeed AI: uploading image 8%")
+            val imageUrl = upload(encodePng(sendImage), "inpaint-source.png", apiKey)
+            val maskUrl = if (sendMask != null) {
+                onProgress?.invoke(15, "Wavespeed AI: uploading mask 15%")
+                upload(encodePng(sendMask), "inpaint-mask.png", apiKey)
+            } else {
+                null
+            }
+            onProgress?.invoke(22, "Wavespeed AI: submitting 22%")
+
+            val payload = JsonObject().apply {
+                addProperty("prompt", prompt.trim())
+                if (sendMask != null && maskUrl != null) {
+                    addProperty("image", imageUrl)
+                    addProperty("mask_image", maskUrl)
+                } else {
+                    add("images", JsonArray().apply { add(imageUrl) })
+                }
+                addProperty("enable_base64_output", true)
+            }
+            val submit = postJson("$BASE_URL/$model", apiKey, payload)
+            val submitData = submit.getAsJsonObject("data") ?: submit
+            val taskId = submitData.get("id")
+                ?.takeIf { it.isJsonPrimitive }
+                ?.asString
+                ?.takeIf { it.isNotBlank() }
+                ?: throw WaveSpeedException("Wavespeed AI did not return a task id.")
+            onProgress?.invoke(25, "Wavespeed AI: queued 25%")
+
+            val output = pollResult(taskId, apiKey, onProgress)
+            onProgress?.invoke(92, "Wavespeed AI: loading result 92%")
+            val downloaded = loadOutput(output, apiKey) { pct ->
+                val overall = (92 + pct * 0.08f).toInt().coerceIn(92, 99)
+                onProgress?.invoke(overall, "Wavespeed AI: downloading $overall%")
+            }
+            return if (downloaded.width != image.width || downloaded.height != image.height) {
+                Bitmap.createScaledBitmap(downloaded, image.width, image.height, true).also {
+                    if (!downloaded.isRecycled) downloaded.recycle()
+                }
+            } else {
+                downloaded
+            }
+        } finally {
+            for (bitmap in temporaries) {
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+            if (scaledMask != null && scaledMask !== mask && !scaledMask.isRecycled) scaledMask.recycle()
+            if (sendImage !== image && !sendImage.isRecycled) sendImage.recycle()
+        }
+    }
+
+    /**
+     * Groups regions so that each request stays within [MAX_DIMENSION], which is the largest
+     * width/height the Wavespeed image models accept. A union that would not fit starts a new
+     * run instead of resizing the whole batch.
+     */
+    private fun planMaskGroups(regions: List<Rect>, imageBounds: Rect): List<BatchPlan> {
+        val plans = ArrayList<BatchPlan>()
+        var indices = ArrayList<Int>()
+        var union: Rect? = null
+
+        fun flush() {
+            val current = union
+            if (indices.isNotEmpty() && current != null) {
+                plans.add(BatchPlan(ArrayList(indices), Rect(current)))
+            }
+            indices = ArrayList()
+            union = null
+        }
+
+        for (index in regions.indices) {
+            val crop = cropWithMargin(regions[index], imageBounds)
+            if (crop.isEmpty) continue
+            val merged = union?.let { Rect(it).apply { union(crop) } }
+            if (merged != null && (merged.width() > MAX_DIMENSION || merged.height() > MAX_DIMENSION)) {
+                flush()
+                indices.add(index)
+                union = Rect(crop)
+            } else {
+                indices.add(index)
+                union = merged ?: Rect(crop)
+            }
+        }
+        flush()
+        return plans
+    }
+
+    /**
+     * Packs the small crops into atlas sheets (shelf layout, 1:1 scale) so an edit model can
+     * repaint several areas in one run. Crops that cannot share a sheet start another run.
+     */
+    private fun planAtlases(regions: List<Rect>, imageBounds: Rect): List<BatchPlan> {
+        val plans = ArrayList<BatchPlan>()
+        var cells = ArrayList<AtlasCell>()
+        var indices = ArrayList<Int>()
+        var cursorX = 0
+        var shelfY = 0
+        var shelfHeight = 0
+        var usedWidth = 0
+
+        fun flush() {
+            if (cells.isNotEmpty()) {
+                plans.add(
+                    BatchPlan(
+                        indices = ArrayList(indices),
+                        union = Rect(0, 0, 1, 1),
+                        sheetWidth = max(usedWidth, 1),
+                        sheetHeight = max(shelfY + shelfHeight, 1),
+                        cells = ArrayList(cells)
+                    )
+                )
+            }
+            cells = ArrayList()
+            indices = ArrayList()
+            cursorX = 0
+            shelfY = 0
+            shelfHeight = 0
+            usedWidth = 0
+        }
+
+        for (index in regions.indices) {
+            val crop = cropWithMargin(regions[index], imageBounds)
+            if (crop.isEmpty) continue
+            val scale = min(
+                1f,
+                min(MAX_DIMENSION.toFloat() / crop.width(), MAX_DIMENSION.toFloat() / crop.height())
+            )
+            val drawWidth = max(1, (crop.width() * scale).roundToInt())
+            val drawHeight = max(1, (crop.height() * scale).roundToInt())
+            if (cursorX > 0 && cursorX + drawWidth > MAX_DIMENSION) {
+                shelfY += shelfHeight + ATLAS_GAP
+                cursorX = 0
+                shelfHeight = 0
+            }
+            if (shelfY + drawHeight > MAX_DIMENSION) {
+                flush()
+            }
+            cells.add(AtlasCell(index, crop, cursorX, shelfY, drawWidth, drawHeight))
+            indices.add(index)
+            cursorX += drawWidth + ATLAS_GAP
+            usedWidth = max(usedWidth, cursorX - ATLAS_GAP)
+            shelfHeight = max(shelfHeight, drawHeight)
+        }
+        flush()
+        return plans
+    }
+
+    private fun planBatches(regions: List<Rect>, imageBounds: Rect): List<BatchPlan> {
+        return if (modelUsesImageList(getModel())) {
+            planAtlases(regions, imageBounds)
+        } else {
+            planMaskGroups(regions, imageBounds)
+        }
+    }
+
+    /** The crop that is uploaded for [region]: the area itself plus surrounding context. */
+    private fun cropWithMargin(region: Rect, imageBounds: Rect): Rect {
+        if (region.isEmpty) return Rect()
+        val margin = max(48, (max(region.width(), region.height()) * 0.35f).roundToInt())
+        val crop = Rect(region)
+        crop.inset(-margin, -margin)
+        crop.left = crop.left.coerceAtLeast(imageBounds.left)
+        crop.top = crop.top.coerceAtLeast(imageBounds.top)
+        crop.right = crop.right.coerceAtMost(imageBounds.right)
+        crop.bottom = crop.bottom.coerceAtMost(imageBounds.bottom)
+        return crop
+    }
+
+    /** Base price per run for models we know, so the prompt dialog can show a rough cost. */
+    private fun unitPriceUsd(model: String): Double? {
+        val id = model.lowercase()
+        return when {
+            id.contains("flux-fill") -> 0.035
+            id.contains("gemini-2.5-flash-image") -> 0.038
+            id.contains("flux-2-pro") -> 0.06
+            else -> null
+        }
+    }
+
+    private fun formatUsd(value: Double): String {
+        var text = String.format(Locale.US, "%.3f", value)
+        while (text.contains('.') && text.endsWith('0')) text = text.dropLast(1)
+        if (text.endsWith('.')) text += "00"
+        return "$$text"
     }
 
     private fun maskBounds(mask: Bitmap, imageW: Int, imageH: Int): Rect {
@@ -544,6 +1010,7 @@ class WaveSpeedInpaintClient(private val context: Context) {
         private const val BASE_URL = "https://api.wavespeed.ai/api/v3"
         private const val MAX_DIMENSION = 1536
         private const val MIN_DIMENSION = 256
+        private const val ATLAS_GAP = 24
         private const val POLL_INTERVAL_MS = 3000L
         private const val ESTIMATED_TASK_SECONDS = 25f
         private const val MAX_POLL_FAILURES = 5

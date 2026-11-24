@@ -942,7 +942,47 @@ class EditorActivity : AppCompatActivity() {
             val newMaskLayers = ArrayList<com.astral.typer.models.ImageLayer>()
             val replacedLayers = ArrayList<com.astral.typer.models.ImageLayer>()
             var processed = 0
-            for (region in workRegions) {
+            if (isWaveSpeedEngine) {
+                // Wavespeed bills per run, so all painted areas are sent in as few batch
+                // requests as the configured model allows instead of one request per region.
+                val waveSpeedResults = inpaintManager.inpaintRegions(
+                    regions = workRegions,
+                    imageBounds = android.graphics.Rect(0, 0, originalBitmap.width, originalBitmap.height),
+                    prompt = waveSpeedPrompt.orEmpty(),
+                    sourceProvider = { rect ->
+                        withContext(Dispatchers.Main) {
+                            buildInpaintSourceCrop(originalBitmap, rect, existingMaskLayers)
+                        }
+                    },
+                    maskProvider = { rect ->
+                        withContext(Dispatchers.Main) { canvasView.getInpaintMask(rect) }
+                    },
+                    onStatus = waveSpeedStatus
+                )
+                for (index in waveSpeedResults.indices) {
+                    val region = workRegions.getOrNull(index) ?: continue
+                    val result = waveSpeedResults[index] ?: continue
+                    processed++
+                    withContext(Dispatchers.Main) {
+                        if (binding.loadingOverlay.visibility == View.VISIBLE && workRegions.size > 1) {
+                            binding.tvLoadingProgress.visibility = View.VISIBLE
+                            binding.tvLoadingProgress.text = "Inpainting area $processed/${workRegions.size}..."
+                        }
+                    }
+                    val layer = inpaintRegion(
+                        originalBitmap,
+                        region,
+                        existingMaskLayers,
+                        replacedLayers,
+                        null,
+                        null,
+                        result
+                    )
+                    if (!result.isRecycled) result.recycle()
+                    if (layer != null) newMaskLayers.add(layer)
+                }
+            }
+            for (region in if (isWaveSpeedEngine) emptyList<android.graphics.Rect>() else workRegions) {
                 processed++
                 withContext(Dispatchers.Main) {
                     if (binding.loadingOverlay.visibility == View.VISIBLE) {
@@ -1019,9 +1059,22 @@ class EditorActivity : AppCompatActivity() {
             gravity = Gravity.TOP
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
         }
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        val background = canvasView.getBackgroundImage()
+        val planText = if (background != null) {
+            client.describeRequestPlan(
+                regions,
+                android.graphics.Rect(0, 0, background.width, background.height)
+            )
+        } else {
+            ""
+        }
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Wavespeed AI Prompt")
             .setView(input)
+        if (planText.isNotEmpty()) {
+            builder.setMessage("$planText\n\nAll selected areas are sent together when the model allows it.")
+        }
+        val dialog = builder
             .setPositiveButton("Submit", null)
             .setNegativeButton("Cancel", null)
             .create()
@@ -1067,10 +1120,39 @@ class EditorActivity : AppCompatActivity() {
     }
 
     /**
+     * Crops the canvas background for [rect] and paints earlier inpaint layers on top, so a pass
+     * samples already cleaned content.
+     */
+    private fun buildInpaintSourceCrop(
+        originalBitmap: android.graphics.Bitmap,
+        rect: android.graphics.Rect,
+        existingMaskLayers: List<com.astral.typer.models.ImageLayer>
+    ): android.graphics.Bitmap? {
+        val source = try {
+            android.graphics.Bitmap.createBitmap(rect.width(), rect.height(), android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            return null
+        }
+        val canvas = android.graphics.Canvas(source)
+        canvas.drawBitmap(originalBitmap, -rect.left.toFloat(), -rect.top.toFloat(), null)
+        canvas.save()
+        canvas.translate(-rect.left.toFloat(), -rect.top.toFloat())
+        for (layer in existingMaskLayers) {
+            val wasVisible = layer.isVisible
+            layer.isVisible = true
+            layer.draw(canvas)
+            layer.isVisible = wasVisible
+        }
+        canvas.restore()
+        return source
+    }
+
+    /**
      * Inpaints one region and returns a mask layer covering only that region, or null on failure.
      *
      * @param replacedLayers receives earlier mask layers whose pixels were carried into the new
      * patch, so the caller can drop them without losing coverage.
+     * @param precomputedResult optional engine result for this region (used by batched requests).
      */
     private suspend fun inpaintRegion(
         originalBitmap: android.graphics.Bitmap,
@@ -1078,7 +1160,8 @@ class EditorActivity : AppCompatActivity() {
         existingMaskLayers: List<com.astral.typer.models.ImageLayer>,
         replacedLayers: MutableList<com.astral.typer.models.ImageLayer>,
         waveSpeedPrompt: String? = null,
-        waveSpeedStatus: ((Int, String) -> Unit)? = null
+        waveSpeedStatus: ((Int, String) -> Unit)? = null,
+        precomputedResult: android.graphics.Bitmap? = null
     ): com.astral.typer.models.ImageLayer? {
         val rect = android.graphics.Rect(region)
         rect.left = rect.left.coerceIn(0, originalBitmap.width)
@@ -1093,36 +1176,23 @@ class EditorActivity : AppCompatActivity() {
         val maskBitmap = withContext(Dispatchers.Main) { canvasView.getInpaintMask(rect) }
 
         // Crop only this region; a full-canvas source or result copy is what OOMs on big canvases.
-        val regionSource = try {
-            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
-        } catch (e: OutOfMemoryError) {
+        val regionSource = buildInpaintSourceCrop(originalBitmap, rect, existingMaskLayers) ?: run {
             if (!maskBitmap.isRecycled) maskBitmap.recycle()
             return null
         }
-        val sourceCanvas = android.graphics.Canvas(regionSource)
-        sourceCanvas.drawBitmap(originalBitmap, -rect.left.toFloat(), -rect.top.toFloat(), null)
 
-        // Include pixels from earlier inpaints so this pass samples already cleaned content.
-        sourceCanvas.save()
-        sourceCanvas.translate(-rect.left.toFloat(), -rect.top.toFloat())
-        for (layer in existingMaskLayers) {
-            val wasVisible = layer.isVisible
-            layer.isVisible = true
-            layer.draw(sourceCanvas)
-            layer.isVisible = wasVisible
-        }
-        sourceCanvas.restore()
-
-        var inpaintResult: android.graphics.Bitmap? = null
-        try {
-            inpaintResult = inpaintManager.inpaint(
-                originalBitmap = regionSource,
-                maskBitmap = maskBitmap,
-                prompt = waveSpeedPrompt,
-                onStatus = waveSpeedStatus
-            )
-        } catch (e: Exception) {
-            android.util.Log.e("EditorActivity", "Region inpaint failed", e)
+        var inpaintResult: android.graphics.Bitmap? = precomputedResult
+        if (inpaintResult == null) {
+            try {
+                inpaintResult = inpaintManager.inpaint(
+                    originalBitmap = regionSource,
+                    maskBitmap = maskBitmap,
+                    prompt = waveSpeedPrompt,
+                    onStatus = waveSpeedStatus
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("EditorActivity", "Region inpaint failed", e)
+            }
         }
         val inpainted = inpaintResult
         if (inpainted == null) {

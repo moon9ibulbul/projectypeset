@@ -61,6 +61,42 @@ class InpaintManager(private val context: Context) {
     }
 
     /**
+     * Runs the Wavespeed engine over many areas, packing them into as few requests as the model
+     * allows. Returns one bitmap per region (null when that region could not be produced).
+     */
+    suspend fun inpaintRegions(
+        regions: List<android.graphics.Rect>,
+        imageBounds: android.graphics.Rect,
+        prompt: String,
+        sourceProvider: suspend (android.graphics.Rect) -> Bitmap?,
+        maskProvider: suspend (android.graphics.Rect) -> Bitmap?,
+        onStatus: ((percent: Int, message: String) -> Unit)? = null
+    ): List<Bitmap?> {
+        lastError = null
+        if (currentEngine != Engine.WAVESPEED) {
+            return List(regions.size) { null }
+        }
+        return try {
+            waveSpeedClient.inpaintRegions(
+                regions = regions,
+                imageBounds = imageBounds,
+                prompt = prompt,
+                sourceProvider = sourceProvider,
+                maskProvider = maskProvider,
+                onProgress = onStatus
+            )
+        } catch (e: WaveSpeedInpaintClient.WaveSpeedException) {
+            lastError = e.message ?: "Wavespeed AI inpainting failed"
+            Log.e("InpaintManager", "Wavespeed AI batch inpaint failed: ${e.message}")
+            List(regions.size) { null }
+        } catch (e: Exception) {
+            lastError = e.message ?: "Wavespeed AI inpainting failed"
+            Log.e("InpaintManager", "Wavespeed AI batch inpaint failed", e)
+            List(regions.size) { null }
+        }
+    }
+
+    /**
      * Inpaints the original bitmap using the provided mask.
      * @param originalBitmap The source image (ARGB_8888 recommended).
      * @param maskBitmap The mask image (where non-transparent pixels indicate areas to remove).
