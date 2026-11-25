@@ -444,6 +444,45 @@ class SettingsActivity : AppCompatActivity() {
         })
 
 
+        // Wavespeed AI (cloud inpainting) credentials
+        val etWaveSpeedApiKey = findViewById<android.widget.EditText>(R.id.etWaveSpeedApiKey)
+        val etWaveSpeedModel = findViewById<android.widget.EditText>(R.id.etWaveSpeedModel)
+        etWaveSpeedApiKey.setText(
+            settingsPrefs.getString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_API_KEY, "")
+        )
+        val savedWaveSpeedModel = settingsPrefs
+            .getString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_MODEL, null)
+            ?: com.astral.typer.utils.WaveSpeedInpaintClient.DEFAULT_MODEL
+        etWaveSpeedModel.setText(savedWaveSpeedModel)
+        settingsPrefs.edit()
+            .putString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_MODEL, savedWaveSpeedModel)
+            .apply()
+
+        etWaveSpeedApiKey.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                settingsPrefs.edit()
+                    .putString(
+                        com.astral.typer.utils.WaveSpeedInpaintClient.PREF_API_KEY,
+                        s?.toString()?.trim().orEmpty()
+                    )
+                    .apply()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        etWaveSpeedModel.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val model = s?.toString()?.trim().orEmpty()
+                    .ifEmpty { com.astral.typer.utils.WaveSpeedInpaintClient.DEFAULT_MODEL }
+                settingsPrefs.edit()
+                    .putString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_MODEL, model)
+                    .apply()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
         // Init Bubble Processor
