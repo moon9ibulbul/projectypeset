@@ -17,17 +17,6 @@
         android:paddingEnd="0dp"
         android:paddingBottom="4dp">
 
-        <ImageView
-            android:id="@+id/ivLayerPanelDragHandle"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginEnd="2dp"
-            android:alpha="0.55"
-            android:contentDescription="Drag to move the layer panel"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_drag_indicator"
-            app:tint="?attr/appIconTint"/>
-
         <TextView
             android:id="@+id/tvLayersTitle"
             android:layout_width="0dp"
