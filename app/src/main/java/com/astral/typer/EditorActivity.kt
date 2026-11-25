@@ -1057,24 +1057,13 @@ class EditorActivity : AppCompatActivity() {
             textSize = 15f
             minLines = 3
             gravity = Gravity.TOP
+            setText("Remove Text")
+            setSelection(text.length)
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
         }
-        val background = canvasView.getBackgroundImage()
-        val planText = if (background != null) {
-            client.describeRequestPlan(
-                regions,
-                android.graphics.Rect(0, 0, background.width, background.height)
-            )
-        } else {
-            ""
-        }
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Wavespeed AI Prompt")
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Enter Prompt")
             .setView(input)
-        if (planText.isNotEmpty()) {
-            builder.setMessage("$planText\n\nAll selected areas are sent together when the model allows it.")
-        }
-        val dialog = builder
             .setPositiveButton("Submit", null)
             .setNegativeButton("Cancel", null)
             .create()
@@ -5145,7 +5134,7 @@ class EditorActivity : AppCompatActivity() {
         if (isLamaAvailable) {
             modes.add("LaMa (AI)")
         }
-        modes.add("Wavespeed AI (Cloud)")
+        modes.add("Wavespeed (AI)")
 
         val spinner = android.widget.Spinner(this)
         val adapter = android.widget.ArrayAdapter(this, R.layout.item_spinner, modes)
@@ -5247,11 +5236,16 @@ class EditorActivity : AppCompatActivity() {
         engineLayout.addView(btnCompareOriginal)
         toolbar.addView(engineLayout)
 
+        // Shared metrics so the Size/Sensitivity and Expand rows line up vertically.
+        val controlRowWidth = dpToPx(248)
+        val controlLabelWidth = dpToPx(80)
+        val controlValueWidth = dpToPx(34)
+
         // 1. Brush Size / Sensitivity Slider
         val sizeLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(200), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(controlRowWidth, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0,0,0,16)
             }
         }
@@ -5259,7 +5253,16 @@ class EditorActivity : AppCompatActivity() {
             text = "Size"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
-            setPadding(0,0,8,0)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(controlLabelWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        val tvSizeValue = TextView(this).apply {
+            text = canvasView.brushSize.toInt().toString()
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 12f
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(8), 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(controlValueWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         var inpaintSelectionMode = InpaintSelectionMode.TOUCH
@@ -5276,6 +5279,7 @@ class EditorActivity : AppCompatActivity() {
                         val size = p.coerceAtLeast(1).toFloat()
                         canvasView.brushSize = size
                     }
+                    tvSizeValue.text = p.toString()
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
@@ -5305,6 +5309,7 @@ class EditorActivity : AppCompatActivity() {
         sizeLayout.addView(btnMinusSize)
         sizeLayout.addView(sbSize)
         sizeLayout.addView(btnPlusSize)
+        sizeLayout.addView(tvSizeValue)
         toolbar.addView(sizeLayout)
 
         // 1.5. Expand / Reduce Slider (-40 to +40)
@@ -5314,17 +5319,25 @@ class EditorActivity : AppCompatActivity() {
         val expandLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dpToPx(200), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(controlRowWidth, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0,0,0,16)
             }
             visibility = if (isExpandActive) View.VISIBLE else View.GONE
         }
         val tvExpand = TextView(this).apply {
-            val curVal = savedExpandValue
-            text = if (curVal < 0) "Reduce: $curVal" else "Expand: $curVal"
+            text = if (savedExpandValue < 0) "Reduce" else "Expand"
             setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
             textSize = 12f
-            setPadding(0,0,8,0)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(controlLabelWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        val tvExpandValue = TextView(this).apply {
+            text = savedExpandValue.toString()
+            setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@EditorActivity, com.astral.typer.R.attr.appTextColorPrimary))
+            textSize = 12f
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(8), 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(controlValueWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         val sbExpand = SeekBar(this).apply {
             max = 80 // -40 to +40, mapped as (progress - 40)
@@ -5337,7 +5350,8 @@ class EditorActivity : AppCompatActivity() {
                     if (isExpandActive) {
                         canvasView.inpaintMaskExpand = value
                     }
-                    tvExpand.text = if (value < 0) "Reduce: $value" else "Expand: $value"
+                    tvExpand.text = if (value < 0) "Reduce" else "Expand"
+                    tvExpandValue.text = value.toString()
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
@@ -5367,6 +5381,7 @@ class EditorActivity : AppCompatActivity() {
         expandLayout.addView(btnMinusExpand)
         expandLayout.addView(sbExpand)
         expandLayout.addView(btnPlusExpand)
+        expandLayout.addView(tvExpandValue)
         toolbar.addView(expandLayout)
 
         // 2. Button Container
@@ -5452,24 +5467,28 @@ class EditorActivity : AppCompatActivity() {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_hand, "Touch")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
+                     tvSizeValue.text = canvasView.brushSize.toInt().toString()
                      expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.LASSO -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_lasso, "Lasso")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
+                     tvSizeValue.text = canvasView.brushSize.toInt().toString()
                      expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.MAGIC_WAND -> {
-                     updateButtonVisual(btnLassoTouch, R.drawable.ic_magic_wand, "Magic Wand")
+                     updateButtonVisual(btnLassoTouch, R.drawable.ic_magic_wand, "Wand")
                      tvSize.text = "Sensitivity"
                      sbSize.progress = canvasView.magicWandSensitivity
+                     tvSizeValue.text = canvasView.magicWandSensitivity.toString()
                      expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
                  InpaintSelectionMode.SMART_SELECT_TEXT -> {
                      updateButtonVisual(btnLassoTouch, R.drawable.ic_smart_select_text, "Smart")
                      tvSize.text = "Size"
                      sbSize.progress = canvasView.brushSize.toInt()
+                     tvSizeValue.text = canvasView.brushSize.toInt().toString()
                      expandLayout.visibility = if (isExpandActive) View.VISIBLE else View.GONE
                  }
              }
@@ -5579,6 +5598,8 @@ class EditorActivity : AppCompatActivity() {
                     savedExpandValue = 5
                     sbExpand.progress = savedExpandValue + 40
                 }
+                tvExpand.text = if (savedExpandValue < 0) "Reduce" else "Expand"
+                tvExpandValue.text = savedExpandValue.toString()
                 canvasView.inpaintMaskExpand = savedExpandValue
             } else {
                 canvasView.inpaintMaskExpand = 0

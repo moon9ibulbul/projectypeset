@@ -26,7 +26,7 @@ class InpaintManager(private val context: Context) {
         WAVESPEED
     }
 
-    private var currentEngine: Engine = Engine.OPENCV
+    private var currentEngine: Engine = Engine.HYBRID
     private var isOpenCvInitialized = false
     private val lamaProcessor by lazy { LaMaProcessor(context) }
     private val waveSpeedClient by lazy { WaveSpeedInpaintClient(context) }

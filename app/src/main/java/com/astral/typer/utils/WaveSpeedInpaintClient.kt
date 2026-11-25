@@ -877,6 +877,6 @@ class WaveSpeedInpaintClient(private val context: Context) {
 
         const val PREF_API_KEY = "wavespeed_api_key"
         const val PREF_MODEL = "wavespeed_model"
-        const val DEFAULT_MODEL = "wavespeed-ai/flux-fill-dev"
+        const val DEFAULT_MODEL = "wavespeed-ai/flux-2-klein-9b/edit"
     }
 }

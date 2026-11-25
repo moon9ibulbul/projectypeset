@@ -786,7 +786,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:hint="Model ID (e.g. wavespeed-ai/flux-fill-dev)"
+                    android:hint="Model ID (e.g. wavespeed-ai/flux-2-klein-9b/edit)"
                     android:inputType="textUri"
                     android:textColor="?attr/appTextColorPrimary"
                     android:textColorHint="?attr/appTextColorSecondary"
