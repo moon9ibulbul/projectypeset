@@ -149,18 +149,18 @@ class WaveSpeedInpaintClient(private val context: Context) {
             maskCanvas.drawColor(Color.BLACK)
             maskCanvas.drawBitmap(scaledMask, 0f, 0f, null)
 
-            onProgress?.invoke(5, "Wavespeed AI: preparing 5%")
+            onProgress?.invoke(5, "Inpainting: preparing 5%")
             val imageBytes = encodePng(sendImage)
 
-            onProgress?.invoke(8, "Wavespeed AI: uploading image 8%")
+            onProgress?.invoke(8, "Inpainting: uploading image 8%")
             val imageUrl = upload(imageBytes, "inpaint-source.png", apiKey)
             val maskUrl = if (useMask) {
-                onProgress?.invoke(15, "Wavespeed AI: uploading mask 15%")
+                onProgress?.invoke(15, "Inpainting: uploading mask 15%")
                 upload(encodePng(sendMask), "inpaint-mask.png", apiKey)
             } else {
                 null
             }
-            onProgress?.invoke(22, "Wavespeed AI: submitting 22%")
+            onProgress?.invoke(22, "Inpainting: submitting 22%")
 
             val payload = JsonObject().apply {
                 addProperty("prompt", prompt.trim())
@@ -180,13 +180,13 @@ class WaveSpeedInpaintClient(private val context: Context) {
                 ?.asString
                 ?.takeIf { it.isNotBlank() }
                 ?: throw WaveSpeedException("Wavespeed AI did not return a task id.")
-            onProgress?.invoke(25, "Wavespeed AI: queued 25%")
+            onProgress?.invoke(25, "Inpainting: queued 25%")
 
             val output = pollResult(taskId, apiKey, onProgress)
-            onProgress?.invoke(92, "Wavespeed AI: loading result 92%")
+            onProgress?.invoke(92, "Inpainting: loading result 92%")
             val downloaded = loadOutput(output, apiKey) { pct ->
                 val overall = (92 + pct * 0.08f).toInt().coerceIn(92, 99)
-                onProgress?.invoke(overall, "Wavespeed AI: downloading $overall%")
+                onProgress?.invoke(overall, "Inpainting: downloading $overall%")
             }
             val scaledBack = if (downloaded.width != cropW || downloaded.height != cropH) {
                 Bitmap.createScaledBitmap(downloaded, cropW, cropH, true)
@@ -221,7 +221,7 @@ class WaveSpeedInpaintClient(private val context: Context) {
                         if (!selected.isRecycled) selected.recycle()
                     }
                 }
-                onProgress?.invoke(100, "Wavespeed AI: done 100%")
+                onProgress?.invoke(100, "Inpainting: done 100%")
                 composed
             } finally {
                 if (scaledBack !== downloaded && !scaledBack.isRecycled) scaledBack.recycle()
@@ -384,16 +384,16 @@ class WaveSpeedInpaintClient(private val context: Context) {
                 null
             }
 
-            onProgress?.invoke(5, "Wavespeed AI: preparing 5%")
-            onProgress?.invoke(8, "Wavespeed AI: uploading image 8%")
+            onProgress?.invoke(5, "Inpainting: preparing 5%")
+            onProgress?.invoke(8, "Inpainting: uploading image 8%")
             val imageUrl = upload(encodePng(sendImage), "inpaint-source.png", apiKey)
             val maskUrl = if (sendMask != null) {
-                onProgress?.invoke(15, "Wavespeed AI: uploading mask 15%")
+                onProgress?.invoke(15, "Inpainting: uploading mask 15%")
                 upload(encodePng(sendMask), "inpaint-mask.png", apiKey)
             } else {
                 null
             }
-            onProgress?.invoke(22, "Wavespeed AI: submitting 22%")
+            onProgress?.invoke(22, "Inpainting: submitting 22%")
 
             val payload = JsonObject().apply {
                 addProperty("prompt", prompt.trim())
@@ -412,13 +412,13 @@ class WaveSpeedInpaintClient(private val context: Context) {
                 ?.asString
                 ?.takeIf { it.isNotBlank() }
                 ?: throw WaveSpeedException("Wavespeed AI did not return a task id.")
-            onProgress?.invoke(25, "Wavespeed AI: queued 25%")
+            onProgress?.invoke(25, "Inpainting: queued 25%")
 
             val output = pollResult(taskId, apiKey, onProgress)
-            onProgress?.invoke(92, "Wavespeed AI: loading result 92%")
+            onProgress?.invoke(92, "Inpainting: loading result 92%")
             val downloaded = loadOutput(output, apiKey) { pct ->
                 val overall = (92 + pct * 0.08f).toInt().coerceIn(92, 99)
-                onProgress?.invoke(overall, "Wavespeed AI: downloading $overall%")
+                onProgress?.invoke(overall, "Inpainting: downloading $overall%")
             }
             return if (downloaded.width != image.width || downloaded.height != image.height) {
                 Bitmap.createScaledBitmap(downloaded, image.width, image.height, true).also {
@@ -638,7 +638,7 @@ class WaveSpeedInpaintClient(private val context: Context) {
                     val percent = (25 + (elapsedSeconds / ESTIMATED_TASK_SECONDS * 60f))
                         .toInt()
                         .coerceIn(25, 88)
-                    onProgress?.invoke(percent, "Wavespeed AI: processing $percent%")
+                    onProgress?.invoke(percent, "Inpainting: processing $percent%")
                 }
             }
         }

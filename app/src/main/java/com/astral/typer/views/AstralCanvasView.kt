@@ -4,6 +4,8 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
@@ -144,6 +146,32 @@ class AstralCanvasView @JvmOverloads constructor(
     private val inpaintMaskHistory = java.util.Stack<List<InpaintOp>>()
     private var currentInpaintPath = Path()
     private val currentTyperPath = Path()
+
+    // Cloud inpainting overlay: a pulsing highlight over the painted areas while the request runs,
+    // then a top-down wipe that clears the mask over the freshly inpainted pixels.
+    private var highlightMaskBitmap: Bitmap? = null
+    private var highlightRect: RectF? = null
+    private var highlightAnimator: ValueAnimator? = null
+    private var highlightPhase = 0f
+    private var highlightPulse = 0f
+    private var revealAnimator: ValueAnimator? = null
+    private var revealProgress = -1f
+    private val highlightFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        colorFilter = android.graphics.PorterDuffColorFilter(
+            Color.parseColor("#FF3FD5FF"),
+            android.graphics.PorterDuff.Mode.SRC_IN
+        )
+    }
+    private val highlightSweepPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_ATOP)
+    }
+    private val revealLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.WHITE
+    }
+    private val revealGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
 
     // Cached Mask Bitmap REMOVED
     // private var cachedMaskBitmap: android.graphics.Bitmap? = null
@@ -1126,10 +1154,124 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     fun clearInpaintMask() {
+        stopInpaintProcessingHighlight()
         inpaintOps.clear()
         redoOps.clear()
         currentInpaintPath.reset()
         invalidate()
+    }
+
+    /**
+     * Highlights the selected inpaint areas while a cloud request is running: the mask tints to
+     * the accent color, pulses, and a sheen keeps sweeping down it.
+     */
+    fun startInpaintProcessingHighlight() {
+        if (inpaintOps.isEmpty()) return
+        val bounds = getInpaintMaskBounds()
+        if (bounds.width() <= 1 || bounds.height() <= 1) return
+        val mask = getInpaintMask(bounds)
+        highlightMaskBitmap?.let { if (!it.isRecycled) it.recycle() }
+        highlightMaskBitmap = mask
+        highlightRect = RectF(bounds)
+        highlightAnimator?.cancel()
+        val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1600L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener {
+                val phase = it.animatedValue as Float
+                highlightPhase = phase
+                highlightPulse = (0.5f + 0.5f * Math.cos(phase * 2.0 * Math.PI).toFloat())
+                invalidate()
+            }
+        }
+        highlightAnimator = animator
+        animator.start()
+    }
+
+    fun stopInpaintProcessingHighlight() {
+        highlightAnimator?.cancel()
+        highlightAnimator = null
+        highlightPhase = 0f
+        highlightPulse = 0f
+        highlightMaskBitmap?.let { if (!it.isRecycled) it.recycle() }
+        highlightMaskBitmap = null
+        highlightRect = null
+        invalidate()
+    }
+
+    /**
+     * Wipes the inpaint mask away from top to bottom, revealing the freshly inpainted pixels under
+     * it. Callers apply the new layer state first and clear the mask only in [onFinished].
+     */
+    fun playInpaintReveal(durationMs: Long = 900L, onFinished: () -> Unit = {}) {
+        revealAnimator?.cancel()
+        if (inpaintOps.isEmpty()) {
+            onFinished()
+            return
+        }
+        revealProgress = 0f
+        invalidate()
+        val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = durationMs
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener {
+                revealProgress = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    cancelled = true
+                }
+
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    revealAnimator = null
+                    revealProgress = -1f
+                    invalidate()
+                    if (!cancelled) onFinished()
+                }
+            })
+        }
+        revealAnimator = animator
+        animator.start()
+    }
+
+    private fun drawInpaintMaskEffect(canvas: Canvas, bounds: RectF) {
+        val mask = highlightMaskBitmap
+        val maskRect = highlightRect
+        if (mask != null && !mask.isRecycled && maskRect != null && maskRect.width() > 0f) {
+            val saveCount = canvas.saveLayer(maskRect, null)
+            highlightFillPaint.alpha = (180 + 60 * highlightPulse).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(mask, null, maskRect, highlightFillPaint)
+            val bandHeight = (maskRect.height() * 0.25f)
+                .coerceAtLeast(24f * resources.displayMetrics.density)
+            val bandTop = maskRect.top + maskRect.height() * highlightPhase - bandHeight / 2f
+            highlightSweepPaint.shader = LinearGradient(
+                0f, bandTop, 0f, bandTop + bandHeight,
+                intArrayOf(Color.TRANSPARENT, 0x99FFFFFF.toInt(), Color.TRANSPARENT),
+                null, Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(maskRect, highlightSweepPaint)
+            highlightSweepPaint.shader = null
+            canvas.restoreToCount(saveCount)
+        }
+        if (revealProgress >= 0f) {
+            val y = canvasHeight * revealProgress
+            val left = bounds.left.coerceIn(0f, canvasWidth.toFloat())
+            val right = bounds.right.coerceIn(0f, canvasWidth.toFloat())
+            val glowHeight = 28f * resources.displayMetrics.density
+            revealGlowPaint.shader = LinearGradient(
+                0f, y - glowHeight, 0f, y + glowHeight,
+                intArrayOf(Color.TRANSPARENT, 0x66FFFFFF, Color.TRANSPARENT),
+                null, Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(left, y - glowHeight, right, y + glowHeight, revealGlowPaint)
+            revealGlowPaint.shader = null
+            revealLinePaint.alpha = 235
+            canvas.drawRect(left, y - 1.5f * resources.displayMetrics.density, right, y + 1.5f * resources.displayMetrics.density, revealLinePaint)
+        }
     }
 
     fun undoInpaintMask(): Boolean {
@@ -2803,6 +2945,16 @@ class AstralCanvasView @JvmOverloads constructor(
         )
     }
 
+    override fun onDetachedFromWindow() {
+        highlightAnimator?.cancel()
+        highlightAnimator = null
+        revealAnimator?.cancel()
+        revealAnimator = null
+        highlightMaskBitmap?.let { if (!it.isRecycled) it.recycle() }
+        highlightMaskBitmap = null
+        super.onDetachedFromWindow()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
@@ -2915,6 +3067,11 @@ class AstralCanvasView @JvmOverloads constructor(
 
             val saveCount = canvas.saveLayer(inpaintBounds, null)
 
+            // The reveal wipe clears the mask from the top down over the new pixels.
+            if (revealProgress >= 0f) {
+                canvas.clipRect(0f, 0f, canvasWidth.toFloat(), canvasHeight * revealProgress)
+            }
+
             if (inpaintMaskExpand != 0 && inpaintOps.isNotEmpty()) {
                 val rect = android.graphics.Rect()
                 inpaintBounds.roundOut(rect)
@@ -2993,6 +3150,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 }
             }
             canvas.restoreToCount(saveCount)
+            drawInpaintMaskEffect(canvas, inpaintBounds)
         }
 
         // Draw Selection Overlay

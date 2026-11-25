@@ -858,7 +858,7 @@ class EditorActivity : AppCompatActivity() {
         }
         val waveSpeedStatus: ((Int, String) -> Unit)? = if (isWaveSpeedEngine) {
             val callback: (Int, String) -> Unit = { percent, _ ->
-                showInpaintProgress("Wavespeed AI: $percent%")
+                showInpaintProgress("Inpainting: $percent%")
             }
             callback
         } else {
@@ -889,6 +889,7 @@ class EditorActivity : AppCompatActivity() {
             binding.tvLoadingProgress.visibility = View.GONE
             binding.tvLoadingProgress.text = ""
             binding.loadingOverlay.visibility = View.VISIBLE
+            if (isWaveSpeedEngine) enterWaveSpeedHighlight()
 
             lifecycleScope.launch {
                 val result = inpaintManager.inpaint(
@@ -910,12 +911,16 @@ class EditorActivity : AppCompatActivity() {
                 )
                 if (!maskBitmap.isRecycled) maskBitmap.recycle()
                 withContext(Dispatchers.Main) {
+                    if (isWaveSpeedEngine) exitWaveSpeedHighlight()
                     binding.tvLoadingProgress.visibility = View.GONE
                     binding.loadingOverlay.visibility = View.GONE
                     if (result != null) {
                         canvasView.setBackgroundImage(result)
-                        Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
-                        onSuccess()
+                        val done: () -> Unit = {
+                            Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                            onSuccess()
+                        }
+                        if (isWaveSpeedEngine) canvasView.playInpaintReveal { done() } else done()
                     } else {
                         showInpaintError()
                     }
@@ -937,6 +942,7 @@ class EditorActivity : AppCompatActivity() {
         binding.tvLoadingProgress.visibility = View.GONE
         binding.tvLoadingProgress.text = ""
         binding.loadingOverlay.visibility = View.VISIBLE
+        if (isWaveSpeedEngine) enterWaveSpeedHighlight()
 
         lifecycleScope.launch {
             val newMaskLayers = ArrayList<com.astral.typer.models.ImageLayer>()
@@ -1007,6 +1013,7 @@ class EditorActivity : AppCompatActivity() {
             }
 
             withContext(Dispatchers.Main) {
+                if (isWaveSpeedEngine) exitWaveSpeedHighlight()
                 binding.tvLoadingProgress.visibility = View.GONE
                 binding.loadingOverlay.visibility = View.GONE
                 if (newMaskLayers.isEmpty()) {
@@ -1021,8 +1028,11 @@ class EditorActivity : AppCompatActivity() {
                     // goes on top of that block instead of below the older masks.
                     currentLayers.addAll(inpaintGroupTopIndex(currentLayers), newMaskLayers)
                     canvasView.setLayers(currentLayers)
-                    Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
-                    onSuccess()
+                    val done: () -> Unit = {
+                        Toast.makeText(this@EditorActivity, "Done", Toast.LENGTH_SHORT).show()
+                        onSuccess()
+                    }
+                    if (isWaveSpeedEngine) canvasView.playInpaintReveal { done() } else done()
                 }
             }
         }
@@ -1083,6 +1093,20 @@ class EditorActivity : AppCompatActivity() {
         dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.show()
         input.requestFocus()
+    }
+
+    /**
+     * Starts the mask highlight for a cloud inpaint run and keeps the loading scrim light so the
+     * animated areas stay visible underneath the progress text.
+     */
+    private fun enterWaveSpeedHighlight() {
+        binding.loadingOverlay.background?.mutate()?.alpha = 0x2E
+        canvasView.startInpaintProcessingHighlight()
+    }
+
+    private fun exitWaveSpeedHighlight() {
+        canvasView.stopInpaintProcessingHighlight()
+        binding.loadingOverlay.background?.mutate()?.alpha = 0x80
     }
 
     /** Shows the engine's own error message (e.g. an API rejection) instead of a generic toast. */
