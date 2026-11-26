@@ -444,44 +444,36 @@ class SettingsActivity : AppCompatActivity() {
         })
 
 
-        // Wavespeed AI (cloud inpainting) credentials
-        val etWaveSpeedApiKey = findViewById<android.widget.EditText>(R.id.etWaveSpeedApiKey)
-        val etWaveSpeedModel = findViewById<android.widget.EditText>(R.id.etWaveSpeedModel)
-        etWaveSpeedApiKey.setText(
-            settingsPrefs.getString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_API_KEY, "")
+        // 3rd-party AI inpainting providers: opt-in checkbox + credentials
+        setupAiProvider(
+            enabledId = R.id.cbWavespeedEnabled,
+            fieldsId = R.id.layoutWavespeedFields,
+            apiKeyId = R.id.etWaveSpeedApiKey,
+            modelId = R.id.etWaveSpeedModel,
+            provider = com.astral.typer.utils.AiInpaintProvider.WAVESPEED
         )
-        val savedWaveSpeedModel = settingsPrefs
-            .getString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_MODEL, null)
-            ?: com.astral.typer.utils.WaveSpeedInpaintClient.DEFAULT_MODEL
-        etWaveSpeedModel.setText(savedWaveSpeedModel)
-        settingsPrefs.edit()
-            .putString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_MODEL, savedWaveSpeedModel)
-            .apply()
+        setupAiProvider(
+            enabledId = R.id.cbFalEnabled,
+            fieldsId = R.id.layoutFalFields,
+            apiKeyId = R.id.etFalApiKey,
+            modelId = R.id.etFalModel,
+            provider = com.astral.typer.utils.AiInpaintProvider.FAL
+        )
+        setupAiProvider(
+            enabledId = R.id.cbAgnesEnabled,
+            fieldsId = R.id.layoutAgnesFields,
+            apiKeyId = R.id.etAgnesApiKey,
+            modelId = R.id.etAgnesModel,
+            provider = com.astral.typer.utils.AiInpaintProvider.AGNES
+        )
 
-        etWaveSpeedApiKey.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
-                settingsPrefs.edit()
-                    .putString(
-                        com.astral.typer.utils.WaveSpeedInpaintClient.PREF_API_KEY,
-                        s?.toString()?.trim().orEmpty()
-                    )
-                    .apply()
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
-
-        etWaveSpeedModel.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val model = s?.toString()?.trim().orEmpty()
-                    .ifEmpty { com.astral.typer.utils.WaveSpeedInpaintClient.DEFAULT_MODEL }
-                settingsPrefs.edit()
-                    .putString(com.astral.typer.utils.WaveSpeedInpaintClient.PREF_MODEL, model)
-                    .apply()
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        })
+        setupAiProvider(
+            enabledId = R.id.cbRunwareEnabled,
+            fieldsId = R.id.layoutRunwareFields,
+            apiKeyId = R.id.etRunwareApiKey,
+            modelId = R.id.etRunwareModel,
+            provider = com.astral.typer.utils.AiInpaintProvider.RUNWARE
+        )
 
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
@@ -1017,5 +1009,58 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Wires one 3rd-party inpaint provider. The checkbox decides whether it appears in the
+     * inpainting engine list, and its credential fields are only visible while it is enabled.
+     */
+    private fun setupAiProvider(
+        enabledId: Int,
+        fieldsId: Int,
+        apiKeyId: Int,
+        modelId: Int,
+        provider: com.astral.typer.utils.AiInpaintProvider
+    ) {
+        val prefs = getSharedPreferences("settings_prefs", MODE_PRIVATE)
+        val checkbox = findViewById<android.widget.CheckBox>(enabledId)
+        val fields = findViewById<android.view.View>(fieldsId)
+        val apiKey = findViewById<android.widget.EditText>(apiKeyId)
+        val model = findViewById<android.widget.EditText>(modelId)
+
+        val savedModel = prefs.getString(provider.prefModel, null)?.trim().orEmpty()
+            .ifEmpty { provider.defaultModel }
+        model.setText(savedModel)
+        prefs.edit().putString(provider.prefModel, savedModel).apply()
+        apiKey.setText(prefs.getString(provider.prefApiKey, "").orEmpty())
+
+        val enabled = prefs.getBoolean(provider.prefEnabled, false)
+        checkbox.isChecked = enabled
+        fields.visibility = if (enabled) android.view.View.VISIBLE else android.view.View.GONE
+
+        checkbox.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(provider.prefEnabled, isChecked).apply()
+            fields.visibility = if (isChecked) android.view.View.VISIBLE else android.view.View.GONE
+        }
+
+        apiKey.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                prefs.edit()
+                    .putString(provider.prefApiKey, s?.toString()?.trim().orEmpty())
+                    .apply()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        model.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val value = s?.toString()?.trim().orEmpty()
+                    .ifEmpty { provider.defaultModel }
+                prefs.edit().putString(provider.prefModel, value).apply()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
     }
 }

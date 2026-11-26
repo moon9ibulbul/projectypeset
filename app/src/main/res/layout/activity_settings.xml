@@ -752,11 +752,11 @@
                     android:background="?attr/appPanelBorderColor"
                     android:layout_marginBottom="12dp"/>
 
-                <!-- Wavespeed AI (cloud inpainting) -->
+                <!-- 3rd-party AI inpainting providers (cloud) -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Wavespeed AI Inpaint (Cloud)"
+                    android:text="AI Inpaint Providers (3rd Party)"
                     android:textColor="?attr/appTextColorSecondary"
                     android:textSize="14sp"
                     android:textStyle="bold"
@@ -765,41 +765,212 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Prompt-based cloud inpainting. The key is stored on this device."
+                    android:text="Check a provider to add it to the inpainting engine list. Keys are stored on this device."
                     android:textColor="?attr/appTextColorSecondary"
                     android:textSize="12sp"
                     android:layout_marginBottom="8dp"/>
 
-                <EditText
-                    android:id="@+id/etWaveSpeedApiKey"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Wavespeed API key"
-                    android:inputType="textPassword"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:textColorHint="?attr/appTextColorSecondary"
-                    android:textSize="14sp"
-                    android:importantForAutofill="no"/>
-
-                <EditText
-                    android:id="@+id/etWaveSpeedModel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:hint="Model ID (e.g. wavespeed-ai/flux-2-klein-9b/edit)"
-                    android:inputType="textUri"
-                    android:textColor="?attr/appTextColorPrimary"
-                    android:textColorHint="?attr/appTextColorSecondary"
-                    android:textSize="14sp"
-                    android:importantForAutofill="no"/>
-
-                <TextView
+                <!-- Wavespeed -->
+                <CheckBox
+                    android:id="@+id/cbWavespeedEnabled"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Use an inpainting model that accepts image, mask_image and prompt. Only the area around the selection is uploaded."
-                    android:textColor="?attr/appTextColorSecondary"
-                    android:textSize="12sp"
-                    android:layout_marginTop="4dp"
+                    android:text="Wavespeed (AI)"
+                    android:checked="false"
+                    android:textColor="?attr/appTextColorPrimary"/>
+
+                <LinearLayout
+                    android:id="@+id/layoutWavespeedFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginBottom="4dp">
+
+                    <EditText
+                        android:id="@+id/etWaveSpeedApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Wavespeed API key"
+                        android:inputType="textPassword"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <EditText
+                        android:id="@+id/etWaveSpeedModel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Model ID (e.g. wavespeed-ai/flux-2-klein-9b/edit)"
+                        android:inputType="textUri"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Use an inpainting model that accepts image, mask_image and prompt. Only the area around the selection is uploaded."
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="12sp"
+                        android:layout_marginTop="4dp"/>
+                </LinearLayout>
+
+                <!-- Fal -->
+                <CheckBox
+                    android:id="@+id/cbFalEnabled"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fal (AI)"
+                    android:checked="false"
+                    android:textColor="?attr/appTextColorPrimary"/>
+
+                <LinearLayout
+                    android:id="@+id/layoutFalFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginBottom="4dp">
+
+                    <EditText
+                        android:id="@+id/etFalApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Fal API key"
+                        android:inputType="textPassword"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <EditText
+                        android:id="@+id/etFalModel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Model ID (e.g. fal-ai/flux-2/klein/9b/edit)"
+                        android:inputType="textUri"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Fal edit models repaint the uploaded area; only the painted pixels are kept."
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="12sp"
+                        android:layout_marginTop="4dp"/>
+                </LinearLayout>
+
+                <!-- Agnes -->
+                <CheckBox
+                    android:id="@+id/cbAgnesEnabled"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Agnes (AI)"
+                    android:checked="false"
+                    android:textColor="?attr/appTextColorPrimary"/>
+
+                <LinearLayout
+                    android:id="@+id/layoutAgnesFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginBottom="4dp">
+
+                    <EditText
+                        android:id="@+id/etAgnesApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Agnes API key"
+                        android:inputType="textPassword"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <EditText
+                        android:id="@+id/etAgnesModel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Model ID (e.g. agnes-image-2.5-flash)"
+                        android:inputType="textUri"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Agnes image edit repaints the uploaded area; only the painted pixels are kept."
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="12sp"
+                        android:layout_marginTop="4dp"/>
+                </LinearLayout>
+
+                <!-- Runware -->
+                <CheckBox
+                    android:id="@+id/cbRunwareEnabled"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Runware (AI)"
+                    android:checked="false"
+                    android:textColor="?attr/appTextColorPrimary"/>
+
+                <LinearLayout
+                    android:id="@+id/layoutRunwareFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginBottom="4dp">
+
+                    <EditText
+                        android:id="@+id/etRunwareApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Runware API key"
+                        android:inputType="textPassword"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <EditText
+                        android:id="@+id/etRunwareModel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Model AIR (e.g. runware:400@2)"
+                        android:inputType="textUri"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Runware image edit models repaint the uploaded area; only the painted pixels are kept."
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="12sp"
+                        android:layout_marginTop="4dp"/>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/appPanelBorderColor"
+                    android:layout_marginTop="8dp"
                     android:layout_marginBottom="12dp"/>
 
                 <View
