@@ -3067,9 +3067,15 @@ class AstralCanvasView @JvmOverloads constructor(
 
             val saveCount = canvas.saveLayer(inpaintBounds, null)
 
-            // The reveal wipe clears the mask from the top down over the new pixels.
+            // The reveal wipe clears the mask from the top down over the new pixels: the mask is
+            // kept only below the sweeping line, so the top edge disappears first.
             if (revealProgress >= 0f) {
-                canvas.clipRect(0f, 0f, canvasWidth.toFloat(), canvasHeight * revealProgress)
+                canvas.clipRect(
+                    0f,
+                    canvasHeight * revealProgress,
+                    canvasWidth.toFloat(),
+                    canvasHeight.toFloat()
+                )
             }
 
             if (inpaintMaskExpand != 0 && inpaintOps.isNotEmpty()) {

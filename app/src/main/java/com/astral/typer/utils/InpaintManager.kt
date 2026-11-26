@@ -23,15 +23,19 @@ class InpaintManager(private val context: Context) {
         SMART_SOLID,
         HYBRID,
         LAMA,
-        WAVESPEED
+        WAVESPEED,
+        FAL,
+        AGNES
     }
 
     private var currentEngine: Engine = Engine.HYBRID
     private var isOpenCvInitialized = false
     private val lamaProcessor by lazy { LaMaProcessor(context) }
-    private val waveSpeedClient by lazy { WaveSpeedInpaintClient(context) }
+    private val cloudClients: Map<AiInpaintProvider, AiInpaintClient> by lazy {
+        AiInpaintProvider.values().associateWith { AiInpaintClient(context, it) }
+    }
 
-    /** Last WaveSpeed AI error, so the UI can show the API message instead of a generic failure. */
+    /** Last cloud AI error, so the UI can show the API message instead of a generic failure. */
     var lastError: String? = null
         private set
 
@@ -60,9 +64,15 @@ class InpaintManager(private val context: Context) {
         return currentEngine
     }
 
+    /** True for the 3rd-party cloud engines (Wavespeed, Fal, Agnes). */
+    fun isCloudEngine(engine: Engine = currentEngine): Boolean = providerFor(engine) != null
+
+    private fun cloudClient(engine: Engine = currentEngine): AiInpaintClient? =
+        providerFor(engine)?.let { cloudClients[it] }
+
     /**
-     * Runs the Wavespeed engine over many areas, packing them into as few requests as the model
-     * allows. Returns one bitmap per region (null when that region could not be produced).
+     * Runs the selected cloud engine over many areas, packing them into as few requests as the
+     * model allows. Returns one bitmap per region (null when that region could not be produced).
      */
     suspend fun inpaintRegions(
         regions: List<android.graphics.Rect>,
@@ -73,11 +83,9 @@ class InpaintManager(private val context: Context) {
         onStatus: ((percent: Int, message: String) -> Unit)? = null
     ): List<Bitmap?> {
         lastError = null
-        if (currentEngine != Engine.WAVESPEED) {
-            return List(regions.size) { null }
-        }
+        val client = cloudClient() ?: return List(regions.size) { null }
         return try {
-            waveSpeedClient.inpaintRegions(
+            client.inpaintRegions(
                 regions = regions,
                 imageBounds = imageBounds,
                 prompt = prompt,
@@ -85,13 +93,13 @@ class InpaintManager(private val context: Context) {
                 maskProvider = maskProvider,
                 onProgress = onStatus
             )
-        } catch (e: WaveSpeedInpaintClient.WaveSpeedException) {
-            lastError = e.message ?: "Wavespeed AI inpainting failed"
-            Log.e("InpaintManager", "Wavespeed AI batch inpaint failed: ${e.message}")
+        } catch (e: AiInpaintClient.AiInpaintException) {
+            lastError = e.message ?: "${client.displayName} inpainting failed"
+            Log.e("InpaintManager", "${client.displayName} batch inpaint failed: ${e.message}")
             List(regions.size) { null }
         } catch (e: Exception) {
-            lastError = e.message ?: "Wavespeed AI inpainting failed"
-            Log.e("InpaintManager", "Wavespeed AI batch inpaint failed", e)
+            lastError = e.message ?: "${client.displayName} inpainting failed"
+            Log.e("InpaintManager", "${client.displayName} batch inpaint failed", e)
             List(regions.size) { null }
         }
     }
@@ -190,22 +198,27 @@ class InpaintManager(private val context: Context) {
                     }
                     inpaintWithOpenCVOrFallback(originalBitmap, maskBitmap)
                 }
-                Engine.WAVESPEED -> {
-                    try {
-                        waveSpeedClient.inpaint(
-                            image = originalBitmap,
-                            mask = maskBitmap,
-                            prompt = prompt.orEmpty(),
-                            onProgress = onStatus
-                        )
-                    } catch (e: WaveSpeedInpaintClient.WaveSpeedException) {
-                        lastError = e.message ?: "Wavespeed AI inpainting failed"
-                        Log.e("InpaintManager", "Wavespeed AI inpaint failed: ${e.message}")
+                Engine.WAVESPEED, Engine.FAL, Engine.AGNES -> {
+                    val client = cloudClient()
+                    if (client == null) {
                         null
-                    } catch (e: Exception) {
-                        lastError = e.message ?: "Wavespeed AI inpainting failed"
-                        Log.e("InpaintManager", "Wavespeed AI inpaint failed", e)
-                        null
+                    } else {
+                        try {
+                            client.inpaint(
+                                image = originalBitmap,
+                                mask = maskBitmap,
+                                prompt = prompt.orEmpty(),
+                                onProgress = onStatus
+                            )
+                        } catch (e: AiInpaintClient.AiInpaintException) {
+                            lastError = e.message ?: "${client.displayName} inpainting failed"
+                            Log.e("InpaintManager", "${client.displayName} inpaint failed: ${e.message}")
+                            null
+                        } catch (e: Exception) {
+                            lastError = e.message ?: "${client.displayName} inpainting failed"
+                            Log.e("InpaintManager", "${client.displayName} inpaint failed", e)
+                            null
+                        }
                     }
                 }
                 Engine.OPENCV -> {
@@ -1220,5 +1233,15 @@ class InpaintManager(private val context: Context) {
 
     fun close() {
         // No explicit cleanup needed
+    }
+
+    companion object {
+        /** Maps a cloud engine to its provider, or null for the on-device engines. */
+        fun providerFor(engine: Engine): AiInpaintProvider? = when (engine) {
+            Engine.WAVESPEED -> AiInpaintProvider.WAVESPEED
+            Engine.FAL -> AiInpaintProvider.FAL
+            Engine.AGNES -> AiInpaintProvider.AGNES
+            else -> null
+        }
     }
 }
