@@ -201,6 +201,17 @@
                         android:textColor="?attr/appTextColorPrimary"
                         android:background="@drawable/bg_button_dynamic" />
                 </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnReorderBottomMenu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Atur Urutan Menu Text Layer"
+                    android:textColor="?attr/appTextColorPrimary"
+                    android:backgroundTint="?attr/appSurfaceColor"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="16dp"
+                    android:layout_marginBottom="8dp"/>
             </LinearLayout>
         </LinearLayout>
 
