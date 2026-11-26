@@ -2002,6 +2002,8 @@ class AstralCanvasView @JvmOverloads constructor(
     private var startTouchY = 0f
     private var hasMoved = false
     private var wasSelectedInitially = false
+    private var lastImageTapTime = 0L
+    private var lastImageTapLayer: ImageLayer? = null
     private var initialRotation = 0f
     private var initialScaleX = 1f
     private var initialScaleY = 1f
@@ -4484,6 +4486,7 @@ class AstralCanvasView @JvmOverloads constructor(
 
                 if (!hasMoved && getDistance(cx, cy, startTouchX, startTouchY) > 5f) {
                     hasMoved = true
+                    lastImageTapLayer = null
                 }
 
                 if (selectedLayer != null) {
@@ -4768,9 +4771,24 @@ class AstralCanvasView @JvmOverloads constructor(
                     return true
                 }
                 if (currentMode == Mode.DRAG_LAYER) {
-                    // Trigger edit mode if tapped on an already selected layer (and not moved)
+                    // Text layers open Quick Edit on a single tap. Image layers only fit to the
+                    // canvas width on a double tap, so dragging an image never triggers the fit.
                     if (!hasMoved && wasSelectedInitially && selectedLayer != null) {
-                        onLayerEditListener?.onLayerDoubleTap(selectedLayer!!)
+                        val tapped = selectedLayer!!
+                        if (tapped is ImageLayer) {
+                            val now = android.os.SystemClock.uptimeMillis()
+                            if (lastImageTapLayer === tapped &&
+                                now - lastImageTapTime <= android.view.ViewConfiguration.getDoubleTapTimeout()) {
+                                lastImageTapLayer = null
+                                lastImageTapTime = 0L
+                                onLayerEditListener?.onLayerDoubleTap(tapped)
+                            } else {
+                                lastImageTapLayer = tapped
+                                lastImageTapTime = now
+                            }
+                        } else {
+                            onLayerEditListener?.onLayerDoubleTap(tapped)
+                        }
                     }
                     showVerticalCenterLine = false
                     showHorizontalCenterLine = false

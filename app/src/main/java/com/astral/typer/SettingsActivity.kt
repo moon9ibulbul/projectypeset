@@ -220,6 +220,10 @@ class SettingsActivity : AppCompatActivity() {
         })
 
 
+        findViewById<Button>(R.id.btnReorderBottomMenu).setOnClickListener {
+            showTextMenuOrderDialog()
+        }
+
         // Watermark Logic
         cbEnableWatermark = findViewById(R.id.cbEnableWatermark)
         layoutWatermarkOptions = findViewById(R.id.layoutWatermarkOptions)
@@ -1062,5 +1066,110 @@ class SettingsActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun showTextMenuOrderDialog() {
+        val prefs = getSharedPreferences(com.astral.typer.utils.BottomMenuOrder.PREFS_NAME, MODE_PRIVATE)
+        val allEntries = com.astral.typer.utils.BottomMenuOrder.entries
+        val items = com.astral.typer.utils.BottomMenuOrder.loadOrder(prefs)
+            .mapNotNull { key -> allEntries.firstOrNull { it.key == key } }
+            .toMutableList()
+
+        val recyclerView = androidx.recyclerview.widget.RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@SettingsActivity)
+            setPadding(0, dp(8), 0, dp(8))
+            clipToPadding = false
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(380)
+            )
+        }
+
+        val adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+            override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): androidx.recyclerview.widget.RecyclerView.ViewHolder {
+                val row = android.widget.LinearLayout(this@SettingsActivity).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(dp(20), dp(12), dp(20), dp(12))
+                    layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                }
+                val label = TextView(this@SettingsActivity).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                    )
+                    textSize = 15f
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@SettingsActivity, R.attr.appTextColorPrimary))
+                }
+                val handle = TextView(this@SettingsActivity).apply {
+                    text = "\u2630"
+                    textSize = 18f
+                    setPadding(dp(12), 0, 0, 0)
+                    setTextColor(com.astral.typer.utils.ThemeUtils.getColorFromAttr(this@SettingsActivity, R.attr.appTextColorSecondary))
+                }
+                row.addView(label)
+                row.addView(handle)
+                return object : androidx.recyclerview.widget.RecyclerView.ViewHolder(row) {}
+            }
+
+            override fun onBindViewHolder(holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int) {
+                val row = holder.itemView as android.widget.LinearLayout
+                (row.getChildAt(0) as TextView).text = items[position].label
+            }
+
+            override fun getItemCount(): Int = items.size
+        }
+        recyclerView.adapter = adapter
+
+        val touchHelper = androidx.recyclerview.widget.ItemTouchHelper(
+            object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN,
+                0
+            ) {
+                override fun onMove(
+                    recyclerView: androidx.recyclerview.widget.RecyclerView,
+                    viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+                    target: androidx.recyclerview.widget.RecyclerView.ViewHolder
+                ): Boolean {
+                    val from = viewHolder.bindingAdapterPosition
+                    val to = target.bindingAdapterPosition
+                    if (from == androidx.recyclerview.widget.RecyclerView.NO_POSITION || to == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return false
+                    items.add(to, items.removeAt(from))
+                    adapter.notifyItemMoved(from, to)
+                    return true
+                }
+
+                override fun onSwiped(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, direction: Int) {}
+            }
+        )
+        touchHelper.attachToRecyclerView(recyclerView)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Urutan Menu Text Layer")
+            .setView(recyclerView)
+            .setPositiveButton("Simpan", null)
+            .setNegativeButton("Batal", null)
+            .setNeutralButton("Reset Default", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                com.astral.typer.utils.BottomMenuOrder.saveOrder(prefs, items.map { it.key })
+                Toast.makeText(this, "Urutan menu disimpan", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                com.astral.typer.utils.BottomMenuOrder.resetOrder(prefs)
+                items.clear()
+                items.addAll(allEntries)
+                adapter.notifyDataSetChanged()
+                Toast.makeText(this, "Urutan menu dikembalikan ke default", Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
     }
 }

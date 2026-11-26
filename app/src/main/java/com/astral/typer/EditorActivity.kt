@@ -1496,6 +1496,12 @@ class EditorActivity : AppCompatActivity() {
 
         // Property Actions
         binding.btnPropStyle.setOnClickListener { toggleMenu("STYLE") { showStyleMenu() } }
+
+        // Apply the user's preferred order for the text-layer property menus.
+        com.astral.typer.utils.BottomMenuOrder.applyOrder(
+            binding.menuPropertiesContainer,
+            getSharedPreferences(com.astral.typer.utils.BottomMenuOrder.PREFS_NAME, MODE_PRIVATE)
+        )
     }
 
     private fun saveCurrentStyle(layer: TextLayer) {
