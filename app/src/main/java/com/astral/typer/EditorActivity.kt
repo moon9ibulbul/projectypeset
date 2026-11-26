@@ -5186,6 +5186,7 @@ class EditorActivity : AppCompatActivity() {
             InpaintManager.Engine.WAVESPEED -> modes.indexOfFirst { it.contains("Wavespeed") }
             InpaintManager.Engine.FAL -> modes.indexOfFirst { it.contains("Fal") }
             InpaintManager.Engine.AGNES -> modes.indexOfFirst { it.contains("Agnes") }
+            InpaintManager.Engine.RUNWARE -> modes.indexOfFirst { it.contains("Runware") }
         }
         if (defaultIdx >= 0) {
             spinner.setSelection(defaultIdx)
@@ -5227,6 +5228,9 @@ class EditorActivity : AppCompatActivity() {
                     }
                     selectedMode.contains("Agnes") -> {
                         inpaintManager.setEngine(InpaintManager.Engine.AGNES)
+                    }
+                    selectedMode.contains("Runware") -> {
+                        inpaintManager.setEngine(InpaintManager.Engine.RUNWARE)
                     }
                 }
                 updateDetectButtonForEngine()
@@ -7050,6 +7054,7 @@ class EditorActivity : AppCompatActivity() {
                             InpaintManager.Engine.WAVESPEED -> "Wavespeed AI"
                             InpaintManager.Engine.FAL -> "Fal (AI)"
                             InpaintManager.Engine.AGNES -> "Agnes (AI)"
+                            InpaintManager.Engine.RUNWARE -> "Runware (AI)"
                         }
                         Toast.makeText(this@EditorActivity, "Cleaned ${textRects.size} text areas via $engineNote", Toast.LENGTH_SHORT).show()
                     }

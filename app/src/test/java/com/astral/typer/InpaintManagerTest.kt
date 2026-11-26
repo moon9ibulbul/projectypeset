@@ -19,7 +19,7 @@ class InpaintManagerTest {
     @Test
     fun testInpaintEngineEnumValues() {
         val engines = InpaintManager.Engine.values()
-        assertEquals(8, engines.size)
+        assertEquals(9, engines.size)
 
         assertEquals(InpaintManager.Engine.OPENCV, InpaintManager.Engine.valueOf("OPENCV"))
         assertEquals(InpaintManager.Engine.PATCHMATCH, InpaintManager.Engine.valueOf("PATCHMATCH"))
@@ -29,6 +29,7 @@ class InpaintManagerTest {
         assertEquals(InpaintManager.Engine.WAVESPEED, InpaintManager.Engine.valueOf("WAVESPEED"))
         assertEquals(InpaintManager.Engine.FAL, InpaintManager.Engine.valueOf("FAL"))
         assertEquals(InpaintManager.Engine.AGNES, InpaintManager.Engine.valueOf("AGNES"))
+        assertEquals(InpaintManager.Engine.RUNWARE, InpaintManager.Engine.valueOf("RUNWARE"))
     }
 
     @Test

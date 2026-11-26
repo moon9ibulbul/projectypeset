@@ -25,7 +25,8 @@ class InpaintManager(private val context: Context) {
         LAMA,
         WAVESPEED,
         FAL,
-        AGNES
+        AGNES,
+        RUNWARE
     }
 
     private var currentEngine: Engine = Engine.HYBRID
@@ -64,7 +65,7 @@ class InpaintManager(private val context: Context) {
         return currentEngine
     }
 
-    /** True for the 3rd-party cloud engines (Wavespeed, Fal, Agnes). */
+    /** True for the 3rd-party cloud engines (Wavespeed, Fal, Agnes, Runware). */
     fun isCloudEngine(engine: Engine = currentEngine): Boolean = providerFor(engine) != null
 
     private fun cloudClient(engine: Engine = currentEngine): AiInpaintClient? =
@@ -198,7 +199,7 @@ class InpaintManager(private val context: Context) {
                     }
                     inpaintWithOpenCVOrFallback(originalBitmap, maskBitmap)
                 }
-                Engine.WAVESPEED, Engine.FAL, Engine.AGNES -> {
+                Engine.WAVESPEED, Engine.FAL, Engine.AGNES, Engine.RUNWARE -> {
                     val client = cloudClient()
                     if (client == null) {
                         null
@@ -1241,6 +1242,7 @@ class InpaintManager(private val context: Context) {
             Engine.WAVESPEED -> AiInpaintProvider.WAVESPEED
             Engine.FAL -> AiInpaintProvider.FAL
             Engine.AGNES -> AiInpaintProvider.AGNES
+            Engine.RUNWARE -> AiInpaintProvider.RUNWARE
             else -> null
         }
     }

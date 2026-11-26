@@ -11,6 +11,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.util.Base64
 import com.google.gson.JsonArray
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,7 @@ import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -32,7 +34,8 @@ import kotlin.math.roundToInt
 enum class AiInpaintProvider(val displayName: String, val defaultModel: String) {
     WAVESPEED("Wavespeed (AI)", "wavespeed-ai/flux-2-klein-9b/edit"),
     FAL("Fal (AI)", "fal-ai/flux-2/klein/9b/edit"),
-    AGNES("Agnes (AI)", "agnes-image-2.5-flash");
+    AGNES("Agnes (AI)", "agnes-image-2.5-flash"),
+    RUNWARE("Runware (AI)", "runware:400@2");
 
     val prefPrefix: String get() = name.lowercase()
     val prefEnabled: String get() = prefPrefix + "_enabled"
@@ -47,7 +50,7 @@ enum class AiInpaintProvider(val displayName: String, val defaultModel: String) 
  * sent as one crop in a single request instead of one run each. Only the neighbourhood of the
  * selection is uploaded so the request stays small. A crop larger than 1536 px is downsampled.
  *
- * Wavespeed models may take an explicit mask; the Fal and Agnes edit endpoints only accept a
+ * Wavespeed models may take an explicit mask; the Fal, Agnes and Runware endpoints only accept a
  * reference image, so the whole crop is repainted and only the painted pixels are kept.
  */
 class AiInpaintClient(
@@ -91,7 +94,7 @@ class AiInpaintClient(
      * Wavespeed multi-image edit models (`wavespeed-ai/flux-2-pro/edit`, `google/gemini-.../edit`)
      * take `images: [url]` and have no mask parameter, so they repaint the whole uploaded crop.
      * Mask-based inpainting models (`wavespeed-ai/flux-fill-dev`, LaMa, ...) take `image+mask_image`.
-     * Fal and Agnes edit endpoints never accept a mask.
+     * Fal, Agnes and Runware never take a mask.
      */
     private fun usesMask(model: String): Boolean {
         if (provider != AiInpaintProvider.WAVESPEED) return false
@@ -418,6 +421,7 @@ class AiInpaintClient(
         AiInpaintProvider.WAVESPEED -> runWaveSpeed(image, mask, model, prompt, apiKey, onProgress)
         AiInpaintProvider.FAL -> runFal(image, model, prompt, apiKey, onProgress)
         AiInpaintProvider.AGNES -> runAgnes(image, model, prompt, apiKey, onProgress)
+        AiInpaintProvider.RUNWARE -> runRunware(image, model, prompt, apiKey, onProgress)
     }
 
     // ---------------------------------------------------------------- Wavespeed
@@ -735,6 +739,66 @@ class AiInpaintClient(
         return best
     }
 
+    // ----------------------------------------------------------------- Runware
+
+    private suspend fun runRunware(
+        image: Bitmap,
+        model: String,
+        prompt: String,
+        apiKey: String,
+        onProgress: ((Int, String) -> Unit)?
+    ): Bitmap {
+        onProgress?.invoke(8, "Inpainting: preparing image 8%")
+        val dataUri = toDataUri(encodePng(image))
+        // Runware needs explicit output dimensions: multiples of 16 between 128 and 2048.
+        val width = runwareDimension(image.width)
+        val height = runwareDimension(image.height)
+        onProgress?.invoke(22, "Inpainting: submitting 22%")
+
+        val task = JsonObject().apply {
+            addProperty("taskType", "imageInference")
+            addProperty("taskUUID", UUID.randomUUID().toString())
+            addProperty("model", model)
+            addProperty("positivePrompt", prompt.trim())
+            addProperty("width", width)
+            addProperty("height", height)
+            add("inputs", JsonObject().apply {
+                add("referenceImages", JsonArray().apply { add(dataUri) })
+            })
+            addProperty("outputType", "URL")
+            addProperty("outputFormat", "PNG")
+            addProperty("deliveryMethod", "sync")
+        }
+        // The REST API takes an array of tasks; sync delivery answers in the same call.
+        val response = postJson(
+            RUNWARE_BASE_URL,
+            mapOf("Authorization" to "Bearer $apiKey"),
+            JsonArray().apply { add(task) },
+            readTimeoutMs = RUNWARE_READ_TIMEOUT_MS
+        )
+        onProgress?.invoke(92, "Inpainting: loading result 92%")
+
+        val data = response.getAsJsonArray("data")
+        val first = if (data != null && data.size() > 0) data.get(0) else null
+        val entry = first?.takeIf { it.isJsonObject }?.asJsonObject
+            ?: throw AiInpaintException("${provider.displayName} returned no output image.")
+        val base64 = entry.get("imageBase64Data")?.takeIf { it.isJsonPrimitive }?.asString
+        val dataUriOut = entry.get("imageDataURI")?.takeIf { it.isJsonPrimitive }?.asString
+        val url = entry.get("imageURL")?.takeIf { it.isJsonPrimitive }?.asString
+        return when {
+            !base64.isNullOrBlank() -> decodeBase64Image(base64)
+            !dataUriOut.isNullOrBlank() -> decodeBase64Image(dataUriOut)
+            !url.isNullOrBlank() -> decodeDownload(url, onProgress)
+            else -> throw AiInpaintException("${provider.displayName} returned no output image.")
+        }
+    }
+
+    /** Snaps a side to the 16 px grid Runware accepts, inside 128..2048. */
+    private fun runwareDimension(side: Int): Int {
+        val stepped = (side.toFloat() / RUNWARE_DIMENSION_STEP).roundToInt() * RUNWARE_DIMENSION_STEP
+        return stepped.coerceIn(RUNWARE_MIN_DIMENSION, RUNWARE_MAX_DIMENSION)
+    }
+
     // ----------------------------------------------------------------- Shared
 
     /**
@@ -986,7 +1050,7 @@ class AiInpaintClient(
     private fun postJson(
         url: String,
         headers: Map<String, String>,
-        body: JsonObject,
+        body: JsonElement,
         readTimeoutMs: Int = 120000
     ): JsonObject {
         val conn = URL(url).openConnection() as HttpURLConnection
@@ -1067,7 +1131,14 @@ class AiInpaintClient(
     private fun describeHttpError(code: Int, body: String): String {
         val serverMessage = try {
             val obj = JsonParser.parseString(body).asJsonObject
-            obj.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+            val firstError = obj.getAsJsonArray("errors")
+                ?.firstOrNull { it.isJsonObject }
+                ?.asJsonObject
+                ?.get("message")
+                ?.takeIf { it.isJsonPrimitive }
+                ?.asString
+            firstError
+                ?: obj.get("message")?.takeIf { it.isJsonPrimitive }?.asString
                 ?: obj.get("error")?.takeIf { it.isJsonPrimitive }?.asString
                 ?: obj.get("detail")?.takeIf { it.isJsonPrimitive }?.asString
                 ?: obj.getAsJsonObject("data")?.get("error")?.takeIf { it.isJsonPrimitive }?.asString
@@ -1099,6 +1170,7 @@ class AiInpaintClient(
         private const val WAVESPEED_BASE_URL = "https://api.wavespeed.ai/api/v3"
         private const val FAL_BASE_URL = "https://queue.fal.run"
         private const val AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
+        private const val RUNWARE_BASE_URL = "https://api.runware.ai/v1"
         private const val MAX_DIMENSION = 1536
         private const val MIN_DIMENSION = 256
         private const val NEARBY_GAP = 128
@@ -1106,6 +1178,10 @@ class AiInpaintClient(
         private const val ESTIMATED_TASK_SECONDS = 25f
         private const val MAX_POLL_FAILURES = 5
         private const val AGNES_READ_TIMEOUT_MS = 300000
+        private const val RUNWARE_READ_TIMEOUT_MS = 180000
+        private const val RUNWARE_DIMENSION_STEP = 16
+        private const val RUNWARE_MIN_DIMENSION = 128
+        private const val RUNWARE_MAX_DIMENSION = 2048
 
         /** Models that really take a mask and inpaint only the selected pixels. */
         private val MASK_MODEL_HINTS = listOf("flux-fill", "inpaint", "lama")

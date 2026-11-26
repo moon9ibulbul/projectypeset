@@ -466,6 +466,13 @@ class SettingsActivity : AppCompatActivity() {
             modelId = R.id.etAgnesModel,
             provider = com.astral.typer.utils.AiInpaintProvider.AGNES
         )
+        setupAiProvider(
+            enabledId = R.id.cbRunwareEnabled,
+            fieldsId = R.id.layoutRunwareFields,
+            apiKeyId = R.id.etRunwareApiKey,
+            modelId = R.id.etRunwareModel,
+            provider = com.astral.typer.utils.AiInpaintProvider.RUNWARE
+        )
 
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
