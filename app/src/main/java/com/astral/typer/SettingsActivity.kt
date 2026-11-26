@@ -1135,8 +1135,8 @@ class SettingsActivity : AppCompatActivity() {
                     viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder,
                     target: androidx.recyclerview.widget.RecyclerView.ViewHolder
                 ): Boolean {
-                    val from = viewHolder.bindingAdapterPosition
-                    val to = target.bindingAdapterPosition
+                    val from = recyclerView.getChildAdapterPosition(viewHolder.itemView)
+                    val to = recyclerView.getChildAdapterPosition(target.itemView)
                     if (from == androidx.recyclerview.widget.RecyclerView.NO_POSITION || to == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return false
                     items.add(to, items.removeAt(from))
                     adapter.notifyItemMoved(from, to)
