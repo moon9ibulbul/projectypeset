@@ -467,25 +467,6 @@ class SettingsActivity : AppCompatActivity() {
             provider = com.astral.typer.utils.AiInpaintProvider.AGNES
         )
 
-        // Agnes has two pipelines: the original crop repaint and the line-art preserving one.
-        val agnesPipelineStandard = com.astral.typer.utils.AiInpaintClient.AGNES_PIPELINE_STANDARD
-        val agnesPipelinePreserve = com.astral.typer.utils.AiInpaintClient.AGNES_PIPELINE_PRESERVE
-        val rgAgnesPipeline = findViewById<android.widget.RadioGroup>(R.id.rgAgnesPipeline)
-        val savedAgnesPipeline = settingsPrefs.getString(
-            com.astral.typer.utils.AiInpaintClient.PREF_AGNES_PIPELINE,
-            agnesPipelineStandard
-        )
-        rgAgnesPipeline.check(
-            if (savedAgnesPipeline == agnesPipelinePreserve) R.id.rbAgnesPipelinePreserve
-            else R.id.rbAgnesPipelineStandard
-        )
-        rgAgnesPipeline.setOnCheckedChangeListener { _, checkedId ->
-            val pipeline = if (checkedId == R.id.rbAgnesPipelinePreserve) agnesPipelinePreserve
-            else agnesPipelineStandard
-            settingsPrefs.edit()
-                .putString(com.astral.typer.utils.AiInpaintClient.PREF_AGNES_PIPELINE, pipeline)
-                .apply()
-        }
         setupAiProvider(
             enabledId = R.id.cbRunwareEnabled,
             fieldsId = R.id.layoutRunwareFields,

@@ -911,38 +911,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Pipeline"
-                        android:textColor="?attr/appTextColorSecondary"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:layout_marginTop="12dp"/>
-
-                    <RadioGroup
-                        android:id="@+id/rgAgnesPipeline"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <RadioButton
-                            android:id="@+id/rbAgnesPipelineStandard"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Standard — repaint the uploaded crop"
-                            android:checked="true"
-                            android:textColor="?attr/appTextColorPrimary"/>
-
-                        <RadioButton
-                            android:id="@+id/rbAgnesPipelinePreserve"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Preserve line art — erase the selection first"
-                            android:textColor="?attr/appTextColorPrimary"/>
-                    </RadioGroup>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Agnes image edit repaints the uploaded area; only the painted pixels are kept. Preserve line art erases the selection and pads the crop to Agnes' aspect ratio first, which keeps lines connected but costs one extra step."
+                        android:text="Agnes image edit repaints the uploaded area; only the painted pixels are kept."
                         android:textColor="?attr/appTextColorSecondary"
                         android:textSize="12sp"
                         android:layout_marginTop="4dp"/>
