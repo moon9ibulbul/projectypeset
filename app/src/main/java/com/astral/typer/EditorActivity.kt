@@ -7066,10 +7066,8 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun detectSmartSelectedTextForInpaint(lassoPath: Path) {
-        if (inpaintManager.isCloudEngine()) {
-            Toast.makeText(this, "Text detection and auto inpaint are disabled for cloud AI engines", Toast.LENGTH_SHORT).show()
-            return
-        }
+        // Smart Select Text stays available for cloud AI engines: it only builds the mask, the
+        // prompt-driven cloud run happens afterwards when the user applies the inpaint.
         val bg = canvasView.getBackgroundImage()
         if (bg == null) return
 

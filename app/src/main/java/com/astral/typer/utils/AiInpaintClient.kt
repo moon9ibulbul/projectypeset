@@ -3,12 +3,15 @@ package com.astral.typer.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import android.graphics.Shader
 import android.util.Base64
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
@@ -89,6 +92,17 @@ class AiInpaintClient(
     }
 
     fun isConfigured(): Boolean = getApiKey().isNotEmpty() && getModel().isNotEmpty()
+
+    /**
+     * Agnes has two selectable pipelines. `standard` repaints the whole crop as-is; `preserve`
+     * first erases the selection and pads the crop to the requested ratio, which keeps the
+     * returned line art aligned with the picture around it.
+     */
+    fun isAgnesPreservePipeline(): Boolean = provider == AiInpaintProvider.AGNES &&
+        prefs.getString(PREF_AGNES_PIPELINE, AGNES_PIPELINE_STANDARD) == AGNES_PIPELINE_PRESERVE
+
+    /** True when the provider needs the raw selection even though it does not take a mask. */
+    private fun needsSelectionMask(): Boolean = isAgnesPreservePipeline()
 
     /**
      * Wavespeed multi-image edit models (`wavespeed-ai/flux-2-pro/edit`, `google/gemini-.../edit`)
@@ -178,7 +192,7 @@ class AiInpaintClient(
                 null
             }
 
-            val generated = runProvider(sendImage, sendMask, model, prompt, apiKey, onProgress)
+            val generated = runProvider(sendImage, sendMask, scaledMask, model, prompt, apiKey, onProgress)
             val scaledBack = if (generated.width != cropW || generated.height != cropH) {
                 Bitmap.createScaledBitmap(generated, cropW, cropH, true).also {
                     if (!generated.isRecycled) generated.recycle()
@@ -290,14 +304,17 @@ class AiInpaintClient(
         val union = plan.union
         if (union.isEmpty) return
         val source = sourceProvider(union) ?: return
-        val mask = if (useMask) maskProvider(union) else null
+        val needMask = useMask || needsSelectionMask()
+        val mask = if (needMask) maskProvider(union) else null
         if (useMask && mask == null) {
             if (!source.isRecycled) source.recycle()
             return
         }
         var generated: Bitmap? = null
         try {
-            val output = request(source, mask, model, prompt, apiKey, useMask, onProgress)
+            val output = request(
+                source, if (useMask) mask else null, mask, model, prompt, apiKey, useMask, onProgress
+            )
             generated = output
             for (index in plan.indices) {
                 val region = regions.getOrNull(index) ?: continue
@@ -326,6 +343,7 @@ class AiInpaintClient(
     private suspend fun request(
         image: Bitmap,
         mask: Bitmap?,
+        selection: Bitmap?,
         model: String,
         prompt: String,
         apiKey: String,
@@ -363,13 +381,24 @@ class AiInpaintClient(
         if (scaledMask != null && scaledMask !== mask) temporaries.add(scaledMask)
         if (sendImage !== image) temporaries.add(sendImage)
         if (sendMaskSource != null && sendMaskSource !== scaledMask && sendMaskSource !== mask) temporaries.add(sendMaskSource)
+        // The raw selection is scaled alongside the image for providers that erase it first.
+        val sendSelection = if (selection != null && (sendW != selection.width || sendH != selection.height)) {
+            Bitmap.createScaledBitmap(selection, sendW, sendH, true)
+        } else {
+            selection
+        }
+        if (sendSelection != null && sendSelection !== selection &&
+            sendSelection !== scaledMask && sendSelection !== sendMaskSource
+        ) {
+            temporaries.add(sendSelection)
+        }
         try {
             val sendMask = if (useMask && sendMaskSource != null) {
                 blackBackedMask(sendMaskSource, sendW, sendH, temporaries)
             } else {
                 null
             }
-            val output = runProvider(sendImage, sendMask, model, prompt, apiKey, onProgress)
+            val output = runProvider(sendImage, sendMask, sendSelection, model, prompt, apiKey, onProgress)
             return if (output.width != image.width || output.height != image.height) {
                 Bitmap.createScaledBitmap(output, image.width, image.height, true).also {
                     if (!output.isRecycled) output.recycle()
@@ -413,6 +442,7 @@ class AiInpaintClient(
     private suspend fun runProvider(
         image: Bitmap,
         mask: Bitmap?,
+        selection: Bitmap?,
         model: String,
         prompt: String,
         apiKey: String,
@@ -420,7 +450,7 @@ class AiInpaintClient(
     ): Bitmap = when (provider) {
         AiInpaintProvider.WAVESPEED -> runWaveSpeed(image, mask, model, prompt, apiKey, onProgress)
         AiInpaintProvider.FAL -> runFal(image, model, prompt, apiKey, onProgress)
-        AiInpaintProvider.AGNES -> runAgnes(image, model, prompt, apiKey, onProgress)
+        AiInpaintProvider.AGNES -> runAgnes(image, selection, model, prompt, apiKey, onProgress)
         AiInpaintProvider.RUNWARE -> runRunware(image, model, prompt, apiKey, onProgress)
     }
 
@@ -674,35 +704,133 @@ class AiInpaintClient(
 
     private suspend fun runAgnes(
         image: Bitmap,
+        selection: Bitmap?,
         model: String,
         prompt: String,
         apiKey: String,
         onProgress: ((Int, String) -> Unit)?
     ): Bitmap {
+        if (selection != null && isAgnesPreservePipeline()) {
+            return runAgnesPreserve(image, selection, model, prompt, apiKey, onProgress)
+        }
         onProgress?.invoke(8, "Inpainting: preparing image 8%")
         val dataUri = toDataUri(encodePng(image))
         onProgress?.invoke(22, "Inpainting: submitting 22%")
+        val response = postAgnes(
+            agnesPayload(
+                model = model,
+                prompt = prompt.trim(),
+                size = agnesSizeTier(max(image.width, image.height)),
+                ratio = agnesRatio(image.width, image.height),
+                dataUri = dataUri
+            ),
+            apiKey
+        )
+        onProgress?.invoke(92, "Inpainting: loading result 92%")
+        return decodeAgnesResponse(response, onProgress)
+    }
 
+    /**
+     * "Preserve line art" pipeline: the selection is erased first and the crop is padded to the
+     * exact ratio Agnes renders, so the answer keeps the original geometry. Only the padded image
+     * is sent; the painted pixels of the answer are kept afterwards like every edit model.
+     */
+    private suspend fun runAgnesPreserve(
+        image: Bitmap,
+        selection: Bitmap,
+        model: String,
+        prompt: String,
+        apiKey: String,
+        onProgress: ((Int, String) -> Unit)?
+    ): Bitmap {
+        onProgress?.invoke(5, "Inpainting: erasing selection 5%")
+        val erased = eraseSelection(image, selection)
+        val width = erased.width
+        val height = erased.height
+        val ratio = agnesRatio(width, height)
+        val target = agnesRatioValue(ratio)
+
+        // Letterbox to the exact ratio instead of stretching the answer back later.
+        var paddedW = width
+        var paddedH = height
+        if (width.toDouble() / height <= target) {
+            paddedW = max(width, (height * target).roundToInt())
+        } else {
+            paddedH = max(height, (width / target).roundToInt())
+        }
+        val offsetX = (paddedW - width) / 2
+        val offsetY = (paddedH - height) / 2
+        val padded = padToAspect(erased, paddedW, paddedH, offsetX, offsetY)
+
+        try {
+            onProgress?.invoke(10, "Inpainting: preparing image 10%")
+            val dataUri = toDataUri(encodePng(padded))
+            onProgress?.invoke(22, "Inpainting: submitting 22%")
+            val response = postAgnes(
+                agnesPayload(
+                    model = model,
+                    prompt = agnesPreservePrompt(prompt),
+                    size = agnesSizeTier(max(paddedW, paddedH)),
+                    ratio = ratio,
+                    dataUri = dataUri
+                ),
+                apiKey
+            )
+            onProgress?.invoke(92, "Inpainting: loading result 92%")
+            val generated = decodeAgnesResponse(response, onProgress)
+            val fitted = if (generated.width != paddedW || generated.height != paddedH) {
+                Bitmap.createScaledBitmap(generated, paddedW, paddedH, true).also {
+                    if (!generated.isRecycled) generated.recycle()
+                }
+            } else {
+                generated
+            }
+            // Keep only the part that matches the uploaded crop.
+            return try {
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { out ->
+                    Canvas(out).drawBitmap(fitted, -offsetX.toFloat(), -offsetY.toFloat(), null)
+                }
+            } finally {
+                if (!fitted.isRecycled) fitted.recycle()
+            }
+        } finally {
+            if (!erased.isRecycled) erased.recycle()
+            if (!padded.isRecycled) padded.recycle()
+        }
+    }
+
+    private fun agnesPayload(
+        model: String,
+        prompt: String,
+        size: String,
+        ratio: String,
+        dataUri: String
+    ): JsonObject {
         val extraBody = JsonObject().apply {
             add("image", JsonArray().apply { add(dataUri) })
             addProperty("response_format", "url")
         }
-        val payload = JsonObject().apply {
+        return JsonObject().apply {
             addProperty("model", model)
-            addProperty("prompt", prompt.trim())
-            addProperty("size", agnesSizeTier(max(image.width, image.height)))
-            addProperty("ratio", agnesRatio(image.width, image.height))
+            addProperty("prompt", prompt)
+            addProperty("size", size)
+            addProperty("ratio", ratio)
             add("extra_body", extraBody)
         }
-        // Agnes answers synchronously, so the request itself can take a while.
-        val response = postJson(
-            "$AGNES_BASE_URL/images/generations",
-            mapOf("Authorization" to "Bearer $apiKey"),
-            payload,
-            readTimeoutMs = AGNES_READ_TIMEOUT_MS
-        )
-        onProgress?.invoke(92, "Inpainting: loading result 92%")
+    }
 
+    /** Agnes answers synchronously, so the request itself can take a while. */
+    private fun postAgnes(payload: JsonObject, apiKey: String): JsonObject = postJson(
+        "$AGNES_BASE_URL/images/generations",
+        mapOf("Authorization" to "Bearer $apiKey"),
+        payload,
+        readTimeoutMs = AGNES_READ_TIMEOUT_MS
+    )
+
+    private fun decodeAgnesResponse(
+        response: JsonObject,
+        onProgress: ((Int, String) -> Unit)?
+    ): Bitmap {
         val data = response.getAsJsonArray("data")
         val first = if (data != null && data.size() > 0) data.get(0) else null
         val entry = first?.takeIf { it.isJsonObject }?.asJsonObject
@@ -714,6 +842,124 @@ class AiInpaintClient(
             !url.isNullOrBlank() -> decodeDownload(url, onProgress)
             else -> throw AiInpaintException("${provider.displayName} returned no output image.")
         }
+    }
+
+    /** Directs Agnes to rebuild the erased area instead of re-framing the whole crop. */
+    private fun agnesPreservePrompt(prompt: String): String = prompt.trim() +
+        "\n\nKeep everything outside the erased area unchanged; do not zoom, crop or re-frame. " +
+        "Continue the existing line art and background naturally across the erased area."
+
+    private fun agnesRatioValue(label: String): Double =
+        AGNES_RATIOS.firstOrNull { it.first == label }?.second ?: 1.0
+
+    /**
+     * Fills every selected pixel with the colour of the nearest untouched pixel, so the provider
+     * starts from clean background instead of the text it is asked to remove.
+     */
+    private fun eraseSelection(image: Bitmap, mask: Bitmap): Bitmap {
+        val w = image.width
+        val h = image.height
+        val total = w * h
+        if (total <= 0) return image.copy(Bitmap.Config.ARGB_8888, true)
+
+        val pixels = IntArray(total)
+        image.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val maskPixels = IntArray(total)
+        if (mask.width == w && mask.height == h) {
+            mask.getPixels(maskPixels, 0, w, 0, 0, w, h)
+        } else {
+            val scaled = Bitmap.createScaledBitmap(mask, w, h, true)
+            scaled.getPixels(maskPixels, 0, w, 0, 0, w, h)
+            scaled.recycle()
+        }
+
+        val inMask = BooleanArray(total)
+        var masked = 0
+        for (i in 0 until total) {
+            if ((maskPixels[i] ushr 24) > 32) {
+                inMask[i] = true
+                masked++
+            }
+        }
+        if (masked == 0) return image.copy(Bitmap.Config.ARGB_8888, true)
+
+        val out = pixels.clone()
+        val done = BooleanArray(total) { !inMask[it] }
+        val queue = IntArray(total)
+        var head = 0
+        var tail = 0
+
+        fun spread(target: Int, color: Int) {
+            if (done[target]) return
+            out[target] = color
+            done[target] = true
+            queue[tail++] = target
+        }
+
+        // Seed from selected pixels that already touch untouched ones.
+        val acc = LongArray(4)
+        fun accumulate(color: Int) {
+            acc[0] += Color.alpha(color).toLong()
+            acc[1] += Color.red(color).toLong()
+            acc[2] += Color.green(color).toLong()
+            acc[3] += Color.blue(color).toLong()
+        }
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val idx = y * w + x
+                if (!inMask[idx] || done[idx]) continue
+                acc[0] = 0; acc[1] = 0; acc[2] = 0; acc[3] = 0
+                var count = 0
+                if (x > 0 && !inMask[idx - 1]) { accumulate(pixels[idx - 1]); count++ }
+                if (x < w - 1 && !inMask[idx + 1]) { accumulate(pixels[idx + 1]); count++ }
+                if (y > 0 && !inMask[idx - w]) { accumulate(pixels[idx - w]); count++ }
+                if (y < h - 1 && !inMask[idx + w]) { accumulate(pixels[idx + w]); count++ }
+                if (count > 0) {
+                    out[idx] = Color.argb(
+                        (acc[0] / count).toInt(),
+                        (acc[1] / count).toInt(),
+                        (acc[2] / count).toInt(),
+                        (acc[3] / count).toInt()
+                    )
+                    done[idx] = true
+                    queue[tail++] = idx
+                }
+            }
+        }
+
+        // Grow those boundary colours inwards until the whole selection is covered.
+        while (head < tail) {
+            val cur = queue[head++]
+            val cx = cur % w
+            val cy = cur / w
+            val color = out[cur]
+            if (cx > 0) spread(cur - 1, color)
+            if (cx < w - 1) spread(cur + 1, color)
+            if (cy > 0) spread(cur - w, color)
+            if (cy < h - 1) spread(cur + w, color)
+        }
+
+        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    /** Centres [image] on a larger canvas, extending its border pixels outwards. */
+    private fun padToAspect(
+        image: Bitmap,
+        paddedW: Int,
+        paddedH: Int,
+        offsetX: Int,
+        offsetY: Int
+    ): Bitmap {
+        val out = Bitmap.createBitmap(paddedW, paddedH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        val shader = BitmapShader(image, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        shader.setLocalMatrix(Matrix().apply { setTranslate(offsetX.toFloat(), offsetY.toFloat()) })
+        paint.shader = shader
+        canvas.drawRect(0f, 0f, paddedW.toFloat(), paddedH.toFloat(), paint)
+        return out
     }
 
     private fun agnesSizeTier(maxSide: Int): String = when {
@@ -1199,6 +1445,11 @@ class AiInpaintClient(
             "3:2" to 3.0 / 2.0,
             "21:9" to 21.0 / 9.0
         )
+
+        /** Agnes pipeline: `standard` repaints the crop, `preserve` erases it first. */
+        const val PREF_AGNES_PIPELINE = "agnes_pipeline"
+        const val AGNES_PIPELINE_STANDARD = "standard"
+        const val AGNES_PIPELINE_PRESERVE = "preserve"
 
         /** Legacy pref keys of the original Wavespeed-only build. */
         const val PREF_API_KEY = "wavespeed_api_key"
