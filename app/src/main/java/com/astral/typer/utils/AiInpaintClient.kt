@@ -178,7 +178,7 @@ class AiInpaintClient(
                 null
             }
 
-            val generated = runProvider(sendImage, sendMask, scaledMask, model, prompt, apiKey, onProgress)
+            val generated = runProvider(sendImage, sendMask, model, prompt, apiKey, onProgress)
             val scaledBack = if (generated.width != cropW || generated.height != cropH) {
                 Bitmap.createScaledBitmap(generated, cropW, cropH, true).also {
                     if (!generated.isRecycled) generated.recycle()
