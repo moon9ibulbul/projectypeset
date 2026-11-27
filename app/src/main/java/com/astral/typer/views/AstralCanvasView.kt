@@ -173,9 +173,22 @@ class AstralCanvasView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
 
-    // Cached Mask Bitmap REMOVED
-    // private var cachedMaskBitmap: android.graphics.Bitmap? = null
-    // private var isMaskDirty = true
+    // Display cache for the expanded Inpaint mask.
+    //
+    // The expanded overlay used to be rebuilt inside onDraw: a full-resolution bitmap was rasterized,
+    // run through OpenCV dilate/erode and blended, then recycled - once per frame. Panning only moves
+    // the view matrix, so that work was repeated for a mask that had not changed at all. The cache is
+    // rebuilt only when an op or the expand value actually changes.
+    private var expandedMaskCache: android.graphics.Bitmap? = null
+    private var expandedMaskCacheKey: Int = Int.MIN_VALUE
+    private val displayMaskMaxDim = 2048
+    private val expandedMaskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        colorFilter = android.graphics.PorterDuffColorFilter(
+            Color.RED,
+            android.graphics.PorterDuff.Mode.SRC_IN
+        )
+        alpha = 128
+    }
 
     // Mode Flags
     private var isGradationMode = false
@@ -1051,6 +1064,62 @@ class AstralCanvasView @JvmOverloads constructor(
     }
 
     /**
+     * Changes whenever anything the expanded overlay depends on changes: an op is added, removed or
+     * replaced (undo/redo restore new objects), the expand value or fallback stroke width changes, or
+     * the crop rect moves.
+     */
+    private fun computeExpandedMaskCacheKey(rect: android.graphics.Rect): Int {
+        var key = inpaintMaskExpand
+        key = key * 31 + brushSize.toBits()
+        key = key * 31 + inpaintOps.size
+        key = key * 31 + rect.left
+        key = key * 31 + rect.top
+        key = key * 31 + rect.right
+        key = key * 31 + rect.bottom
+        for (op in inpaintOps) key = key * 31 + System.identityHashCode(op)
+        return key
+    }
+
+    /**
+     * Returns the expanded mask used for on-screen drawing, rebuilding it only when the mask changed.
+     *
+     * The cached bitmap is capped to [displayMaskMaxDim] px per side and drawn scaled into [rect], so a
+     * mark spanning a very large canvas cannot allocate an unbounded buffer.
+     */
+    private fun getExpandedMaskForDisplay(rect: android.graphics.Rect): android.graphics.Bitmap? {
+        val key = computeExpandedMaskCacheKey(rect)
+        if (expandedMaskCacheKey == key) {
+            val cached = expandedMaskCache
+            return if (cached != null && !cached.isRecycled) cached else null
+        }
+
+        val longestSide = max(rect.width(), rect.height()).coerceAtLeast(1)
+        val scale = if (longestSide > displayMaskMaxDim) {
+            displayMaskMaxDim.toFloat() / longestSide
+        } else {
+            1f
+        }
+
+        val rebuilt = try {
+            getInpaintMask(rect, scale)
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("AstralCanvasView", "OOM building expanded mask for display", e)
+            null
+        }
+
+        expandedMaskCache?.let { if (!it.isRecycled) it.recycle() }
+        expandedMaskCache = rebuilt
+        expandedMaskCacheKey = key
+        return rebuilt
+    }
+
+    private fun recycleExpandedMaskCache() {
+        expandedMaskCache?.let { if (!it.isRecycled) it.recycle() }
+        expandedMaskCache = null
+        expandedMaskCacheKey = Int.MIN_VALUE
+    }
+
+    /**
      * Generates the Inpaint mask on demand.
      * Note: This allocates a full bitmap. Use with care on large canvases.
      * Use getRegionAsBitmap for tiled access if possible.
@@ -1062,9 +1131,9 @@ class AstralCanvasView @JvmOverloads constructor(
     /**
      * Overloaded version of getInpaintMask that generates a cropped mask within specific bounds.
      */
-    fun getInpaintMask(bounds: android.graphics.Rect): android.graphics.Bitmap {
-        val w = bounds.width().coerceAtLeast(1)
-        val h = bounds.height().coerceAtLeast(1)
+    fun getInpaintMask(bounds: android.graphics.Rect, scale: Float = 1f): android.graphics.Bitmap {
+        val w = (bounds.width() * scale).roundToInt().coerceAtLeast(1)
+        val h = (bounds.height() * scale).roundToInt().coerceAtLeast(1)
         val bmp = try {
             android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
         } catch (e: OutOfMemoryError) {
@@ -1075,6 +1144,12 @@ class AstralCanvasView @JvmOverloads constructor(
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.TRANSPARENT)
 
+        // A display-only downscale keeps large canvases cheap; engine callers keep the default 1f.
+        // Applied before the translate: canvas transforms affect points in reverse order, so the
+        // translate has to come last for the crop offset to be scaled as well. Doing it the other
+        // way maps a canvas point p to (scale * p - left) instead of (scale * (p - left)), which
+        // shifts the whole mask by left * (1 - scale) and clips it once scale drops below 1.
+        if (scale != 1f) canvas.scale(scale, scale)
         // Translate coordinates so they are drawn relative to the crop region
         canvas.translate(-bounds.left.toFloat(), -bounds.top.toFloat())
 
@@ -1120,7 +1195,12 @@ class AstralCanvasView @JvmOverloads constructor(
         }
 
         if (inpaintMaskExpand != 0) {
-            return applyMaskMorphology(bmp, inpaintMaskExpand)
+            // The morphology radius lives in mask pixels, so it has to follow the display scale.
+            val radius = if (scale == 1f) inpaintMaskExpand else {
+                val scaled = (inpaintMaskExpand * scale).roundToInt()
+                if (scaled == 0) (if (inpaintMaskExpand > 0) 1 else -1) else scaled
+            }
+            return applyMaskMorphology(bmp, radius)
         }
 
         return bmp
@@ -2954,6 +3034,7 @@ class AstralCanvasView @JvmOverloads constructor(
         revealAnimator = null
         highlightMaskBitmap?.let { if (!it.isRecycled) it.recycle() }
         highlightMaskBitmap = null
+        recycleExpandedMaskCache()
         super.onDetachedFromWindow()
     }
 
@@ -3067,7 +3148,10 @@ class AstralCanvasView @JvmOverloads constructor(
                 inpaintBounds.inset(-pad, -pad)
             }
 
-            val saveCount = canvas.saveLayer(inpaintBounds, null)
+            // The expanded overlay is a plain bitmap blit (it contains no CLEAR ops), so it needs no
+            // offscreen layer - a clip/matrix save is enough to undo the reveal clip below.
+            val usesExpandMask = inpaintMaskExpand != 0 && inpaintOps.isNotEmpty()
+            val saveCount = if (usesExpandMask) canvas.save() else canvas.saveLayer(inpaintBounds, null)
 
             // The reveal wipe clears the mask from the top down over the new pixels: the mask is
             // kept only below the sweeping line, so the top edge disappears first.
@@ -3080,7 +3164,7 @@ class AstralCanvasView @JvmOverloads constructor(
                 )
             }
 
-            if (inpaintMaskExpand != 0 && inpaintOps.isNotEmpty()) {
+            if (usesExpandMask) {
                 val rect = android.graphics.Rect()
                 inpaintBounds.roundOut(rect)
                 rect.left = rect.left.coerceIn(0, canvasWidth)
@@ -3089,13 +3173,11 @@ class AstralCanvasView @JvmOverloads constructor(
                 rect.bottom = rect.bottom.coerceIn(0, canvasHeight)
 
                 if (rect.width() > 0 && rect.height() > 0) {
-                    val maskBmp = getInpaintMask(rect)
-                    val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN)
-                        alpha = 128
+                    val maskBmp = getExpandedMaskForDisplay(rect)
+                    if (maskBmp != null && !maskBmp.isRecycled) {
+                        // Drawn into the rect rather than at 1:1, since the cache may be downscaled.
+                        canvas.drawBitmap(maskBmp, null, RectF(rect), expandedMaskPaint)
                     }
-                    canvas.drawBitmap(maskBmp, rect.left.toFloat(), rect.top.toFloat(), maskPaint)
-                    maskBmp.recycle()
                 }
             } else {
                 // Draw Paths directly
