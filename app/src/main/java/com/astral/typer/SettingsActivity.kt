@@ -479,6 +479,14 @@ class SettingsActivity : AppCompatActivity() {
             provider = com.astral.typer.utils.AiInpaintProvider.RUNWARE
         )
 
+        setupAiProvider(
+            enabledId = R.id.cbPollinationsEnabled,
+            fieldsId = R.id.layoutPollinationsFields,
+            apiKeyId = R.id.etPollinationsApiKey,
+            modelId = R.id.etPollinationsModel,
+            provider = com.astral.typer.utils.AiInpaintProvider.POLLINATIONS
+        )
+
         // Init LaMa Processor Logic
         val lamaProcessor = LaMaProcessor(this)
         // Init Bubble Processor

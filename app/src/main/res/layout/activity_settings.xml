@@ -977,6 +977,55 @@
                         android:layout_marginTop="4dp"/>
                 </LinearLayout>
 
+                <!-- Pollinations -->
+                <CheckBox
+                    android:id="@+id/cbPollinationsEnabled"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pollinations (AI)"
+                    android:checked="false"
+                    android:textColor="?attr/appTextColorPrimary"/>
+
+                <LinearLayout
+                    android:id="@+id/layoutPollinationsFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginBottom="4dp">
+
+                    <EditText
+                        android:id="@+id/etPollinationsApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Pollinations API key"
+                        android:inputType="textPassword"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <EditText
+                        android:id="@+id/etPollinationsModel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Model ID (e.g. black-forest-labs/flux.2-klein-4b)"
+                        android:inputType="textUri"
+                        android:textColor="?attr/appTextColorPrimary"
+                        android:textColorHint="?attr/appTextColorSecondary"
+                        android:textSize="14sp"
+                        android:importantForAutofill="no"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Pollinations image edit models repaint the uploaded area; only the painted pixels are kept. Get a key at enter.pollinations.ai/keys."
+                        android:textColor="?attr/appTextColorSecondary"
+                        android:textSize="12sp"
+                        android:layout_marginTop="4dp"/>
+                </LinearLayout>
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"

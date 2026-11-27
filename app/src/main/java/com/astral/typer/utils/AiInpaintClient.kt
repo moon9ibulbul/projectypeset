@@ -35,7 +35,8 @@ enum class AiInpaintProvider(val displayName: String, val defaultModel: String) 
     WAVESPEED("Wavespeed (AI)", "wavespeed-ai/flux-2-klein-9b/edit"),
     FAL("Fal (AI)", "fal-ai/flux-2/klein/9b/edit"),
     AGNES("Agnes (AI)", "agnes-image-2.5-flash"),
-    RUNWARE("Runware (AI)", "runware:400@2");
+    RUNWARE("Runware (AI)", "runware:400@2"),
+    POLLINATIONS("Pollinations (AI)", "black-forest-labs/flux.2-klein-4b");
 
     val prefPrefix: String get() = name.lowercase()
     val prefEnabled: String get() = prefPrefix + "_enabled"
@@ -50,8 +51,9 @@ enum class AiInpaintProvider(val displayName: String, val defaultModel: String) 
  * sent as one crop in a single request instead of one run each. Only the neighbourhood of the
  * selection is uploaded so the request stays small. A crop larger than 1536 px is downsampled.
  *
- * Wavespeed models may take an explicit mask; the Fal, Agnes and Runware endpoints only accept a
- * reference image, so the whole crop is repainted and only the painted pixels are kept.
+ * Wavespeed models may take an explicit mask; the Fal, Agnes, Runware and Pollinations endpoints
+ * only accept a reference image, so the whole crop is repainted and only the painted pixels are
+ * kept.
  */
 class AiInpaintClient(
     private val context: Context,
@@ -94,7 +96,7 @@ class AiInpaintClient(
      * Wavespeed multi-image edit models (`wavespeed-ai/flux-2-pro/edit`, `google/gemini-.../edit`)
      * take `images: [url]` and have no mask parameter, so they repaint the whole uploaded crop.
      * Mask-based inpainting models (`wavespeed-ai/flux-fill-dev`, LaMa, ...) take `image+mask_image`.
-     * Fal, Agnes and Runware never take a mask.
+     * Fal, Agnes, Runware and Pollinations never take a mask.
      */
     private fun usesMask(model: String): Boolean {
         if (provider != AiInpaintProvider.WAVESPEED) return false
@@ -424,6 +426,7 @@ class AiInpaintClient(
         AiInpaintProvider.FAL -> runFal(image, model, prompt, apiKey, onProgress)
         AiInpaintProvider.AGNES -> runAgnes(image, model, prompt, apiKey, onProgress)
         AiInpaintProvider.RUNWARE -> runRunware(image, model, prompt, apiKey, onProgress)
+        AiInpaintProvider.POLLINATIONS -> runPollinations(image, model, prompt, apiKey, onProgress)
     }
 
     // ---------------------------------------------------------------- Wavespeed
@@ -695,7 +698,7 @@ class AiInpaintClient(
             apiKey
         )
         onProgress?.invoke(92, "Inpainting: loading result 92%")
-        return decodeAgnesResponse(response, onProgress)
+        return decodeOpenAiImageResponse(response, onProgress)
     }
 
     private fun agnesPayload(
@@ -726,7 +729,7 @@ class AiInpaintClient(
         readTimeoutMs = AGNES_READ_TIMEOUT_MS
     )
 
-    private fun decodeAgnesResponse(
+    private fun decodeOpenAiImageResponse(
         response: JsonObject,
         onProgress: ((Int, String) -> Unit)?
     ): Bitmap {
@@ -818,6 +821,49 @@ class AiInpaintClient(
             !url.isNullOrBlank() -> decodeDownload(url, onProgress)
             else -> throw AiInpaintException("${provider.displayName} returned no output image.")
         }
+    }
+
+    // ------------------------------------------------------------ Pollinations
+
+    /**
+     * Pollinations answers synchronously through its OpenAI-compatible image edit endpoint.
+     * The model repaints the whole uploaded crop, so only the painted pixels are kept.
+     */
+    private suspend fun runPollinations(
+        image: Bitmap,
+        model: String,
+        prompt: String,
+        apiKey: String,
+        onProgress: ((Int, String) -> Unit)?
+    ): Bitmap {
+        onProgress?.invoke(8, "Inpainting: preparing image 8%")
+        val dataUri = toDataUri(encodePng(image))
+        onProgress?.invoke(22, "Inpainting: submitting 22%")
+        val payload = JsonObject().apply {
+            addProperty("model", model)
+            addProperty("prompt", prompt.trim())
+            // The edit endpoint takes the source as a URL, data URI or an OpenAI-style image list.
+            add("image", JsonArray().apply {
+                add(JsonObject().apply { addProperty("image_url", dataUri) })
+            })
+            // `auto` lets the model keep the aspect of the source crop; forcing an exact
+            // WxH made the service fit/resample the image, which shifted and thinned the
+            // existing line art away from the pixels kept outside the mask.
+            addProperty("size", "auto")
+            addProperty("quality", "high")
+            addProperty("resolution", "2k")
+            addProperty("output_format", "png")
+            addProperty("n", 1)
+            addProperty("response_format", "b64_json")
+        }
+        val response = postJson(
+            "$POLLINATIONS_BASE_URL/v1/images/edits",
+            mapOf("Authorization" to "Bearer $apiKey"),
+            payload,
+            readTimeoutMs = POLLINATIONS_READ_TIMEOUT_MS
+        )
+        onProgress?.invoke(92, "Inpainting: loading result 92%")
+        return decodeOpenAiImageResponse(response, onProgress)
     }
 
     /** Snaps a side to the 16 px grid Runware accepts, inside 128..2048. */
@@ -1198,6 +1244,7 @@ class AiInpaintClient(
         private const val FAL_BASE_URL = "https://queue.fal.run"
         private const val AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
         private const val RUNWARE_BASE_URL = "https://api.runware.ai/v1"
+        private const val POLLINATIONS_BASE_URL = "https://gen.pollinations.ai"
         private const val MAX_DIMENSION = 1536
         private const val MIN_DIMENSION = 256
         private const val NEARBY_GAP = 128
@@ -1206,6 +1253,7 @@ class AiInpaintClient(
         private const val MAX_POLL_FAILURES = 5
         private const val AGNES_READ_TIMEOUT_MS = 300000
         private const val RUNWARE_READ_TIMEOUT_MS = 180000
+        private const val POLLINATIONS_READ_TIMEOUT_MS = 300000
         private const val RUNWARE_DIMENSION_STEP = 16
         private const val RUNWARE_MIN_DIMENSION = 128
         private const val RUNWARE_MAX_DIMENSION = 2048
