@@ -1144,10 +1144,14 @@ class AstralCanvasView @JvmOverloads constructor(
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.TRANSPARENT)
 
+        // A display-only downscale keeps large canvases cheap; engine callers keep the default 1f.
+        // Applied before the translate: canvas transforms affect points in reverse order, so the
+        // translate has to come last for the crop offset to be scaled as well. Doing it the other
+        // way maps a canvas point p to (scale * p - left) instead of (scale * (p - left)), which
+        // shifts the whole mask by left * (1 - scale) and clips it once scale drops below 1.
+        if (scale != 1f) canvas.scale(scale, scale)
         // Translate coordinates so they are drawn relative to the crop region
         canvas.translate(-bounds.left.toFloat(), -bounds.top.toFloat())
-        // A display-only downscale keeps large canvases cheap; engine callers keep the default 1f.
-        if (scale != 1f) canvas.scale(scale, scale)
 
         val brushP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
