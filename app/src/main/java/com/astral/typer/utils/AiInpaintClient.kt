@@ -846,7 +846,13 @@ class AiInpaintClient(
             add("image", JsonArray().apply {
                 add(JsonObject().apply { addProperty("image_url", dataUri) })
             })
-            addProperty("size", "${image.width}x${image.height}")
+            // `auto` lets the model keep the aspect of the source crop; forcing an exact
+            // WxH made the service fit/resample the image, which shifted and thinned the
+            // existing line art away from the pixels kept outside the mask.
+            addProperty("size", "auto")
+            addProperty("quality", "high")
+            addProperty("resolution", "2k")
+            addProperty("output_format", "png")
             addProperty("n", 1)
             addProperty("response_format", "b64_json")
         }
